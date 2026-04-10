@@ -3,7 +3,7 @@ use crate::git;
 use crate::store::{task_lock, Store};
 use crate::task::{Status, Task};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn with_task_lock<T>(store: &Store, id: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     let _guard = task_lock(store, id)?;
@@ -69,10 +69,7 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
         task.touch();
 
         store.save_task(&task)?;
-
-        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
-        git::git_add(&store.root, &[rel.as_path()])?;
-        git::git_commit(&store.root, &format!("ball: claim {}", id))?;
+        store.commit_task(id, &format!("ball: claim {}", id))?;
 
         if let Some(parent) = wt_path.parent() {
             fs::create_dir_all(parent)?;
@@ -107,9 +104,7 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
-        git::git_add(&store.root, &[rel.as_path()])?;
-        git::git_commit(&store.root, &format!("ball: rollback claim {}", id))?;
+        let _ = store.commit_task(id, &format!("ball: rollback claim {}", id));
     }
     let _ = fs::remove_file(claim_file_path(store, id));
     Ok(())
@@ -124,21 +119,30 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         .unwrap_or_else(|| format!("work/{}", id));
 
     with_task_lock(store, id, || {
-        // Update the task file in the worktree (on the work/ID branch) so
-        // the close is committed along with whatever code changes were made.
-        let task_path_in_wt = wt_path.join(".ball/tasks").join(format!("{}.json", id));
-        let mut t = Task::load(&task_path_in_wt)?;
+        // Update the task file. In normal mode, update the worktree copy so
+        // the change is committed with code. In stealth, update externally.
+        let mut t = if store.stealth {
+            store.load_task(id)?
+        } else {
+            let wt_task = wt_path.join(".ball/tasks").join(format!("{}.json", id));
+            Task::load(&wt_task)?
+        };
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
         if let Some(msg) = message {
             t.append_note(identity, msg);
         }
         t.touch();
-        t.save(&task_path_in_wt)?;
+        if store.stealth {
+            store.save_task(&t)?;
+        } else {
+            let wt_task = wt_path.join(".ball/tasks").join(format!("{}.json", id));
+            t.save(&wt_task)?;
+        }
 
-        // Commit all changes in the worktree
+        // Commit code changes in the worktree
         git::git_add_all(&wt_path)?;
-        git::git_commit(&wt_path, &format!("ball: close {}", id))?;
+        let _ = git::git_commit(&wt_path, &format!("ball: close {}", id));
 
         // Merge into main repo's current branch
         git::git_merge(
@@ -174,26 +178,24 @@ fn archive_task(store: &Store, task: &Task) -> Result<()> {
     };
 
     // If this task has a parent, record the archived child on the parent
-    let mut paths_to_add: Vec<PathBuf> = Vec::new();
     if let Some(pid) = &task.parent {
         if let Ok(mut parent) = store.load_task(pid) {
             parent.closed_children.push(archived);
             parent.touch();
             store.save_task(&parent)?;
-            paths_to_add.push(PathBuf::from(format!(".ball/tasks/{}.json", pid)));
+            if !store.stealth {
+                let rel = PathBuf::from(format!(".ball/tasks/{}.json", pid));
+                git::git_add(&store.root, &[rel.as_path()])?;
+            }
         }
     }
 
-    // Delete the closed task file from HEAD
-    let rel = PathBuf::from(format!(".ball/tasks/{}.json", task.id));
+    // Delete the closed task file
     store.delete_task_file(&task.id)?;
-    git::git_rm(&store.root, &[rel.as_path()])?;
-
-    if !paths_to_add.is_empty() {
-        let refs: Vec<&Path> = paths_to_add.iter().map(|p| p.as_path()).collect();
-        git::git_add(&store.root, &refs)?;
+    store.rm_task_git(&task.id)?;
+    if !store.stealth {
+        git::git_commit(&store.root, &format!("ball: archive {}", task.id))?;
     }
-    git::git_commit(&store.root, &format!("ball: archive {}", task.id))?;
     Ok(())
 }
 
@@ -217,10 +219,7 @@ pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-
-        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
-        git::git_add(&store.root, &[rel.as_path()])?;
-        git::git_commit(&store.root, &format!("ball: drop {}", id))?;
+        store.commit_task(id, &format!("ball: drop {}", id))?;
 
         // Remove worktree (force because we may have uncommitted changes)
         if wt_path.exists() {

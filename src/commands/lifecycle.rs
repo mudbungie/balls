@@ -3,13 +3,11 @@
 use super::{default_identity, discover};
 use crate::cli::{DepCmd, LinkCmd};
 use crate::error::{BallError, Result};
-use crate::git;
 use crate::plugin;
 use crate::ready;
 use crate::store::task_lock;
 use crate::task::{Link, LinkType, Status, Task, TaskType};
 use crate::worktree;
-use std::path::PathBuf;
 
 pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     let store = discover()?;
@@ -60,9 +58,7 @@ pub fn cmd_update(
         }
         task.touch();
         store.save_task(&task)?;
-        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
-        git::git_add(&store.root, &[rel.as_path()])?;
-        git::git_commit(&store.root, &format!("ball: update {}", id))?;
+        store.commit_task(&id, &format!("ball: update {}", id))?;
         task
     };
 
@@ -134,10 +130,8 @@ fn dep_add(
             t.depends_on.push(depends_on.clone());
             t.touch();
             store.save_task(&t)?;
-            let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", task));
-            git::git_add(&store.root, &[rel.as_path()])?;
-            git::git_commit(
-                &store.root,
+            store.commit_task(
+                &task,
                 &format!("ball: dep add {} -> {}", task, depends_on),
             )?;
         }
@@ -159,10 +153,8 @@ fn dep_rm(
         if t.depends_on.len() != before {
             t.touch();
             store.save_task(&t)?;
-            let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", task));
-            git::git_add(&store.root, &[rel.as_path()])?;
-            git::git_commit(
-                &store.root,
+            store.commit_task(
+                &task,
                 &format!("ball: dep rm {} -x {}", task, depends_on),
             )?;
         }
@@ -214,10 +206,8 @@ pub fn cmd_link(sub: LinkCmd) -> Result<()> {
                 t.links.push(link);
                 t.touch();
                 store.save_task(&t)?;
-                let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", task));
-                git::git_add(&store.root, &[rel.as_path()])?;
-                git::git_commit(
-                    &store.root,
+                store.commit_task(
+                    &task,
                     &format!("ball: link {} {} {}", task, lt.as_str(), target),
                 )?;
             }
@@ -238,10 +228,8 @@ pub fn cmd_link(sub: LinkCmd) -> Result<()> {
             if t.links.len() != before {
                 t.touch();
                 store.save_task(&t)?;
-                let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", task));
-                git::git_add(&store.root, &[rel.as_path()])?;
-                git::git_commit(
-                    &store.root,
+                store.commit_task(
+                    &task,
                     &format!("ball: unlink {} {} {}", task, lt.as_str(), target),
                 )?;
             }

@@ -21,6 +21,10 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub auto_fetch_on_ready: bool,
     pub worktree_dir: String,
+    /// Override tasks directory. When set to an absolute path outside the repo,
+    /// task files are not git-tracked (stealth mode).
+    #[serde(default)]
+    pub tasks_dir: Option<String>,
     #[serde(default)]
     pub protected_main: bool,
     #[serde(default)]
@@ -38,6 +42,7 @@ impl Default for Config {
             id_length: 4,
             stale_threshold_seconds: 60,
             auto_fetch_on_ready: true,
+            tasks_dir: None,
             worktree_dir: ".ball-worktrees".to_string(),
             protected_main: false,
             plugins: BTreeMap::new(),
