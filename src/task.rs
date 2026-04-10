@@ -76,6 +76,42 @@ pub struct Note {
     pub text: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkType {
+    RelatesTo,
+    Duplicates,
+    Supersedes,
+    RepliesTo,
+}
+
+impl LinkType {
+    pub fn parse(s: &str) -> Result<Self> {
+        match s {
+            "relates_to" => Ok(LinkType::RelatesTo),
+            "duplicates" => Ok(LinkType::Duplicates),
+            "supersedes" => Ok(LinkType::Supersedes),
+            "replies_to" => Ok(LinkType::RepliesTo),
+            _ => Err(BallError::InvalidTask(format!("unknown link type: {}", s))),
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LinkType::RelatesTo => "relates_to",
+            LinkType::Duplicates => "duplicates",
+            LinkType::Supersedes => "supersedes",
+            LinkType::RepliesTo => "replies_to",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Link {
+    pub link_type: LinkType,
+    pub target: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchivedChild {
     pub id: String,
@@ -105,6 +141,8 @@ pub struct Task {
     pub tags: Vec<String>,
     #[serde(default)]
     pub notes: Vec<Note>,
+    #[serde(default)]
+    pub links: Vec<Link>,
     #[serde(default)]
     pub closed_children: Vec<ArchivedChild>,
     #[serde(default)]
@@ -163,6 +201,7 @@ impl Task {
             branch: None,
             tags: opts.tags,
             notes: Vec::new(),
+            links: Vec::new(),
             closed_children: Vec::new(),
             external: BTreeMap::new(),
         }

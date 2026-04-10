@@ -46,6 +46,7 @@ fn main() {
             identity,
         } => commands::cmd_update(id, assignments, note, identity),
         Command::Dep { sub } => commands::cmd_dep(sub),
+        Command::Link { sub } => commands::cmd_link(sub),
         Command::Sync { remote } => commands::cmd_sync(remote),
         Command::Resolve { file } => commands::cmd_resolve(file),
         Command::Prime { identity, json } => commands::cmd_prime(identity, json),

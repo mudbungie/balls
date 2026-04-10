@@ -1,13 +1,13 @@
 //! claim, close, drop, update, dep — commands that mutate task state.
 
 use super::{default_identity, discover};
-use crate::cli::DepCmd;
+use crate::cli::{DepCmd, LinkCmd};
 use crate::error::{BallError, Result};
 use crate::git;
 use crate::plugin;
 use crate::ready;
 use crate::store::task_lock;
-use crate::task::{Status, Task, TaskType};
+use crate::task::{Link, LinkType, Status, Task, TaskType};
 use crate::worktree;
 use std::path::PathBuf;
 
@@ -192,6 +192,63 @@ fn dep_tree(store: &crate::store::Store, id: Option<String>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+pub fn cmd_link(sub: LinkCmd) -> Result<()> {
+    let store = discover()?;
+    match sub {
+        LinkCmd::Add {
+            task,
+            link_type,
+            target,
+        } => {
+            let lt = LinkType::parse(&link_type)?;
+            let all = store.all_tasks()?;
+            if !all.iter().any(|t| t.id == target) {
+                return Err(BallError::TaskNotFound(target));
+            }
+            let _g = task_lock(&store, &task)?;
+            let mut t = store.load_task(&task)?;
+            let link = Link { link_type: lt, target: target.clone() };
+            if !t.links.contains(&link) {
+                t.links.push(link);
+                t.touch();
+                store.save_task(&t)?;
+                let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", task));
+                git::git_add(&store.root, &[rel.as_path()])?;
+                git::git_commit(
+                    &store.root,
+                    &format!("ball: link {} {} {}", task, lt.as_str(), target),
+                )?;
+            }
+            println!("{} {} {}", task, lt.as_str(), target);
+            Ok(())
+        }
+        LinkCmd::Rm {
+            task,
+            link_type,
+            target,
+        } => {
+            let lt = LinkType::parse(&link_type)?;
+            let _g = task_lock(&store, &task)?;
+            let mut t = store.load_task(&task)?;
+            let link = Link { link_type: lt, target: target.clone() };
+            let before = t.links.len();
+            t.links.retain(|l| l != &link);
+            if t.links.len() != before {
+                t.touch();
+                store.save_task(&t)?;
+                let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", task));
+                git::git_add(&store.root, &[rel.as_path()])?;
+                git::git_commit(
+                    &store.root,
+                    &format!("ball: unlink {} {} {}", task, lt.as_str(), target),
+                )?;
+            }
+            println!("removed {} {} {}", task, lt.as_str(), target);
+            Ok(())
+        }
+    }
 }
 
 fn print_tree(node: &ready::TreeNode, depth: usize) {
