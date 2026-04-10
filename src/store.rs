@@ -192,6 +192,14 @@ impl Store {
         task.save(&self.task_path(&task.id))
     }
 
+    pub fn delete_task_file(&self, id: &str) -> Result<()> {
+        let p = self.task_path(id);
+        if p.exists() {
+            std::fs::remove_file(&p)?;
+        }
+        Ok(())
+    }
+
     pub fn all_tasks(&self) -> Result<Vec<Task>> {
         let dir = self.tasks_dir();
         if !dir.exists() {

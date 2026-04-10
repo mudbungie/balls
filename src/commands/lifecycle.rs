@@ -24,8 +24,7 @@ pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
 pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     let store = discover()?;
     let ident = default_identity();
-    worktree::close_worktree(&store, &id, message.as_deref(), &ident)?;
-    let task = store.load_task(&id)?;
+    let task = worktree::close_worktree(&store, &id, message.as_deref(), &ident)?;
     let _ = plugin::run_plugin_push(&store, &task);
     println!("closed {}", id);
     Ok(())

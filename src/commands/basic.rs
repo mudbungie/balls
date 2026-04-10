@@ -153,6 +153,7 @@ pub fn cmd_show(id: String, json: bool) -> Result<()> {
             "task": task,
             "dep_blocked": blocked,
             "children": children.iter().map(|t| &t.id).collect::<Vec<_>>(),
+            "closed_children": task.closed_children,
             "completion": ready::completion(&all, &id),
         });
         println!("{}", serde_json::to_string_pretty(&pretty)?);
@@ -187,10 +188,13 @@ fn render_text(task: &Task, all: &[Task], id: &str) {
         println!("  dep_blocked: yes");
     }
     let kids = ready::children_of(all, id);
-    if !kids.is_empty() {
+    if !kids.is_empty() || !task.closed_children.is_empty() {
         println!("  children:");
         for k in &kids {
             println!("    {} [{}] {}", k.id, k.status.as_str(), k.title);
+        }
+        for a in &task.closed_children {
+            println!("    {} [archived] {}", a.id, a.title);
         }
         println!("  completion: {:.0}%", ready::completion(all, id) * 100.0);
     }
