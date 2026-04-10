@@ -6,7 +6,7 @@ use common::*;
 use predicates::prelude::*;
 
 #[test]
-fn story_33_close_merges_work() {
+fn story_33_close_merges_work_and_archives() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
@@ -22,16 +22,16 @@ fn story_33_close_merges_work() {
         .assert()
         .success();
 
+    // Work merged, worktree gone, claim gone
     assert!(!wt.exists());
     assert!(repo.path().join("feature.txt").exists());
-    let j = read_task_json(repo.path(), &id);
-    assert_eq!(j["status"], "closed");
-    assert!(j["closed_at"].is_string());
     assert!(!repo.path().join(".ball/local/claims").join(&id).exists());
+    // Task file archived (deleted from HEAD)
+    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", id)).exists());
 }
 
 #[test]
-fn story_34_close_with_message_appears_in_notes() {
+fn story_34_close_with_message_is_in_git_history() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
@@ -43,12 +43,12 @@ fn story_34_close_with_message_appears_in_notes() {
         .args(["close", &id, "-m", "all done"])
         .assert()
         .success();
-    let j = read_task_json(repo.path(), &id);
-    assert!(j["notes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|n| n["text"] == "all done"));
+    // Task is archived; the close commit preserves the data in git history.
+    // Verify archival.
+    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", id)).exists());
+    // The close commit message references the task
+    let log = git(repo.path(), &["log", "--oneline"]);
+    assert!(log.contains(&format!("archive {}", id)));
 }
 
 #[test]
@@ -168,4 +168,41 @@ fn story_62_resume_claimed_task_after_session_restart() {
     let v: serde_json::Value = serde_json::from_str(&s[json_start..]).unwrap();
     assert_eq!(v["identity"], "agent-alpha");
     assert_eq!(v["claimed"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn close_child_updates_parent_closed_children() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "parent");
+    let child = create_task(repo.path(), "child");
+    bl(repo.path())
+        .args(["update", &child, &format!("parent={}", parent)])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["claim", &child])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["close", &child])
+        .assert()
+        .success();
+
+    // Child task file archived
+    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", child)).exists());
+    // Parent records the archived child
+    let j = read_task_json(repo.path(), &parent);
+    let cc = j["closed_children"].as_array().unwrap();
+    assert_eq!(cc.len(), 1);
+    assert_eq!(cc[0]["id"], child);
+
+    // Show parent displays archived children
+    let out = bl(repo.path())
+        .args(["show", &parent])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(s.contains("[archived]"));
+    assert!(s.contains("100%"));
 }

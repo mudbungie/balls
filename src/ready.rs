@@ -14,7 +14,7 @@ pub fn ready_queue(tasks: &[Task]) -> Vec<&Task> {
                 by_id
                     .get(d.as_str())
                     .map(|dep| dep.status == Status::Closed)
-                    .unwrap_or(false)
+                    .unwrap_or(true) // missing dep = archived = closed
             })
         })
         .collect();
@@ -27,13 +27,14 @@ pub fn ready_queue(tasks: &[Task]) -> Vec<&Task> {
 }
 
 /// Returns true if a task is dependency-blocked (not same as Status::Blocked).
+/// Missing deps are treated as closed (archived tasks are deleted from HEAD).
 pub fn is_dep_blocked(tasks: &[Task], task: &Task) -> bool {
     let by_id: HashMap<&str, &Task> = tasks.iter().map(|t| (t.id.as_str(), t)).collect();
     task.depends_on.iter().any(|d| {
         by_id
             .get(d.as_str())
             .map(|dep| dep.status != Status::Closed)
-            .unwrap_or(true) // unknown dep = blocked
+            .unwrap_or(false) // missing dep = archived = closed
     })
 }
 
@@ -45,12 +46,15 @@ pub fn children_of<'a>(tasks: &'a [Task], parent_id: &str) -> Vec<&'a Task> {
 }
 
 pub fn completion(tasks: &[Task], parent_id: &str) -> f64 {
-    let kids = children_of(tasks, parent_id);
-    if kids.is_empty() {
+    let parent = tasks.iter().find(|t| t.id == parent_id);
+    let archived = parent.map(|p| p.closed_children.len()).unwrap_or(0);
+    let live = children_of(tasks, parent_id);
+    let live_closed = live.iter().filter(|t| t.status == Status::Closed).count();
+    let total = archived + live.len();
+    if total == 0 {
         return 0.0;
     }
-    let closed = kids.iter().filter(|t| t.status == Status::Closed).count();
-    closed as f64 / kids.len() as f64
+    (archived + live_closed) as f64 / total as f64
 }
 
 /// Adding `from` -> `to` (i.e. `from` depends on `to`). Returns true if that would create a cycle.
@@ -195,9 +199,10 @@ mod tests {
     }
 
     #[test]
-    fn is_dep_blocked_unknown_dep_is_blocked() {
+    fn missing_dep_treated_as_archived() {
+        // Missing deps are treated as closed (archived), not blocked.
         let tasks = vec![make("a", Status::Open, vec!["ghost"])];
-        assert!(is_dep_blocked(&tasks, &tasks[0]));
+        assert!(!is_dep_blocked(&tasks, &tasks[0]));
     }
 
     #[test]
