@@ -1,0 +1,228 @@
+use crate::error::{BallError, Result};
+use crate::git;
+use crate::store::{task_lock, Store};
+use crate::task::{Status, Task};
+use std::fs;
+use std::path::PathBuf;
+
+fn with_task_lock<T>(store: &Store, id: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+    let _guard = task_lock(store, id)?;
+    f()
+}
+
+fn claim_file_path(store: &Store, id: &str) -> PathBuf {
+    store.claims_dir().join(id)
+}
+
+fn write_claim_file(store: &Store, id: &str, worker: &str) -> Result<()> {
+    fs::create_dir_all(store.claims_dir())?;
+    let path = claim_file_path(store, id);
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    let pid = std::process::id();
+    let content = format!("worker={}\npid={}\nclaimed_at={}\n", worker, pid, now);
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
+    Ok(store.worktrees_root()?.join(id))
+}
+
+pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBuf> {
+    // Quick existence check (no lock needed).
+    if !store.task_exists(id) {
+        return Err(BallError::TaskNotFound(id.to_string()));
+    }
+
+    with_task_lock(store, id, || {
+        // All validation happens under the lock so two claims on the same
+        // task can't both pass.
+        let mut task = store.load_task(id)?;
+        if task.status != Status::Open {
+            return Err(BallError::NotClaimable(format!(
+                "{} (status = {})",
+                id,
+                task.status.as_str()
+            )));
+        }
+        if task.claimed_by.is_some() {
+            return Err(BallError::AlreadyClaimed(id.to_string()));
+        }
+
+        let all = store.all_tasks()?;
+        if crate::ready::is_dep_blocked(&all, &task) {
+            return Err(BallError::DepsUnmet(id.to_string()));
+        }
+
+        let wt_path = worktree_path(store, id)?;
+        if wt_path.exists() {
+            return Err(BallError::WorktreeExists(wt_path));
+        }
+        if claim_file_path(store, id).exists() {
+            return Err(BallError::AlreadyClaimed(id.to_string()));
+        }
+
+        let branch = format!("work/{}", id);
+        task.status = Status::InProgress;
+        task.claimed_by = Some(identity.to_string());
+        task.branch = Some(branch.clone());
+        task.touch();
+
+        store.save_task(&task)?;
+
+        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
+        git::git_add(&store.root, &[rel.as_path()])?;
+        git::git_commit(&store.root, &format!("ball: claim {}", id))?;
+
+        if let Some(parent) = wt_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        git::git_worktree_add(&store.root, &wt_path, &branch).map_err(|e| {
+            let _ = rollback_claim(store, id);
+            e
+        })?;
+
+        // Symlink .ball/local inside the worktree so claims/lock are shared
+        let wt_ball_dir = wt_path.join(".ball");
+        fs::create_dir_all(&wt_ball_dir)?;
+        let wt_local = wt_ball_dir.join("local");
+        let src_local = store.local_dir();
+        if !wt_local.exists() {
+            #[cfg(unix)]
+            {
+                std::os::unix::fs::symlink(&src_local, &wt_local)?;
+            }
+        }
+
+        write_claim_file(store, id, identity)?;
+        Ok(wt_path.clone())
+    })
+}
+
+fn rollback_claim(store: &Store, id: &str) -> Result<()> {
+    if let Ok(mut t) = store.load_task(id) {
+        t.status = Status::Open;
+        t.claimed_by = None;
+        t.branch = None;
+        t.touch();
+        store.save_task(&t)?;
+        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
+        git::git_add(&store.root, &[rel.as_path()])?;
+        git::git_commit(&store.root, &format!("ball: rollback claim {}", id))?;
+    }
+    let _ = fs::remove_file(claim_file_path(store, id));
+    Ok(())
+}
+
+pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<()> {
+    let wt_path = worktree_path(store, id)?;
+    let task = store.load_task(id)?;
+    let branch = task
+        .branch
+        .clone()
+        .unwrap_or_else(|| format!("work/{}", id));
+
+    with_task_lock(store, id, || {
+        // Update the task file in the worktree (on the work/ID branch) so
+        // the close is committed along with whatever code changes were made.
+        let task_path_in_wt = wt_path.join(".ball/tasks").join(format!("{}.json", id));
+        let mut t = Task::load(&task_path_in_wt)?;
+        t.status = Status::Closed;
+        t.closed_at = Some(chrono::Utc::now());
+        if let Some(msg) = message {
+            t.append_note(identity, msg);
+        }
+        t.touch();
+        t.save(&task_path_in_wt)?;
+
+        // Commit all changes in the worktree
+        git::git_add_all(&wt_path)?;
+        git::git_commit(&wt_path, &format!("ball: close {}", id))?;
+
+        // Merge into main repo's current branch
+        git::git_merge(
+            &store.root,
+            &branch,
+            Some(&format!("ball: merge {}", id)),
+        )?;
+
+        // Remove worktree
+        git::git_worktree_remove(&store.root, &wt_path, false)?;
+
+        // Delete branch
+        let _ = git::git_branch_delete(&store.root, &branch, false);
+
+        // Remove claim file
+        let _ = fs::remove_file(claim_file_path(store, id));
+
+        Ok(())
+    })
+}
+
+pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
+    let wt_path = worktree_path(store, id)?;
+    let task = store.load_task(id)?;
+    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{}", id));
+
+    with_task_lock(store, id, || {
+        if wt_path.exists() && !force && git::has_uncommitted_changes(&wt_path)? {
+            return Err(BallError::Other(format!(
+                "worktree {} has uncommitted changes. Use --force to drop.",
+                wt_path.display()
+            )));
+        }
+
+        // Reset task
+        let mut t = store.load_task(id)?;
+        t.status = Status::Open;
+        t.claimed_by = None;
+        t.branch = None;
+        t.touch();
+        store.save_task(&t)?;
+
+        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
+        git::git_add(&store.root, &[rel.as_path()])?;
+        git::git_commit(&store.root, &format!("ball: drop {}", id))?;
+
+        // Remove worktree (force because we may have uncommitted changes)
+        if wt_path.exists() {
+            git::git_worktree_remove(&store.root, &wt_path, true)?;
+        }
+        let _ = git::git_branch_delete(&store.root, &branch, true);
+
+        let _ = fs::remove_file(claim_file_path(store, id));
+        Ok(())
+    })
+}
+
+pub fn cleanup_orphans(store: &Store) -> Result<(Vec<String>, Vec<String>)> {
+    // Returns (removed_claims, removed_worktrees)
+    let mut removed_claims = Vec::new();
+    let mut removed_wts = Vec::new();
+    let claims_dir = store.claims_dir();
+    if claims_dir.exists() {
+        for e in fs::read_dir(&claims_dir)? {
+            let e = e?;
+            let id = e.file_name().to_string_lossy().to_string();
+            if !store.task_exists(&id) {
+                let _ = fs::remove_file(e.path());
+                removed_claims.push(id);
+            }
+        }
+    }
+    let wt_root = store.worktrees_root()?;
+    if wt_root.exists() {
+        for e in fs::read_dir(&wt_root)? {
+            let e = e?;
+            let id = e.file_name().to_string_lossy().to_string();
+            if !claim_file_path(store, &id).exists() {
+                let p = e.path();
+                let _ = git::git_worktree_remove(&store.root, &p, true);
+                removed_wts.push(id);
+            }
+        }
+    }
+    Ok((removed_claims, removed_wts))
+}
+

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Git pre-commit hook for ball.
+#
+# Blocks any commit that:
+#   1. Contains a Rust source file >= 300 lines (see scripts/check-line-lengths.sh)
+#   2. Has test coverage below 100%           (see scripts/check-coverage.sh)
+#
+# To install: scripts/install-hooks.sh
+#
+# To bypass temporarily (not recommended): `git commit --no-verify`
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "pre-commit: checking Rust file line limit..."
+"$ROOT/scripts/check-line-lengths.sh"
+
+echo "pre-commit: running test suite with coverage..."
+"$ROOT/scripts/check-coverage.sh"
+
+echo "pre-commit: OK."
