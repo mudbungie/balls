@@ -10,7 +10,11 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Initialize ball in the current git repository.
-    Init,
+    Init {
+        /// Stealth mode: store tasks outside the repo (not git-tracked).
+        #[arg(long)]
+        stealth: bool,
+    },
 
     /// Create a new task.
     Create {

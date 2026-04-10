@@ -30,63 +30,71 @@ pub fn task_lock(store: &Store, id: &str) -> Result<LockGuard> {
 pub struct Store {
     /// The main repo root (git-common-dir's parent, effectively the primary checkout)
     pub root: PathBuf,
+    /// True when tasks live outside the repo (stealth mode).
+    pub stealth: bool,
+    /// Resolved tasks directory (may be external in stealth mode).
+    tasks_dir_path: PathBuf,
 }
 
 impl Store {
     /// Discover the ball root from a starting directory.
     /// In a worktree, returns the main repo root so that all writes go there.
     pub fn discover(from: &Path) -> Result<Self> {
-        // Find git_root (may be worktree) then resolve to main repo via git-common-dir
         let _worktree_root = git::git_root(from)?;
         let common_dir = git::git_common_dir(from)?;
-        // common_dir typically ends in .git (main repo) or worktrees/<name> (worktree)
-        // The main worktree's path = parent of .git
         let main_root = find_main_root(&common_dir)?;
         let ball_dir = main_root.join(".ball");
         if !ball_dir.exists() {
             return Err(BallError::NotInitialized);
         }
-        Ok(Store { root: main_root })
+        let (tasks_dir_path, stealth) = resolve_tasks_dir(&main_root);
+        Ok(Store { root: main_root, stealth, tasks_dir_path })
     }
 
-    pub fn init(from: &Path) -> Result<Self> {
+    pub fn init(from: &Path, stealth: bool) -> Result<Self> {
         let repo_root = git::git_root(from)?;
         git::git_ensure_user(&repo_root)?;
-
-        // Ensure we have at least one commit for worktree operations later
         git::git_init_commit(&repo_root)?;
 
         let ball_dir = repo_root.join(".ball");
-        let tasks_dir = ball_dir.join("tasks");
         let plugins_dir = ball_dir.join("plugins");
         let local_dir = ball_dir.join("local");
-        let local_claims = local_dir.join("claims");
-        let local_lock = local_dir.join("lock");
-        let local_plugins = local_dir.join("plugins");
 
         let already = ball_dir.join("config.json").exists();
 
-        fs::create_dir_all(&tasks_dir)?;
         fs::create_dir_all(&plugins_dir)?;
-        fs::create_dir_all(&local_claims)?;
-        fs::create_dir_all(&local_lock)?;
-        fs::create_dir_all(&local_plugins)?;
+        fs::create_dir_all(local_dir.join("claims"))?;
+        fs::create_dir_all(local_dir.join("lock"))?;
+        fs::create_dir_all(local_dir.join("plugins"))?;
 
         let config_path = ball_dir.join("config.json");
         if !config_path.exists() {
             Config::default().save(&config_path)?;
         }
 
-        // Ensure .gitignore has the entries
+        // Stealth: write external tasks dir to .ball/local/tasks_dir
+        let (tasks_dir_path, is_stealth) = if stealth {
+            let ext = stealth_tasks_dir(&repo_root);
+            fs::create_dir_all(&ext)?;
+            fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
+            (ext, true)
+        } else {
+            let td = ball_dir.join("tasks");
+            fs::create_dir_all(&td)?;
+            let keep = td.join(".gitkeep");
+            if !keep.exists() {
+                fs::write(&keep, "")?;
+            }
+            (td, false)
+        };
+
+        // Ensure .gitignore entries
         let gitignore_path = repo_root.join(".gitignore");
         let mut gitignore = if gitignore_path.exists() {
             fs::read_to_string(&gitignore_path)?
         } else {
             String::new()
         };
-        // Use patterns without trailing slash so they also cover symlinks —
-        // worktrees symlink .ball/local, and git's directory-only match would
-        // otherwise treat that symlink as untracked.
         let need_local = !gitignore.lines().any(|l| l.trim() == ".ball/local");
         let need_wt = !gitignore.lines().any(|l| l.trim() == ".ball-worktrees");
         if need_local || need_wt {
@@ -102,34 +110,25 @@ impl Store {
             fs::write(&gitignore_path, gitignore)?;
         }
 
-        // Tasks dir placeholder so it's always present after clone
-        let keep = tasks_dir.join(".gitkeep");
-        if !keep.exists() {
-            fs::write(&keep, "")?;
-        }
         let plugins_keep = plugins_dir.join(".gitkeep");
         if !plugins_keep.exists() {
             fs::write(&plugins_keep, "")?;
         }
 
-        git::git_add(
-            &repo_root,
-            &[
-                Path::new(".ball/config.json"),
-                Path::new(".ball/tasks/.gitkeep"),
-                Path::new(".ball/plugins/.gitkeep"),
-                Path::new(".gitignore"),
-            ],
-        )?;
-
-        if already {
-            // Was already initialized; commit only if something is actually staged
-            git::git_commit(&repo_root, "ball: reinitialize")?;
-        } else {
-            git::git_commit(&repo_root, "ball: initialize")?;
+        let mut paths: Vec<&Path> = vec![
+            Path::new(".ball/config.json"),
+            Path::new(".ball/plugins/.gitkeep"),
+            Path::new(".gitignore"),
+        ];
+        if !is_stealth {
+            paths.push(Path::new(".ball/tasks/.gitkeep"));
         }
+        git::git_add(&repo_root, &paths)?;
 
-        Ok(Store { root: repo_root })
+        let msg = if already { "ball: reinitialize" } else { "ball: initialize" };
+        git::git_commit(&repo_root, msg)?;
+
+        Ok(Store { root: repo_root, stealth: is_stealth, tasks_dir_path })
     }
 
     pub fn ball_dir(&self) -> PathBuf {
@@ -137,7 +136,7 @@ impl Store {
     }
 
     pub fn tasks_dir(&self) -> PathBuf {
-        self.ball_dir().join("tasks")
+        self.tasks_dir_path.clone()
     }
 
     pub fn local_dir(&self) -> PathBuf {
@@ -200,6 +199,27 @@ impl Store {
         Ok(())
     }
 
+    /// Stage and commit a task file change. No-op in stealth mode.
+    pub fn commit_task(&self, id: &str, message: &str) -> Result<()> {
+        if self.stealth {
+            return Ok(());
+        }
+        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
+        git::git_add(&self.root, &[rel.as_path()])?;
+        git::git_commit(&self.root, message)?;
+        Ok(())
+    }
+
+    /// Git-rm a task file. No-op in stealth mode.
+    pub fn rm_task_git(&self, id: &str) -> Result<()> {
+        if self.stealth {
+            return Ok(());
+        }
+        let rel = PathBuf::from(format!(".ball/tasks/{}.json", id));
+        git::git_rm(&self.root, &[rel.as_path()])?;
+        Ok(())
+    }
+
     pub fn all_tasks(&self) -> Result<Vec<Task>> {
         let dir = self.tasks_dir();
         if !dir.exists() {
@@ -224,14 +244,53 @@ impl Store {
     }
 }
 
+/// Check .ball/local/tasks_dir for an external tasks directory override.
+fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
+    let override_file = root.join(".ball/local/tasks_dir");
+    if let Ok(s) = fs::read_to_string(&override_file) {
+        let p = PathBuf::from(s.trim());
+        if p.is_absolute() {
+            return (p, true);
+        }
+    }
+    (root.join(".ball/tasks"), false)
+}
+
+/// Generate a deterministic external path for stealth tasks.
+fn stealth_tasks_dir(root: &Path) -> PathBuf {
+    use sha1::{Digest, Sha1};
+    let root_str = root.to_string_lossy();
+    let hash = hex::encode(Sha1::digest(root_str.as_bytes()));
+    let base = dirs_base(&hash);
+    PathBuf::from(base).join("tasks")
+}
+
+fn dirs_base(hash: &str) -> String {
+    if let Ok(home) = std::env::var("HOME") {
+        format!("{}/.local/share/ball/{}", home, &hash[..12])
+    } else {
+        format!("/tmp/ball-stealth-{}", &hash[..12])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dirs_base_no_home() {
+        let saved = std::env::var("HOME").ok();
+        std::env::remove_var("HOME");
+        let result = dirs_base("abcdef123456789");
+        if let Some(h) = saved {
+            std::env::set_var("HOME", h);
+        }
+        assert!(result.starts_with("/tmp/ball-stealth-"));
+    }
+}
+
 fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
-    // common_dir is either:
-    //   .../repo/.git  (main)
-    //   .../repo/.git/worktrees/<name>  (worktree's own git dir, but common-dir resolves to main's .git)
-    // git-common-dir resolves to main's .git, so parent is always the main root.
     let canon = fs::canonicalize(common_dir).unwrap_or_else(|_| common_dir.to_path_buf());
-    canon
-        .parent()
-        .map(|p| p.to_path_buf())
+    canon.parent().map(|p| p.to_path_buf())
         .ok_or_else(|| BallError::Other("could not find main repo root".to_string()))
 }

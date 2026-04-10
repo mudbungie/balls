@@ -9,12 +9,16 @@ use crate::store::{task_lock, Store};
 use crate::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
 
-pub fn cmd_init() -> Result<()> {
+pub fn cmd_init(stealth: bool) -> Result<()> {
     let cwd = env::current_dir()?;
-    let store = Store::init(&cwd)?;
-    println!("Initialized ball in {}", store.root.display());
+    let store = Store::init(&cwd, stealth)?;
+    if store.stealth {
+        println!("Initialized ball (stealth) in {}", store.root.display());
+        println!("Tasks stored at: {}", store.tasks_dir().display());
+    } else {
+        println!("Initialized ball in {}", store.root.display());
+    }
     Ok(())
 }
 
@@ -82,9 +86,7 @@ pub fn cmd_create(
     {
         let _g = task_lock(&store, &id)?;
         store.save_task(&task)?;
-        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
-        git::git_add(&store.root, &[rel.as_path()])?;
-        git::git_commit(&store.root, &format!("ball: create {} - {}", id, title))?;
+        store.commit_task(&id, &format!("ball: create {} - {}", id, title))?;
     }
 
     let _ = plugin::run_plugin_push(&store, &task);

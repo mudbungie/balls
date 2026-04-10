@@ -16,7 +16,7 @@ use cli::{Cli, Command};
 fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
-        Command::Init => commands::cmd_init(),
+        Command::Init { stealth } => commands::cmd_init(stealth),
         Command::Create {
             title,
             priority,

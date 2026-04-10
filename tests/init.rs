@@ -73,3 +73,58 @@ fn story_75_not_initialized() {
         .failure()
         .stderr(predicate::str::contains("not initialized"));
 }
+
+#[test]
+fn stealth_init_creates_external_tasks_dir() {
+    let repo = new_repo();
+    bl(repo.path())
+        .args(["init", "--stealth"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("stealth"));
+    // Tasks dir is outside the repo
+    assert!(!repo.path().join(".ball/tasks").exists());
+    // .ball/local/tasks_dir file exists with external path
+    let td = std::fs::read_to_string(repo.path().join(".ball/local/tasks_dir")).unwrap();
+    let ext = std::path::PathBuf::from(td.trim());
+    assert!(ext.is_absolute());
+    assert!(ext.exists());
+}
+
+#[test]
+fn stealth_mode_full_lifecycle() {
+    let repo = new_repo();
+    bl(repo.path())
+        .args(["init", "--stealth"])
+        .assert()
+        .success();
+    let id = create_task(repo.path(), "stealth task");
+    // Task exists in external dir, not in repo
+    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", id)).exists());
+    // List works
+    let out = bl(repo.path()).arg("list").output().unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(s.contains("stealth task"));
+    // Show works
+    bl(repo.path())
+        .args(["show", &id])
+        .assert()
+        .success();
+    // Claim works
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    // Close works
+    bl_as(repo.path(), "alice")
+        .args(["close", &id])
+        .assert()
+        .success();
+    // Task archived (external file deleted)
+    let td = std::fs::read_to_string(repo.path().join(".ball/local/tasks_dir")).unwrap();
+    let ext = std::path::PathBuf::from(td.trim());
+    assert!(!ext.join(format!("{}.json", id)).exists());
+    // No task commits in git log (stealth)
+    let log = git(repo.path(), &["log", "--oneline"]);
+    assert!(!log.contains(&format!("create {}", id)));
+}
