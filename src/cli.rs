@@ -1,0 +1,146 @@
+use clap::{Parser, Subcommand};
+
+#[derive(Parser, Debug)]
+#[command(name = "bl", version, about = "Git-native task tracker", long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Initialize ball in the current git repository.
+    Init,
+
+    /// Create a new task.
+    Create {
+        /// Task title
+        title: String,
+        /// Priority: 1 (highest) to 4 (lowest)
+        #[arg(short = 'p', long, default_value_t = 3)]
+        priority: u8,
+        /// Task type: epic, task, bug
+        #[arg(short = 't', long, default_value = "task")]
+        task_type: String,
+        /// Parent task ID
+        #[arg(long)]
+        parent: Option<String>,
+        /// Dependency task ID (repeatable)
+        #[arg(long = "dep")]
+        dep: Vec<String>,
+        /// Tag (repeatable)
+        #[arg(long = "tag")]
+        tag: Vec<String>,
+        /// Description
+        #[arg(short = 'd', long, default_value = "")]
+        description: String,
+    },
+
+    /// List tasks.
+    List {
+        /// Filter by status
+        #[arg(long)]
+        status: Option<String>,
+        /// Filter by priority
+        #[arg(short = 'p', long)]
+        priority: Option<u8>,
+        /// Filter by parent
+        #[arg(long)]
+        parent: Option<String>,
+        /// Filter by tag
+        #[arg(long)]
+        tag: Option<String>,
+        /// Include closed tasks
+        #[arg(long)]
+        all: bool,
+        /// JSON output
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show details of a task.
+    Show {
+        id: String,
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show tasks ready to be claimed.
+    Ready {
+        #[arg(long)]
+        json: bool,
+        #[arg(long)]
+        no_fetch: bool,
+    },
+
+    /// Claim a task: update the task file and create a worktree.
+    Claim {
+        id: String,
+        #[arg(long = "as")]
+        identity: Option<String>,
+    },
+
+    /// Close a task: commit changes in worktree, merge, clean up.
+    Close {
+        id: String,
+        #[arg(short = 'm', long)]
+        message: Option<String>,
+    },
+
+    /// Drop a claim: reset task and remove worktree.
+    Drop {
+        id: String,
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Update fields of a task.
+    Update {
+        id: String,
+        /// field=value pairs
+        assignments: Vec<String>,
+        #[arg(long)]
+        note: Option<String>,
+        #[arg(long = "as")]
+        identity: Option<String>,
+    },
+
+    /// Manage dependencies.
+    Dep {
+        #[command(subcommand)]
+        sub: DepCmd,
+    },
+
+    /// Sync with remote: fetch, merge, resolve, push.
+    Sync {
+        #[arg(long, default_value = "origin")]
+        remote: String,
+    },
+
+    /// Resolve a conflicted task file.
+    Resolve { file: String },
+
+    /// Prime an agent session: sync and print ready + in-progress tasks.
+    Prime {
+        #[arg(long = "as")]
+        identity: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Scan and repair malformed task files and orphaned state.
+    Repair {
+        #[arg(long)]
+        fix: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum DepCmd {
+    /// Add a dependency: TASK depends on DEPENDS_ON.
+    Add { task: String, depends_on: String },
+    /// Remove a dependency.
+    Rm { task: String, depends_on: String },
+    /// Print dependency tree. Without ID, prints full graph.
+    Tree { id: Option<String> },
+}

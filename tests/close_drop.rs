@@ -1,0 +1,171 @@
+//! Close/drop stories: 33–39, 62.
+
+mod common;
+
+use common::*;
+use predicates::prelude::*;
+
+#[test]
+fn story_33_close_merges_work() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "t");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".ball-worktrees").join(&id);
+    std::fs::write(wt.join("feature.txt"), "code").unwrap();
+
+    bl(&wt)
+        .args(["close", &id, "-m", "implemented"])
+        .assert()
+        .success();
+
+    assert!(!wt.exists());
+    assert!(repo.path().join("feature.txt").exists());
+    let j = read_task_json(repo.path(), &id);
+    assert_eq!(j["status"], "closed");
+    assert!(j["closed_at"].is_string());
+    assert!(!repo.path().join(".ball/local/claims").join(&id).exists());
+}
+
+#[test]
+fn story_34_close_with_message_appears_in_notes() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "t");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["close", &id, "-m", "all done"])
+        .assert()
+        .success();
+    let j = read_task_json(repo.path(), &id);
+    assert!(j["notes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["text"] == "all done"));
+}
+
+#[test]
+fn story_35_closing_dep_unblocks_dependent() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "a");
+    let b = create_task_full(repo.path(), "b", 3, &[&a], &[]);
+
+    bl_as(repo.path(), "alice")
+        .args(["claim", &a])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["close", &a, "-m", "done"])
+        .assert()
+        .success();
+
+    let out = bl(repo.path()).arg("ready").output().unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(s.contains(&b));
+}
+
+#[test]
+fn story_36_parent_completion_reaches_100() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "parent");
+    let c1 = create_task(repo.path(), "c1");
+    let c2 = create_task(repo.path(), "c2");
+    bl(repo.path())
+        .args(["update", &c1, &format!("parent={}", parent)])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["update", &c2, &format!("parent={}", parent)])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["update", &c1, "status=closed"])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["update", &c2, "status=closed"])
+        .assert()
+        .success();
+
+    let out = bl(repo.path())
+        .args(["show", &parent, "--json"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    let v: serde_json::Value = serde_json::from_str(&s).unwrap();
+    assert_eq!(v["completion"], 1.0);
+}
+
+#[test]
+fn story_38_drop_resets_task() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "t");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["drop", &id])
+        .assert()
+        .success();
+
+    let j = read_task_json(repo.path(), &id);
+    assert_eq!(j["status"], "open");
+    assert!(j["claimed_by"].is_null());
+    assert!(j["branch"].is_null());
+    assert!(!repo.path().join(".ball-worktrees").join(&id).exists());
+    assert!(!repo.path().join(".ball/local/claims").join(&id).exists());
+}
+
+#[test]
+fn story_39_drop_uncommitted_requires_force() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "t");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".ball-worktrees").join(&id);
+    std::fs::write(wt.join("dirty.txt"), "work").unwrap();
+    bl(repo.path())
+        .args(["drop", &id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("uncommitted"));
+    bl(repo.path())
+        .args(["drop", &id, "--force"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn story_62_resume_claimed_task_after_session_restart() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "ongoing");
+    bl_as(repo.path(), "agent-alpha")
+        .args(["claim", &id])
+        .assert()
+        .success();
+
+    let out = bl_as(repo.path(), "agent-alpha")
+        .args(["prime", "--json"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    let json_start = s.find('{').unwrap();
+    let v: serde_json::Value = serde_json::from_str(&s[json_start..]).unwrap();
+    assert_eq!(v["identity"], "agent-alpha");
+    assert_eq!(v["claimed"].as_array().unwrap().len(), 1);
+}

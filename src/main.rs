@@ -1,0 +1,58 @@
+mod cli;
+mod commands;
+mod config;
+mod error;
+mod git;
+mod plugin;
+mod ready;
+mod resolve;
+mod store;
+mod task;
+mod worktree;
+
+use clap::Parser;
+use cli::{Cli, Command};
+
+fn main() {
+    let cli = Cli::parse();
+    let result = match cli.command {
+        Command::Init => commands::cmd_init(),
+        Command::Create {
+            title,
+            priority,
+            task_type,
+            parent,
+            dep,
+            tag,
+            description,
+        } => commands::cmd_create(title, priority, task_type, parent, dep, tag, description),
+        Command::List {
+            status,
+            priority,
+            parent,
+            tag,
+            all,
+            json,
+        } => commands::cmd_list(status, priority, parent, tag, all, json),
+        Command::Show { id, json } => commands::cmd_show(id, json),
+        Command::Ready { json, no_fetch } => commands::cmd_ready(json, no_fetch),
+        Command::Claim { id, identity } => commands::cmd_claim(id, identity),
+        Command::Close { id, message } => commands::cmd_close(id, message),
+        Command::Drop { id, force } => commands::cmd_drop(id, force),
+        Command::Update {
+            id,
+            assignments,
+            note,
+            identity,
+        } => commands::cmd_update(id, assignments, note, identity),
+        Command::Dep { sub } => commands::cmd_dep(sub),
+        Command::Sync { remote } => commands::cmd_sync(remote),
+        Command::Resolve { file } => commands::cmd_resolve(file),
+        Command::Prime { identity, json } => commands::cmd_prime(identity, json),
+        Command::Repair { fix } => commands::cmd_repair(fix),
+    };
+    if let Err(e) = result {
+        eprintln!("error: {}", e);
+        std::process::exit(1);
+    }
+}
