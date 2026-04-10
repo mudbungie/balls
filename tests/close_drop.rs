@@ -206,3 +206,81 @@ fn close_child_updates_parent_closed_children() {
     assert!(s.contains("[archived]"));
     assert!(s.contains("100%"));
 }
+
+#[test]
+fn close_prints_cd_path() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "t");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let out = bl(repo.path())
+        .args(["close", &id])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(s.contains(&format!("cd {}", repo.path().display())));
+}
+
+#[test]
+fn close_merges_main_into_worktree_first() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "first");
+    let b = create_task(repo.path(), "second");
+
+    // Claim task A, add work, close it (advances main)
+    bl_as(repo.path(), "alice")
+        .args(["claim", &a])
+        .assert()
+        .success();
+    let wt_a = repo.path().join(".ball-worktrees").join(&a);
+    std::fs::write(wt_a.join("file_a.txt"), "from task a").unwrap();
+    bl(repo.path())
+        .args(["close", &a])
+        .assert()
+        .success();
+
+    // Now claim task B (main has diverged since B was created)
+    bl_as(repo.path(), "bob")
+        .args(["claim", &b])
+        .assert()
+        .success();
+    let wt_b = repo.path().join(".ball-worktrees").join(&b);
+    std::fs::write(wt_b.join("file_b.txt"), "from task b").unwrap();
+
+    // Close B — should succeed even though main diverged
+    bl(repo.path())
+        .args(["close", &b])
+        .assert()
+        .success();
+
+    // Both files present in main
+    assert!(repo.path().join("file_a.txt").exists());
+    assert!(repo.path().join("file_b.txt").exists());
+}
+
+#[test]
+fn close_detects_conflict_with_main() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "first");
+    let b = create_task(repo.path(), "second");
+    bl_as(repo.path(), "alice").args(["claim", &a]).assert().success();
+    bl_as(repo.path(), "bob").args(["claim", &b]).assert().success();
+    // Both modify the same tracked file with conflicting content
+    let wt_a = repo.path().join(".ball-worktrees").join(&a);
+    let wt_b = repo.path().join(".ball-worktrees").join(&b);
+    std::fs::write(wt_a.join("shared.txt"), "version A").unwrap();
+    git(wt_a.as_path(), &["add", "shared.txt"]);
+    git(wt_a.as_path(), &["commit", "-m", "A", "--no-verify"]);
+    std::fs::write(wt_b.join("shared.txt"), "version B").unwrap();
+    git(wt_b.as_path(), &["add", "shared.txt"]);
+    git(wt_b.as_path(), &["commit", "-m", "B", "--no-verify"]);
+    // Close A succeeds, close B fails — conflict merging main into worktree
+    bl(repo.path()).args(["close", &a]).assert().success();
+    bl(repo.path()).args(["close", &b]).assert().failure()
+        .stderr(predicate::str::contains("conflict"));
+}

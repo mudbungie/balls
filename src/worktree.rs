@@ -24,6 +24,13 @@ fn write_claim_file(store: &Store, id: &str, worker: &str) -> Result<()> {
     Ok(())
 }
 
+fn merge_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, ctx: &str) -> Result<()> {
+    match git::git_merge(dir, branch, msg)? {
+        git::MergeResult::Conflict => Err(BallError::Conflict(ctx.to_string())),
+        _ => Ok(()),
+    }
+}
+
 fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
     Ok(store.worktrees_root()?.join(id))
 }
@@ -119,8 +126,15 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         .unwrap_or_else(|| format!("work/{}", id));
 
     with_task_lock(store, id, || {
-        // Update the task file. In normal mode, update the worktree copy so
-        // the change is committed with code. In stealth, update externally.
+        // Merge main into worktree branch first. This brings .gitignore
+        // current and surfaces conflicts on the feature branch, not main.
+        let main_branch = git::git_current_branch(&store.root)?;
+        merge_or_fail(
+            &wt_path, &main_branch, None,
+            &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
+        )?;
+
+        // Update task file
         let mut t = if store.stealth {
             store.load_task(id)?
         } else {
@@ -140,15 +154,14 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
             t.save(&wt_task)?;
         }
 
-        // Commit code changes in the worktree
+        // Stage and commit all work (respects current .gitignore from main)
         git::git_add_all(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("ball: close {}", id));
 
-        // Merge into main repo's current branch
-        git::git_merge(
-            &store.root,
-            &branch,
-            Some(&format!("ball: merge {}", id)),
+        // Merge worktree branch into main (should be clean after forward merge)
+        merge_or_fail(
+            &store.root, &branch, Some(&format!("ball: merge {}", id)),
+            &format!("unexpected conflict merging {} into {}", branch, main_branch),
         )?;
 
         // Remove worktree
