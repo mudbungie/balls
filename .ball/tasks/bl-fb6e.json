@@ -1,0 +1,20 @@
+{
+  "id": "bl-fb6e",
+  "title": "Update README: strengthen radical simplicity thesis",
+  "type": "task",
+  "priority": 2,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Refine the README to better articulate the radical simplicity thesis. The CLI is the agent interface (no MCP needed). Git history is the archive (no compaction needed). Ensure the comparison with Beads is fair but highlights ball's architectural advantages clearly.",
+  "created_at": "2026-04-10T22:23:02.946092818Z",
+  "updated_at": "2026-04-10T22:23:02.946092818Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "docs"
+  ],
+  "notes": [],
+  "external": {}
+}
