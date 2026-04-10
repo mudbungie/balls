@@ -124,3 +124,29 @@ fn default_new_task_opts() {
     assert_eq!(o.priority, 3);
     assert!(matches!(o.task_type, TaskType::Task));
 }
+
+#[test]
+fn link_type_parse_all() {
+    assert_eq!(LinkType::parse("relates_to").unwrap(), LinkType::RelatesTo);
+    assert_eq!(LinkType::parse("duplicates").unwrap(), LinkType::Duplicates);
+    assert_eq!(LinkType::parse("supersedes").unwrap(), LinkType::Supersedes);
+    assert_eq!(LinkType::parse("replies_to").unwrap(), LinkType::RepliesTo);
+    assert!(LinkType::parse("bogus").is_err());
+}
+
+#[test]
+fn link_type_as_str() {
+    assert_eq!(LinkType::RelatesTo.as_str(), "relates_to");
+    assert_eq!(LinkType::Duplicates.as_str(), "duplicates");
+    assert_eq!(LinkType::Supersedes.as_str(), "supersedes");
+    assert_eq!(LinkType::RepliesTo.as_str(), "replies_to");
+}
+
+#[test]
+fn link_equality() {
+    let a = Link { link_type: LinkType::RelatesTo, target: "bl-x".into() };
+    let b = Link { link_type: LinkType::RelatesTo, target: "bl-x".into() };
+    let c = Link { link_type: LinkType::Duplicates, target: "bl-x".into() };
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+}

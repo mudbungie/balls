@@ -175,6 +175,12 @@ fn render_text(task: &Task, all: &[Task], id: &str) {
     if !task.depends_on.is_empty() {
         println!("  deps:     {}", task.depends_on.join(", "));
     }
+    if !task.links.is_empty() {
+        println!("  links:");
+        for l in &task.links {
+            println!("    {} {}", l.link_type.as_str(), l.target);
+        }
+    }
     if !task.tags.is_empty() {
         println!("  tags:     {}", task.tags.join(", "));
     }
