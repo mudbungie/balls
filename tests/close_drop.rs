@@ -221,7 +221,8 @@ fn close_prints_cd_path() {
         .output()
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    assert!(s.contains(&format!("cd {}", repo.path().display())));
+    // Close outputs the repo root path (no "cd" prefix — machine-readable)
+    assert!(s.contains(&repo.path().to_string_lossy().to_string()));
 }
 
 #[test]
