@@ -30,4 +30,6 @@ pub mod worktree;
 pub use config::Config;
 pub use error::{BallError, Result};
 pub use store::Store;
-pub use task::{ArchivedChild, Link, LinkType, NewTaskOpts, Note, Status, Task, TaskType};
+pub use task::{
+    validate_id, ArchivedChild, Link, LinkType, NewTaskOpts, Note, Status, Task, TaskType,
+};

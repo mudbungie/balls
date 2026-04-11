@@ -1,7 +1,7 @@
 use crate::error::{BallError, Result};
 use crate::git;
 use crate::store::{task_lock, Store};
-use crate::task::{Status, Task};
+use crate::task::{self, Status, Task};
 use std::fs;
 use std::path::PathBuf;
 
@@ -39,6 +39,7 @@ fn merge_no_ff_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, c
 }
 
 fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
+    task::validate_id(id)?;
     Ok(store.worktrees_root()?.join(id))
 }
 
