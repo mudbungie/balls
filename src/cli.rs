@@ -125,6 +125,9 @@ pub enum Command {
     Sync {
         #[arg(long, default_value = "origin")]
         remote: String,
+        /// Sync a single task by local ID or remote key.
+        #[arg(long)]
+        task: Option<String>,
     },
 
     /// Resolve a conflicted task file.
