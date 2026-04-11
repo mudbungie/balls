@@ -1,0 +1,23 @@
+{
+  "id": "bl-36b1",
+  "title": "Update README plugin protocol spec",
+  "type": "task",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Remove pull and map-status, add explicit JSON schemas for push stdout and sync stdout, document --task filter for sync",
+  "created_at": "2026-04-11T01:52:44.764567390Z",
+  "updated_at": "2026-04-11T01:52:44.764567390Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "plugin",
+    "spec"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
