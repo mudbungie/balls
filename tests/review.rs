@@ -141,7 +141,7 @@ fn review_status_parse_and_display() {
 }
 
 #[test]
-fn review_creates_no_ff_merge_commit() {
+fn review_creates_squash_commit_with_title() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "feature");
@@ -157,7 +157,8 @@ fn review_creates_no_ff_merge_commit() {
         .assert()
         .success();
 
-    // The merge commit should exist (--no-ff) even though ff was possible
-    let log = git(repo.path(), &["log", "--oneline", "--merges", "-1"]);
-    assert!(log.contains(&format!("merge {}", id)));
+    // The squash commit should include the task title and id
+    let log = git(repo.path(), &["log", "--oneline", "-1"]);
+    assert!(log.contains("feature"), "squash commit should contain task title, got: {}", log);
+    assert!(log.contains(&id), "squash commit should contain task id, got: {}", log);
 }

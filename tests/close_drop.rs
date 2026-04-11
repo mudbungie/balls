@@ -51,9 +51,9 @@ fn story_34_close_with_message_is_in_git_history() {
     // Task is archived; the close commit preserves the data in git history.
     // Verify archival.
     assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
-    // The close commit message references the task
+    // The close commit message references the task (close+archive combined)
     let log = git(repo.path(), &["log", "--oneline"]);
-    assert!(log.contains(&format!("archive {}", id)));
+    assert!(log.contains(&format!("close {}", id)));
 }
 
 #[test]

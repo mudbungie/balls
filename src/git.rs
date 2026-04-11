@@ -121,6 +121,32 @@ pub fn git_merge_no_ff(dir: &Path, branch: &str, message: Option<&str>) -> Resul
     git_merge_inner(dir, branch, message, true)
 }
 
+/// Squash merge: stage all changes from branch but do NOT commit.
+/// Caller must call `git_commit()` afterward to finalize.
+pub fn git_merge_squash(dir: &Path, branch: &str) -> Result<MergeResult> {
+    let args = vec!["merge", "--squash", branch];
+    let out = run_git_in(dir, &args)?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if out.status.success() {
+        if stdout.contains("Already up to date") || stdout.contains("Already up-to-date") {
+            Ok(MergeResult::UpToDate)
+        } else {
+            Ok(MergeResult::Clean)
+        }
+    } else {
+        let combined = format!("{}{}", stdout, stderr);
+        if combined.contains("CONFLICT") || combined.contains("conflict") {
+            Ok(MergeResult::Conflict)
+        } else {
+            Err(BallError::Git(format!(
+                "merge --squash failed: {}",
+                combined.trim()
+            )))
+        }
+    }
+}
+
 fn git_merge_inner(dir: &Path, branch: &str, message: Option<&str>, no_ff: bool) -> Result<MergeResult> {
     let mut args = vec!["merge", "--no-edit"];
     if no_ff {

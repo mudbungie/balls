@@ -213,6 +213,15 @@ impl Store {
         Ok(())
     }
 
+    /// Commit whatever is already staged. No-op in stealth mode.
+    pub fn commit_staged(&self, message: &str) -> Result<()> {
+        if self.stealth {
+            return Ok(());
+        }
+        git::git_commit(&self.root, message)?;
+        Ok(())
+    }
+
     /// Git-rm a task file. No-op in stealth mode.
     pub fn rm_task_git(&self, id: &str) -> Result<()> {
         if self.stealth {
