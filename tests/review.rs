@@ -139,3 +139,25 @@ fn review_status_parse_and_display() {
     let j = read_task_json(repo.path(), &id);
     assert_eq!(j["status"], "review");
 }
+
+#[test]
+fn review_creates_no_ff_merge_commit() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "feature");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".ball-worktrees").join(&id);
+    std::fs::write(wt.join("work.txt"), "code").unwrap();
+
+    bl(repo.path())
+        .args(["review", &id])
+        .assert()
+        .success();
+
+    // The merge commit should exist (--no-ff) even though ff was possible
+    let log = git(repo.path(), &["log", "--oneline", "--merges", "-1"]);
+    assert!(log.contains(&format!("merge {}", id)));
+}
