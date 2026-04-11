@@ -3,13 +3,13 @@
   "title": "Shell completions for bash, zsh, and fish",
   "type": "task",
   "priority": 3,
-  "status": "review",
+  "status": "closed",
   "parent": null,
   "depends_on": [],
   "description": "Use clap's built-in shell completion generation to produce completions for bash, zsh, and fish. Consider shipping as a bl completions subcommand.",
   "created_at": "2026-04-11T19:33:35.831373663Z",
-  "updated_at": "2026-04-11T20:51:54.104293906Z",
-  "closed_at": null,
+  "updated_at": "2026-04-11T20:56:29.261378879Z",
+  "closed_at": "2026-04-11T20:56:29.261377857Z",
   "claimed_by": "mark",
   "branch": "work/bl-0341",
   "tags": [
@@ -21,6 +21,11 @@
       "ts": "2026-04-11T20:51:54.104292173Z",
       "author": "mark",
       "text": "Add bl completions subcommand for bash, zsh, and fish. Uses clap_complete. make install writes completions to XDG user dirs."
+    },
+    {
+      "ts": "2026-04-11T20:56:29.261378528Z",
+      "author": "mark",
+      "text": "Shell completions for bash, zsh, and fish"
     }
   ],
   "links": [],
