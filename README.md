@@ -134,7 +134,9 @@ Each task is a single JSON file at `.ball/tasks/<id>.json`.
   "claimed_by": null,
   "branch": null,
   "tags": ["auth", "api"],
+  "links": [{"link_type": "relates_to", "target": "bl-z7w6"}],
   "notes": [],
+  "closed_children": [],
   "external": {}
 }
 ```
@@ -157,7 +159,9 @@ Each task is a single JSON file at `.ball/tasks/<id>.json`.
 | `claimed_by` | string? | Worker identity string, or null. |
 | `branch` | string? | Git branch name for this task's work, or null. |
 | `tags` | string[] | Freeform labels. |
+| `links` | object[] | Typed relationships: `{"link_type": "relates_to\|duplicates\|supersedes\|replies_to", "target": "bl-XXXX"}` |
 | `notes` | object[] | Append-only log: `{"ts": "...", "author": "...", "text": "..."}` |
+| `closed_children` | object[] | Archived child tasks: `{"id": "...", "title": "...", "closed_at": "..."}`. Populated when a child task is closed and archived. |
 | `external` | object | Plugin-managed foreign keys. e.g., `{"jira": {"key": "PROJ-123", "synced_at": "..."}}`. Core never reads this; plugins own it. |
 
 ### ID generation
@@ -181,11 +185,15 @@ A task is **ready** if:
 
 ### Group completion
 
-For a parent task, completion = (children with `status == "closed"`) / (total children). Children are tasks where `parent == this task's id`.
+For a parent task, completion = (`closed_children` count + live children with `status == "closed"`) / (total children including archived). Children are tasks where `parent == this task's id`. `closed_children` on the parent tracks archived children.
 
 ### Dependency-blocked
 
-A task is dependency-blocked if any ID in `depends_on` refers to a task with `status` != `closed`. This is distinct from `status == "blocked"`, which is set explicitly for external blockers.
+A task is dependency-blocked if any ID in `depends_on` refers to a task with `status` != `closed`. A missing dependency (task file deleted after archival) is treated as closed, not blocked.
+
+### Task archival
+
+When a task is closed via `bl close`, the task file is deleted from `.ball/tasks/` after the close commit. The full task data is preserved in git history. If the task has a parent, the parent's `closed_children` array is updated with the archived child's ID, title, and close timestamp. This keeps the working set small — only live tasks exist in HEAD.
 
 ---
 
@@ -311,9 +319,11 @@ When merging task files that conflict:
 
 ## CLI Commands
 
-### bl init
+### bl init [--stealth]
 
 Creates `.ball/tasks/`, `.ball/local/`, `.ball/plugins/`, `.ball/config.json`. Adds gitignore entries. Commits. If `.ball/tasks/` already exists (cloned repo), creates only local dirs.
+
+With `--stealth`, tasks are stored outside the repo (`~/.local/share/ball/<hash>/tasks/`) and are not git-tracked. All other operations (create, list, claim, close) work identically. Useful for local-only planning that shouldn't appear in PRs.
 
 **By hand:** `mkdir -p .ball/{tasks,plugins,local/{claims,lock}}`, write `config.json`, append to `.gitignore`, commit.
 
@@ -415,6 +425,21 @@ Removes from `depends_on`. Commits.
 ### bl dep tree [ID]
 
 Walks `depends_on` and `parent` relationships. Prints indented tree with status indicators. Without ID, shows full project graph.
+
+### bl link add TASK TYPE TARGET
+
+```
+bl link add bl-a1b2 relates_to bl-c3d4
+bl link add bl-a1b2 duplicates bl-e5f6
+bl link add bl-a1b2 supersedes bl-g7h8
+bl link add bl-a1b2 replies_to bl-i9j0
+```
+
+Adds a typed link. Link types: `relates_to`, `duplicates`, `supersedes`, `replies_to`. Validates target exists. Idempotent. Commits.
+
+### bl link rm TASK TYPE TARGET
+
+Removes a typed link. Commits.
 
 ### bl sync
 
@@ -703,6 +728,18 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ---
 
+## Radical Simplicity
+
+Ball's thesis: every layer of infrastructure you add is a layer that can break, a layer to learn, a layer to operate. The best tool is the one with the fewest moving parts that solves the problem.
+
+**The CLI is the agent interface.** Agents already have shell access. `bl ready --json` is a tool call. There is no need for MCP servers, REST APIs, or protocol adapters. If you can run a command, you can use ball.
+
+**Git is the archive.** Closed tasks are deleted from HEAD and preserved in git history. There is no compaction, no garbage collection, no cleanup threshold. Only live tasks exist in the working set. Old tasks are retrievable via `git log` when needed. The working set stays small naturally.
+
+**Git is the database.** Task files are committed, pushed, pulled, and merged like code. There is no second version-control system to reconcile, no schema migrations, no embedded database engine. If you understand git, you understand ball's storage model.
+
+---
+
 ## Why Not Existing Alternatives
 
 ### Beads
@@ -710,6 +747,8 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 Beads introduced the right insight: agents need structured, queryable, persistent task state — not markdown files. But the implementation chose Dolt (a version-controlled SQL database) as the storage backend. Dolt requires CGO, a C compiler, embedded database management, schema migrations, and a mental model separate from git. The Dolt branching model operates independently of git branches, creating two parallel version-control systems that developers must reconcile. For a tool whose primary job is tracking a few hundred tasks, this is a heavy foundation.
 
 Beads also positions itself as agent-first, which led to design decisions (embedded Dolt for sub-millisecond queries, cell-level merge for concurrent agent writes) that optimize for a scenario that doesn't need optimizing. Reading a few hundred JSON files is already millisecond-fast. Git file-level merge is sufficient when each task is one file. The complexity bought marginal performance on a workload that was never slow.
+
+Beads' compaction system summarizes old tasks to save context window space. Ball takes a simpler approach: closed tasks are deleted from HEAD entirely. Only live tasks exist. No compaction needed because there's nothing to compact.
 
 ### Cline Kanban
 
