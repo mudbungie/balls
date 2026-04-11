@@ -1,0 +1,23 @@
+{
+  "id": "bl-9707",
+  "title": "Implement sync report processing",
+  "type": "task",
+  "priority": 2,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Add apply_sync_report to commands/sync.rs, add --task flag to CLI, wire into cmd_sync",
+  "created_at": "2026-04-11T01:52:50.073005082Z",
+  "updated_at": "2026-04-11T01:52:50.073005082Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "plugin",
+    "core"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
