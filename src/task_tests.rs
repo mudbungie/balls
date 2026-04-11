@@ -71,12 +71,12 @@ fn save_and_load_task_file() {
             title: "saveme".into(),
             ..Default::default()
         },
-        "bl-test".into(),
+        "bl-ae5f".into(),
     );
-    let path = dir.path().join("bl-test.json");
+    let path = dir.path().join("bl-ae5f.json");
     t.save(&path).unwrap();
     let back = Task::load(&path).unwrap();
-    assert_eq!(back.id, "bl-test");
+    assert_eq!(back.id, "bl-ae5f");
 }
 
 #[test]
@@ -160,4 +160,29 @@ fn display_impls() {
     assert_eq!(format!("{}", Status::InProgress), "in_progress");
     assert_eq!(format!("{}", LinkType::RelatesTo), "relates_to");
     assert_eq!(format!("{}", LinkType::Supersedes), "supersedes");
+}
+
+#[test]
+fn validate_id_accepts_valid() {
+    assert!(validate_id("bl-a1b2").is_ok());
+    assert!(validate_id("bl-deadbeef").is_ok());
+    assert!(validate_id("bl-0000").is_ok());
+    assert!(validate_id("bl-abcdef0123456789").is_ok());
+}
+
+#[test]
+fn validate_id_rejects_path_traversal() {
+    assert!(validate_id("../../../etc/passwd").is_err());
+    assert!(validate_id("bl-../../etc").is_err());
+    assert!(validate_id("..").is_err());
+}
+
+#[test]
+fn validate_id_rejects_malformed() {
+    assert!(validate_id("").is_err());
+    assert!(validate_id("bl-").is_err());
+    assert!(validate_id("not-a-task").is_err());
+    assert!(validate_id("bl-UPPER").is_err());
+    assert!(validate_id("bl-a1b2/subdir").is_err());
+    assert!(validate_id("BL-a1b2").is_err());
 }
