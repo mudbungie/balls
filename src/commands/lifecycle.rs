@@ -25,6 +25,7 @@ pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     let task = worktree::close_worktree(&store, &id, message.as_deref(), &ident)?;
     let _ = plugin::run_plugin_push(&store, &task);
     println!("closed {}", id);
+    println!("cd {}", store.root.display());
     Ok(())
 }
 
