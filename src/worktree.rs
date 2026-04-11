@@ -125,14 +125,6 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         .unwrap_or_else(|| format!("work/{}", id));
 
     with_task_lock(store, id, || {
-        // Merge main into worktree branch first. This brings .gitignore
-        // current and surfaces conflicts on the feature branch, not main.
-        let main_branch = git::git_current_branch(&store.root)?;
-        merge_or_fail(
-            &wt_path, &main_branch, None,
-            &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
-        )?;
-
         // Update task file
         let mut t = if store.stealth {
             store.load_task(id)?
@@ -153,9 +145,18 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
             t.save(&wt_task)?;
         }
 
-        // Stage and commit all work (respects current .gitignore from main)
+        // Commit all work first, then merge main in. Committing first
+        // ensures uncommitted changes don't block the forward merge.
         git::git_add_all(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("ball: close {}", id));
+
+        // Merge main into worktree. Brings .gitignore current and surfaces
+        // conflicts on the feature branch, not main.
+        let main_branch = git::git_current_branch(&store.root)?;
+        merge_or_fail(
+            &wt_path, &main_branch, None,
+            &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
+        )?;
 
         // Merge worktree branch into main (should be clean after forward merge)
         merge_or_fail(
