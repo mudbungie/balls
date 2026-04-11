@@ -1,0 +1,23 @@
+{
+  "id": "bl-dbf3",
+  "title": "Implement plugin protocol types and methods",
+  "type": "task",
+  "priority": 2,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Add PushResponse, SyncReport types to plugin.rs. Implement auth_check, modify push/sync to parse stdout, add apply_push_response",
+  "created_at": "2026-04-11T01:52:48.728249541Z",
+  "updated_at": "2026-04-11T01:52:48.728249541Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "plugin",
+    "core"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
