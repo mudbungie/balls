@@ -1,0 +1,23 @@
+{
+  "id": "bl-551b",
+  "title": "Wire push write-back into callsites",
+  "type": "task",
+  "priority": 2,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Update create/claim/update to call apply_push_response after push. Leave close as-is.",
+  "created_at": "2026-04-11T01:52:51.775936400Z",
+  "updated_at": "2026-04-11T01:52:51.775936400Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "plugin",
+    "core"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
