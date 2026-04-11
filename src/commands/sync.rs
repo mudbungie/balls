@@ -2,14 +2,14 @@
 
 use super::{default_identity, discover};
 use super::basic::generate_unique_id;
-use crate::error::{BallError, Result};
-use crate::git;
-use crate::plugin::{self, SyncReport};
-use crate::ready;
-use crate::resolve;
-use crate::store::{task_lock, Store};
-use crate::task::{NewTaskOpts, Status, Task, TaskType};
-use crate::worktree;
+use ball::error::{BallError, Result};
+use ball::git;
+use ball::plugin::{self, SyncReport};
+use ball::ready;
+use ball::resolve;
+use ball::store::{task_lock, Store};
+use ball::task::{NewTaskOpts, Status, Task, TaskType};
+use ball::worktree;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
