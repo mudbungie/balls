@@ -1,14 +1,14 @@
 //! sync, resolve, prime, repair — remote reconciliation and agent bootstrap.
 
 use super::{default_identity, discover};
-use crate::error::{BallError, Result};
-use crate::git;
-use crate::plugin;
-use crate::ready;
-use crate::resolve;
-use crate::store::Store;
-use crate::task::{Status, Task};
-use crate::worktree;
+use ball::error::{BallError, Result};
+use ball::git;
+use ball::plugin;
+use ball::ready;
+use ball::resolve;
+use ball::store::Store;
+use ball::task::{Status, Task};
+use ball::worktree;
 use std::fs;
 use std::path::{Path, PathBuf};
 

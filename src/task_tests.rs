@@ -150,3 +150,14 @@ fn link_equality() {
     assert_eq!(a, b);
     assert_ne!(a, c);
 }
+
+#[test]
+fn display_impls() {
+    assert_eq!(format!("{}", TaskType::Epic), "epic");
+    assert_eq!(format!("{}", TaskType::Task), "task");
+    assert_eq!(format!("{}", TaskType::Bug), "bug");
+    assert_eq!(format!("{}", Status::Open), "open");
+    assert_eq!(format!("{}", Status::InProgress), "in_progress");
+    assert_eq!(format!("{}", LinkType::RelatesTo), "relates_to");
+    assert_eq!(format!("{}", LinkType::Supersedes), "supersedes");
+}

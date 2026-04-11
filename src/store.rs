@@ -20,6 +20,7 @@ pub fn task_lock(store: &Store, id: &str) -> Result<LockGuard> {
     let lock_path = store.lock_dir().join(format!("{}.lock", id));
     let f = fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .read(true)
         .write(true)
         .open(&lock_path)?;
@@ -273,6 +274,12 @@ fn dirs_base(hash: &str) -> String {
     }
 }
 
+fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
+    let canon = fs::canonicalize(common_dir).unwrap_or_else(|_| common_dir.to_path_buf());
+    canon.parent().map(|p| p.to_path_buf())
+        .ok_or_else(|| BallError::Other("could not find main repo root".to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,10 +294,4 @@ mod tests {
         }
         assert!(result.starts_with("/tmp/ball-stealth-"));
     }
-}
-
-fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
-    let canon = fs::canonicalize(common_dir).unwrap_or_else(|_| common_dir.to_path_buf());
-    canon.parent().map(|p| p.to_path_buf())
-        .ok_or_else(|| BallError::Other("could not find main repo root".to_string()))
 }

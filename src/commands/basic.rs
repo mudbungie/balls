@@ -1,12 +1,12 @@
 //! init, create, list, show, ready — the read-mostly commands.
 
 use super::discover;
-use crate::error::{BallError, Result};
-use crate::git;
-use crate::plugin;
-use crate::ready;
-use crate::store::{task_lock, Store};
-use crate::task::{NewTaskOpts, Status, Task, TaskType};
+use ball::error::{BallError, Result};
+use ball::git;
+use ball::plugin;
+use ball::ready;
+use ball::store::{task_lock, Store};
+use ball::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 use std::fs;
 
@@ -36,7 +36,7 @@ fn generate_unique_id(title: &str, store: &Store, id_length: usize) -> Result<St
                 "could not generate unique task id after 1000 tries".into(),
             ));
         }
-        now = now + chrono::Duration::milliseconds(1);
+        now += chrono::Duration::milliseconds(1);
         id = Task::generate_id(title, now, id_length);
     }
     Ok(id)

@@ -1,14 +1,5 @@
 mod cli;
 mod commands;
-mod config;
-mod error;
-mod git;
-mod plugin;
-mod ready;
-mod resolve;
-mod store;
-mod task;
-mod worktree;
 
 use clap::Parser;
 use cli::{Cli, Command};

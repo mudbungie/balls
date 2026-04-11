@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn display_all_variants() {
         let cases: Vec<BallError> = vec![
-            BallError::Io(io::Error::new(io::ErrorKind::Other, "boom")),
+            BallError::Io(io::Error::other("boom")),
             BallError::Json(serde_json::from_str::<i32>("x").unwrap_err()),
             BallError::Git("fatal".into()),
             BallError::TaskNotFound("bl-x".into()),
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn from_io_error() {
-        let e: BallError = io::Error::new(io::ErrorKind::Other, "x").into();
+        let e: BallError = io::Error::other("x").into();
         assert!(matches!(e, BallError::Io(_)));
     }
 

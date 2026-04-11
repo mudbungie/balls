@@ -2,12 +2,12 @@
 
 use super::{default_identity, discover};
 use crate::cli::{DepCmd, LinkCmd};
-use crate::error::{BallError, Result};
-use crate::plugin;
-use crate::ready;
-use crate::store::task_lock;
-use crate::task::{Link, LinkType, Status, Task, TaskType};
-use crate::worktree;
+use ball::error::{BallError, Result};
+use ball::plugin;
+use ball::ready;
+use ball::store::task_lock;
+use ball::task::{Link, LinkType, Status, Task, TaskType};
+use ball::worktree;
 
 pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     let store = discover()?;
@@ -110,7 +110,7 @@ pub fn cmd_dep(sub: DepCmd) -> Result<()> {
 }
 
 fn dep_add(
-    store: &crate::store::Store,
+    store: &ball::store::Store,
     task: String,
     depends_on: String,
 ) -> Result<()> {
@@ -142,7 +142,7 @@ fn dep_add(
 }
 
 fn dep_rm(
-    store: &crate::store::Store,
+    store: &ball::store::Store,
     task: String,
     depends_on: String,
 ) -> Result<()> {
@@ -164,7 +164,7 @@ fn dep_rm(
     Ok(())
 }
 
-fn dep_tree(store: &crate::store::Store, id: Option<String>) -> Result<()> {
+fn dep_tree(store: &ball::store::Store, id: Option<String>) -> Result<()> {
     let tasks = store.all_tasks()?;
     if let Some(id) = id {
         let tree = ready::dep_tree(&tasks, &id)?;

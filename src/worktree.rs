@@ -82,9 +82,8 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
             fs::create_dir_all(parent)?;
         }
 
-        git::git_worktree_add(&store.root, &wt_path, &branch).map_err(|e| {
+        git::git_worktree_add(&store.root, &wt_path, &branch).inspect_err(|_| {
             let _ = rollback_claim(store, id);
-            e
         })?;
 
         // Symlink .ball/local inside the worktree so claims/lock are shared

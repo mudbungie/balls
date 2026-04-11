@@ -201,7 +201,7 @@ pub fn git_list_conflicted_files(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-pub fn git_ensure_user(dir: &Path) -> Result<()> {
+pub(crate) fn git_ensure_user(dir: &Path) -> Result<()> {
     // In test environments we may need a user.email/user.name configured
     let email = run_git_ok(dir, &["config", "user.email"]).unwrap_or_default();
     if email.trim().is_empty() {

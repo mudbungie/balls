@@ -54,6 +54,25 @@ bl list
 
 Ball is MIT licensed. See `LICENSE`.
 
+### Environment variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `BALL_IDENTITY` | Worker identity for claim/close/prime operations | `$USER`, then `"unknown"` |
+
+### Library usage
+
+Ball is also available as a Rust library crate for programmatic integration:
+
+```rust
+use ball::{Store, Task};
+
+let store = Store::discover(&std::env::current_dir().unwrap()).unwrap();
+for t in ball::ready::ready_queue(&store.all_tasks().unwrap()) {
+    println!("[P{}] {} {}", t.priority, t.id, t.title);
+}
+```
+
 ---
 
 ## Principles

@@ -4,9 +4,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
+use std::fmt;
 use std::fs;
 use std::path::Path;
 
+/// Type of work item: epic (container), task (default), or bug.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskType {
@@ -26,6 +28,17 @@ impl TaskType {
     }
 }
 
+impl fmt::Display for TaskType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match self {
+            TaskType::Epic => "epic",
+            TaskType::Task => "task",
+            TaskType::Bug => "bug",
+        })
+    }
+}
+
+/// Task lifecycle status.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
@@ -69,6 +82,13 @@ impl Status {
     }
 }
 
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Append-only note attached to a task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
     pub ts: DateTime<Utc>,
@@ -106,6 +126,13 @@ impl LinkType {
     }
 }
 
+impl fmt::Display for LinkType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Typed relationship between two tasks.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Link {
     pub link_type: LinkType,
