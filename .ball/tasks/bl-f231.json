@@ -8,8 +8,8 @@
   "depends_on": [],
   "description": "",
   "created_at": "2026-04-11T01:52:24.790754377Z",
-  "updated_at": "2026-04-11T02:03:11.653513643Z",
-  "closed_at": "2026-04-11T02:03:11.653510216Z",
+  "updated_at": "2026-04-11T02:03:20.417981673Z",
+  "closed_at": "2026-04-11T02:03:20.417978988Z",
   "claimed_by": "mark",
   "branch": "work/bl-f231",
   "tags": [
@@ -23,6 +23,11 @@
     },
     {
       "ts": "2026-04-11T02:03:11.653512290Z",
+      "author": "mark",
+      "text": "Publication prep: lib crate, DEVPLAN removed, clippy in pre-commit, Display impls, Cargo.toml metadata, interface hardening"
+    },
+    {
+      "ts": "2026-04-11T02:03:20.417980841Z",
       "author": "mark",
       "text": "Publication prep: lib crate, DEVPLAN removed, clippy in pre-commit, Display impls, Cargo.toml metadata, interface hardening"
     }
