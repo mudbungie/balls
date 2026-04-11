@@ -3,18 +3,19 @@
   "title": "Dependency link types: relates_to, duplicates, supersedes, replies_to",
   "type": "task",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "parent": null,
   "depends_on": [],
   "description": "Extend the dependency model with typed links. Currently depends_on is the only link type. Add relates_to, duplicates, supersedes, replies_to as typed relationships on tasks.",
   "created_at": "2026-04-10T22:22:53.706078573Z",
-  "updated_at": "2026-04-10T22:22:53.706078573Z",
+  "updated_at": "2026-04-10T22:29:52.503502541Z",
   "closed_at": null,
-  "claimed_by": null,
-  "branch": null,
+  "claimed_by": "mark",
+  "branch": "work/bl-5721",
   "tags": [
     "deps"
   ],
   "notes": [],
+  "closed_children": [],
   "external": {}
 }
