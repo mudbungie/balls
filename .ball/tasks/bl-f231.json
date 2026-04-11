@@ -1,0 +1,22 @@
+{
+  "id": "bl-f231",
+  "title": "Publication prep: devplan, lib crate, unused code audit, interface hardening",
+  "type": "task",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "",
+  "created_at": "2026-04-11T01:52:24.790754377Z",
+  "updated_at": "2026-04-11T01:52:24.790754377Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "publish"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
