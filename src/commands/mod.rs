@@ -1,7 +1,7 @@
 //! CLI command implementations, grouped by lifecycle phase.
 
-use crate::error::Result;
-use crate::store::Store;
+use ball::error::Result;
+use ball::store::Store;
 use std::env;
 
 pub mod basic;
