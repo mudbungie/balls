@@ -1,0 +1,20 @@
+{
+  "id": "bl-c576",
+  "title": "publish to crates.io",
+  "type": "task",
+  "priority": 3,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "",
+  "created_at": "2026-04-11T01:40:57.803098889Z",
+  "updated_at": "2026-04-11T01:40:57.803098889Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
