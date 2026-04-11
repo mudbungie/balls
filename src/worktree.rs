@@ -16,19 +16,26 @@ fn claim_file_path(store: &Store, id: &str) -> PathBuf {
 
 fn write_claim_file(store: &Store, id: &str, worker: &str) -> Result<()> {
     fs::create_dir_all(store.claims_dir())?;
-    let path = claim_file_path(store, id);
-    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
-    let pid = std::process::id();
-    let content = format!("worker={}\npid={}\nclaimed_at={}\n", worker, pid, now);
-    fs::write(path, content)?;
+    let content = format!(
+        "worker={}\npid={}\nclaimed_at={}\n",
+        worker, std::process::id(), chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+    );
+    fs::write(claim_file_path(store, id), content)?;
     Ok(())
 }
 
 fn merge_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, ctx: &str) -> Result<()> {
-    match git::git_merge(dir, branch, msg)? {
-        git::MergeResult::Conflict => Err(BallError::Conflict(ctx.to_string())),
-        _ => Ok(()),
+    if let git::MergeResult::Conflict = git::git_merge(dir, branch, msg)? {
+        return Err(BallError::Conflict(ctx.to_string()));
     }
+    Ok(())
+}
+
+fn merge_no_ff_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, ctx: &str) -> Result<()> {
+    if let git::MergeResult::Conflict = git::git_merge_no_ff(dir, branch, msg)? {
+        return Err(BallError::Conflict(ctx.to_string()));
+    }
+    Ok(())
 }
 
 fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
@@ -152,8 +159,7 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
         git::git_add_all(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("ball: review {}", id));
 
-        // Merge worktree into main
-        merge_or_fail(
+        merge_no_ff_or_fail(
             &store.root, &branch, Some(&format!("ball: merge {}", id)),
             &format!("unexpected conflict merging {} into {}", branch, main_branch),
         )?;
@@ -193,22 +199,18 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         let _ = git::git_branch_delete(&store.root, &branch, true);
         let _ = fs::remove_file(claim_file_path(store, id));
 
-        // Archive
         archive_task(store, &t)?;
         Ok(t)
     })
 }
 
-/// Delete a closed task file from HEAD and record it on the parent's
-/// closed_children list. The task data is preserved in git history.
+/// Delete a closed task from HEAD. Records on parent's closed_children if applicable.
 pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
     use crate::task::ArchivedChild;
-
-    let closed_at = task.closed_at.unwrap_or_else(chrono::Utc::now);
     let archived = ArchivedChild {
         id: task.id.clone(),
         title: task.title.clone(),
-        closed_at,
+        closed_at: task.closed_at.unwrap_or_else(chrono::Utc::now),
     };
 
     // If this task has a parent, record the archived child on the parent
@@ -295,4 +297,3 @@ pub fn cleanup_orphans(store: &Store) -> Result<(Vec<String>, Vec<String>)> {
     }
     Ok((removed_claims, removed_wts))
 }
-
