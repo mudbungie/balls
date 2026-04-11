@@ -6,6 +6,13 @@ description = "Git-native task tracker for parallel agent workflows"
 license = "MIT"
 repository = "https://github.com/mudbungie/ball"
 readme = "README.md"
+keywords = ["git", "task-tracking", "agent", "workflow", "cli"]
+categories = ["development-tools", "command-line-utilities"]
+exclude = [".ball", "scripts", "tests"]
+
+[lib]
+name = "ball"
+path = "src/lib.rs"
 
 [[bin]]
 name = "bl"

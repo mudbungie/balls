@@ -2,8 +2,9 @@
 # Git pre-commit hook for ball.
 #
 # Blocks any commit that:
-#   1. Contains a Rust source file >= 300 lines (see scripts/check-line-lengths.sh)
-#   2. Has test coverage below 100%           (see scripts/check-coverage.sh)
+#   1. Has clippy warnings or compiler warnings
+#   2. Contains a Rust source file >= 300 lines (see scripts/check-line-lengths.sh)
+#   3. Has test coverage below 100%           (see scripts/check-coverage.sh)
 #
 # To install: scripts/install-hooks.sh
 #
@@ -13,6 +14,9 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
+
+echo "pre-commit: checking for warnings and clippy lints..."
+cargo clippy --all-targets -- -D warnings 2>&1
 
 echo "pre-commit: checking Rust file line limit..."
 "$ROOT/scripts/check-line-lengths.sh"
