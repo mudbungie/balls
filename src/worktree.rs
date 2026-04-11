@@ -116,24 +116,29 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<Task> {
+/// Submit for review: commit, merge to main, set status=review. Keeps worktree.
+pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<()> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;
-    let branch = task
-        .branch
-        .clone()
-        .unwrap_or_else(|| format!("work/{}", id));
+    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{}", id));
 
     with_task_lock(store, id, || {
-        // Update task file
+        git::git_add_all(&wt_path)?;
+        let _ = git::git_commit(&wt_path, &format!("ball: work on {}", id));
+        let main_branch = git::git_current_branch(&store.root)?;
+        merge_or_fail(
+            &wt_path, &main_branch, None,
+            &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
+        )?;
+
+        // NOW set review status (on top of latest main state)
         let mut t = if store.stealth {
             store.load_task(id)?
         } else {
             let wt_task = wt_path.join(".ball/tasks").join(format!("{}.json", id));
             Task::load(&wt_task)?
         };
-        t.status = Status::Closed;
-        t.closed_at = Some(chrono::Utc::now());
+        t.status = Status::Review;
         if let Some(msg) = message {
             t.append_note(identity, msg);
         }
@@ -144,38 +149,52 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
             let wt_task = wt_path.join(".ball/tasks").join(format!("{}.json", id));
             t.save(&wt_task)?;
         }
-
-        // Commit all work first, then merge main in. Committing first
-        // ensures uncommitted changes don't block the forward merge.
         git::git_add_all(&wt_path)?;
-        let _ = git::git_commit(&wt_path, &format!("ball: close {}", id));
+        let _ = git::git_commit(&wt_path, &format!("ball: review {}", id));
 
-        // Merge main into worktree. Brings .gitignore current and surfaces
-        // conflicts on the feature branch, not main.
-        let main_branch = git::git_current_branch(&store.root)?;
-        merge_or_fail(
-            &wt_path, &main_branch, None,
-            &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
-        )?;
-
-        // Merge worktree branch into main (should be clean after forward merge)
+        // Merge worktree into main
         merge_or_fail(
             &store.root, &branch, Some(&format!("ball: merge {}", id)),
             &format!("unexpected conflict merging {} into {}", branch, main_branch),
         )?;
+        Ok(())
+    })
+}
+
+/// Close a reviewed task: archive + remove worktree. Rejects from inside worktree.
+pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<Task> {
+    let wt_path = worktree_path(store, id)?;
+    if let Ok(cwd) = std::env::current_dir() {
+        if cwd.starts_with(&wt_path) {
+            return Err(BallError::Other(
+                "cannot close from within the worktree — run from the repo root".into(),
+            ));
+        }
+    }
+
+    let task = store.load_task(id)?;
+    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{}", id));
+
+    with_task_lock(store, id, || {
+        let mut t = store.load_task(id)?;
+        t.status = Status::Closed;
+        t.closed_at = Some(chrono::Utc::now());
+        if let Some(msg) = message {
+            t.append_note(identity, msg);
+        }
+        t.touch();
+        store.save_task(&t)?;
+        store.commit_task(id, &format!("ball: close {}", id))?;
 
         // Remove worktree
-        git::git_worktree_remove(&store.root, &wt_path, false)?;
-
-        // Delete branch
-        let _ = git::git_branch_delete(&store.root, &branch, false);
-
-        // Remove claim file
+        if wt_path.exists() {
+            git::git_worktree_remove(&store.root, &wt_path, true)?;
+        }
+        let _ = git::git_branch_delete(&store.root, &branch, true);
         let _ = fs::remove_file(claim_file_path(store, id));
 
-        // Archive: update parent's closed_children, then delete task file
+        // Archive
         archive_task(store, &t)?;
-
         Ok(t)
     })
 }

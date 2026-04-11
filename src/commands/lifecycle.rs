@@ -25,11 +25,22 @@ pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     Ok(())
 }
 
+pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
+    let store = discover()?;
+    let ident = default_identity();
+    worktree::review_worktree(&store, &id, message.as_deref(), &ident)?;
+    let task = store.load_task(&id)?;
+    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
+        let _ = plugin::apply_push_response(&store, &id, &results);
+    }
+    println!("submitted {} for review", id);
+    Ok(())
+}
+
 pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     let store = discover()?;
     let ident = default_identity();
     let task = worktree::close_worktree(&store, &id, message.as_deref(), &ident)?;
-    // Push to notify remote, but skip write-back since task file is archived
     let _ = plugin::run_plugin_push(&store, &task);
     println!("closed {}", id);
     println!("{}", store.root.display());
@@ -274,6 +285,7 @@ fn print_tree(node: &ready::TreeNode, depth: usize) {
     let indent = "  ".repeat(depth);
     let marker = match node.task.status {
         Status::Closed => "[x]",
+        Status::Review => "[r]",
         Status::InProgress => "[~]",
         Status::Blocked => "[!]",
         Status::Open => "[ ]",

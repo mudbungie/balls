@@ -84,7 +84,14 @@ pub enum Command {
         identity: Option<String>,
     },
 
-    /// Close a task: commit changes in worktree, merge, clean up.
+    /// Submit work for review: merge to main, keep worktree for rework.
+    Review {
+        id: String,
+        #[arg(short = 'm', long)]
+        message: Option<String>,
+    },
+
+    /// Close a reviewed task: archive and remove worktree. Must run from repo root.
     Close {
         id: String,
         #[arg(short = 'm', long)]
