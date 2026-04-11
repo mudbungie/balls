@@ -95,6 +95,8 @@ for t in ball::ready::ready_queue(&store.all_tasks().unwrap()) {
 | **task** | A unit of work. One JSON file in `.ball/tasks/`. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a worktree. |
+| **review** | Submitting work for approval. Merges to main, keeps worktree for potential rework. |
+| **close** | Approving completed work. Archives the task file, removes worktree. |
 | **drop** | Releasing a claim. Destroys the worktree, resets the task to open. |
 | **sync** | Fetch + merge + push against the git remote. |
 | **plugin** | An external executable that implements the plugin interface for a specific integration (e.g., Jira). |
@@ -167,7 +169,7 @@ Each task is a single JSON file at `.ball/tasks/<id>.json`.
 | `title` | string | Human-readable summary. |
 | `type` | enum | `epic`, `task`, `bug`. |
 | `priority` | int | 1 (highest) to 4 (lowest). |
-| `status` | enum | `open`, `in_progress`, `blocked`, `closed`, `deferred`. |
+| `status` | enum | `open`, `in_progress`, `review`, `blocked`, `closed`, `deferred`. |
 | `parent` | string? | ID of parent epic/task, or null. |
 | `depends_on` | string[] | IDs of tasks that must close before this is workable. |
 | `description` | string | Full description. |
@@ -282,32 +284,46 @@ EOF
 '
 ```
 
-### Teardown (on close)
+### Submit for review (agent finishes work)
 
 ```bash
-# 1. In the worktree, update task file
-tmp=$(mktemp)
-jq ".status = \"closed\" | .closed_at = \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" \
-  .ball-worktrees/bl-a1b2/.ball/tasks/bl-a1b2.json > "$tmp"
-mv "$tmp" .ball-worktrees/bl-a1b2/.ball/tasks/bl-a1b2.json
-
-# 2. Commit all work in worktree
+# 1. Commit all work in worktree
 cd .ball-worktrees/bl-a1b2
-git add -A
-git commit -m "ball: close bl-a1b2 - Implement auth middleware"
+git add -A && git commit -m "ball: work on bl-a1b2"
 
-# 3. Merge to main (or push branch for review)
+# 2. Merge main into worktree (forward merge, catches up)
+git merge main
+
+# 3. Set task status to review
+jq '.status = "review"' .ball/tasks/bl-a1b2.json > tmp && mv tmp .ball/tasks/bl-a1b2.json
+git add -A && git commit -m "ball: review bl-a1b2"
+
+# 4. Merge worktree into main (--no-ff: preserves branch topology)
 cd ../..
-git merge work/bl-a1b2
+git merge --no-ff work/bl-a1b2 -m "ball: merge bl-a1b2"
+```
 
-# 4. Remove worktree
+The worktree stays. The agent's CWD is never destroyed.
+
+### Close (reviewer approves)
+
+```bash
+# Run from the repo root, never from inside the worktree.
+# 1. Archive the task file (delete from HEAD, preserved in git history)
+git rm .ball/tasks/bl-a1b2.json && git commit -m "ball: archive bl-a1b2"
+
+# 2. Remove worktree and branch
 git worktree remove .ball-worktrees/bl-a1b2
-
-# 5. Clean up local state
-rm -f .ball/local/claims/bl-a1b2
-
-# 6. Delete branch
 git branch -d work/bl-a1b2
+rm -f .ball/local/claims/bl-a1b2
+```
+
+### Reject (reviewer requests rework)
+
+```bash
+# Set status back to in_progress. Agent resumes in existing worktree.
+bl update bl-a1b2 status=in_progress --note "needs error handling"
+# Agent's next `bl review` will merge main first, picking up this change.
 ```
 
 ---
@@ -318,7 +334,7 @@ git branch -d work/bl-a1b2
 
 When merging task files that conflict:
 
-1. **Status precedence:** `closed` > `in_progress` > `blocked` > `open` > `deferred`. Higher status wins.
+1. **Status precedence:** `closed` > `review` > `in_progress` > `blocked` > `open` > `deferred`. Higher status wins.
 2. **Notes:** Union by timestamp. Append-only, so both sides' notes are kept.
 3. **Timestamps:** Later `updated_at` wins for all non-status fields.
 4. **claimed_by:** If status resolves to `closed`, `claimed_by` comes from the closing side. Otherwise, first writer wins.
@@ -405,15 +421,27 @@ Fails if already claimed locally, deps unmet, or task not open.
 
 **By hand:** See worktree creation section.
 
+### bl review ID [--message MSG]
+
+```
+bl review bl-a1b2 --message "Ready for review"
+```
+
+Agent's safe exit point. Commits work → merges main into worktree → sets status=review → merges to main (--no-ff). Worktree and claim stay intact. The agent's CWD is never destroyed. Triggers plugin push if configured.
+
+If the reviewer rejects (sets status back to `in_progress`), the agent resumes in the existing worktree and calls `bl review` again — it will merge main first, picking up the rejection.
+
+**By hand:** See submit-for-review section.
+
 ### bl close ID [--message MSG]
 
 ```
-bl close bl-a1b2 --message "Implemented JWT validation"
+bl close bl-a1b2 --message "Approved"
 ```
 
-Updates task file → commits all worktree changes → merges to main (or pushes branch) → removes worktree → cleans up local claim. Triggers plugin sync if configured.
+Reviewer/supervisor operation. Archives the task file (deletes from HEAD), removes worktree, cleans up claim and branch. **Rejects if run from inside the worktree** — must run from the repo root. Prints the repo root path on success. Triggers plugin push if configured.
 
-**By hand:** See worktree teardown section.
+**By hand:** See close section.
 
 ### bl update ID [field=value ...] [--note TEXT]
 
@@ -501,6 +529,7 @@ Git-tracked, shared across team.
   "stale_threshold_seconds": 60,
   "auto_fetch_on_ready": true,
   "worktree_dir": ".ball-worktrees",
+  "tasks_dir": null,
   "plugins": {
     "jira": {
       "enabled": true,
@@ -510,6 +539,8 @@ Git-tracked, shared across team.
   }
 }
 ```
+
+`tasks_dir` overrides the default tasks location (`.ball/tasks/`). Set automatically by `bl init --stealth` to an external path (`~/.local/share/ball/<repo-hash>/tasks/`). When tasks are external, they are not git-tracked.
 
 ---
 
@@ -817,9 +848,11 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 59. Agent starts, runs `bl prime`. Gets synced state, ready queue, any in-progress tasks for this identity.
 60. Agent picks top ready task, claims it, works in worktree.
-61. Agent finishes, runs `bl close`. Work merged, worktree cleaned. Runs `bl prime` again for next task.
-62. Agent session ends mid-task (context overflow). New session, `bl prime` shows task still claimed by this identity. Agent resumes in existing worktree.
-63. Agent crashes. Task stays in_progress. Human or supervisor runs `bl drop` to release.
+61. Agent finishes, runs `bl review`. Work merged to main, worktree stays, status=review.
+62. Reviewer approves, runs `bl close` from repo root. Task archived, worktree removed.
+63. Reviewer rejects, runs `bl update ID status=in_progress --note "reason"`. Agent resumes in existing worktree, next `bl review` merges main first.
+64. Agent session ends mid-task (context overflow). New session, `bl prime` shows task still claimed by this identity. Agent resumes in existing worktree.
+65. Agent crashes. Task stays in_progress. Human or supervisor runs `bl drop` to release.
 
 ### Plugin System
 

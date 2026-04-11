@@ -3,19 +3,25 @@
   "title": "Documentation review and SKILL.md for agents",
   "type": "task",
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "parent": null,
   "depends_on": [],
   "description": "",
   "created_at": "2026-04-11T16:55:16.684155964Z",
-  "updated_at": "2026-04-11T16:55:16.726490117Z",
+  "updated_at": "2026-04-11T17:02:40.373962093Z",
   "closed_at": null,
   "claimed_by": "mark",
   "branch": "work/bl-60cf",
   "tags": [
     "docs"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "ts": "2026-04-11T17:02:40.373957534Z",
+      "author": "mark",
+      "text": "README audit: review status, worktree lifecycle, config docs. SKILL.md for agents."
+    }
+  ],
   "links": [],
   "closed_children": [],
   "external": {}
