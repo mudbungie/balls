@@ -5,10 +5,12 @@
   "priority": 2,
   "status": "open",
   "parent": null,
-  "depends_on": [],
+  "depends_on": [
+    "bl-202a"
+  ],
   "description": "Add apply_sync_report to commands/sync.rs, add --task flag to CLI, wire into cmd_sync",
   "created_at": "2026-04-11T01:52:50.073005082Z",
-  "updated_at": "2026-04-11T01:52:50.073005082Z",
+  "updated_at": "2026-04-11T01:52:56.056796927Z",
   "closed_at": null,
   "claimed_by": null,
   "branch": null,
