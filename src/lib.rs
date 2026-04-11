@@ -7,12 +7,12 @@
 //! # Library usage
 //!
 //! ```no_run
-//! use ball::{Store, Task};
+//! use balls::{Store, Task};
 //! use std::env;
 //!
 //! let store = Store::discover(&env::current_dir().unwrap()).unwrap();
 //! let tasks = store.all_tasks().unwrap();
-//! for t in ball::ready::ready_queue(&tasks) {
+//! for t in balls::ready::ready_queue(&tasks) {
 //!     println!("[P{}] {} {}", t.priority, t.id, t.title);
 //! }
 //! ```

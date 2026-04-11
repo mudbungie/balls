@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the ball pre-commit hook into this repository's .git/hooks dir.
+# Install the balls pre-commit hook into this repository's .git/hooks dir.
 
 set -euo pipefail
 

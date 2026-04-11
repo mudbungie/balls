@@ -6,6 +6,8 @@
 
 #![allow(dead_code)]
 
+pub mod plugin;
+
 use assert_cmd::Command;
 use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
@@ -25,7 +27,7 @@ impl Repo {
 
 pub fn tmp() -> TempDir {
     tempfile::Builder::new()
-        .prefix("ball-it-")
+        .prefix("balls-it-")
         .tempdir()
         .expect("tempdir")
 }
@@ -92,7 +94,7 @@ pub fn new_bare_remote() -> Repo {
 /// and origin is set to the remote.
 pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
     let dir = tempfile::Builder::new()
-        .prefix(&format!("ball-it-{}-", name))
+        .prefix(&format!("balls-it-{}-", name))
         .tempdir()
         .expect("tempdir");
 
@@ -152,7 +154,7 @@ pub fn bl_bin() -> PathBuf {
 pub fn bl(cwd: &Path) -> Command {
     let mut c = Command::cargo_bin("bl").unwrap();
     c.current_dir(cwd);
-    c.env("BALL_IDENTITY", "test-user");
+    c.env("BALLS_IDENTITY", "test-user");
     for var in GIT_ENV_VARS {
         c.env_remove(var);
     }
@@ -162,7 +164,7 @@ pub fn bl(cwd: &Path) -> Command {
 pub fn bl_as(cwd: &Path, identity: &str) -> Command {
     let mut c = Command::cargo_bin("bl").unwrap();
     c.current_dir(cwd);
-    c.env("BALL_IDENTITY", identity);
+    c.env("BALLS_IDENTITY", identity);
     for var in GIT_ENV_VARS {
         c.env_remove(var);
     }
@@ -214,7 +216,7 @@ pub fn init_in(cwd: &Path) {
 
 /// Read and JSON-parse a task file directly from the store.
 pub fn read_task_json(repo_root: &Path, id: &str) -> serde_json::Value {
-    let path = repo_root.join(".ball/tasks").join(format!("{}.json", id));
+    let path = repo_root.join(".balls/tasks").join(format!("{}.json", id));
     let s = std::fs::read_to_string(&path).expect("read task");
     serde_json::from_str(&s).expect("parse task json")
 }

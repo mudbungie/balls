@@ -12,7 +12,7 @@ if ! command -v cargo-tarpaulin >/dev/null 2>&1; then
     exit 1
 fi
 
-THRESHOLD="${BALL_COVERAGE_THRESHOLD:-100}"
+THRESHOLD="${BALLS_COVERAGE_THRESHOLD:-100}"
 
 # Tarpaulin's --fail-under flag exits non-zero when coverage is below the
 # threshold.  --skip-clean keeps the incremental build fast enough for a hook.

@@ -84,12 +84,12 @@ fn story_51_two_workers_close_same_task() {
         .assert()
         .success();
     // Alice's close archived the task — file is gone
-    assert!(!alice.path().join(format!(".ball/tasks/{}.json", id)).exists());
+    assert!(!alice.path().join(format!(".balls/tasks/{}.json", id)).exists());
 
     bl(alice.path()).arg("sync").assert().success();
     bl(bob.path()).arg("sync").assert().success();
     // Bob now sees the task is gone (archived by alice)
-    assert!(!bob.path().join(format!(".ball/tasks/{}.json", id)).exists());
+    assert!(!bob.path().join(format!(".balls/tasks/{}.json", id)).exists());
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn sync_push_retry_path_after_race() {
 #[test]
 fn sync_rejects_conflict_in_non_task_file() {
     // Sync should error cleanly when a conflict lands in a file outside
-    // .ball/tasks/ — we don't know how to auto-resolve it.
+    // .balls/tasks/ — we don't know how to auto-resolve it.
     let (_r, alice, bob) = three_way();
     // Both repos edit a shared non-task file.
     std::fs::write(alice.path().join("shared.txt"), "alice side").unwrap();
@@ -232,7 +232,7 @@ fn sync_resolve_command_on_single_file() {
     init_in(repo.path());
     let id = create_task(repo.path(), "r");
 
-    let path = repo.path().join(".ball/tasks").join(format!("{}.json", id));
+    let path = repo.path().join(".balls/tasks").join(format!("{}.json", id));
     let orig = std::fs::read_to_string(&path).unwrap();
     let ours = orig.replace("\"priority\": 3", "\"priority\": 1");
     let theirs = orig.replace("\"priority\": 3", "\"priority\": 2");
@@ -243,7 +243,7 @@ fn sync_resolve_command_on_single_file() {
     std::fs::write(&path, conflict).unwrap();
 
     bl(repo.path())
-        .args(["resolve", &format!(".ball/tasks/{}.json", id)])
+        .args(["resolve", &format!(".balls/tasks/{}.json", id)])
         .assert()
         .success();
 

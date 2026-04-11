@@ -130,7 +130,7 @@ fn init_with_existing_gitignore_no_trailing_newline() {
     bl(dir.path()).arg("init").assert().success();
     let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
     assert!(gi.contains("target/"));
-    assert!(gi.contains(".ball/local"));
+    assert!(gi.contains(".balls/local"));
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn init_sets_git_user_when_unset() {
         .assert()
         .success();
     let email = git(dir.path(), &["config", "user.email"]);
-    assert!(email.contains("ball"));
+    assert!(email.contains("balls"));
 }
 
 #[test]
@@ -155,11 +155,11 @@ fn init_with_partially_existing_gitignore() {
     git(dir.path(), &["init", "-q", "-b", "main"]);
     git(dir.path(), &["config", "user.email", "t@t"]);
     git(dir.path(), &["config", "user.name", "t"]);
-    std::fs::write(dir.path().join(".gitignore"), ".ball/local\n").unwrap();
+    std::fs::write(dir.path().join(".gitignore"), ".balls/local\n").unwrap();
     bl(dir.path()).arg("init").assert().success();
     let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
     assert_eq!(
-        gi.lines().filter(|l| l.trim() == ".ball/local").count(),
+        gi.lines().filter(|l| l.trim() == ".balls/local").count(),
         1
     );
 }
@@ -168,7 +168,7 @@ fn init_with_partially_existing_gitignore() {
 fn id_collision_retry_triggered() {
     let repo = new_repo();
     init_in(repo.path());
-    let cfg_path = repo.path().join(".ball/config.json");
+    let cfg_path = repo.path().join(".balls/config.json");
     let mut cfg: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&cfg_path).unwrap()).unwrap();
     cfg["id_length"] = serde_json::json!(1);

@@ -35,7 +35,7 @@ fn story_60_61_full_agent_loop() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".ball-worktrees").join(&id);
+    let wt = repo.path().join(".balls-worktrees").join(&id);
     std::fs::write(wt.join("work.txt"), "done").unwrap();
     bl_as(repo.path(), "agent-alpha")
         .args(["close", &id, "-m", "shipped"])
@@ -89,7 +89,7 @@ fn repair_fix_removes_orphan_claim() {
     init_in(repo.path());
     // Fabricate an orphan claim file
     std::fs::write(
-        repo.path().join(".ball/local/claims/bl-ghost"),
+        repo.path().join(".balls/local/claims/bl-ghost"),
         "worker=ghost\npid=1\nclaimed_at=2026-01-01T00:00:00Z\n",
     )
     .unwrap();
@@ -99,7 +99,7 @@ fn repair_fix_removes_orphan_claim() {
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(s.contains("bl-ghost"));
-    assert!(!repo.path().join(".ball/local/claims/bl-ghost").exists());
+    assert!(!repo.path().join(".balls/local/claims/bl-ghost").exists());
 }
 
 #[test]
@@ -226,7 +226,7 @@ fn update_status_closed_archives_unclaimed_task() {
         .assert()
         .success();
     // Task file is archived (deleted from HEAD)
-    let task_path = repo.path().join(format!(".ball/tasks/{}.json", id));
+    let task_path = repo.path().join(format!(".balls/tasks/{}.json", id));
     assert!(!task_path.exists());
     // Git log shows the archive
     let log = git(repo.path(), &["log", "--oneline"]);
