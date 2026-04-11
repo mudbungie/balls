@@ -1,0 +1,246 @@
+//! init, create, list, show, ready — the read-mostly commands.
+
+use super::discover;
+use crate::error::{BallError, Result};
+use crate::git;
+use crate::plugin;
+use crate::ready;
+use crate::store::{task_lock, Store};
+use crate::task::{NewTaskOpts, Status, Task, TaskType};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+
+pub fn cmd_init() -> Result<()> {
+    let cwd = env::current_dir()?;
+    let store = Store::init(&cwd)?;
+    println!("Initialized ball in {}", store.root.display());
+    Ok(())
+}
+
+/// Generate a task id that does not yet exist in the store, retrying with an
+/// incremented timestamp on collision. Returns an error if no unique id can
+/// be found within a reasonable number of attempts.
+fn generate_unique_id(title: &str, store: &Store, id_length: usize) -> Result<String> {
+    let mut now = chrono::Utc::now();
+    let mut id = Task::generate_id(title, now, id_length);
+    let mut tries = 0;
+    while store.task_exists(&id) {
+        tries += 1;
+        if tries > 1000 {
+            return Err(BallError::Other(
+                "could not generate unique task id after 1000 tries".into(),
+            ));
+        }
+        now = now + chrono::Duration::milliseconds(1);
+        id = Task::generate_id(title, now, id_length);
+    }
+    Ok(id)
+}
+
+pub fn cmd_create(
+    title: String,
+    priority: u8,
+    task_type: String,
+    parent: Option<String>,
+    dep: Vec<String>,
+    tag: Vec<String>,
+    description: String,
+) -> Result<()> {
+    let store = discover()?;
+
+    if !(1..=4).contains(&priority) {
+        return Err(BallError::InvalidTask("priority must be 1..=4".to_string()));
+    }
+    let task_type = TaskType::parse(&task_type)?;
+
+    let all = store.all_tasks()?;
+    if let Some(pid) = &parent {
+        if !all.iter().any(|t| &t.id == pid) {
+            return Err(BallError::InvalidTask(format!("parent not found: {}", pid)));
+        }
+    }
+    ready::validate_deps(&all, &dep)?;
+
+    let opts = NewTaskOpts {
+        title: title.clone(),
+        task_type,
+        priority,
+        parent,
+        depends_on: dep.clone(),
+        description,
+        tags: tag,
+    };
+
+    let cfg = store.load_config()?;
+    let id = generate_unique_id(&title, &store, cfg.id_length)?;
+    // New-task cycle check is unnecessary: a fresh id has no dependants yet,
+    // so no chain through `dep` can reach it. Existing deps were already
+    // validated above.
+
+    let task = Task::new(opts, id.clone());
+    {
+        let _g = task_lock(&store, &id)?;
+        store.save_task(&task)?;
+        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
+        git::git_add(&store.root, &[rel.as_path()])?;
+        git::git_commit(&store.root, &format!("ball: create {} - {}", id, title))?;
+    }
+
+    let _ = plugin::run_plugin_push(&store, &task);
+
+    println!("{}", id);
+    Ok(())
+}
+
+pub fn cmd_list(
+    status: Option<String>,
+    priority: Option<u8>,
+    parent: Option<String>,
+    tag: Option<String>,
+    all: bool,
+    json: bool,
+) -> Result<()> {
+    let store = discover()?;
+    let mut tasks = store.all_tasks()?;
+
+    if let Some(s) = &status {
+        let st = Status::parse(s)?;
+        tasks.retain(|t| t.status == st);
+    } else if !all {
+        tasks.retain(|t| t.status != Status::Closed);
+    }
+    if let Some(p) = priority {
+        tasks.retain(|t| t.priority == p);
+    }
+    if let Some(pid) = &parent {
+        tasks.retain(|t| t.parent.as_deref() == Some(pid.as_str()));
+    }
+    if let Some(tg) = &tag {
+        tasks.retain(|t| t.tags.iter().any(|x| x == tg));
+    }
+    tasks.sort_by(|a, b| {
+        a.priority
+            .cmp(&b.priority)
+            .then_with(|| a.created_at.cmp(&b.created_at))
+    });
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&tasks)?);
+    } else {
+        for t in &tasks {
+            println!(
+                "[P{}] {} {:<12} {}",
+                t.priority,
+                t.id,
+                t.status.as_str(),
+                t.title
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn cmd_show(id: String, json: bool) -> Result<()> {
+    let store = discover()?;
+    let task = store.load_task(&id)?;
+    let all = store.all_tasks()?;
+
+    if json {
+        let blocked = ready::is_dep_blocked(&all, &task);
+        let children: Vec<&Task> = ready::children_of(&all, &id);
+        let pretty = serde_json::json!({
+            "task": task,
+            "dep_blocked": blocked,
+            "children": children.iter().map(|t| &t.id).collect::<Vec<_>>(),
+            "completion": ready::completion(&all, &id),
+        });
+        println!("{}", serde_json::to_string_pretty(&pretty)?);
+        return Ok(());
+    }
+
+    render_text(&task, &all, &id);
+    Ok(())
+}
+
+fn render_text(task: &Task, all: &[Task], id: &str) {
+    println!("{} - {}", task.id, task.title);
+    println!("  type:     {:?}", task.task_type);
+    println!("  priority: {}", task.priority);
+    println!("  status:   {}", task.status.as_str());
+    if let Some(p) = &task.parent {
+        println!("  parent:   {}", p);
+    }
+    if !task.depends_on.is_empty() {
+        println!("  deps:     {}", task.depends_on.join(", "));
+    }
+    if !task.tags.is_empty() {
+        println!("  tags:     {}", task.tags.join(", "));
+    }
+    if let Some(c) = &task.claimed_by {
+        println!("  claimed:  {}", c);
+    }
+    if let Some(b) = &task.branch {
+        println!("  branch:   {}", b);
+    }
+    if ready::is_dep_blocked(all, task) {
+        println!("  dep_blocked: yes");
+    }
+    let kids = ready::children_of(all, id);
+    if !kids.is_empty() {
+        println!("  children:");
+        for k in &kids {
+            println!("    {} [{}] {}", k.id, k.status.as_str(), k.title);
+        }
+        println!("  completion: {:.0}%", ready::completion(all, id) * 100.0);
+    }
+    if !task.description.is_empty() {
+        println!();
+        println!("{}", task.description);
+    }
+    if !task.notes.is_empty() {
+        println!();
+        println!("notes:");
+        for n in &task.notes {
+            println!("  [{}] {}: {}", n.ts.to_rfc3339(), n.author, n.text);
+        }
+    }
+}
+
+pub fn cmd_ready(json: bool, no_fetch: bool) -> Result<()> {
+    let store = discover()?;
+    let cfg = store.load_config()?;
+
+    if cfg.auto_fetch_on_ready && !no_fetch {
+        maybe_auto_fetch(&store, cfg.stale_threshold_seconds);
+    }
+
+    let tasks = store.all_tasks()?;
+    let ready = ready::ready_queue(&tasks);
+    if json {
+        let v: Vec<&Task> = ready;
+        println!("{}", serde_json::to_string_pretty(&v)?);
+    } else if ready.is_empty() {
+        println!("No tasks ready.");
+    } else {
+        for t in &ready {
+            println!("[P{}] {} {}", t.priority, t.id, t.title);
+        }
+    }
+    Ok(())
+}
+
+fn maybe_auto_fetch(store: &Store, stale_threshold_seconds: u64) {
+    let last_fetch = store.local_dir().join("last_fetch");
+    let stale = match fs::metadata(&last_fetch).and_then(|m| m.modified()) {
+        Ok(t) => std::time::SystemTime::now()
+            .duration_since(t)
+            .map(|d| d.as_secs() > stale_threshold_seconds)
+            .unwrap_or(true),
+        Err(_) => true,
+    };
+    if stale && git::git_has_remote(&store.root, "origin") {
+        let _ = git::git_fetch(&store.root, "origin");
+        let _ = fs::write(&last_fetch, "");
+    }
+}
