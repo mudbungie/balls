@@ -15,16 +15,15 @@ Ball ships as a single small Rust binary called `bl`. The only runtime dependenc
 ```bash
 git clone https://github.com/mudbungie/ball.git
 cd ball
-cargo install --path .
+make install
 ```
 
-This installs `bl` to `~/.cargo/bin/`. Make sure that directory is on your `PATH`.
+This builds a release binary and installs `bl` to `~/.local/bin/`. Make sure that directory is on your `PATH`.
 
-Or build manually:
+Or via cargo directly:
 
 ```bash
-cargo build --release
-install -m 0755 target/release/bl /usr/local/bin/bl
+cargo install --path .   # installs to ~/.cargo/bin/
 ```
 
 ### Cross-compilation
