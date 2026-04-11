@@ -1,8 +1,8 @@
 mod cli;
 mod commands;
 
-use clap::Parser;
-use cli::{Cli, Command};
+use clap::{CommandFactory, Parser};
+use cli::{Cli, Command, ShellArg};
 
 fn main() {
     let cli = Cli::parse();
@@ -45,6 +45,15 @@ fn main() {
         Command::Repair { fix } => commands::cmd_repair(fix),
         Command::Skill => {
             print!("{}", include_str!("../SKILL.md"));
+            Ok(())
+        }
+        Command::Completions { shell } => {
+            let shell = match shell {
+                ShellArg::Bash => clap_complete::Shell::Bash,
+                ShellArg::Zsh => clap_complete::Shell::Zsh,
+                ShellArg::Fish => clap_complete::Shell::Fish,
+            };
+            clap_complete::generate(shell, &mut Cli::command(), "bl", &mut std::io::stdout());
             Ok(())
         }
     };
