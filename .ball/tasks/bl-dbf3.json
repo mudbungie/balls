@@ -5,10 +5,12 @@
   "priority": 2,
   "status": "open",
   "parent": null,
-  "depends_on": [],
+  "depends_on": [
+    "bl-202a"
+  ],
   "description": "Add PushResponse, SyncReport types to plugin.rs. Implement auth_check, modify push/sync to parse stdout, add apply_push_response",
   "created_at": "2026-04-11T01:52:48.728249541Z",
-  "updated_at": "2026-04-11T01:52:48.728249541Z",
+  "updated_at": "2026-04-11T01:52:56.039122742Z",
   "closed_at": null,
   "claimed_by": null,
   "branch": null,
