@@ -54,6 +54,16 @@ pub fn git_add(dir: &Path, paths: &[&Path]) -> Result<()> {
     Ok(())
 }
 
+pub fn git_rm(dir: &Path, paths: &[&Path]) -> Result<()> {
+    let mut args = vec!["rm", "--"];
+    let strs: Vec<String> = paths.iter().map(|p| p.to_string_lossy().to_string()).collect();
+    for s in &strs {
+        args.push(s.as_str());
+    }
+    run_git_ok(dir, &args)?;
+    Ok(())
+}
+
 pub fn git_add_all(dir: &Path) -> Result<()> {
     run_git_ok(dir, &["add", "-A"])?;
     Ok(())

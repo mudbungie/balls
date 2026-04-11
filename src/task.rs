@@ -77,6 +77,13 @@ pub struct Note {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchivedChild {
+    pub id: String,
+    pub title: String,
+    pub closed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
     pub title: String,
@@ -98,6 +105,8 @@ pub struct Task {
     pub tags: Vec<String>,
     #[serde(default)]
     pub notes: Vec<Note>,
+    #[serde(default)]
+    pub closed_children: Vec<ArchivedChild>,
     #[serde(default)]
     pub external: BTreeMap<String, Value>,
 }
@@ -154,6 +163,7 @@ impl Task {
             branch: None,
             tags: opts.tags,
             notes: Vec::new(),
+            closed_children: Vec::new(),
             external: BTreeMap::new(),
         }
     }

@@ -3,7 +3,7 @@ use crate::git;
 use crate::store::{task_lock, Store};
 use crate::task::{Status, Task};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn with_task_lock<T>(store: &Store, id: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     let _guard = task_lock(store, id)?;
@@ -115,7 +115,7 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<()> {
+pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<Task> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;
     let branch = task
@@ -156,8 +156,45 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         // Remove claim file
         let _ = fs::remove_file(claim_file_path(store, id));
 
-        Ok(())
+        // Archive: update parent's closed_children, then delete task file
+        archive_task(store, &t)?;
+
+        Ok(t)
     })
+}
+
+fn archive_task(store: &Store, task: &Task) -> Result<()> {
+    use crate::task::ArchivedChild;
+
+    let closed_at = task.closed_at.unwrap_or_else(chrono::Utc::now);
+    let archived = ArchivedChild {
+        id: task.id.clone(),
+        title: task.title.clone(),
+        closed_at,
+    };
+
+    // If this task has a parent, record the archived child on the parent
+    let mut paths_to_add: Vec<PathBuf> = Vec::new();
+    if let Some(pid) = &task.parent {
+        if let Ok(mut parent) = store.load_task(pid) {
+            parent.closed_children.push(archived);
+            parent.touch();
+            store.save_task(&parent)?;
+            paths_to_add.push(PathBuf::from(format!(".ball/tasks/{}.json", pid)));
+        }
+    }
+
+    // Delete the closed task file from HEAD
+    let rel = PathBuf::from(format!(".ball/tasks/{}.json", task.id));
+    store.delete_task_file(&task.id)?;
+    git::git_rm(&store.root, &[rel.as_path()])?;
+
+    if !paths_to_add.is_empty() {
+        let refs: Vec<&Path> = paths_to_add.iter().map(|p| p.as_path()).collect();
+        git::git_add(&store.root, &refs)?;
+    }
+    git::git_commit(&store.root, &format!("ball: archive {}", task.id))?;
+    Ok(())
 }
 
 pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
