@@ -3,13 +3,13 @@
   "title": "No-ff merge in review, rejection workflow guidance",
   "type": "bug",
   "priority": 1,
-  "status": "review",
+  "status": "closed",
   "parent": null,
   "depends_on": [],
   "description": "",
   "created_at": "2026-04-11T16:46:07.735849485Z",
-  "updated_at": "2026-04-11T16:51:09.275097155Z",
-  "closed_at": null,
+  "updated_at": "2026-04-11T16:51:15.702038101Z",
+  "closed_at": "2026-04-11T16:51:15.702033712Z",
   "claimed_by": "mark",
   "branch": "work/bl-8615",
   "tags": [
@@ -21,6 +21,11 @@
       "ts": "2026-04-11T16:51:09.275084589Z",
       "author": "mark",
       "text": "No-ff merge for worktree→main, merge_no_ff_or_fail helper"
+    },
+    {
+      "ts": "2026-04-11T16:51:15.702036187Z",
+      "author": "mark",
+      "text": "Approved"
     }
   ],
   "links": [],
