@@ -58,15 +58,17 @@ fn story_25_claim_closed_task_rejected() {
     let repo = new_repo();
     init_in(repo.path());
     let a = create_task(repo.path(), "a");
+    // Closing via update archives the task (deletes the file)
     bl(repo.path())
         .args(["update", &a, "status=closed"])
         .assert()
         .success();
+    // Archived task can't be claimed — it no longer exists
     bl(repo.path())
         .args(["claim", &a])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("claimable"));
+        .stderr(predicate::str::contains("not found"));
 }
 
 #[test]

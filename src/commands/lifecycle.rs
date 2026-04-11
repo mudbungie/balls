@@ -32,7 +32,7 @@ pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     // Push to notify remote, but skip write-back since task file is archived
     let _ = plugin::run_plugin_push(&store, &task);
     println!("closed {}", id);
-    println!("cd {}", store.root.display());
+    println!("{}", store.root.display());
     Ok(())
 }
 
@@ -52,14 +52,28 @@ pub fn cmd_update(
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
 
+    // Check if any assignment sets status=closed
+    let closing = assignments.iter().any(|a| a == "status=closed");
+
     let task = {
         let _g = task_lock(&store, &id)?;
         let mut task = store.load_task(&id)?;
+
+        // Claimed tasks must go through `bl close`, not `bl update status=closed`
+        if closing && task.claimed_by.is_some() {
+            return Err(BallError::InvalidTask(
+                "use `bl close` for claimed tasks (handles worktree teardown and merge)".into(),
+            ));
+        }
+
         for assign in &assignments {
             let (field, value) = assign.split_once('=').ok_or_else(|| {
                 BallError::InvalidTask(format!("expected field=value, got: {}", assign))
             })?;
             apply_field(&mut task, field, value)?;
+        }
+        if closing {
+            task.closed_at = Some(chrono::Utc::now());
         }
         if let Some(n) = &note {
             task.append_note(&ident, n);
@@ -73,7 +87,14 @@ pub fn cmd_update(
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {
         let _ = plugin::apply_push_response(&store, &id, &results);
     }
-    println!("updated {}", id);
+
+    // Archive unclaimed tasks that were closed via update
+    if closing {
+        worktree::archive_task(&store, &task)?;
+        println!("closed and archived {}", id);
+    } else {
+        println!("updated {}", id);
+    }
     Ok(())
 }
 

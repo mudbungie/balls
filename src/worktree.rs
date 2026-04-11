@@ -180,7 +180,9 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
     })
 }
 
-fn archive_task(store: &Store, task: &Task) -> Result<()> {
+/// Delete a closed task file from HEAD and record it on the parent's
+/// closed_children list. The task data is preserved in git history.
+pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
     use crate::task::ArchivedChild;
 
     let closed_at = task.closed_at.unwrap_or_else(chrono::Utc::now);

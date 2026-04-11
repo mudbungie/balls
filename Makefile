@@ -1,10 +1,15 @@
-.PHONY: build test install clean
+.PHONY: build test check install clean
 
 build:
 	cargo build --release
 
 test:
 	cargo test
+
+check: test
+	cargo clippy --all-targets -- -D warnings
+	scripts/check-line-lengths.sh
+	scripts/check-coverage.sh
 
 install: build
 	install -d ~/.local/bin
