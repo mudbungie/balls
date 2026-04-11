@@ -16,6 +16,10 @@ pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     let task = store.load_task(&id)?;
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {
         let _ = plugin::apply_push_response(&store, &id, &results);
+        // Plugin response committed to main after worktree creation —
+        // merge main into worktree to keep it current.
+        let main_branch = ball::git::git_current_branch(&store.root)?;
+        let _ = ball::git::git_merge(&path, &main_branch, None);
     }
     println!("{}", path.display());
     Ok(())

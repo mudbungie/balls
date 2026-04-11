@@ -118,6 +118,10 @@ fn configure_plugin(repo_path: &std::path::Path) {
         }
     });
     fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
+
+    // Commit config changes so worktrees created later include them.
+    git(repo_path, &["add", ".ball/config.json", ".ball/plugins/mock.json"]);
+    git(repo_path, &["commit", "-m", "configure mock plugin", "--no-verify"]);
 }
 
 /// Create the mock auth token so auth-check passes.
