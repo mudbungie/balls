@@ -43,6 +43,10 @@ fn main() {
         Command::Resolve { file } => commands::cmd_resolve(file),
         Command::Prime { identity, json } => commands::cmd_prime(identity, json),
         Command::Repair { fix } => commands::cmd_repair(fix),
+        Command::Skill => {
+            print!("{}", include_str!("../SKILL.md"));
+            Ok(())
+        }
     };
     if let Err(e) = result {
         eprintln!("error: {}", e);
