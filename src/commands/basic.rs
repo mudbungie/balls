@@ -25,7 +25,7 @@ pub fn cmd_init(stealth: bool) -> Result<()> {
 /// Generate a task id that does not yet exist in the store, retrying with an
 /// incremented timestamp on collision. Returns an error if no unique id can
 /// be found within a reasonable number of attempts.
-fn generate_unique_id(title: &str, store: &Store, id_length: usize) -> Result<String> {
+pub(crate) fn generate_unique_id(title: &str, store: &Store, id_length: usize) -> Result<String> {
     let mut now = chrono::Utc::now();
     let mut id = Task::generate_id(title, now, id_length);
     let mut tries = 0;
@@ -89,7 +89,9 @@ pub fn cmd_create(
         store.commit_task(&id, &format!("ball: create {} - {}", id, title))?;
     }
 
-    let _ = plugin::run_plugin_push(&store, &task);
+    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
+        let _ = plugin::apply_push_response(&store, &id, &results);
+    }
 
     println!("{}", id);
     Ok(())
