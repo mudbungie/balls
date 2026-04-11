@@ -113,7 +113,19 @@ pub enum MergeResult {
 }
 
 pub fn git_merge(dir: &Path, branch: &str, message: Option<&str>) -> Result<MergeResult> {
+    git_merge_inner(dir, branch, message, false)
+}
+
+/// Merge with --no-ff: always create a merge commit even if fast-forward is possible.
+pub fn git_merge_no_ff(dir: &Path, branch: &str, message: Option<&str>) -> Result<MergeResult> {
+    git_merge_inner(dir, branch, message, true)
+}
+
+fn git_merge_inner(dir: &Path, branch: &str, message: Option<&str>, no_ff: bool) -> Result<MergeResult> {
     let mut args = vec!["merge", "--no-edit"];
+    if no_ff {
+        args.push("--no-ff");
+    }
     if let Some(m) = message {
         args.push("-m");
         args.push(m);
