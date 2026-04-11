@@ -90,14 +90,14 @@ fn dep_add_already_present_noop() {
 }
 
 #[test]
-fn dep_tree_all_status_markers() {
+fn dep_tree_status_markers() {
+    // Closed tasks are archived (deleted), so dep tree shows 4 statuses.
     let repo = new_repo();
     init_in(repo.path());
     let ids = [
         create_task(repo.path(), "open-t"),
         create_task(repo.path(), "prog-t"),
         create_task(repo.path(), "block-t"),
-        create_task(repo.path(), "closed-t"),
         create_task(repo.path(), "deferred-t"),
     ];
     bl(repo.path())
@@ -109,11 +109,7 @@ fn dep_tree_all_status_markers() {
         .assert()
         .success();
     bl(repo.path())
-        .args(["update", &ids[3], "status=closed"])
-        .assert()
-        .success();
-    bl(repo.path())
-        .args(["update", &ids[4], "status=deferred"])
+        .args(["update", &ids[3], "status=deferred"])
         .assert()
         .success();
     let out = bl(repo.path()).args(["dep", "tree"]).output().unwrap();
@@ -121,7 +117,6 @@ fn dep_tree_all_status_markers() {
     assert!(s.contains("[ ]"));
     assert!(s.contains("[~]"));
     assert!(s.contains("[!]"));
-    assert!(s.contains("[x]"));
     assert!(s.contains("[-]"));
 }
 

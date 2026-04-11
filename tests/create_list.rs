@@ -189,17 +189,21 @@ fn story_15_show_json() {
 }
 
 #[test]
-fn story_16_list_all_including_closed() {
+fn story_16_list_all_includes_deferred() {
+    // Closed tasks are archived (not on disk). --all shows deferred tasks
+    // that `list` would normally hide.
     let repo = new_repo();
     init_in(repo.path());
-    let a = create_task(repo.path(), "closed-thing");
+    let a = create_task(repo.path(), "deferred-thing");
     bl(repo.path())
-        .args(["update", &a, "status=closed"])
+        .args(["update", &a, "status=deferred"])
         .assert()
         .success();
     let out = bl(repo.path()).arg("list").output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    assert!(!s.contains(&a));
+    // Default list excludes closed but shows deferred
+    assert!(s.contains(&a));
+    // --all also shows it
     let out = bl(repo.path()).args(["list", "--all"]).output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(s.contains(&a));

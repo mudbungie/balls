@@ -3,20 +3,26 @@
   "title": "Fix update status=closed, close output, move tarpaulin to merge gate",
   "type": "bug",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "parent": null,
   "depends_on": [],
   "description": "",
   "created_at": "2026-04-11T02:41:11.404803609Z",
-  "updated_at": "2026-04-11T02:41:11.438274877Z",
-  "closed_at": null,
+  "updated_at": "2026-04-11T02:48:36.454216656Z",
+  "closed_at": "2026-04-11T02:48:36.454214462Z",
   "claimed_by": "mark",
   "branch": "work/bl-451a",
   "tags": [
     "close",
     "workflow"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "ts": "2026-04-11T02:48:36.454215725Z",
+      "author": "mark",
+      "text": "Fix update status=closed (archive unclaimed, reject claimed), symmetric close output, move tarpaulin to make check"
+    }
+  ],
   "links": [],
   "closed_children": [],
   "external": {}

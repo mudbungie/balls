@@ -3,6 +3,7 @@
 mod common;
 
 use common::*;
+use predicates::prelude::*;
 
 #[test]
 fn story_59_prime_outputs_ready_queue() {
@@ -197,4 +198,37 @@ fn show_nonexistent_task_errors() {
         .args(["show", "bl-0000"])
         .assert()
         .failure();
+}
+
+#[test]
+fn update_status_closed_rejects_claimed_task() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "claimed");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["update", &id, "status=closed"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("bl close"));
+}
+
+#[test]
+fn update_status_closed_archives_unclaimed_task() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "unclaimed");
+    bl(repo.path())
+        .args(["update", &id, "status=closed", "--note", "done without worktree"])
+        .assert()
+        .success();
+    // Task file is archived (deleted from HEAD)
+    let task_path = repo.path().join(format!(".ball/tasks/{}.json", id));
+    assert!(!task_path.exists());
+    // Git log shows the archive
+    let log = git(repo.path(), &["log", "--oneline"]);
+    assert!(log.contains(&format!("archive {}", id)));
 }
