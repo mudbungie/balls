@@ -1,0 +1,20 @@
+{
+  "id": "bl-c506",
+  "title": "Squash merges and descriptive commit messages",
+  "type": "task",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Replace --no-ff merge with --squash in review, combine close+archive commits, include task titles in all lifecycle commit messages",
+  "created_at": "2026-04-11T21:30:31.060885251Z",
+  "updated_at": "2026-04-11T21:30:31.060885251Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
