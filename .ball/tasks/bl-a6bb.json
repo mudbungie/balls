@@ -1,0 +1,23 @@
+{
+  "id": "bl-a6bb",
+  "title": "Fix close flow: merge main first, handle conflicts, print repo root for cd",
+  "type": "bug",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Three related fixes to bl close: (1) merge main into worktree before committing to bring .gitignore current and surface conflicts early, (2) check MergeResult::Conflict and fail instead of corrupting main, (3) print repo root path on close so shell wrappers can auto-cd.",
+  "created_at": "2026-04-10T22:59:55.086458970Z",
+  "updated_at": "2026-04-10T22:59:55.086458970Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "close",
+    "merge"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
