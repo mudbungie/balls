@@ -524,10 +524,11 @@ Plugins are external executables that implement a defined interface. Core knows 
 A plugin is an executable (any language) that responds to commands via argv:
 
 ```
-ball-plugin-jira sync --task bl-a1b2 --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
-ball-plugin-jira pull --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
-ball-plugin-jira push --task bl-a1b2 --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
 ball-plugin-jira auth-setup --auth-dir .ball/local/plugins/jira/
+ball-plugin-jira auth-check --auth-dir .ball/local/plugins/jira/
+ball-plugin-jira push --task bl-a1b2 --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
+ball-plugin-jira sync --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
+ball-plugin-jira sync --task bl-a1b2 --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
 ```
 
 ### Commands a plugin must implement
@@ -535,11 +536,107 @@ ball-plugin-jira auth-setup --auth-dir .ball/local/plugins/jira/
 | Command | Input | Output | Description |
 |---|---|---|---|
 | `auth-setup` | (interactive) | Writes creds to `auth-dir` | One-time auth configuration. Handles SSO, PAT entry, OAuth flows — whatever the service needs. |
-| `auth-check` | Reads `auth-dir` | Exit 0 if valid, 1 if expired/missing | Tests whether current credentials work. |
-| `pull` | Config file, auth dir | JSON to stdout: array of task objects | Fetches tasks from remote tracker. Returns normalized task data. |
-| `push --task ID` | Task JSON on stdin, config, auth | Exit 0 on success | Pushes one task's state to the remote tracker. |
-| `sync` | Config, auth | JSON to stdout: changes made | Bidirectional sync. Pulls remote changes, pushes local changes. Reports what changed. |
-| `map-status STATUS` | A ball status string | Remote status string to stdout | Translates ball status to remote equivalent. |
+| `auth-check` | Reads `auth-dir` | Exit 0 if valid, 1 if expired/missing | Tests whether current credentials work. Core calls this before push/sync. |
+| `push --task ID` | Task JSON on stdin, config, auth | JSON on stdout (see Push Response Schema) | Pushes one task's state to the remote tracker. Returns external metadata for core to store. |
+| `sync [--task ID]` | All tasks JSON on stdin, config, auth | JSON on stdout (see Sync Report Schema) | Bidirectional sync. Optional `--task` filters to a single item by local ball ID or remote key. |
+
+### Push response schema
+
+After a successful push (exit 0), the plugin writes a JSON object to stdout. Core stores this object verbatim into `task.external.{plugin_name}`, overwriting any previous value. The plugin decides what fields to include. At minimum, include `remote_key` so the task can be correlated with the remote issue.
+
+```json
+{
+  "remote_key": "PROJ-123",
+  "remote_url": "https://company.atlassian.net/browse/PROJ-123",
+  "synced_at": "2026-04-10T12:00:00Z"
+}
+```
+
+All fields are plugin-defined. Core treats this as an opaque `serde_json::Value`. Empty stdout or `{}` means "no external metadata to store" (valid for notification-only plugins like Slack).
+
+If the task's `external.{plugin_name}` already contains a `remote_key`, this is an update. If not, this is a create. The plugin inspects the incoming task JSON to determine which.
+
+### Sync report schema
+
+After a successful sync (exit 0), the plugin writes a JSON object to stdout describing what changed. Core processes each section:
+
+```json
+{
+  "created": [
+    {
+      "title": "New issue from Jira",
+      "type": "task",
+      "priority": 2,
+      "status": "open",
+      "description": "Created in Jira by someone else",
+      "tags": ["imported"],
+      "external": {
+        "remote_key": "PROJ-456",
+        "remote_url": "https://company.atlassian.net/browse/PROJ-456",
+        "synced_at": "2026-04-10T12:00:00Z"
+      }
+    }
+  ],
+  "updated": [
+    {
+      "task_id": "bl-a1b2",
+      "fields": {
+        "status": "in_progress",
+        "priority": 1
+      },
+      "external": {
+        "remote_key": "PROJ-123",
+        "synced_at": "2026-04-10T12:00:00Z"
+      },
+      "add_note": "Status changed to In Progress in Jira by user@example.com"
+    }
+  ],
+  "deleted": [
+    {
+      "task_id": "bl-c3d4",
+      "reason": "Issue PROJ-789 deleted in Jira"
+    }
+  ]
+}
+```
+
+All three arrays are optional. Empty arrays or omitted arrays mean nothing changed in that category. An empty object `{}` is valid.
+
+**`created` entries** — remote-only issues the plugin wants core to create locally:
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `title` | yes | — | Task title |
+| `type` | no | `"task"` | One of: `epic`, `task`, `bug` |
+| `priority` | no | `3` | 1 (highest) to 4 (lowest) |
+| `status` | no | `"open"` | One of: `open`, `in_progress`, `blocked`, `closed`, `deferred` |
+| `description` | no | `""` | Full description |
+| `tags` | no | `[]` | Array of tag strings |
+| `external` | no | `{}` | Stored into `task.external.{plugin_name}`. Should contain at least `remote_key`. |
+
+**`updated` entries** — existing local tasks with remote changes:
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `task_id` | yes | — | The ball task ID (e.g., `"bl-a1b2"`) |
+| `fields` | no | `{}` | Partial object. Accepted keys: `title`, `priority`, `status`, `description`. Unknown keys are silently ignored. |
+| `external` | no | `{}` | Replaces `task.external.{plugin_name}` |
+| `add_note` | no | — | If present, appended as a note attributed to the plugin name |
+
+**`deleted` entries** — remote issues that no longer exist:
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `task_id` | yes | — | The ball task ID |
+| `reason` | no | `"Deleted in remote tracker"` | Explanation appended as a note |
+
+Core sets the task status to `deferred` and appends the reason as a note. Tasks already `closed` are skipped. The task file is not deleted.
+
+### Sync stdin
+
+When core calls `sync`, it sends all local tasks as a JSON array on stdin (same format as `bl list --json --all`). The plugin uses this to determine which local tasks need pushing and which remote tasks are new.
+
+When `--task ID` is passed, the plugin should filter its operations to the specified item. The ID may be a local ball ID (e.g., `bl-a1b2`) or a remote key (e.g., `PROJ-123`) — the plugin is responsible for resolving which.
 
 ### Plugin config (.ball/plugins/jira.json)
 
@@ -584,22 +681,24 @@ Core never reads these files. Core only passes the directory path to the plugin.
 
 When `sync_on_change` is true in config:
 
-1. `bl create` → core creates task file, commits, then calls `plugin push --task ID` with the new task on stdin.
-2. `bl close` → core closes task, commits, then calls `plugin push --task ID`.
-3. `bl update` → same pattern.
-4. `bl sync` → after git sync, calls `plugin sync` which does bidirectional reconciliation.
+1. `bl create` → core creates task file, commits, then calls `plugin push --task ID` with the new task on stdin. Core reads the plugin's push response and writes it into `task.external.{plugin_name}`.
+2. `bl close` → core closes task (archives the file), then calls `plugin push --task ID`. Push response is not written back since the task file is archived.
+3. `bl update` → same pattern as create. Push response written back.
+4. `bl sync` → after git sync, calls `plugin sync` with all local tasks on stdin. Core processes the sync report: creates new tasks, updates existing tasks, defers deleted tasks. Each operation is committed individually.
 
-When a plugin's `pull` returns tasks that don't exist locally, core creates them as new task files (with `external.jira.key` populated) and commits.
+Core calls `auth-check` before every push or sync. If auth is expired (exit 1), core prints a warning and skips that plugin. Local operations are never blocked by plugin auth failures.
 
-When a plugin's `pull` returns tasks that exist locally, core compares `updated_at` vs `external.jira.synced_at` to determine which side has newer changes and applies the delta.
+### Sync with `--task` filtering
+
+`bl sync --task ID` passes the `--task` flag through to the plugin. The plugin filters its operations to just that item. The ID can be a local ball ID or a remote key — the plugin resolves which. Core processes the sync report the same way regardless of filtering.
 
 ### Conflict resolution between local and remote
 
-- **Remote task created:** Core creates local task file, sets `external` field.
-- **Local task created with `create_in_remote: true`:** Plugin creates remote issue, core updates `external` field.
-- **Both sides edited:** `updated_at` (local) vs remote's `updated` timestamp. Later writer wins for simple fields. Notes/comments are unioned.
-- **Remote task deleted:** Core marks local task as `deferred` with a note: "Deleted in remote tracker."
-- **Local task closed:** Plugin pushes closed status to remote if `close_in_remote: true`.
+- **Remote task created:** Plugin returns it in `sync.created`. Core creates local task file with `external.{plugin_name}` populated.
+- **Local task created with `create_in_remote: true`:** Plugin creates remote issue during `push`, returns `remote_key` in push response. Core stores it in `task.external.{plugin_name}`.
+- **Both sides edited:** The plugin decides conflict resolution in its `sync` implementation and returns the result in `updated`. Core applies field changes and notes.
+- **Remote task deleted:** Plugin returns it in `sync.deleted`. Core marks local task as `deferred` with an explanatory note.
+- **Local task closed:** Plugin receives the closed status via `push` and transitions the remote issue.
 
 ---
 

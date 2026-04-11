@@ -14,7 +14,9 @@ pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     let ident = identity.unwrap_or_else(default_identity);
     let path = worktree::create_worktree(&store, &id, &ident)?;
     let task = store.load_task(&id)?;
-    let _ = plugin::run_plugin_push(&store, &task);
+    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
+        let _ = plugin::apply_push_response(&store, &id, &results);
+    }
     println!("{}", path.display());
     Ok(())
 }
@@ -23,6 +25,7 @@ pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     let store = discover()?;
     let ident = default_identity();
     let task = worktree::close_worktree(&store, &id, message.as_deref(), &ident)?;
+    // Push to notify remote, but skip write-back since task file is archived
     let _ = plugin::run_plugin_push(&store, &task);
     println!("closed {}", id);
     println!("cd {}", store.root.display());
@@ -63,7 +66,9 @@ pub fn cmd_update(
         task
     };
 
-    let _ = plugin::run_plugin_push(&store, &task);
+    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
+        let _ = plugin::apply_push_response(&store, &id, &results);
+    }
     println!("updated {}", id);
     Ok(())
 }
