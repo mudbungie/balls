@@ -151,3 +151,83 @@ fn ready_json_output() {
     assert!(v.is_array());
     assert_eq!(v.as_array().unwrap().len(), 1);
 }
+
+#[test]
+fn link_add_and_show() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "a");
+    let b = create_task(repo.path(), "b");
+    bl(repo.path())
+        .args(["link", "add", &a, "relates_to", &b])
+        .assert()
+        .success();
+    let j = read_task_json(repo.path(), &a);
+    let links = j["links"].as_array().unwrap();
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0]["link_type"], "relates_to");
+    assert_eq!(links[0]["target"], b);
+    // Show displays links
+    let out = bl(repo.path()).args(["show", &a]).output().unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(s.contains("relates_to"));
+}
+
+#[test]
+fn link_rm() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "a");
+    let b = create_task(repo.path(), "b");
+    bl(repo.path())
+        .args(["link", "add", &a, "duplicates", &b])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["link", "rm", &a, "duplicates", &b])
+        .assert()
+        .success();
+    let j = read_task_json(repo.path(), &a);
+    assert!(j["links"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn link_add_nonexistent_target_fails() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "a");
+    bl(repo.path())
+        .args(["link", "add", &a, "relates_to", "bl-0000"])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn link_add_bad_type_fails() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "a");
+    let b = create_task(repo.path(), "b");
+    bl(repo.path())
+        .args(["link", "add", &a, "bogus", &b])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn link_add_idempotent() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let a = create_task(repo.path(), "a");
+    let b = create_task(repo.path(), "b");
+    bl(repo.path())
+        .args(["link", "add", &a, "supersedes", &b])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["link", "add", &a, "supersedes", &b])
+        .assert()
+        .success();
+    let j = read_task_json(repo.path(), &a);
+    assert_eq!(j["links"].as_array().unwrap().len(), 1);
+}

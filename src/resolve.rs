@@ -74,6 +74,15 @@ pub fn resolve_conflict(ours: &Task, theirs: &Task) -> Task {
     }
     result.depends_on = deps;
 
+    // Links union
+    let mut links = newer.links.clone();
+    for l in &older.links {
+        if !links.contains(l) {
+            links.push(l.clone());
+        }
+    }
+    result.links = links;
+
     result
 }
 
@@ -243,6 +252,19 @@ mod tests {
         let (ours, theirs) = parse_conflict_markers(&conflict).unwrap();
         assert_eq!(ours.id, "a");
         assert_eq!(theirs.id, "a");
+    }
+
+    #[test]
+    fn links_union() {
+        use crate::task::{Link, LinkType};
+        let mut ours = base("a");
+        ours.links = vec![Link { link_type: LinkType::RelatesTo, target: "x".into() }];
+        ours.updated_at = Utc::now();
+        let mut theirs = base("a");
+        theirs.links = vec![Link { link_type: LinkType::Duplicates, target: "y".into() }];
+        theirs.updated_at = Utc::now() - Duration::hours(1);
+        let merged = resolve_conflict(&ours, &theirs);
+        assert_eq!(merged.links.len(), 2);
     }
 
     #[test]

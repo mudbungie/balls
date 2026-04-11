@@ -111,6 +111,12 @@ pub enum Command {
         sub: DepCmd,
     },
 
+    /// Manage typed links (relates_to, duplicates, supersedes, replies_to).
+    Link {
+        #[command(subcommand)]
+        sub: LinkCmd,
+    },
+
     /// Sync with remote: fetch, merge, resolve, push.
     Sync {
         #[arg(long, default_value = "origin")]
@@ -143,4 +149,20 @@ pub enum DepCmd {
     Rm { task: String, depends_on: String },
     /// Print dependency tree. Without ID, prints full graph.
     Tree { id: Option<String> },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum LinkCmd {
+    /// Add a typed link: relates_to, duplicates, supersedes, replies_to.
+    Add {
+        task: String,
+        link_type: String,
+        target: String,
+    },
+    /// Remove a typed link.
+    Rm {
+        task: String,
+        link_type: String,
+        target: String,
+    },
 }
