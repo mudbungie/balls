@@ -3,12 +3,12 @@
   "title": "Build dummy plugin and write integration tests",
   "type": "task",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "parent": null,
   "depends_on": [],
   "description": "TDD: write comprehensive mock plugin script and all integration tests BEFORE core implementation",
   "created_at": "2026-04-11T01:52:46.228633578Z",
-  "updated_at": "2026-04-11T01:54:27.536585104Z",
+  "updated_at": "2026-04-11T01:56:40.099012566Z",
   "closed_at": null,
   "claimed_by": null,
   "branch": null,
@@ -16,7 +16,13 @@
     "plugin",
     "test"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "ts": "2026-04-11T01:56:40.099011484Z",
+      "author": "mark",
+      "text": "All 20 tests written. 10 pass (existing + guard tests), 10 fail (new protocol features). TDD ready."
+    }
+  ],
   "links": [],
   "closed_children": [],
   "external": {}
