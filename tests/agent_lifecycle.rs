@@ -228,7 +228,7 @@ fn update_status_closed_archives_unclaimed_task() {
     // Task file is archived (deleted from HEAD)
     let task_path = repo.path().join(format!(".balls/tasks/{}.json", id));
     assert!(!task_path.exists());
-    // Git log shows the archive
+    // Git log shows the close (close+archive combined)
     let log = git(repo.path(), &["log", "--oneline"]);
-    assert!(log.contains(&format!("archive {}", id)));
+    assert!(log.contains(&format!("close {}", id)));
 }

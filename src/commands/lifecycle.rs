@@ -91,7 +91,13 @@ pub fn cmd_update(
         }
         task.touch();
         store.save_task(&task)?;
-        store.commit_task(&id, &format!("balls: update {}", id))?;
+        if closing {
+            // Archive stages deletions; commit everything in one shot
+            worktree::archive_task(&store, &task)?;
+            store.commit_staged(&format!("balls: close {} - {}", id, task.title))?;
+        } else {
+            store.commit_task(&id, &format!("balls: update {} - {}", id, task.title))?;
+        }
         task
     };
 
@@ -99,9 +105,7 @@ pub fn cmd_update(
         let _ = plugin::apply_push_response(&store, &id, &results);
     }
 
-    // Archive unclaimed tasks that were closed via update
     if closing {
-        worktree::archive_task(&store, &task)?;
         println!("closed and archived {}", id);
     } else {
         println!("updated {}", id);
