@@ -24,6 +24,7 @@ pub mod git_state;
 pub mod plugin;
 pub mod ready;
 pub mod resolve;
+pub mod review;
 pub mod store;
 mod store_init;
 mod store_paths;

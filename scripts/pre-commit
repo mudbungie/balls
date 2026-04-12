@@ -4,9 +4,8 @@
 # Blocks any commit that:
 #   1. Has clippy warnings or compiler warnings
 #   2. Contains a Rust source file >= 300 lines
-#   3. Tests pass
-#
-# Full coverage check (tarpaulin) runs via `make check` before merge/push.
+#   3. Has failing tests
+#   4. Drops line coverage below 100%
 #
 # To install: scripts/install-hooks.sh
 
@@ -23,5 +22,8 @@ echo "pre-commit: line lengths..."
 
 echo "pre-commit: tests..."
 cargo test --quiet 2>&1
+
+echo "pre-commit: coverage..."
+"$ROOT/scripts/check-coverage.sh"
 
 echo "pre-commit: OK."
