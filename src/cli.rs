@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(name = "bl", version, about = "Git-native task tracker", long_about = None)]
@@ -156,6 +156,19 @@ pub enum Command {
 
     /// Print the agent skill guide (SKILL.md).
     Skill,
+
+    /// Generate shell completions for bash, zsh, or fish.
+    Completions {
+        /// Shell to generate completions for.
+        shell: ShellArg,
+    },
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum ShellArg {
+    Bash,
+    Zsh,
+    Fish,
 }
 
 #[derive(Subcommand, Debug)]

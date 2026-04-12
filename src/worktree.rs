@@ -1,9 +1,8 @@
 use crate::error::{BallError, Result};
-use crate::git;
 use crate::store::{task_lock, Store};
-use crate::task::{self, Status, Task};
-use std::fs;
-use std::path::PathBuf;
+use crate::task::{Status, Task};
+use crate::{git, task};
+use std::{fs, path::PathBuf};
 
 fn with_task_lock<T>(store: &Store, id: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
     let _guard = task_lock(store, id)?;
