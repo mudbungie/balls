@@ -128,6 +128,43 @@ fn review_reject_back_to_in_progress() {
 }
 
 #[test]
+fn review_squash_commit_uses_50_72_shape_with_body() {
+    // A multi-line -m must produce a commit with a short title line
+    // (+ [bl-id] tag) and the remainder of the message as a proper
+    // body paragraph separated by a blank line.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "structured commit");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".balls-worktrees").join(&id);
+    std::fs::write(wt.join("a.txt"), "body").unwrap();
+
+    let body = "The title above is short. This paragraph explains \
+                the change in detail and wraps across multiple \
+                sentences without polluting the oneline log.";
+    bl(repo.path())
+        .args(["review", &id, "-m", &format!("Short title\n\n{}", body)])
+        .assert()
+        .success();
+
+    // Subject (first line) only contains "Short title [bl-id]".
+    let subject = git(repo.path(), &["log", "-1", "--format=%s", "main"]);
+    let expected_subject = format!("Short title [{}]", id);
+    assert_eq!(subject.trim(), expected_subject);
+
+    // Body (after the first blank line) carries the paragraph.
+    let full_body = git(repo.path(), &["log", "-1", "--format=%b", "main"]);
+    assert!(
+        full_body.contains(body),
+        "body should be present in full commit message: {}",
+        full_body
+    );
+}
+
+#[test]
 fn review_status_parse_and_display() {
     let repo = new_repo();
     init_in(repo.path());
