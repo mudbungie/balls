@@ -120,14 +120,15 @@ cargo publish
 
 ## Principles
 
-1. **Git is the database.** Task files are committed, pushed, pulled, and merged like code. No external storage engine.
-2. **One file per task.** Atomic unit of state. Git merge conflicts are per-task, never global.
-3. **Derived state is computed, never stored.** Completion percentages, ready queues, dependency trees — all calculated at read time from task files.
-4. **Local cache is disposable.** The `.balls/local/` directory is gitignored ephemeral state. Deleting it loses nothing durable.
-5. **Offline-safe.** All operations produce valid local state. Conflicts are resolved at merge time, never prevented by connectivity checks.
-6. **Worktrees are first-class.** Claiming a task creates a worktree. The worktree name is the task ID. One task, one workspace.
-7. **The CLI is a convenience, not a requirement.** Every operation is expressible as file edits + git commands. A human with vim, ln, and git can do everything `bl` does.
-8. **Plugins extend, core stays small.** External integrations (Jira, Linear, GitHub Issues) are handled by a plugin interface. Auth, sync logic, and API specifics never enter the core.
+1. **Git is the database.** Task files are committed, pushed, pulled, and merged like code, on a dedicated orphan ref inside your existing repo. No external storage engine.
+2. **Main stays clean.** Balls bookkeeping lives on the `balls/tasks` orphan branch. `git log --oneline main` reads as a changelog — one feature commit per delivered task, tagged with the task ID.
+3. **One file per task.** Atomic unit of state. Merge conflicts are per-task, and text-mergeable schema makes most conflicts disappear entirely.
+4. **Derived state is computed, never stored.** Completion percentages, ready queues, dependency trees — all calculated at read time. The one exception is `delivered_in`, an explicit self-healing cache backed by the delivery tag.
+5. **Local cache is disposable.** The `.balls/local/` directory is gitignored ephemeral state. Deleting it loses nothing durable.
+6. **Offline-safe.** All operations produce valid local state. Conflicts are resolved at merge time, never prevented by connectivity checks.
+7. **Worktrees are first-class.** Claiming a task creates a git worktree. The worktree name is the task ID. One task, one workspace.
+8. **The CLI is a convenience, not a requirement.** Every operation is expressible as file edits + standard git commands. A human with `vim`, `ln`, and `git` can do everything `bl` does — SPEC §11 publishes the shell sequences.
+9. **Plugins extend, core stays small.** External integrations (Jira, Linear, GitHub Issues) are handled by a plugin interface. Auth, sync logic, and API specifics never enter the core.
 
 ---
 
@@ -135,45 +136,81 @@ cargo publish
 
 | Term | Meaning |
 |---|---|
-| **task** | A unit of work. One JSON file in `.balls/tasks/`. |
+| **task** | A unit of work. One JSON file on the `balls/tasks` orphan branch, exposed to main via a symlink. |
+| **state branch** | The orphan git branch `balls/tasks` that holds all task state. No shared history with main. |
+| **state worktree** | A second git worktree at `.balls/worktree/` with the state branch checked out. Where task files physically live. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
-| **claim** | Taking ownership of a task. Creates a worktree. |
-| **review** | Submitting work for approval. Merges to main, keeps worktree for potential rework. |
-| **close** | Approving completed work. Archives the task file, removes worktree. |
-| **drop** | Releasing a claim. Destroys the worktree, resets the task to open. |
-| **sync** | Fetch + merge + push against the git remote. |
+| **claim** | Taking ownership of a task. Creates a git worktree under `.balls-worktrees/<id>/` for the work. |
+| **review** | Submitting work: squash-merges the worker's branch into main as a single feature commit tagged `[bl-xxxx]`, and flips the task to `review` on the state branch. |
+| **close** | Approving completed work. Archives the task on the state branch and removes the bl worktree. |
+| **drop** | Releasing a claim. Destroys the bl worktree and resets the task to `open`. |
+| **sync** | Fetch + merge + push both main and the state branch against the git remote. |
+| **delivery tag** | The `[bl-xxxx]` token embedded in a review's main-branch commit subject. Ground truth for which commit delivered a task. |
 | **plugin** | An external executable that implements the plugin interface for a specific integration (e.g., Jira). |
 
 ---
 
-## File and Folder Layout
+## Architecture: the state branch
+
+Balls stores task state on a dedicated orphan git branch called `balls/tasks`. It has no shared history with your project's `main` — it's a parallel ref that lives in the same repo, next to your code, managed by the same git. This is the load-bearing design choice. Every consequence below flows from it.
+
+**Why an orphan branch.** The alternative would be to commit task files directly to `main`, which is what most git-native task trackers do. That approach adds a commit to main every time anyone claims, reviews, closes, or notes a task — so `git log --oneline main` becomes half feature commits and half task bookkeeping. Balls moves the bookkeeping off main entirely. Your main history reads like a changelog: one clean feature commit per delivered task, no noise.
+
+**Why still a git ref.** An external database (SQLite, Dolt, a TOML file outside the repo) would also keep main clean. But then your task state is separate from your code state — two things to back up, two things to sync, two mental models. An orphan git ref stays inside the repo you already have. `git clone` fetches it. `git push` publishes it. `git log balls/tasks` reads its history with tools every developer already knows. No new infrastructure.
+
+**Naïve visibility.** Because task state is ordinary git data, a contributor who doesn't know balls exists can still read it. `ls .balls/tasks/` shows task files. `cat .balls/tasks/bl-abc.json` prints JSON. `jq` and `grep` and their editor's file tree all work. The CLI is a convenience; everything balls does is expressible as standard git + file operations.
+
+### File and Folder Layout
 
 ```
 project/
-├── .balls/                       # root of task tracking
-│   ├── tasks/                   # git-tracked task files
-│   │   ├── bl-a1b2.json
-│   │   ├── bl-c3d4.json
-│   │   └── ...
-│   ├── config.json              # git-tracked project config
-│   ├── plugins/                 # git-tracked plugin configs
-│   │   └── jira.json            # per-plugin config (urls, project keys, field maps)
-│   └── local/                   # gitignored ephemeral state
-│       ├── claims/              # one file per active local claim
-│       ├── lock/                # flock files for local atomic operations
-│       └── plugins/             # plugin runtime state (tokens, caches)
-├── .balls-worktrees/             # gitignored, worktree checkouts
-│   ├── bl-a1b2/                 # worktree for task bl-a1b2
-│   └── bl-c3d4/                 # worktree for task bl-c3d4
-└── ... (project files)
+├── .balls/                          # gitignored on main, set up by `bl init`
+│   ├── tasks → worktree/.balls/tasks    # symlink — naïve view into the state branch
+│   ├── worktree/                        # git worktree on the orphan `balls/tasks` branch
+│   │   └── .balls/tasks/
+│   │       ├── bl-a1b2.json             # tracked on balls/tasks, not on main
+│   │       ├── bl-a1b2.notes.jsonl      # append-only notes sidecar
+│   │       └── .gitattributes           # activates merge=union for notes files
+│   ├── config.json                      # committed to main (project-wide settings)
+│   ├── plugins/                         # committed to main (plugin configs)
+│   │   └── jira.json
+│   └── local/                           # gitignored ephemeral state (per-clone)
+│       ├── claims/                      # one file per active local claim
+│       ├── lock/                        # flock files, incl. state-worktree.lock
+│       └── plugins/                     # plugin runtime state (tokens, caches)
+├── .balls-worktrees/                    # gitignored; `bl claim` creates worktrees here
+│   ├── bl-a1b2/                         # full checkout on work/bl-a1b2 branch
+│   └── bl-c3d4/
+└── ... (project files on main)
 ```
+
+The `.balls/tasks` symlink in main's working tree is the key to naïve visibility. It points at `.balls/worktree/.balls/tasks`, which is the state worktree's checkout — where task files physically live. Reading `.balls/tasks/bl-abc.json` follows the symlink into the state worktree and returns the canonical file. `bl` commands and hand-editing agree.
 
 ### .gitignore entries
 
+`bl init` adds these to main's `.gitignore`:
+
 ```
-.balls/local/
-.balls-worktrees/
+.balls/local
+.balls/tasks
+.balls/worktree
+.balls-worktrees
 ```
+
+### State branch history
+
+```
+main                                balls/tasks  (orphan — no shared history)
+  |                                       |
+  <feature commit> [bl-a1b2]               balls: create bl-a1b2
+  <feature commit> [bl-c3d4]               balls: claim bl-a1b2
+                                          state: review bl-a1b2
+                                          state: close bl-a1b2 - title
+                                          balls: create bl-c3d4
+                                          ...
+```
+
+Every lifecycle transition (create, claim, review, close, update, note, dep, link) is a commit on `balls/tasks`. The only commits that land on `main` are the substantive feature commits produced by `bl review` — each one carries a `[bl-xxxx]` delivery tag in its subject so the main commit can be correlated back to the state-branch record. See the Delivery Link section below.
 
 ---
 
@@ -198,17 +235,19 @@ Each task is a single JSON file at `.balls/tasks/<id>.json`.
   "branch": null,
   "tags": ["auth", "api"],
   "links": [{"link_type": "relates_to", "target": "bl-z7w6"}],
-  "notes": [],
   "closed_children": [],
-  "external": {}
+  "external": {},
+  "delivered_in": null
 }
 ```
+
+Notes live in a sibling file `<id>.notes.jsonl` rather than in the task.json. That split is an architectural invariant — see Text-Mergeable Schema below.
 
 ### Field definitions
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Format `bl-XXXX` (4 hex chars). Generated from sha1 of title + timestamp, truncated. |
+| `id` | string | Format `bl-XXXX` (4 hex chars by default). Generated from sha1 of title + timestamp, truncated. |
 | `title` | string | Human-readable summary. |
 | `type` | enum | `epic`, `task`, `bug`. |
 | `priority` | int | 1 (highest) to 4 (lowest). |
@@ -223,9 +262,21 @@ Each task is a single JSON file at `.balls/tasks/<id>.json`.
 | `branch` | string? | Git branch name for this task's work, or null. |
 | `tags` | string[] | Freeform labels. |
 | `links` | object[] | Typed relationships: `{"link_type": "relates_to\|duplicates\|supersedes\|replies_to", "target": "bl-XXXX"}` |
-| `notes` | object[] | Append-only log: `{"ts": "...", "author": "...", "text": "..."}` |
 | `closed_children` | object[] | Archived child tasks: `{"id": "...", "title": "...", "closed_at": "..."}`. Populated when a child task is closed and archived. |
 | `external` | object | Plugin-managed foreign keys. e.g., `{"jira": {"key": "PROJ-123", "synced_at": "..."}}`. Core never reads this; plugins own it. |
+| `delivered_in` | string? | SHA of the main-branch squash commit that delivered this task. Written by `bl review`. Performance hint only — ground truth is the `[bl-xxxx]` tag in the commit subject. See Delivery Link. |
+
+### Text-mergeable schema
+
+Task files are serialized with a specific shape that lets stock `git merge` handle most collisions without a custom merge driver:
+
+- Top-level keys are sorted alphabetically.
+- Each field sits on its own line with a compact single-line value.
+- Trailing newline; no pretty-printed nested objects.
+
+The consequence is that two workers editing different fields of the same task produce non-overlapping diffs and merge cleanly. Two workers editing the *same* field of the same task produce a real conflict that `bl sync` surfaces and auto-resolves via field-wise precedence (see Conflict Resolution).
+
+Notes are split out to `<id>.notes.jsonl` — an append-only JSON Lines file — and marked `merge=union` in `.gitattributes`. Two workers appending different notes to the same task merge cleanly at the line level, no resolver needed. Deleting a task (via archive) removes both the `.json` and the `.notes.jsonl` in the same commit.
 
 ### ID generation
 
@@ -233,7 +284,11 @@ Each task is a single JSON file at `.balls/tasks/<id>.json`.
 echo -n "${title}${timestamp}" | sha1sum | cut -c1-4 | sed 's/^/bl-/'
 ```
 
-On collision (file already exists), increment timestamp and retry.
+ID length is configurable in `.balls/config.json` (`id_length`, clamped to 4..=32). On collision, a fresh timestamp is tried.
+
+### Delivery link
+
+`bl review` squash-merges the worker's branch into main and commits a single feature commit whose subject ends with `[bl-xxxx]`. It then writes that commit's SHA into the task's `delivered_in` field on the state branch — a cache for fast lookup. The ground truth is the tag in the commit subject, which survives rebase, amend, cherry-pick, and filter-branch. On read, `bl show` verifies the hint and falls back to `git log -F --grep '[bl-xxxx]' main` if the SHA has drifted (stale cache marked explicitly in `bl show --json`).
 
 ---
 
@@ -256,25 +311,26 @@ A task is dependency-blocked if any ID in `depends_on` refers to a task with `st
 
 ### Task archival
 
-When a task is closed via `bl close`, the task file is deleted from `.balls/tasks/` after the close commit. The full task data is preserved in git history. If the task has a parent, the parent's `closed_children` array is updated with the archived child's ID, title, and close timestamp. This keeps the working set small — only live tasks exist in HEAD.
+When a task is closed, its `.json` and `.notes.jsonl` files are removed from the state branch's HEAD via a single `state: close bl-xxxx` commit. The full task data is preserved in git history — `git show balls/tasks~N:.balls/tasks/bl-xxxx.json` retrieves any past version. If the archived task had a parent, the parent's `closed_children` array is updated in the same commit. This keeps the working set small: only live tasks exist in the state branch tip.
 
 ---
 
 ## Local Cache (.balls/local/)
 
-### flock
+Per-clone ephemeral state. Gitignored, disposable, rebuilt by `bl init`.
 
-`flock` is a Linux utility (part of `util-linux`, present on all Ubuntu/Debian/RHEL systems) that provides advisory file locking. It uses a lock file and the `flock(2)` syscall to ensure only one process runs a critical section at a time:
+### lock/
 
-```bash
-flock .balls/local/lock/bl-a1b2.lock -c 'update-task-and-commit'
-```
+Advisory flocks serializing local writes:
 
-If another process holds the lock, the caller blocks until it's released. No polling, no races.
+- `lock/<task-id>.lock` — one file per task, held by any write path for that task. Prevents two workers on the same machine from racing a claim or update.
+- `lock/state-worktree.lock` — store-wide lock held during any write to the state worktree (`commit_task`, `commit_staged`, `remove_task`, `close_and_archive`). Serializes concurrent bl invocations from different tasks so git's `index.lock` in `.balls/worktree/` never sees contention. This is the lock that makes parallel agent swarms safe.
+
+Both locks use `flock(2)`: if another process holds the lock, the caller blocks until it's released. No polling, no races.
 
 ### claims/
 
-One file per claimed task. Filename is the task ID. Contents:
+One file per active local claim. Filename is the task ID. Contents:
 
 ```
 worker=dev1/agent-alpha
@@ -282,84 +338,50 @@ pid=48291
 claimed_at=2026-04-09T15:00:00Z
 ```
 
-This is a performance shortcut for fast local double-claim prevention. The source of truth is `claimed_by` in the git-tracked task file.
+This is a performance shortcut for fast local double-claim prevention. The source of truth is `claimed_by` in the state-branch task file.
 
-### lock/
+### plugins/
 
-One lock file per task ID during write operations. Used via `flock` to serialize concurrent local writes to the same task.
+Plugin auth tokens and runtime caches, scoped per plugin name. Plugins own this directory entirely — balls never reads it.
 
 ---
 
 ## Worktree Lifecycle
 
-### Creation (on claim)
+### Claim
 
-```bash
-# 1. Acquire local lock
-flock .balls/local/lock/bl-a1b2.lock -c '
+`bl claim bl-a1b2` acquires the per-task flock, flips the task's status to `in_progress` and writes `claimed_by`/`branch` fields on the state branch, commits that change (`balls: claim bl-a1b2 - title`), then creates a git worktree at `.balls-worktrees/bl-a1b2/` on a fresh `work/bl-a1b2` branch. The bl worktree is symlinked to share `.balls/local`, `.balls/worktree`, and `.balls/tasks` with main so task state is visible from inside it. Prints the worktree path on success.
 
-# 2. Check not already claimed (local cache)
-[ ! -f .balls/local/claims/bl-a1b2 ] || exit 1
+None of this touches main. The claim commit lands on `balls/tasks`, not on your project's history.
 
-# 3. Update task file
-#    Set claimed_by, status -> in_progress, branch -> work/bl-a1b2
-tmp=$(mktemp)
-jq ".claimed_by = \"agent-alpha\" | .status = \"in_progress\" | .branch = \"work/bl-a1b2\"" \
-  .balls/tasks/bl-a1b2.json > "$tmp"
-mv "$tmp" .balls/tasks/bl-a1b2.json
+### Work
 
-# 4. Commit the claim
-git add .balls/tasks/bl-a1b2.json
-git commit -m "balls: claim bl-a1b2"
+The worker edits files inside `.balls-worktrees/bl-a1b2/`, committing to `work/bl-a1b2` with regular `git add`/`git commit`. The bl worktree is an ordinary git checkout — editors, build tools, and tests all work normally.
 
-# 5. Create worktree
-git worktree add .balls-worktrees/bl-a1b2 -b work/bl-a1b2
+### Review
 
-# 6. Symlink local cache into worktree
-ln -s "$(pwd)/.balls/local" ".balls-worktrees/bl-a1b2/.balls/local"
+`bl review bl-a1b2 -m "Short title\n\nBody paragraph..."` is the worker's exit point. It:
 
-# 7. Write local claim file
-cat > .balls/local/claims/bl-a1b2 <<EOF
-worker=agent-alpha
-pid=$$
-claimed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-EOF
-'
-```
+1. `git add -A && git commit -m "wip: bl-a1b2"` in the bl worktree to sweep up any uncommitted changes.
+2. Merges main into the bl worktree (forward merge). If this step has conflicts, review fails — resolve them in the worktree and try again.
+3. Squash-merges `work/bl-a1b2` into main as a single feature commit. The title is the first line of `-m`, `[bl-a1b2]` is appended, and the rest becomes the commit body. This is the one and only commit on main for this task.
+4. Captures the new main HEAD SHA into the task's `delivered_in` field.
+5. Flips the task's status to `review` on the state branch and commits both the status change and the delivery hint in one `state: review bl-a1b2` commit.
+6. Merges main back into the bl worktree so a subsequent rejection-and-rework picks up the squashed history cleanly.
 
-### Submit for review (agent finishes work)
-
-```bash
-# 1. Commit all work in worktree
-cd .balls-worktrees/bl-a1b2
-git add -A && git commit -m "balls: work on bl-a1b2"
-
-# 2. Merge main into worktree (forward merge, catches up)
-git merge main
-
-# 3. Set task status to review
-jq '.status = "review"' .balls/tasks/bl-a1b2.json > tmp && mv tmp .balls/tasks/bl-a1b2.json
-git add -A && git commit -m "balls: review bl-a1b2"
-
-# 4. Merge worktree into main (--no-ff: preserves branch topology)
-cd ../..
-git merge --no-ff work/bl-a1b2 -m "balls: merge bl-a1b2"
-```
-
-The worktree stays. The agent's CWD is never destroyed.
+The worktree and the branch stay intact. The worker's cwd is not destroyed — they can keep working in-place if the review is rejected.
 
 ### Close (reviewer approves)
 
-```bash
-# Run from the repo root, never from inside the worktree.
-# 1. Archive the task file (delete from HEAD, preserved in git history)
-git rm .balls/tasks/bl-a1b2.json && git commit -m "balls: archive bl-a1b2"
+`bl close bl-a1b2 -m "approved"` is the reviewer's approval step. Must run from the repo root (not from inside the bl worktree). It:
 
-# 2. Remove worktree and branch
-git worktree remove .balls-worktrees/bl-a1b2
-git branch -d work/bl-a1b2
-rm -f .balls/local/claims/bl-a1b2
-```
+1. Removes the bl worktree and deletes `work/bl-a1b2`.
+2. Archives the task on the state branch: records the closure in any parent's `closed_children` array, `git rm`s both the `.json` and the `.notes.jsonl`, and commits all of that as a single `state: close bl-a1b2 - title\n\n<reviewer message>` commit.
+3. Removes the local claim file.
+
+The task file is gone from the state branch's tree but preserved in its history — `git show balls/tasks~1:.balls/tasks/bl-a1b2.json` retrieves the last known state.
+
+### Reject (reviewer requests rework)
 
 ### Reject (reviewer requests rework)
 
@@ -373,22 +395,31 @@ bl update bl-a1b2 status=in_progress --note "needs error handling"
 
 ## Conflict Resolution
 
-### Rules
+The text-mergeable schema (sorted keys, one field per line) and the `merge=union` gitattribute on notes files push most concurrent edits into the "clean merge" category. `bl sync` only needs to run its custom resolver on the narrow case where two workers actually edited the same field of the same task.
 
-When merging task files that conflict:
+### What merges cleanly under stock git
+
+- **Different fields of the same task.** Sorted one-field-per-line layout means two workers editing `priority` vs `tags` produce non-overlapping diffs.
+- **Different tasks.** One file per task; git never even sees them as related.
+- **Concurrent notes.** `merge=union` on `*.notes.jsonl` appends both sides' lines.
+- **Delete vs modify.** The resolver stages the surviving side (or `git rm`s when both sides deleted).
+
+### Field-wise resolution (for real conflicts)
+
+When two workers edit the same field of the same task, `bl sync` invokes the resolver:
 
 1. **Status precedence:** `closed` > `review` > `in_progress` > `blocked` > `open` > `deferred`. Higher status wins.
-2. **Notes:** Union by timestamp. Append-only, so both sides' notes are kept.
+2. **Notes:** Union by timestamp. Append-only, both sides' notes kept.
 3. **Timestamps:** Later `updated_at` wins for all non-status fields.
 4. **claimed_by:** If status resolves to `closed`, `claimed_by` comes from the closing side. Otherwise, first writer wins.
 
 ### Scenarios
 
-**Same task claimed by two workers offline.** First push wins. Second worker's `bl sync` detects conflict, resets their claim, task file resolved per rules above. CLI suggests next ready task.
+**Same task claimed by two workers offline.** First push wins. Second worker's `bl sync` detects the divergence on the state branch, merges via the resolver, status stays `in_progress` under whichever worker committed first.
 
-**Same task closed by two workers.** First merge wins. Second gets a conflict. CLI prompts: "Task already closed. File new task with your changes? [y/n]"
+**Same task closed by two workers.** Both close commits land on the state branch. The second worker's sync sees the task already archived (missing from the tip's tree) and quietly moves on.
 
-**One closes, one updates.** Closed wins. Update's notes are preserved in the merge.
+**One closes, one updates.** Closed wins. The update's notes are appended via `merge=union` and preserved.
 
 **Different tasks edited concurrently.** No conflict. Different files, git merges cleanly.
 
@@ -398,11 +429,18 @@ When merging task files that conflict:
 
 ### bl init [--stealth]
 
-Creates `.balls/tasks/`, `.balls/local/`, `.balls/plugins/`, `.balls/config.json`. Adds gitignore entries. Commits. If `.balls/tasks/` already exists (cloned repo), creates only local dirs.
+One-time setup per clone. `bl init` is idempotent and self-healing — running it on an already-initialized repo verifies and repairs. Specifically:
 
-With `--stealth`, tasks are stored outside the repo (`~/.local/share/balls/<hash>/tasks/`) and are not git-tracked. All other operations (create, list, claim, close) work identically. Useful for local-only planning that shouldn't appear in PRs.
+1. Creates `.balls/local/`, `.balls/plugins/`, `.balls/config.json` and adds the gitignore entries.
+2. Creates or fetches the `balls/tasks` orphan branch. If the branch exists on `origin`, it's tracked; otherwise a fresh orphan is created and pushed (best-effort) so subsequent clones discover it.
+3. Checks the state branch out as a second git worktree at `.balls/worktree/`.
+4. Seeds `.balls/tasks/.gitattributes` with `*.notes.jsonl merge=union` on the state branch.
+5. Creates the `.balls/tasks → worktree/.balls/tasks` symlink in main's working tree.
+6. Commits the main-side additions (`.gitignore`, `config.json`, `plugins/.gitkeep`) as a single `balls: initialize` commit.
 
-**By hand:** `mkdir -p .balls/{tasks,plugins,local/{claims,lock}}`, write `config.json`, append to `.gitignore`, commit.
+With `--stealth`, tasks are stored outside the repo at `~/.local/share/balls/<repo-hash>/tasks/` with no state branch at all. Useful for local-only planning that shouldn't appear in any git history. All other bl commands work identically; the orphan-branch topology is simply bypassed.
+
+**By hand:** see SPEC §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
 
 ### bl create TITLE [options]
 
@@ -410,9 +448,14 @@ With `--stealth`, tasks are stored outside the repo (`~/.local/share/balls/<hash
 bl create "Implement auth middleware" -p 1 -t task --parent bl-x9y8 --dep bl-c3d4 --tag auth
 ```
 
-Generates ID, writes task file, commits. Rejects circular deps and nonexistent dep IDs. Triggers plugin sync if configured.
+Generates an ID, writes the task file into the state worktree, commits it on `balls/tasks`. Rejects circular deps and nonexistent dep IDs. Triggers plugin push if configured.
 
-**By hand:** Write the JSON file, `git add`, `git commit`.
+**By hand:**
+```bash
+$EDITOR .balls/tasks/bl-NEW.json           # write the JSON directly through the symlink
+git -C .balls/worktree add .balls/tasks/bl-NEW.json
+git -C .balls/worktree commit -m "balls: create bl-NEW"
+```
 
 ### bl list [filters]
 
@@ -427,7 +470,7 @@ bl list --all              # including closed
 
 Reads task files, filters, sorts by priority then `created_at`.
 
-**By hand:** `cat .balls/tasks/*.json | jq 'select(.status != "closed")' | jq -s 'sort_by(.priority, .created_at)'`
+**By hand:** `for f in .balls/tasks/bl-*.json; do jq '.' "$f"; done | jq -s 'sort_by(.priority, .created_at)'`
 
 ### bl ready
 
@@ -447,9 +490,9 @@ bl show bl-a1b2
 bl show bl-a1b2 --json
 ```
 
-Displays one task with computed fields (blocked status, children if parent, dependency chain).
+Displays one task with computed fields — blocked status, children if parent, dependency chain — and the resolved delivery link if the task has been delivered. The delivery line looks like `delivered: e69193f Add bl completions... [bl-1a34]`; if the cached `delivered_in` SHA is stale, the tag scan on main still finds the commit and the display is annotated `(hint stale)`. `--json` exposes `delivered_in_resolved` and `delivered_in_hint_stale` alongside the task.
 
-**By hand:** `cat .balls/tasks/bl-a1b2.json | jq .`
+**By hand:** `cat .balls/tasks/bl-a1b2.json | jq .` — the symlink transparently reads from the state worktree.
 
 ### bl claim ID [--as IDENTITY]
 
@@ -458,44 +501,49 @@ bl claim bl-a1b2
 bl claim bl-a1b2 --as dev1/agent-alpha
 ```
 
-Validates task is claimable → updates task file → commits → creates worktree → symlinks local cache → writes local claim → prints worktree path. Triggers plugin sync if configured.
+Validates the task is claimable → flips status/claimed_by/branch on the state branch → commits (`balls: claim bl-a1b2`) → creates a git worktree at `.balls-worktrees/bl-a1b2/` on `work/bl-a1b2` → symlinks `.balls/local`, `.balls/worktree`, and `.balls/tasks` into the new worktree → writes the local claim file → prints the worktree path. Triggers plugin push if configured.
 
-Fails if already claimed locally, deps unmet, or task not open.
+Fails if already claimed locally, deps unmet, or task not `open`.
 
-**By hand:** See worktree creation section.
-
-### bl review ID [--message MSG]
+### bl review ID [-m MSG]
 
 ```
-bl review bl-a1b2 --message "Ready for review"
+bl review bl-a1b2 -m "$(cat <<'EOF'
+Short title under ~50 chars
+
+Body paragraph explaining the change in detail. Wrap at ~72.
+Multiple paragraphs are preserved as the commit body.
+EOF
+)"
 ```
 
-Agent's safe exit point. Commits work → merges main into worktree → sets status=review → merges to main (--no-ff). Worktree and claim stay intact. The agent's CWD is never destroyed. Triggers plugin push if configured.
+Worker's exit point. Commits uncommitted work in the bl worktree → merges main in (surfaces conflicts there, not on main) → squash-merges to main as a single feature commit → writes the `delivered_in` hint and flips the task to `review` on the state branch in one commit. The worktree and the claim stay intact so a rejected review can be reworked in place.
 
-If the reviewer rejects (sets status back to `in_progress`), the agent resumes in the existing worktree and calls `bl review` again — it will merge main first, picking up the rejection.
+Commit messages use 50/72 shape: the first line of `-m` becomes the commit title with `[bl-xxxx]` appended, and everything after the first newline becomes the body. A single-line `-m "fix foo"` still works (no body). Don't stuff a multi-sentence summary into a single line — `git log --oneline` becomes unreadable.
 
-**By hand:** See submit-for-review section.
+If the reviewer rejects (`bl update bl-a1b2 status=in_progress`), the worker resumes in the existing bl worktree and calls `bl review` again; the next run merges main first, picking up the rejection.
 
-### bl close ID [--message MSG]
+### bl close ID [-m MSG]
 
 ```
-bl close bl-a1b2 --message "Approved"
+bl close bl-a1b2 -m "approved"
 ```
 
-Reviewer/supervisor operation. Archives the task file (deletes from HEAD), removes worktree, cleans up claim and branch. **Rejects if run from inside the worktree** — must run from the repo root. Prints the repo root path on success. Triggers plugin push if configured.
+Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back.
 
-**By hand:** See close section.
+The reviewer message is embedded in the state-branch close commit's body (not appended to a notes file, which is about to be deleted). It's still in git history on `balls/tasks`.
 
 ### bl update ID [field=value ...] [--note TEXT]
 
 ```
 bl update bl-a1b2 priority=2
 bl update bl-a1b2 status=blocked --note "Waiting on API team"
+bl update bl-a1b2 status=closed        # closing unclaimed tasks skips the bl close path
 ```
 
-Edits task file fields, commits. Triggers plugin sync if configured.
+Edits fields directly on the state branch (no bl worktree required) and commits `balls: update bl-a1b2 - title`. Notes are appended to the sibling `.notes.jsonl` file. `status=closed` on an unclaimed task goes through the same atomic archive as `bl close`.
 
-**By hand:** Edit JSON, `git add`, `git commit`.
+**By hand:** see SPEC §11 for the canonical edit-and-publish shell sequence (`$EDITOR .balls/tasks/bl-a1b2.json; git -C .balls/worktree add .balls/tasks/bl-a1b2.json; git -C .balls/worktree commit -m "bl-a1b2: bumped priority"`).
 
 ### bl drop ID [--force]
 
@@ -536,15 +584,17 @@ Removes a typed link. Commits.
 bl sync
 ```
 
-1. `git fetch origin`
-2. Merge remote into current branch
-3. Auto-resolve any `.balls/tasks/` conflicts per resolution rules
-4. `git push origin`
-5. Run plugin sync (if configured)
+Reconciles both main and the state branch with `origin`:
 
-Fetch failure is not fatal. Push failure triggers fetch+merge+retry once.
+1. `git fetch origin` (best-effort; offline is fine).
+2. **State branch first.** In `.balls/worktree/`, merge `origin/balls/tasks`, auto-resolve any task-file conflicts via the field-wise resolver, push `balls/tasks`.
+3. **Main second.** In main, merge `origin/main`, push.
+4. **Half-push detection.** Scan the state branch for `state: close bl-xxxx` commits whose corresponding `[bl-xxxx]` tag is not reachable from main, and surface them as warnings. A half-push happens if the state push succeeded but the main push failed on a previous invocation — next sync naturally retries main, but the warning tells you explicitly if the local repo can't heal it (e.g., on a different machine).
+5. Run plugin sync (if configured). Plugin output is bounded and timed (see Plugin System).
 
-**By hand:** `git fetch && git merge origin/main`, resolve task file conflicts per rules, `git push`.
+Push ordering matters: state branch goes first so that if the sync is interrupted between pushes, the closing commit is already visible to other workers — they'll see the task as closed even though the feature commit is still coming.
+
+**By hand:** see SPEC §11. The shell sequence is two `git -C .balls/worktree push origin balls/tasks` plus a `git push origin main`, with `git fetch` and `git merge` between as needed.
 
 ### bl prime [--as IDENTITY]
 
@@ -557,13 +607,13 @@ Designed to be injected into an agent's context at session start.
 
 ### bl resolve FILE
 
-Manual conflict resolution helper. Parses both sides of a conflicted task file, applies resolution rules, writes result.
+Manual conflict resolution helper: parses both sides of a conflicted task file, applies the field-wise resolution rules, writes the result. Rarely needed in the new topology — most conflicts merge cleanly under stock git — but available for edge cases.
 
 ---
 
 ## Config (.balls/config.json)
 
-Git-tracked, shared across team.
+Committed to main, shared across the team.
 
 ```json
 {
@@ -583,7 +633,22 @@ Git-tracked, shared across team.
 }
 ```
 
-`tasks_dir` overrides the default tasks location (`.balls/tasks/`). Set automatically by `bl init --stealth` to an external path (`~/.local/share/balls/<repo-hash>/tasks/`). When tasks are external, they are not git-tracked.
+| Field | Description |
+|---|---|
+| `id_length` | Hex chars in generated task IDs. Clamped to `[4, 32]` on load; out-of-range values produce a warning and fall back to 4. |
+| `stale_threshold_seconds` | `bl ready` auto-fetches if the last fetch is older than this. |
+| `auto_fetch_on_ready` | Whether `bl ready` auto-fetches at all. |
+| `worktree_dir` | Where `bl claim` creates worktrees. Must be a relative path under the repo; values containing `..` or starting with `/` are rejected on load. |
+| `tasks_dir` | Stealth-mode override for the task storage location. Normally null; set by `bl init --stealth` to an external path outside the repo. |
+| `plugins` | Per-plugin enable/sync flags and config file paths. |
+
+### Environment overrides
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `BALLS_IDENTITY` | Worker identity for claims and notes | `$USER`, then `"unknown"` |
+| `BALLS_PLUGIN_TIMEOUT_SECS` | Wall-clock cap on any plugin invocation | 30 |
+| `BALLS_PLUGIN_MAX_STREAM_BYTES` | Max bytes buffered from a plugin's stdout/stderr | 1 MiB |
 
 ---
 
@@ -778,14 +843,18 @@ Core calls `auth-check` before every push or sync. If auth is expired (exit 1), 
 
 ## Multi-Machine / Multi-Dev Operation
 
-The model is identical to single-machine. Each developer:
+Each developer:
 
-1. Clones the repo. Gets `.balls/tasks/` with full task state.
-2. Runs `bl init` to create local ephemeral dirs.
-3. Runs `bl sync` to stay current.
-4. Claims tasks, works in worktrees, pushes.
+1. Clones the repo. `git clone` fetches `main` and the `balls/tasks` orphan branch automatically.
+2. Runs `bl init` once per clone. This checks out the state branch into `.balls/worktree/`, creates the `.balls/tasks` symlink, and seeds `.balls/local/` for ephemeral state.
+3. Runs `bl sync` to stay current — pulls both main and the state branch from origin.
+4. Claims tasks, works in bl worktrees, runs `bl review` to deliver.
 
-A developer and their agents are just workers on the same machine sharing a local cache. Remote developers are workers on different machines sharing state through git. The coordination model is the same: optimistic concurrency, conflict at merge time, resolution per rules.
+A developer and their agents on one machine are just workers sharing the `.balls/local/` cache and a single state worktree. Remote developers are workers on different machines sharing state through git. The coordination model is the same: optimistic concurrency, conflict at merge time, resolution via the text-mergeable schema and the field-wise resolver.
+
+### Parallel workers on one machine
+
+Multiple agent processes running simultaneously on the same clone are safe. The per-task flock at `.balls/local/lock/<id>.lock` serializes writes on a single task, and the store-wide flock at `.balls/local/lock/state-worktree.lock` serializes writes to the state branch's git index so concurrent `bl create` / `bl claim` / `bl review` calls don't race on `.balls/worktree/.git/index.lock`. Empirically: without the store-wide lock, 6 of 8 parallel `bl create` workers fail with `fatal: Unable to create index.lock`; with the lock, 8 of 8 succeed.
 
 There is no central server. There is no daemon. Git is the coordination layer. Plugins talk to external services when configured, but the core system operates without them.
 
@@ -845,7 +914,7 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ### Closing Tasks
 
-33. Close a task. Task file updated, all changes committed, merged to main, worktree removed, local claim cleaned.
+33. Close a task. Task archived on the state branch (file removed from tip, preserved in history), bl worktree removed, local claim cleaned. Main is not touched by close.
 34. Close with a message. Message appears in notes.
 35. Close a task that is a dependency of another. Dependent task now appears in `bl ready`.
 36. Close the last child of a parent. Parent's computed completion reaches 100%.
@@ -881,7 +950,7 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ### Multi-Dev Workflow
 
-54. Dev A creates tasks, pushes. Dev B clones, sees all tasks.
+54. Dev A creates tasks and runs `bl sync`, pushing both main and `balls/tasks`. Dev B clones (git fetches both branches), runs `bl init` to set up the state worktree + symlink, runs `bl list` and sees all tasks.
 55. Dev A claims task, pushes. Dev B's `bl ready` does not show that task.
 56. Multiple devs running agent swarms. Each agent claims distinct tasks. Git push serializes merges.
 57. New dev joins, clones, runs `bl init`. Full task state available immediately.
@@ -891,7 +960,7 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 59. Agent starts, runs `bl prime`. Gets synced state, ready queue, any in-progress tasks for this identity.
 60. Agent picks top ready task, claims it, works in worktree.
-61. Agent finishes, runs `bl review`. Work merged to main, worktree stays, status=review.
+61. Agent finishes, runs `bl review`. Work squash-merged to main as one `[bl-xxxx]`-tagged feature commit, worktree stays, status=review on the state branch, delivered_in hint set.
 62. Reviewer approves, runs `bl close` from repo root. Task archived, worktree removed.
 63. Reviewer rejects, runs `bl update ID status=in_progress --note "reason"`. Agent resumes in existing worktree, next `bl review` merges main first.
 64. Agent session ends mid-task (context overflow). New session, `bl prime` shows task still claimed by this identity. Agent resumes in existing worktree.
@@ -923,13 +992,13 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ## Radical Simplicity
 
-Ball's thesis: every layer of infrastructure you add is a layer that can break, a layer to learn, a layer to operate. The best tool is the one with the fewest moving parts that solves the problem.
+Balls's thesis: every layer of infrastructure you add is a layer that can break, a layer to learn, a layer to operate. The best tool is the one with the fewest moving parts that solves the problem.
 
 **The CLI is the agent interface.** Agents already have shell access. `bl ready --json` is a tool call. There is no need for MCP servers, REST APIs, or protocol adapters. If you can run a command, you can use balls.
 
-**Git is the archive.** Closed tasks are deleted from HEAD and preserved in git history. There is no compaction, no garbage collection, no cleanup threshold. Only live tasks exist in the working set. Old tasks are retrievable via `git log` when needed. The working set stays small naturally.
+**Git is the archive.** Closed tasks are removed from the state branch's tip and preserved in its history. There is no compaction, no garbage collection, no cleanup threshold. Only live tasks exist in the working set. Old tasks are retrievable via `git log balls/tasks` when needed.
 
-**Git is the database.** Task files are committed, pushed, pulled, and merged like code. There is no second version-control system to reconcile, no schema migrations, no embedded database engine. If you understand git, you understand balls's storage model.
+**Git is the database.** Task files are committed, pushed, pulled, and merged like code — on a dedicated orphan branch inside your existing repo. There is no second version-control system to reconcile, no schema migrations, no embedded database engine. If you understand git, you understand balls's storage model.
 
 ---
 
@@ -937,11 +1006,15 @@ Ball's thesis: every layer of infrastructure you add is a layer that can break, 
 
 ### Beads
 
-Beads introduced the right insight: agents need structured, queryable, persistent task state — not markdown files. But the implementation chose Dolt (a version-controlled SQL database) as the storage backend. Dolt requires CGO, a C compiler, embedded database management, schema migrations, and a mental model separate from git. The Dolt branching model operates independently of git branches, creating two parallel version-control systems that developers must reconcile. For a tool whose primary job is tracking a few hundred tasks, this is a heavy foundation.
+Beads was right about the core insight: agents need structured, queryable, persistent task state — not markdown files strewn across a repo. Balls is built on the same realization. The question we answer differently is what minimum infrastructure can hold it.
 
-Beads also positions itself as agent-first, which led to design decisions (embedded Dolt for sub-millisecond queries, cell-level merge for concurrent agent writes) that optimize for a scenario that doesn't need optimizing. Reading a few hundred JSON files is already millisecond-fast. Git file-level merge is sufficient when each task is one file. The complexity bought marginal performance on a workload that was never slow.
+Beads uses Dolt — a version-controlled SQL database — as the backing store. That buys cell-level merging and sub-millisecond queries, both genuinely nice properties on large task sets. The cost is a second version-control tree running alongside git: two branch histories to keep consistent, two merge models to learn, a separate database to install, and — unless everyone on the team is running Dolt — a backlog that quietly drifts between machines. The jsonl export mode exists but isn't the shared source of truth, so sharing state without the database is a second-class path.
 
-Beads' compaction system summarizes old tasks to save context window space. Ball takes a simpler approach: closed tasks are deleted from HEAD entirely. Only live tasks exist. No compaction needed because there's nothing to compact.
+Balls takes the same insight and asks: can we do this with tools every developer already runs? The answer is yes. Task files live on an orphan git ref, so `git log`, `git show`, `git diff`, and hand-editing all work with nothing installed. A task created on one machine is a task every collaborator will see on the next `git fetch`. There is no second database to keep in sync, no second branch model to reconcile, no new thing to operate.
+
+This is a tradeoff, not a free win. Dolt's cell-level merge is strictly more granular than git's file-level merge, and at the scale where per-field conflict resolution really matters, Dolt has the stronger answer. Balls mitigates the file-level constraint with a text-mergeable JSON schema and an append-only notes sidecar — disjoint-field edits and concurrent note appends merge cleanly under stock git — but it doesn't match Dolt's per-cell precision.
+
+The bet is that existing infrastructure beats new infrastructure whenever the existing infrastructure is sufficient, and that for tracking a backlog of tasks, git is sufficient.
 
 ### Cline Kanban
 
