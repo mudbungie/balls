@@ -30,13 +30,6 @@ fn merge_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, ctx: &s
     Ok(())
 }
 
-fn merge_no_ff_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, ctx: &str) -> Result<()> {
-    if let git::MergeResult::Conflict = git::git_merge_no_ff(dir, branch, msg)? {
-        return Err(BallError::Conflict(ctx.to_string()));
-    }
-    Ok(())
-}
-
 fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
     task::validate_id(id)?;
     Ok(store.worktrees_root()?.join(id))
@@ -83,7 +76,7 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
         task.touch();
 
         store.save_task(&task)?;
-        store.commit_task(id, &format!("balls: claim {}", id))?;
+        store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
 
         if let Some(parent) = wt_path.parent() {
             fs::create_dir_all(parent)?;
@@ -123,7 +116,7 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Submit for review: commit, merge to main, set status=review. Keeps worktree.
+/// Submit for review: commit, squash-merge to main, set status=review. Keeps worktree.
 pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<()> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;
@@ -138,7 +131,7 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
             &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
         )?;
 
-        // NOW set review status (on top of latest main state)
+        // Set review status (on top of latest main state)
         let mut t = if store.stealth {
             store.load_task(id)?
         } else {
@@ -159,10 +152,22 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
         git::git_add_all(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("balls: review {}", id));
 
-        merge_no_ff_or_fail(
-            &store.root, &branch, Some(&format!("balls: merge {}", id)),
-            &format!("unexpected conflict merging {} into {}", branch, main_branch),
-        )?;
+        // Squash merge: collapse all worktree commits into one on main
+        let squash_msg = match message {
+            Some(msg) => format!("{} [{}]", msg, id),
+            None => format!("{} [{}]", task.title, id),
+        };
+        if let git::MergeResult::Conflict = git::git_merge_squash(&store.root, &branch)? {
+            return Err(BallError::Conflict(format!(
+                "unexpected conflict squash-merging {} into {}", branch, main_branch
+            )));
+        }
+        git::git_commit(&store.root, &squash_msg)?;
+
+        // Sync main back into worktree so re-review after rejection only
+        // picks up new changes (squash merge doesn't record branch ancestry).
+        let _ = git::git_merge(&wt_path, &main_branch, None);
+
         Ok(())
     })
 }
@@ -178,11 +183,9 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         }
     }
 
-    let task = store.load_task(id)?;
-    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{}", id));
-
     with_task_lock(store, id, || {
         let mut t = store.load_task(id)?;
+        let branch = t.branch.clone().unwrap_or_else(|| format!("work/{}", id));
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
         if let Some(msg) = message {
@@ -190,21 +193,25 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         }
         t.touch();
         store.save_task(&t)?;
-        store.commit_task(id, &format!("balls: close {}", id))?;
 
-        // Remove worktree
+        // Remove worktree before archiving (archive needs git rm from repo root)
         if wt_path.exists() {
             git::git_worktree_remove(&store.root, &wt_path, true)?;
         }
         let _ = git::git_branch_delete(&store.root, &branch, true);
         let _ = fs::remove_file(claim_file_path(store, id));
 
+        // Archive (stage deletions) then commit everything in one shot
         archive_task(store, &t)?;
+        if !store.stealth {
+            git::git_commit(&store.root, &format!("balls: close {} - {}", id, t.title))?;
+        }
         Ok(t)
     })
 }
 
-/// Delete a closed task from HEAD. Records on parent's closed_children if applicable.
+/// Stage task deletion and parent updates. Does NOT commit — caller is
+/// responsible for committing all staged changes in one shot.
 pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
     use crate::task::ArchivedChild;
     let archived = ArchivedChild {
@@ -226,12 +233,9 @@ pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
         }
     }
 
-    // Delete the closed task file
+    // Delete the closed task file (stages the git rm, but does not commit)
     store.delete_task_file(&task.id)?;
     store.rm_task_git(&task.id)?;
-    if !store.stealth {
-        git::git_commit(&store.root, &format!("balls: archive {}", task.id))?;
-    }
     Ok(())
 }
 
@@ -250,12 +254,13 @@ pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
 
         // Reset task
         let mut t = store.load_task(id)?;
+        let title = t.title.clone();
         t.status = Status::Open;
         t.claimed_by = None;
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-        store.commit_task(id, &format!("balls: drop {}", id))?;
+        store.commit_task(id, &format!("balls: drop {} - {}", id, title))?;
 
         // Remove worktree (force because we may have uncommitted changes)
         if wt_path.exists() {
