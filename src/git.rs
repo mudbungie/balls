@@ -2,9 +2,32 @@ use crate::error::{BallError, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Env vars git reads to locate its repo/index. Balls always uses
+/// `current_dir` to say which repo to operate on, so any inherited
+/// values of these would bypass our intent (e.g., when bl runs
+/// inside a git hook, or when cargo test runs inside `git commit`'s
+/// pre-commit hook). Scrub them from every git child we spawn.
+pub(crate) const GIT_ENV_VARS: &[&str] = &[
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_PREFIX",
+];
+
+pub(crate) fn clean_git_command(dir: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(dir);
+    for var in GIT_ENV_VARS {
+        cmd.env_remove(var);
+    }
+    cmd
+}
+
 fn run_git_in(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
-    let out = Command::new("git")
-        .current_dir(dir)
+    let out = clean_git_command(dir)
         .args(args)
         .output()
         .map_err(|e| BallError::Git(format!("failed to spawn git: {}", e)))?;
@@ -173,8 +196,7 @@ pub fn git_commit_subject(dir: &Path, sha: &str) -> Option<String> {
 /// True if `sha` is an ancestor of `branch` (reachable from its tip).
 /// `git merge-base --is-ancestor` exits 0 on yes, 1 on no.
 pub fn git_is_ancestor(dir: &Path, sha: &str, branch: &str) -> bool {
-    let out = Command::new("git")
-        .current_dir(dir)
+    let out = clean_git_command(dir)
         .args(["merge-base", "--is-ancestor", sha, branch])
         .output();
     matches!(out, Ok(o) if o.status.success())
