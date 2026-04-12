@@ -153,6 +153,9 @@ pub enum Command {
         #[arg(long)]
         fix: bool,
     },
+
+    /// Print the agent skill guide (SKILL.md).
+    Skill,
 }
 
 #[derive(Subcommand, Debug)]
