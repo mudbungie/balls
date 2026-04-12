@@ -43,30 +43,32 @@ pub fn review_worktree(
             ),
         )?;
 
-        // Flip the task to review on the state branch. store.task_path
-        // points at the state worktree's copy, not the bl worktree's.
-        let task_path = store.task_path(id)?;
-        let mut t = Task::load(&task_path)?;
-        t.status = Status::Review;
-        t.touch();
-        t.save(&task_path)?;
-        if let Some(msg) = message {
-            task_io::append_note_to(&task_path, identity, msg)?;
-        }
-        store.commit_task(id, &format!("state: review {}", id))?;
-
         // Squash merge the worker's branch into main. This is the single
         // substantive feature commit — the delivery tag [bl-XXXX] is
         // embedded so tooling and humans can trace main <-> state branch.
         // Merge-in above already reconciled main into the worktree, so
-        // this squash cannot itself produce fresh conflicts; if git
-        // somehow leaves the index dirty, the commit below surfaces it.
+        // this squash cannot itself produce fresh conflicts.
         let squash_msg = match message {
             Some(msg) => format!("{} [{}]", msg, id),
             None => format!("{} [{}]", task.title, id),
         };
         git::git_merge_squash(&store.root, &branch)?;
         git::git_commit(&store.root, &squash_msg)?;
+        let delivered_sha = git::git_resolve_sha(&store.root, "HEAD")?;
+
+        // Flip the task to review on the state branch, embedding the
+        // delivery hint in the same commit so the state-branch history
+        // stays at one-commit-per-transition.
+        let task_path = store.task_path(id)?;
+        let mut t = Task::load(&task_path)?;
+        t.status = Status::Review;
+        t.delivered_in = Some(delivered_sha);
+        t.touch();
+        t.save(&task_path)?;
+        if let Some(msg) = message {
+            task_io::append_note_to(&task_path, identity, msg)?;
+        }
+        store.commit_task(id, &format!("state: review {}", id))?;
 
         // Sync main back into worktree so re-review after rejection only
         // picks up new changes (squash merge doesn't record branch ancestry).

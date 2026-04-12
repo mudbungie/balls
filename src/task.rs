@@ -176,6 +176,11 @@ pub struct Task {
     pub closed_children: Vec<ArchivedChild>,
     #[serde(default)]
     pub external: BTreeMap<String, Value>,
+    /// Performance hint: SHA of the squash-merge on main that
+    /// delivered this task. Ground truth is the `[id]` tag embedded
+    /// in the commit message — see `crate::delivery`.
+    #[serde(default)]
+    pub delivered_in: Option<String>,
 }
 
 pub struct NewTaskOpts {
@@ -245,6 +250,7 @@ impl Task {
             links: Vec::new(),
             closed_children: Vec::new(),
             external: BTreeMap::new(),
+            delivered_in: None,
         }
     }
 

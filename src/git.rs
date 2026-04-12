@@ -156,6 +156,54 @@ pub fn git_push(dir: &Path, remote: &str, branch: &str) -> Result<()> {
     Ok(())
 }
 
+/// Resolve a ref to its full SHA. Used by the delivery-link path to
+/// capture the new main-branch HEAD right after a squash merge commit.
+pub fn git_resolve_sha(dir: &Path, refname: &str) -> Result<String> {
+    Ok(run_git_ok(dir, &["rev-parse", refname])?.trim().to_string())
+}
+
+/// Read the subject line of a commit. Returns `None` if the commit
+/// doesn't exist in the object database.
+pub fn git_commit_subject(dir: &Path, sha: &str) -> Option<String> {
+    run_git_ok(dir, &["show", "-s", "--format=%s", sha])
+        .ok()
+        .map(|s| s.trim().to_string())
+}
+
+/// True if `sha` is an ancestor of `branch` (reachable from its tip).
+/// `git merge-base --is-ancestor` exits 0 on yes, 1 on no.
+pub fn git_is_ancestor(dir: &Path, sha: &str, branch: &str) -> bool {
+    let out = Command::new("git")
+        .current_dir(dir)
+        .args(["merge-base", "--is-ancestor", sha, branch])
+        .output();
+    matches!(out, Ok(o) if o.status.success())
+}
+
+/// Find the newest commit reachable from `branch` whose subject
+/// contains `pattern` as a fixed string. Returns the full SHA, or
+/// `None` if no such commit exists.
+pub fn git_log_find_subject(dir: &Path, branch: &str, pattern: &str) -> Option<String> {
+    let out = run_git_ok(
+        dir,
+        &["log", "-1", "--format=%H", "-F", "--grep", pattern, branch],
+    )
+    .ok()?;
+    let sha = out.trim().to_string();
+    if sha.is_empty() {
+        None
+    } else {
+        Some(sha)
+    }
+}
+
+/// Return the short form of a SHA via `git rev-parse --short`.
+pub fn git_short_sha(dir: &Path, sha: &str) -> Option<String> {
+    run_git_ok(dir, &["rev-parse", "--short", sha])
+        .ok()
+        .map(|s| s.trim().to_string())
+}
+
 pub fn git_worktree_add(dir: &Path, path: &Path, branch: &str) -> Result<()> {
     let path_str = path.to_string_lossy().to_string();
     run_git_ok(dir, &["worktree", "add", &path_str, "-b", branch])?;

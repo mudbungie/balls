@@ -18,6 +18,7 @@
 //! ```
 
 pub mod config;
+pub mod delivery;
 pub mod error;
 pub mod git;
 pub mod git_state;
