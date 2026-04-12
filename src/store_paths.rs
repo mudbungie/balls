@@ -41,7 +41,7 @@ pub(crate) fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
     let canon = fs::canonicalize(common_dir).unwrap_or_else(|_| common_dir.to_path_buf());
     canon
         .parent()
-        .map(|p| p.to_path_buf())
+        .map(Path::to_path_buf)
         .ok_or_else(|| BallError::Other("could not find main repo root".to_string()))
 }
 

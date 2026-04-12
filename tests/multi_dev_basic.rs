@@ -34,14 +34,14 @@ fn story_46_sync_nonconflicting_remote_changes() {
     assert!(bob
         .path()
         .join(".balls/tasks")
-        .join(format!("{}.json", a_id))
+        .join(format!("{a_id}.json"))
         .exists());
 
     bl(alice.path()).arg("sync").assert().success();
     assert!(alice
         .path()
         .join(".balls/tasks")
-        .join(format!("{}.json", b_id))
+        .join(format!("{b_id}.json"))
         .exists());
 }
 

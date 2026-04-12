@@ -42,7 +42,7 @@ pub fn cmd_create(
     let all = store.all_tasks()?;
     if let Some(pid) = &parent {
         if !all.iter().any(|t| &t.id == pid) {
-            return Err(BallError::InvalidTask(format!("parent not found: {}", pid)));
+            return Err(BallError::InvalidTask(format!("parent not found: {pid}")));
         }
     }
     ready::validate_deps(&all, &dep)?;
@@ -67,14 +67,14 @@ pub fn cmd_create(
     {
         let _g = task_lock(&store, &id)?;
         store.save_task(&task)?;
-        store.commit_task(&id, &format!("balls: create {} - {}", id, title))?;
+        store.commit_task(&id, &format!("balls: create {id} - {title}"))?;
     }
 
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {
         let _ = plugin::apply_push_response(&store, &id, &results);
     }
 
-    println!("{}", id);
+    println!("{id}");
     Ok(())
 }
 
@@ -164,7 +164,7 @@ fn render_text(
     println!("  priority: {}", task.priority);
     println!("  status:   {}", task.status.as_str());
     if let Some(p) = &task.parent {
-        println!("  parent:   {}", p);
+        println!("  parent:   {p}");
     }
     if !task.depends_on.is_empty() {
         println!("  deps:     {}", task.depends_on.join(", "));
@@ -179,10 +179,10 @@ fn render_text(
         println!("  tags:     {}", task.tags.join(", "));
     }
     if let Some(c) = &task.claimed_by {
-        println!("  claimed:  {}", c);
+        println!("  claimed:  {c}");
     }
     if let Some(b) = &task.branch {
-        println!("  branch:   {}", b);
+        println!("  branch:   {b}");
     }
     if let Some(sha) = &delivery.sha {
         let label = if delivery.hint_stale { " (hint stale)" } else { "" };

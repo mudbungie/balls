@@ -32,7 +32,7 @@ pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {
         let _ = plugin::apply_push_response(&store, &id, &results);
     }
-    println!("submitted {} for review", id);
+    println!("submitted {id} for review");
     Ok(())
 }
 
@@ -41,7 +41,7 @@ pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     let ident = default_identity();
     let task = balls::review::close_worktree(&store, &id, message.as_deref(), &ident)?;
     let _ = plugin::run_plugin_push(&store, &task);
-    println!("closed {}", id);
+    println!("closed {id}");
     println!("{}", store.root.display());
     Ok(())
 }
@@ -49,7 +49,7 @@ pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
 pub fn cmd_drop(id: String, force: bool) -> Result<()> {
     let store = discover()?;
     worktree::drop_worktree(&store, &id, force)?;
-    println!("dropped {}", id);
+    println!("dropped {id}");
     Ok(())
 }
 
@@ -72,7 +72,7 @@ pub fn cmd_update(
         }
         for assign in &assignments {
             let (field, value) = assign.split_once('=').ok_or_else(|| {
-                BallError::InvalidTask(format!("expected field=value, got: {}", assign))
+                BallError::InvalidTask(format!("expected field=value, got: {assign}"))
             })?;
             apply_field(&mut task, field, value)?;
         }
@@ -105,9 +105,9 @@ pub fn cmd_update(
     }
 
     if closing {
-        println!("closed and archived {}", id);
+        println!("closed and archived {id}");
     } else {
-        println!("updated {}", id);
+        println!("updated {id}");
     }
     Ok(())
 }
@@ -118,7 +118,7 @@ fn apply_field(task: &mut Task, field: &str, value: &str) -> Result<()> {
         "priority" => {
             let p: u8 = value
                 .parse()
-                .map_err(|_| BallError::InvalidTask(format!("priority not integer: {}", value)))?;
+                .map_err(|_| BallError::InvalidTask(format!("priority not integer: {value}")))?;
             if !(1..=4).contains(&p) {
                 return Err(BallError::InvalidTask("priority must be 1..=4".into()));
             }
@@ -136,8 +136,7 @@ fn apply_field(task: &mut Task, field: &str, value: &str) -> Result<()> {
         "description" => task.description = value.to_string(),
         _ => {
             return Err(BallError::InvalidTask(format!(
-                "unknown or unwritable field: {}",
-                field
+                "unknown or unwritable field: {field}"
             )));
         }
     }

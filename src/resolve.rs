@@ -41,7 +41,7 @@ pub fn resolve_conflict(ours: &Task, theirs: &Task) -> Task {
 
     // claimed_by handling
     if winning_status == Status::Closed {
-        result.claimed_by = status_winner.claimed_by.clone();
+        result.claimed_by.clone_from(&status_winner.claimed_by);
         result.closed_at = status_winner.closed_at.or(other.closed_at);
         result.branch = status_winner.branch.clone().or_else(|| other.branch.clone());
     } else {
@@ -125,9 +125,9 @@ pub fn parse_conflict_markers(content: &str) -> Result<(Task, Task)> {
     }
 
     let ours_task: Task = serde_json::from_str(&ours)
-        .map_err(|e| BallError::Conflict(format!("could not parse 'ours' side: {}", e)))?;
+        .map_err(|e| BallError::Conflict(format!("could not parse 'ours' side: {e}")))?;
     let theirs_task: Task = serde_json::from_str(&theirs)
-        .map_err(|e| BallError::Conflict(format!("could not parse 'theirs' side: {}", e)))?;
+        .map_err(|e| BallError::Conflict(format!("could not parse 'theirs' side: {e}")))?;
     Ok((ours_task, theirs_task))
 }
 
@@ -248,7 +248,7 @@ mod tests {
     fn parse_markers_roundtrip() {
         let t = base("a");
         let j = serde_json::to_string_pretty(&t).unwrap();
-        let conflict = format!("<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n", j, j);
+        let conflict = format!("<<<<<<< HEAD\n{j}\n=======\n{j}\n>>>>>>> theirs\n");
         let (ours, theirs) = parse_conflict_markers(&conflict).unwrap();
         assert_eq!(ours.id, "a");
         assert_eq!(theirs.id, "a");

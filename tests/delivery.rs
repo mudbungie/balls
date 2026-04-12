@@ -11,7 +11,7 @@ fn claim_review_close(repo: &std::path::Path, id: &str) {
         .assert()
         .success();
     let wt = repo.join(".balls-worktrees").join(id);
-    std::fs::write(wt.join(format!("{}.txt", id)), "body").unwrap();
+    std::fs::write(wt.join(format!("{id}.txt")), "body").unwrap();
     bl(repo)
         .args(["review", id, "-m", "ready"])
         .assert()
@@ -47,9 +47,8 @@ fn review_writes_delivered_in_hint_to_task_file() {
     assert_eq!(main_head.trim(), sha);
     let subject = git(repo.path(), &["log", "-1", "--format=%s", sha]);
     assert!(
-        subject.contains(&format!("[{}]", id)),
-        "commit subject missing delivery tag: {}",
-        subject
+        subject.contains(&format!("[{id}]")),
+        "commit subject missing delivery tag: {subject}"
     );
 }
 
@@ -73,13 +72,11 @@ fn show_displays_delivery_after_review() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("delivered:"),
-        "bl show should display delivery line: {}",
-        stdout
+        "bl show should display delivery line: {stdout}"
     );
     assert!(
-        stdout.contains(&format!("[{}]", id)),
-        "delivery line should include the tag: {}",
-        stdout
+        stdout.contains(&format!("[{id}]")),
+        "delivery line should include the tag: {stdout}"
     );
 }
 
@@ -116,7 +113,7 @@ fn delivered_in_survives_rebase_of_main_via_tag_fallback() {
             "commit",
             "--amend",
             "-m",
-            &format!("rewritten subject [{}]", id),
+            &format!("rewritten subject [{id}]"),
             "--no-verify",
         ],
     );
@@ -174,11 +171,11 @@ fn delivered_in_returns_none_after_main_reset_past_tag() {
         repo.path(),
         &[
             "show",
-            &format!("{}:.balls/tasks/{}.json", state_parent, id),
+            &format!("{state_parent}:.balls/tasks/{id}.json"),
         ],
     );
     std::fs::write(
-        repo.path().join(".balls/tasks").join(format!("{}.json", id)),
+        repo.path().join(".balls/tasks").join(format!("{id}.json")),
         content,
     )
     .unwrap();
@@ -218,8 +215,7 @@ fn task_never_reviewed_has_no_delivery_link() {
     let stdout = String::from_utf8_lossy(&text_out.stdout);
     assert!(
         !stdout.contains("delivered:"),
-        "bl show should omit delivery line for unreviewed tasks: {}",
-        stdout
+        "bl show should omit delivery line for unreviewed tasks: {stdout}"
     );
 }
 
@@ -239,14 +235,14 @@ fn full_review_close_cycle_persists_delivery_on_state_branch() {
     let state_head = git(repo.path(), &["rev-parse", "balls/tasks"])
         .trim()
         .to_string();
-    let parent = git(repo.path(), &["rev-parse", &format!("{}~1", state_head)])
+    let parent = git(repo.path(), &["rev-parse", &format!("{state_head}~1")])
         .trim()
         .to_string();
     let archived = git(
         repo.path(),
         &[
             "show",
-            &format!("{}:.balls/tasks/{}.json", parent, id),
+            &format!("{parent}:.balls/tasks/{id}.json"),
         ],
     );
     let j: serde_json::Value = serde_json::from_str(&archived).unwrap();
@@ -254,5 +250,5 @@ fn full_review_close_cycle_persists_delivery_on_state_branch() {
         .as_str()
         .expect("archived task carries delivered_in");
     let subject = git(repo.path(), &["log", "-1", "--format=%s", sha]);
-    assert!(subject.contains(&format!("[{}]", id)));
+    assert!(subject.contains(&format!("[{id}]")));
 }

@@ -34,7 +34,7 @@ pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) 
 
 fn warn_on_err(what: &str, result: Result<()>) {
     if let Err(e) = result {
-        eprintln!("warning: sync-report {} failed: {}", what, e);
+        eprintln!("warning: sync-report {what} failed: {e}");
     }
 }
 
@@ -63,7 +63,7 @@ fn apply_created(
         .insert(plugin_name.to_string(), Value::Object(item.external.clone()));
     let _g = task_lock(store, &id)?;
     store.save_task(&task)?;
-    store.commit_task(&id, &format!("balls: sync-create {} from {}", id, plugin_name))?;
+    store.commit_task(&id, &format!("balls: sync-create {id} from {plugin_name}"))?;
     Ok(())
 }
 
@@ -109,7 +109,7 @@ fn apply_field_update(task: &mut Task, field: &str, value: &Value) {
         }
         "priority" => {
             if let Some(n) = value.as_u64() {
-                task.priority = (n as u8).clamp(1, 4);
+                task.priority = u8::try_from(n.clamp(1, 4)).unwrap_or(4);
             }
         }
         "status" => {
@@ -142,7 +142,7 @@ fn apply_deleted(
     }
     task.status = Status::Deferred;
     let reason = if item.reason.is_empty() {
-        format!("Deleted in remote tracker ({})", plugin_name)
+        format!("Deleted in remote tracker ({plugin_name})")
     } else {
         item.reason.clone()
     };

@@ -35,8 +35,7 @@ fn title_update_unknown_field_and_missing_task() {
                   "fields": {{}}, "external": {{}}, "add_note": null}}
               ],
               "deleted": []
-            }}"#,
-            id = id
+            }}"#
         ),
     );
 
@@ -49,8 +48,7 @@ fn title_update_unknown_field_and_missing_task() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("unknown task bl-ffff"),
-        "expected missing-task warning: {}",
-        stderr
+        "expected missing-task warning: {stderr}"
     );
     let task = read_task_json(repo.path(), &id);
     assert_eq!(task["title"].as_str().unwrap(), "new title");
@@ -68,7 +66,7 @@ fn deleted_already_closed_is_skipped() {
     // deleted report — the apply_deleted handler must short-circuit
     // on the Closed status.
     let id = create_task(repo.path(), "closed-not-archived");
-    let p = repo.path().join(".balls/tasks").join(format!("{}.json", id));
+    let p = repo.path().join(".balls/tasks").join(format!("{id}.json"));
     let mut j: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&p).unwrap()).unwrap();
     j["status"] = "closed".into();
@@ -79,8 +77,7 @@ fn deleted_already_closed_is_skipped() {
         &format!(
             r#"{{"created":[],"updated":[],"deleted":[
               {{"task_id": "{id}", "reason": "gone"}}
-            ]}}"#,
-            id = id
+            ]}}"#
         ),
     );
     bl(repo.path())
@@ -122,8 +119,7 @@ fn create_failure_is_warned_not_fatal() {
     assert!(out.status.success());
     assert!(
         stderr.contains("sync-report create failed"),
-        "expected create warning: {}",
-        stderr
+        "expected create warning: {stderr}"
     );
 }
 
@@ -141,8 +137,7 @@ fn deleted_with_empty_reason_uses_default() {
         &format!(
             r#"{{"created":[],"updated":[],"deleted":[
               {{"task_id": "{id}", "reason": ""}}
-            ]}}"#,
-            id = id
+            ]}}"#
         ),
     );
     bl(repo.path())
@@ -155,7 +150,6 @@ fn deleted_with_empty_reason_uses_default() {
         notes
             .iter()
             .any(|n| n["text"].as_str().unwrap().contains("Deleted in remote tracker")),
-        "expected default-reason note, got: {:?}",
-        notes
+        "expected default-reason note, got: {notes:?}"
     );
 }

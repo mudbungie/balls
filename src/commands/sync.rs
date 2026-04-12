@@ -20,7 +20,7 @@ pub fn cmd_sync(remote: String, task_filter: Option<String>) -> Result<()> {
                 apply_sync_report(&store, &plugin_name, &report);
             }
         }
-        Err(e) => eprintln!("warning: plugin sync failed: {}", e),
+        Err(e) => eprintln!("warning: plugin sync failed: {e}"),
     }
     println!("sync complete");
     Ok(())
@@ -43,8 +43,7 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     if !store.stealth {
         for id in detect_half_push(store)? {
             eprintln!(
-                "warning: state branch records close for {0} but no `[{0}]` tag reachable from main",
-                id
+                "warning: state branch records close for {id} but no `[{id}]` tag reachable from main"
             );
         }
     }
@@ -54,7 +53,7 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
 /// Fetch + merge + push a single branch in `dir`. Retries once on push
 /// failure to tolerate a contemporaneous remote advance.
 fn sync_branch(dir: &Path, remote: &str, branch: &str) -> Result<()> {
-    let remote_ref = format!("{}/{}", remote, branch);
+    let remote_ref = format!("{remote}/{branch}");
     fetch_merge_resolve_at(dir, remote, &remote_ref)?;
     if git::git_push(dir, remote, branch).is_err() {
         fetch_merge_resolve_at(dir, remote, &remote_ref)?;
@@ -83,7 +82,7 @@ pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
     for subj in &state_subjects {
         let Some(id) = extract_state_id(subj, "state: close ") else { continue };
         if !reviewed.contains(&id) { continue; }
-        let tag = format!("[{}]", id);
+        let tag = format!("[{id}]");
         if !main_subjects.iter().any(|s| s.contains(&tag)) && !missing.contains(&id) {
             missing.push(id);
         }
@@ -102,15 +101,10 @@ fn extract_state_id(subject: &str, prefix: &str) -> Option<String> {
 /// missing upstream branch (the "first push" case).
 fn fetch_merge_resolve_at(dir: &Path, remote: &str, remote_branch: &str) -> Result<()> {
     let _ = git::git_fetch(dir, remote);
-    match git::git_merge(dir, remote_branch) {
-        Ok(git::MergeResult::Conflict) => {
-            auto_resolve_conflicts_at(dir)?;
-            git::git_commit(dir, "state: auto-resolve sync conflicts")?;
-        }
-        Ok(_) => {}
-        Err(_) => {
-            // Remote branch may not exist yet; that's fine.
-        }
+    // Remote branch may not exist yet (first push); ignore that error.
+    if let Ok(git::MergeResult::Conflict) = git::git_merge(dir, remote_branch) {
+        auto_resolve_conflicts_at(dir)?;
+        git::git_commit(dir, "state: auto-resolve sync conflicts")?;
     }
     Ok(())
 }
@@ -150,7 +144,7 @@ pub fn cmd_resolve(file: String) -> Result<()> {
     let (ours, theirs) = resolve::parse_conflict_markers(&content)?;
     let merged = resolve::resolve_conflict(&ours, &theirs);
     merged.save(&path)?;
-    println!("resolved {}", file);
+    println!("resolved {file}");
     Ok(())
 }
 
@@ -179,7 +173,7 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("=== balls prime: {} ===", ident);
+    println!("=== balls prime: {ident} ===");
     for t in &claimed {
         let wt_dir = store
             .worktrees_root()
@@ -226,10 +220,10 @@ pub fn cmd_repair(fix: bool) -> Result<()> {
     if fix {
         let (rc, rw) = worktree::cleanup_orphans(&store)?;
         for id in &rc {
-            println!("removed orphan claim: {}", id);
+            println!("removed orphan claim: {id}");
         }
         for id in &rw {
-            println!("removed orphan worktree: {}", id);
+            println!("removed orphan worktree: {id}");
         }
     }
     Ok(())

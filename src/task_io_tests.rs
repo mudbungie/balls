@@ -40,7 +40,7 @@ fn serialize_keys_are_sorted_and_one_per_line() {
 fn serialize_ends_with_newline() {
     let t = fresh_task("bl-ef01");
     let s = serialize_mergeable(&t).unwrap();
-    assert!(s.ends_with("\n"));
+    assert!(s.ends_with('\n'));
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn append_note_to_uses_sibling_file_path() {
     let notes_file = dir.path().join("bl-cccc.notes.jsonl");
     assert!(notes_file.exists());
     let content = std::fs::read_to_string(&notes_file).unwrap();
-    assert!(content.ends_with("\n"));
+    assert!(content.ends_with('\n'));
     assert_eq!(content.lines().count(), 1);
 }
 

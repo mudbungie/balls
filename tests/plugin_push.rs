@@ -23,8 +23,7 @@ fn story_65_create_triggers_plugin_push() {
     let log_contents = fs::read_to_string(&log).unwrap_or_default();
     assert!(
         log_contents.contains("push"),
-        "expected plugin push call in log: {}",
-        log_contents
+        "expected plugin push call in log: {log_contents}"
     );
 }
 
@@ -79,12 +78,12 @@ fn push_populates_external_field() {
     let ext = &task["external"]["mock"];
     assert_eq!(
         ext["remote_key"].as_str().unwrap(),
-        format!("MOCK-{}", id),
+        format!("MOCK-{id}"),
         "push should populate external.mock.remote_key, task.external={}", task["external"]
     );
     assert_eq!(
         ext["remote_url"].as_str().unwrap(),
-        format!("https://mock.example/MOCK-{}", id),
+        format!("https://mock.example/MOCK-{id}"),
     );
     assert!(ext["synced_at"].is_string(), "synced_at should be present");
 }
@@ -110,9 +109,8 @@ fn push_skipped_without_auth() {
     let task = read_task_json(repo.path(), &id);
     let ext = &task["external"];
     assert!(
-        ext.is_null() || ext.as_object().is_none_or(|m| m.is_empty()),
-        "external should be empty when auth fails: {:?}",
-        ext
+        ext.is_null() || ext.as_object().is_none_or(serde_json::Map::is_empty),
+        "external should be empty when auth fails: {ext:?}"
     );
 }
 
@@ -143,7 +141,7 @@ fn update_writes_back_push_response() {
     let task = read_task_json(repo.path(), &id);
     assert_eq!(
         task["external"]["mock"]["remote_key"].as_str().unwrap(),
-        format!("MOCK-{}", id),
+        format!("MOCK-{id}"),
         "update should write back push response to external"
     );
 }

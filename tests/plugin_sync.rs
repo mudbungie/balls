@@ -49,8 +49,7 @@ fn sync_warns_when_plugin_framework_errors() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("plugin sync failed"),
-        "expected plugin sync failure warning: {}",
-        stderr
+        "expected plugin sync failure warning: {stderr}"
     );
 }
 
@@ -88,8 +87,7 @@ fn story_70_auth_expired_warns_and_skips() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("auth") || stderr.contains("expired") || stderr.contains("auth-setup"),
-        "should warn about auth: {}",
-        stderr
+        "should warn about auth: {stderr}"
     );
 }
 
@@ -106,11 +104,11 @@ fn sync_with_auth_expired_skips_plugin() {
     write_sync_response(repo.path(), &format!(r#"{{
         "created": [],
         "updated": [{{
-            "task_id": "{}",
+            "task_id": "{id}",
             "fields": {{ "priority": 1 }}
         }}],
         "deleted": []
-    }}"#, id));
+    }}"#));
 
     bl(repo.path())
         .env("PATH", path_with_mock(bin_dir.path()))
@@ -147,8 +145,7 @@ fn sync_sends_all_tasks_on_stdin() {
     let stdin_content = fs::read_to_string(&sync_stdin_path).unwrap_or_default();
     assert!(
         stdin_content.contains(&id1) && stdin_content.contains(&id2),
-        "sync stdin should contain all task IDs: {}",
-        stdin_content
+        "sync stdin should contain all task IDs: {stdin_content}"
     );
 }
 
@@ -170,9 +167,8 @@ fn sync_single_task_by_local_id() {
 
     let log_contents = fs::read_to_string(&log).unwrap_or_default();
     assert!(
-        log_contents.contains(&format!("task={}", id)),
-        "plugin should receive --task flag: {}",
-        log_contents
+        log_contents.contains(&format!("task={id}")),
+        "plugin should receive --task flag: {log_contents}"
     );
 }
 
@@ -193,8 +189,7 @@ fn sync_single_task_by_remote_key() {
     let log_contents = fs::read_to_string(&log).unwrap_or_default();
     assert!(
         log_contents.contains("task=PROJ-123"),
-        "plugin should receive remote key as --task: {}",
-        log_contents
+        "plugin should receive remote key as --task: {log_contents}"
     );
 }
 
