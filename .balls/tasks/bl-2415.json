@@ -1,0 +1,22 @@
+{
+  "id": "bl-2415",
+  "title": "Validate task IDs to prevent path traversal",
+  "type": "bug",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Task IDs from CLI args or synced JSON are used in path construction without validation. A crafted ID like ../../etc/passwd could escape the tasks directory. Add validation that IDs match bl-[a-f0-9]+ before using them in paths.",
+  "created_at": "2026-04-11T20:41:32.485104396Z",
+  "updated_at": "2026-04-11T20:41:32.485104396Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "security"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
