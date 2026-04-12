@@ -1,7 +1,9 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
+use crate::store_paths::{find_main_root, resolve_tasks_dir, stealth_tasks_dir};
 use crate::task::{self, Task};
+use crate::task_io;
 use fs2::FileExt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -87,6 +89,18 @@ impl Store {
             if !keep.exists() {
                 fs::write(&keep, "")?;
             }
+            // Mark notes sidecars as union-merge so concurrent appends from
+            // two workers merge cleanly under stock git. `union` is a
+            // built-in git driver; no custom tooling required.
+            let attrs = td.join(".gitattributes");
+            let attrs_line = "*.notes.jsonl merge=union\n";
+            let needs_write = match fs::read_to_string(&attrs) {
+                Ok(s) => !s.contains("*.notes.jsonl merge=union"),
+                Err(_) => true,
+            };
+            if needs_write {
+                fs::write(&attrs, attrs_line)?;
+            }
             (td, false)
         };
 
@@ -124,6 +138,7 @@ impl Store {
         ];
         if !is_stealth {
             paths.push(Path::new(".balls/tasks/.gitkeep"));
+            paths.push(Path::new(".balls/tasks/.gitattributes"));
         }
         git::git_add(&repo_root, &paths)?;
 
@@ -199,16 +214,24 @@ impl Store {
         if p.exists() {
             std::fs::remove_file(&p)?;
         }
+        task_io::delete_notes_file(&p)?;
         Ok(())
     }
 
     /// Stage and commit a task file change. No-op in stealth mode.
+    /// Also stages the sibling notes file if it exists.
     pub fn commit_task(&self, id: &str, message: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
-        let rel = PathBuf::from(".balls/tasks").join(format!("{}.json", id));
-        git::git_add(&self.root, &[rel.as_path()])?;
+        let rel_json = PathBuf::from(".balls/tasks").join(format!("{}.json", id));
+        git::git_add(&self.root, &[rel_json.as_path()])?;
+        let notes_abs = task_io::notes_path_for(&self.task_path(id)?);
+        if notes_abs.exists() {
+            let rel_notes =
+                PathBuf::from(".balls/tasks").join(format!("{}.notes.jsonl", id));
+            git::git_add(&self.root, &[rel_notes.as_path()])?;
+        }
         git::git_commit(&self.root, message)?;
         Ok(())
     }
@@ -223,12 +246,19 @@ impl Store {
     }
 
     /// Git-rm a task file. No-op in stealth mode.
+    /// Also removes the sibling notes file from the index if tracked.
     pub fn rm_task_git(&self, id: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
-        let rel = PathBuf::from(format!(".balls/tasks/{}.json", id));
-        git::git_rm(&self.root, &[rel.as_path()])?;
+        let rel_json = PathBuf::from(format!(".balls/tasks/{}.json", id));
+        git::git_rm(&self.root, &[rel_json.as_path()])?;
+        let rel_notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
+        let abs_notes = self.root.join(&rel_notes);
+        if abs_notes.exists() {
+            // Best-effort: notes file may not be tracked if never committed.
+            let _ = git::git_rm(&self.root, &[rel_notes.as_path()]);
+        }
         Ok(())
     }
 
@@ -253,56 +283,5 @@ impl Store {
             }
         }
         Ok(out)
-    }
-}
-
-/// Check .balls/local/tasks_dir for an external tasks directory override.
-fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
-    let override_file = root.join(".balls/local/tasks_dir");
-    if let Ok(s) = fs::read_to_string(&override_file) {
-        let p = PathBuf::from(s.trim());
-        if p.is_absolute() {
-            return (p, true);
-        }
-    }
-    (root.join(".balls/tasks"), false)
-}
-
-/// Generate a deterministic external path for stealth tasks.
-fn stealth_tasks_dir(root: &Path) -> PathBuf {
-    use sha1::{Digest, Sha1};
-    let root_str = root.to_string_lossy();
-    let hash = hex::encode(Sha1::digest(root_str.as_bytes()));
-    let base = dirs_base(&hash);
-    PathBuf::from(base).join("tasks")
-}
-
-fn dirs_base(hash: &str) -> String {
-    if let Ok(home) = std::env::var("HOME") {
-        format!("{}/.local/share/balls/{}", home, &hash[..12])
-    } else {
-        format!("/tmp/balls-stealth-{}", &hash[..12])
-    }
-}
-
-fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
-    let canon = fs::canonicalize(common_dir).unwrap_or_else(|_| common_dir.to_path_buf());
-    canon.parent().map(|p| p.to_path_buf())
-        .ok_or_else(|| BallError::Other("could not find main repo root".to_string()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dirs_base_no_home() {
-        let saved = std::env::var("HOME").ok();
-        std::env::remove_var("HOME");
-        let result = dirs_base("abcdef123456789");
-        if let Some(h) = saved {
-            std::env::set_var("HOME", h);
-        }
-        assert!(result.starts_with("/tmp/balls-stealth-"));
     }
 }
