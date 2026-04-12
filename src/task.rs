@@ -44,6 +44,7 @@ impl fmt::Display for TaskType {
 pub enum Status {
     Open,
     InProgress,
+    Review,
     Blocked,
     Closed,
     Deferred,
@@ -54,6 +55,7 @@ impl Status {
         match s {
             "open" => Ok(Status::Open),
             "in_progress" => Ok(Status::InProgress),
+            "review" => Ok(Status::Review),
             "blocked" => Ok(Status::Blocked),
             "closed" => Ok(Status::Closed),
             "deferred" => Ok(Status::Deferred),
@@ -63,7 +65,8 @@ impl Status {
 
     pub fn precedence(&self) -> u8 {
         match self {
-            Status::Closed => 5,
+            Status::Closed => 6,
+            Status::Review => 5,
             Status::InProgress => 4,
             Status::Blocked => 3,
             Status::Open => 2,
@@ -75,6 +78,7 @@ impl Status {
         match self {
             Status::Open => "open",
             Status::InProgress => "in_progress",
+            Status::Review => "review",
             Status::Blocked => "blocked",
             Status::Closed => "closed",
             Status::Deferred => "deferred",

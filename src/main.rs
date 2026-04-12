@@ -28,6 +28,7 @@ fn main() {
         Command::Show { id, json } => commands::cmd_show(id, json),
         Command::Ready { json, no_fetch } => commands::cmd_ready(json, no_fetch),
         Command::Claim { id, identity } => commands::cmd_claim(id, identity),
+        Command::Review { id, message } => commands::cmd_review(id, message),
         Command::Close { id, message } => commands::cmd_close(id, message),
         Command::Drop { id, force } => commands::cmd_drop(id, force),
         Command::Update {
