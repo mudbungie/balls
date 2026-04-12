@@ -38,10 +38,14 @@ fn story_3_init_in_cloned_repo_creates_local_only() {
     push(dev_a.path());
 
     let dev_b = clone_from_remote(remote.path(), "bob");
-    assert!(dev_b.path().join(".balls/tasks").exists());
+    // Fresh clone has no .balls/tasks symlink and no .balls/local yet —
+    // they're per-clone, gitignored, and materialized by `bl init`.
+    assert!(!dev_b.path().join(".balls/tasks").exists());
     assert!(!dev_b.path().join(".balls/local").exists());
     bl(dev_b.path()).arg("init").assert().success();
     assert!(dev_b.path().join(".balls/local/claims").exists());
+    assert!(dev_b.path().join(".balls/tasks").is_symlink());
+    assert!(dev_b.path().join(".balls/worktree").exists());
 }
 
 #[test]

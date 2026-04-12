@@ -2,3 +2,5 @@
 .balls-worktrees
 target
 *.profraw
+.balls/tasks
+.balls/worktree
