@@ -1,0 +1,8 @@
+[workspace]
+semver_check = false
+
+[changelog]
+commit_parsers = [
+    { message = "^balls:", skip = true },
+    { message = ".*", group = "Changes" },
+]
