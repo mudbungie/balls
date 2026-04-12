@@ -3,12 +3,12 @@
   "title": "Add review status: agent submits work, reviewer closes",
   "type": "task",
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "parent": null,
   "depends_on": [],
   "description": "New status 'review': bl review merges work to main but keeps worktree. bl close archives and removes worktree, rejects if CWD is inside worktree. Reviewer can reject back to in_progress.",
   "created_at": "2026-04-11T16:22:12.538343469Z",
-  "updated_at": "2026-04-11T16:22:24.303414058Z",
+  "updated_at": "2026-04-11T16:29:38.740670808Z",
   "closed_at": null,
   "claimed_by": "mark",
   "branch": "work/bl-276f",
@@ -16,7 +16,13 @@
     "workflow",
     "close"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "ts": "2026-04-11T16:29:38.740666099Z",
+      "author": "mark",
+      "text": "Review status, CWD rejection on close, review→close workflow"
+    }
+  ],
   "links": [],
   "closed_children": [],
   "external": {}
