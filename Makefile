@@ -1,4 +1,7 @@
-.PHONY: build test check install clean
+.PHONY: build test check install uninstall clean
+
+PREFIX ?= $(HOME)/.local
+BIN_DIR := $(PREFIX)/bin
 
 build:
 	cargo build --release
@@ -12,14 +15,13 @@ check: test
 	scripts/check-coverage.sh
 
 install: build
-	install -d ~/.local/bin
-	install -m 0755 target/release/bl ~/.local/bin/bl
-	install -d ~/.local/share/bash-completion/completions
-	install -d ~/.local/share/zsh/site-functions
-	install -d ~/.local/share/fish/vendor_completions.d
-	target/release/bl completions bash > ~/.local/share/bash-completion/completions/bl
-	target/release/bl completions zsh > ~/.local/share/zsh/site-functions/_bl
-	target/release/bl completions fish > ~/.local/share/fish/vendor_completions.d/bl.fish
+	install -d $(BIN_DIR)
+	install -m 0755 target/release/bl $(BIN_DIR)/bl
+	$(BIN_DIR)/bl completions --install
+
+uninstall:
+	-$(BIN_DIR)/bl completions --uninstall
+	rm -f $(BIN_DIR)/bl
 
 clean:
 	cargo clean
