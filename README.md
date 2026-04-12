@@ -1006,15 +1006,15 @@ Balls's thesis: every layer of infrastructure you add is a layer that can break,
 
 ### Beads
 
-Beads was right about the core insight: agents need structured, queryable, persistent task state — not markdown files strewn across a repo. Balls is built on the same realization. The question we answer differently is what minimum infrastructure can hold it.
+Beads was right about the core insight: agents need structured, queryable, persistent task state — not markdown files strewn across a repo. Balls is built on the same realization, and the two projects agree on more than they disagree on. Both keep task state out of the main branch's commit history so feature work and bookkeeping don't interleave; balls does this with an orphan git ref, beads does it with a separate database. The question we answer differently is what holds that state.
 
-Beads uses Dolt — a version-controlled SQL database — as the backing store. That buys cell-level merging and sub-millisecond queries, both genuinely nice properties on large task sets. The cost is a second version-control tree running alongside git: two branch histories to keep consistent, two merge models to learn, a separate database to install, and — unless everyone on the team is running Dolt — a backlog that quietly drifts between machines. The jsonl export mode exists but isn't the shared source of truth, so sharing state without the database is a second-class path.
+Beads uses Dolt — a version-controlled SQL database — as the backing store. That buys cell-level merging and sub-millisecond queries, both genuinely nice properties on large task sets. The cost is running two version-control systems side by side: git for code, Dolt for tasks. That's two histories to keep consistent, two merge models to learn, two remotes to push to, and a separate database binary every collaborator has to install. The jsonl export mode exists but isn't the shared source of truth, so sharing state without Dolt is a second-class path.
 
-Balls takes the same insight and asks: can we do this with tools every developer already runs? The answer is yes. Task files live on an orphan git ref, so `git log`, `git show`, `git diff`, and hand-editing all work with nothing installed. A task created on one machine is a task every collaborator will see on the next `git fetch`. There is no second database to keep in sync, no second branch model to reconcile, no new thing to operate.
+Balls asks whether one VCS can do both jobs. The orphan-ref design keeps task data fully out of main's commit graph — same separation beads gets from Dolt — but stores it in the same git repository, fetched by the same `git fetch`, pushed by the same `git push`. A collaborator who clones the repo gets the backlog automatically; a collaborator without `bl` installed can still read, diff, and hand-edit task files with stock git. There is no second system to operate.
 
 This is a tradeoff, not a free win. Dolt's cell-level merge is strictly more granular than git's file-level merge, and at the scale where per-field conflict resolution really matters, Dolt has the stronger answer. Balls mitigates the file-level constraint with a text-mergeable JSON schema and an append-only notes sidecar — disjoint-field edits and concurrent note appends merge cleanly under stock git — but it doesn't match Dolt's per-cell precision.
 
-The bet is that existing infrastructure beats new infrastructure whenever the existing infrastructure is sufficient, and that for tracking a backlog of tasks, git is sufficient.
+The bet is that one VCS beats two whenever one is sufficient, and that for tracking a backlog of tasks, git is sufficient.
 
 ### Cline Kanban
 

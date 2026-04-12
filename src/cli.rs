@@ -62,7 +62,7 @@ pub enum Command {
         json: bool,
     },
 
-    /// Show details of a task.
+    /// Show details of a task. For closed/review tasks, prints a `delivered:` line resolving the squash-merge commit on main.
     Show {
         id: String,
         #[arg(long)]
@@ -137,7 +137,7 @@ pub enum Command {
         task: Option<String>,
     },
 
-    /// Resolve a conflicted task file.
+    /// Merge a task file with git conflict markers using balls' field-level rules. Rarely needed — `bl sync` runs this automatically.
     Resolve { file: String },
 
     /// Prime an agent session: sync and print ready + in-progress tasks.
