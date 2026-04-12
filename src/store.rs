@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::task::Task;
+use crate::task::{self, Task};
 use fs2::FileExt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,6 +16,7 @@ impl Drop for LockGuard {
 }
 
 pub fn task_lock(store: &Store, id: &str) -> Result<LockGuard> {
+    task::validate_id(id)?;
     fs::create_dir_all(store.lock_dir())?;
     let lock_path = store.lock_dir().join(format!("{}.lock", id));
     let f = fs::OpenOptions::new()
@@ -169,16 +170,17 @@ impl Store {
         Ok(self.root.join(cfg.worktree_dir))
     }
 
-    pub fn task_path(&self, id: &str) -> PathBuf {
-        self.tasks_dir().join(format!("{}.json", id))
+    pub fn task_path(&self, id: &str) -> Result<PathBuf> {
+        task::validate_id(id)?;
+        Ok(self.tasks_dir().join(format!("{}.json", id)))
     }
 
     pub fn task_exists(&self, id: &str) -> bool {
-        self.task_path(id).exists()
+        self.task_path(id).map(|p| p.exists()).unwrap_or(false)
     }
 
     pub fn load_task(&self, id: &str) -> Result<Task> {
-        let p = self.task_path(id);
+        let p = self.task_path(id)?;
         if !p.exists() {
             return Err(BallError::TaskNotFound(id.to_string()));
         }
@@ -189,11 +191,11 @@ impl Store {
     /// per-task lock helper in `worktree.rs`); this path relies on atomic
     /// tmp+rename for filesystem integrity.
     pub fn save_task(&self, task: &Task) -> Result<()> {
-        task.save(&self.task_path(&task.id))
+        task.save(&self.task_path(&task.id)?)
     }
 
     pub fn delete_task_file(&self, id: &str) -> Result<()> {
-        let p = self.task_path(id);
+        let p = self.task_path(id)?;
         if p.exists() {
             std::fs::remove_file(&p)?;
         }
