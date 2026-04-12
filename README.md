@@ -10,7 +10,16 @@ The CLI is `bl`. Every `bl` operation is expressible as file edits and git comma
 
 Balls ships as a single small Rust binary called `bl`. The only runtime dependency is `git`.
 
-### From source (recommended today)
+### From crates.io
+
+```bash
+cargo install balls
+bl completions --install
+```
+
+`cargo install` places `bl` in `~/.cargo/bin/` but cannot install shell completions on its own — `bl completions --install` writes bash, zsh, and fish completions to the standard `~/.local/share/...` paths.
+
+### From source (recommended for development)
 
 ```bash
 git clone https://github.com/mudbungie/balls.git
@@ -18,12 +27,10 @@ cd balls
 make install
 ```
 
-This builds a release binary and installs `bl` to `~/.local/bin/`. Make sure that directory is on your `PATH`.
-
-Or via cargo directly:
+This builds a release binary, installs `bl` to `~/.local/bin/`, and installs shell completions to `~/.local/share/`. Make sure `~/.local/bin` is on your `PATH`. To remove everything `make install` placed:
 
 ```bash
-cargo install --path .   # installs to ~/.cargo/bin/
+make uninstall
 ```
 
 ### Cross-compilation
@@ -38,7 +45,6 @@ cargo zigbuild --release --target aarch64-apple-darwin
 
 ### Planned (not yet available)
 
-- `cargo install balls` (crates.io publish pending)
 - Prebuilt binaries: `curl -fsSL https://github.com/mudbungie/balls/releases/latest/download/bl-$(uname -s)-$(uname -m) -o /usr/local/bin/bl && chmod +x /usr/local/bin/bl`
 - Homebrew tap
 

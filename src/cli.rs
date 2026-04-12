@@ -157,10 +157,16 @@ pub enum Command {
     /// Print the agent skill guide (SKILL.md).
     Skill,
 
-    /// Generate shell completions for bash, zsh, or fish.
+    /// Generate shell completions, or install/uninstall to ~/.local/share.
     Completions {
-        /// Shell to generate completions for.
-        shell: ShellArg,
+        /// Shell to generate completions for. Omit when using `--install`/`--uninstall`.
+        shell: Option<ShellArg>,
+        /// Install bash, zsh, and fish completions to standard XDG paths.
+        #[arg(long, conflicts_with_all = ["shell", "uninstall"])]
+        install: bool,
+        /// Remove completions previously written by `--install`.
+        #[arg(long, conflicts_with_all = ["shell", "install"])]
+        uninstall: bool,
     },
 }
 

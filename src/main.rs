@@ -1,8 +1,44 @@
 mod cli;
 mod commands;
 
+use balls::error::{BallError, Result};
 use clap::{CommandFactory, Parser};
 use cli::{Cli, Command, ShellArg};
+
+fn home_path() -> Result<std::path::PathBuf> {
+    std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| BallError::Other("HOME not set".into()))
+}
+
+fn handle_completions(shell: Option<ShellArg>, install: bool, uninstall: bool) -> Result<()> {
+    let mut cmd = Cli::command();
+    if install {
+        let home = home_path()?;
+        for p in commands::install_completions(&mut cmd, &home)? {
+            println!("installed {}", p.display());
+        }
+        Ok(())
+    } else if uninstall {
+        let home = home_path()?;
+        for p in commands::uninstall_completions(&home)? {
+            println!("removed {}", p.display());
+        }
+        Ok(())
+    } else if let Some(shell) = shell {
+        let shell = match shell {
+            ShellArg::Bash => clap_complete::Shell::Bash,
+            ShellArg::Zsh => clap_complete::Shell::Zsh,
+            ShellArg::Fish => clap_complete::Shell::Fish,
+        };
+        clap_complete::generate(shell, &mut cmd, "bl", &mut std::io::stdout());
+        Ok(())
+    } else {
+        Err(BallError::Other(
+            "specify a shell (bash|zsh|fish), --install, or --uninstall".into(),
+        ))
+    }
+}
 
 fn main() {
     let cli = Cli::parse();
@@ -47,15 +83,11 @@ fn main() {
             print!("{}", include_str!("../SKILL.md"));
             Ok(())
         }
-        Command::Completions { shell } => {
-            let shell = match shell {
-                ShellArg::Bash => clap_complete::Shell::Bash,
-                ShellArg::Zsh => clap_complete::Shell::Zsh,
-                ShellArg::Fish => clap_complete::Shell::Fish,
-            };
-            clap_complete::generate(shell, &mut Cli::command(), "bl", &mut std::io::stdout());
-            Ok(())
-        }
+        Command::Completions {
+            shell,
+            install,
+            uninstall,
+        } => handle_completions(shell, install, uninstall),
     };
     if let Err(e) = result {
         eprintln!("error: {}", e);
