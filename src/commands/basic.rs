@@ -1,12 +1,12 @@
 //! init, create, list, show, ready — the read-mostly commands.
 
 use super::discover;
-use ball::error::{BallError, Result};
-use ball::git;
-use ball::plugin;
-use ball::ready;
-use ball::store::{task_lock, Store};
-use ball::task::{NewTaskOpts, Status, Task, TaskType};
+use balls::error::{BallError, Result};
+use balls::git;
+use balls::plugin;
+use balls::ready;
+use balls::store::{task_lock, Store};
+use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 use std::fs;
 
@@ -14,10 +14,10 @@ pub fn cmd_init(stealth: bool) -> Result<()> {
     let cwd = env::current_dir()?;
     let store = Store::init(&cwd, stealth)?;
     if store.stealth {
-        println!("Initialized ball (stealth) in {}", store.root.display());
+        println!("Initialized balls (stealth) in {}", store.root.display());
         println!("Tasks stored at: {}", store.tasks_dir().display());
     } else {
-        println!("Initialized ball in {}", store.root.display());
+        println!("Initialized balls in {}", store.root.display());
     }
     Ok(())
 }
@@ -86,7 +86,7 @@ pub fn cmd_create(
     {
         let _g = task_lock(&store, &id)?;
         store.save_task(&task)?;
-        store.commit_task(&id, &format!("ball: create {} - {}", id, title))?;
+        store.commit_task(&id, &format!("balls: create {} - {}", id, title))?;
     }
 
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {

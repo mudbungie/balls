@@ -83,7 +83,7 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
         task.touch();
 
         store.save_task(&task)?;
-        store.commit_task(id, &format!("ball: claim {}", id))?;
+        store.commit_task(id, &format!("balls: claim {}", id))?;
 
         if let Some(parent) = wt_path.parent() {
             fs::create_dir_all(parent)?;
@@ -93,10 +93,10 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
             let _ = rollback_claim(store, id);
         })?;
 
-        // Symlink .ball/local inside the worktree so claims/lock are shared
-        let wt_ball_dir = wt_path.join(".ball");
-        fs::create_dir_all(&wt_ball_dir)?;
-        let wt_local = wt_ball_dir.join("local");
+        // Symlink .balls/local inside the worktree so claims/lock are shared
+        let wt_balls_dir = wt_path.join(".balls");
+        fs::create_dir_all(&wt_balls_dir)?;
+        let wt_local = wt_balls_dir.join("local");
         let src_local = store.local_dir();
         if !wt_local.exists() {
             #[cfg(unix)]
@@ -117,7 +117,7 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-        let _ = store.commit_task(id, &format!("ball: rollback claim {}", id));
+        let _ = store.commit_task(id, &format!("balls: rollback claim {}", id));
     }
     let _ = fs::remove_file(claim_file_path(store, id));
     Ok(())
@@ -131,7 +131,7 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
 
     with_task_lock(store, id, || {
         git::git_add_all(&wt_path)?;
-        let _ = git::git_commit(&wt_path, &format!("ball: work on {}", id));
+        let _ = git::git_commit(&wt_path, &format!("balls: work on {}", id));
         let main_branch = git::git_current_branch(&store.root)?;
         merge_or_fail(
             &wt_path, &main_branch, None,
@@ -142,7 +142,7 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
         let mut t = if store.stealth {
             store.load_task(id)?
         } else {
-            let wt_task = wt_path.join(".ball/tasks").join(format!("{}.json", id));
+            let wt_task = wt_path.join(".balls/tasks").join(format!("{}.json", id));
             Task::load(&wt_task)?
         };
         t.status = Status::Review;
@@ -153,14 +153,14 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
         if store.stealth {
             store.save_task(&t)?;
         } else {
-            let wt_task = wt_path.join(".ball/tasks").join(format!("{}.json", id));
+            let wt_task = wt_path.join(".balls/tasks").join(format!("{}.json", id));
             t.save(&wt_task)?;
         }
         git::git_add_all(&wt_path)?;
-        let _ = git::git_commit(&wt_path, &format!("ball: review {}", id));
+        let _ = git::git_commit(&wt_path, &format!("balls: review {}", id));
 
         merge_no_ff_or_fail(
-            &store.root, &branch, Some(&format!("ball: merge {}", id)),
+            &store.root, &branch, Some(&format!("balls: merge {}", id)),
             &format!("unexpected conflict merging {} into {}", branch, main_branch),
         )?;
         Ok(())
@@ -190,7 +190,7 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         }
         t.touch();
         store.save_task(&t)?;
-        store.commit_task(id, &format!("ball: close {}", id))?;
+        store.commit_task(id, &format!("balls: close {}", id))?;
 
         // Remove worktree
         if wt_path.exists() {
@@ -220,7 +220,7 @@ pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
             parent.touch();
             store.save_task(&parent)?;
             if !store.stealth {
-                let rel = PathBuf::from(format!(".ball/tasks/{}.json", pid));
+                let rel = PathBuf::from(format!(".balls/tasks/{}.json", pid));
                 git::git_add(&store.root, &[rel.as_path()])?;
             }
         }
@@ -230,7 +230,7 @@ pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
     store.delete_task_file(&task.id)?;
     store.rm_task_git(&task.id)?;
     if !store.stealth {
-        git::git_commit(&store.root, &format!("ball: archive {}", task.id))?;
+        git::git_commit(&store.root, &format!("balls: archive {}", task.id))?;
     }
     Ok(())
 }
@@ -255,7 +255,7 @@ pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-        store.commit_task(id, &format!("ball: drop {}", id))?;
+        store.commit_task(id, &format!("balls: drop {}", id))?;
 
         // Remove worktree (force because we may have uncommitted changes)
         if wt_path.exists() {

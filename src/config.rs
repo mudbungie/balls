@@ -43,7 +43,7 @@ impl Default for Config {
             stale_threshold_seconds: 60,
             auto_fetch_on_ready: true,
             tasks_dir: None,
-            worktree_dir: ".ball-worktrees".to_string(),
+            worktree_dir: ".balls-worktrees".to_string(),
             protected_main: false,
             plugins: BTreeMap::new(),
         }
@@ -113,7 +113,7 @@ mod tests {
             "version": 1,
             "id_length": 4,
             "stale_threshold_seconds": 60,
-            "worktree_dir": ".ball-worktrees"
+            "worktree_dir": ".balls-worktrees"
         }"#;
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("c.json");
@@ -140,7 +140,7 @@ mod tests {
             PluginEntry {
                 enabled: true,
                 sync_on_change: true,
-                config_file: ".ball/plugins/jira.json".into(),
+                config_file: ".balls/plugins/jira.json".into(),
             },
         );
         let s = serde_json::to_string(&cfg).unwrap();

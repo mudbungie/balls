@@ -2,12 +2,12 @@
 
 use super::{default_identity, discover};
 use crate::cli::{DepCmd, LinkCmd};
-use ball::error::{BallError, Result};
-use ball::plugin;
-use ball::ready;
-use ball::store::task_lock;
-use ball::task::{Link, LinkType, Status, Task, TaskType};
-use ball::worktree;
+use balls::error::{BallError, Result};
+use balls::plugin;
+use balls::ready;
+use balls::store::task_lock;
+use balls::task::{Link, LinkType, Status, Task, TaskType};
+use balls::worktree;
 
 pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     let store = discover()?;
@@ -18,8 +18,8 @@ pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
         let _ = plugin::apply_push_response(&store, &id, &results);
         // Plugin response committed to main after worktree creation —
         // merge main into worktree to keep it current.
-        let main_branch = ball::git::git_current_branch(&store.root)?;
-        let _ = ball::git::git_merge(&path, &main_branch, None);
+        let main_branch = balls::git::git_current_branch(&store.root)?;
+        let _ = balls::git::git_merge(&path, &main_branch, None);
     }
     println!("{}", path.display());
     Ok(())
@@ -91,7 +91,7 @@ pub fn cmd_update(
         }
         task.touch();
         store.save_task(&task)?;
-        store.commit_task(&id, &format!("ball: update {}", id))?;
+        store.commit_task(&id, &format!("balls: update {}", id))?;
         task
     };
 
@@ -151,7 +151,7 @@ pub fn cmd_dep(sub: DepCmd) -> Result<()> {
 }
 
 fn dep_add(
-    store: &ball::store::Store,
+    store: &balls::store::Store,
     task: String,
     depends_on: String,
 ) -> Result<()> {
@@ -174,7 +174,7 @@ fn dep_add(
             store.save_task(&t)?;
             store.commit_task(
                 &task,
-                &format!("ball: dep add {} -> {}", task, depends_on),
+                &format!("balls: dep add {} -> {}", task, depends_on),
             )?;
         }
     }
@@ -183,7 +183,7 @@ fn dep_add(
 }
 
 fn dep_rm(
-    store: &ball::store::Store,
+    store: &balls::store::Store,
     task: String,
     depends_on: String,
 ) -> Result<()> {
@@ -197,7 +197,7 @@ fn dep_rm(
             store.save_task(&t)?;
             store.commit_task(
                 &task,
-                &format!("ball: dep rm {} -x {}", task, depends_on),
+                &format!("balls: dep rm {} -x {}", task, depends_on),
             )?;
         }
     }
@@ -205,7 +205,7 @@ fn dep_rm(
     Ok(())
 }
 
-fn dep_tree(store: &ball::store::Store, id: Option<String>) -> Result<()> {
+fn dep_tree(store: &balls::store::Store, id: Option<String>) -> Result<()> {
     let tasks = store.all_tasks()?;
     if let Some(id) = id {
         let tree = ready::dep_tree(&tasks, &id)?;
@@ -250,7 +250,7 @@ pub fn cmd_link(sub: LinkCmd) -> Result<()> {
                 store.save_task(&t)?;
                 store.commit_task(
                     &task,
-                    &format!("ball: link {} {} {}", task, lt.as_str(), target),
+                    &format!("balls: link {} {} {}", task, lt.as_str(), target),
                 )?;
             }
             println!("{} {} {}", task, lt.as_str(), target);
@@ -272,7 +272,7 @@ pub fn cmd_link(sub: LinkCmd) -> Result<()> {
                 store.save_task(&t)?;
                 store.commit_task(
                     &task,
-                    &format!("ball: unlink {} {} {}", task, lt.as_str(), target),
+                    &format!("balls: unlink {} {} {}", task, lt.as_str(), target),
                 )?;
             }
             println!("removed {} {} {}", task, lt.as_str(), target);

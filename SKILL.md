@@ -1,6 +1,6 @@
-# ball — Agent Skill Guide
+# balls — Agent Skill Guide
 
-You are using **ball** (`bl`), a git-native task tracker. Tasks are JSON files in the repo. Worktrees isolate your work. Git provides sync.
+You are using **balls** (`bl`), a git-native task tracker. Tasks are JSON files in the repo. Worktrees isolate your work. Git provides sync.
 
 ## Core Workflow
 
@@ -49,7 +49,7 @@ If a reviewer rejects (sets status back to `in_progress`), resume in your existi
 When you `bl claim`, the output is the worktree path. **Change to that directory** to work:
 
 ```
-/home/user/repo/.ball-worktrees/bl-a1b2
+/home/user/repo/.balls-worktrees/bl-a1b2
 ```
 
 The worktree is a full checkout on a branch named `work/TASK_ID`. All your changes are isolated from main and other tasks.
@@ -57,7 +57,7 @@ The worktree is a full checkout on a branch named `work/TASK_ID`. All your chang
 Important:
 - **Commit your work** before running `bl review`. Review will `git add -A` and commit anything uncommitted, but explicit commits give you better history.
 - **Don't modify files in the main repo** while working in a worktree. Use the worktree.
-- The worktree has `.ball/local` symlinked for shared lock/claim state.
+- The worktree has `.balls/local` symlinked for shared lock/claim state.
 
 ## What `bl review` Does
 
@@ -73,7 +73,7 @@ If step 2 produces a merge conflict, review fails. Resolve the conflict in your 
 - **Don't run `bl close`** — that's for reviewers, and it rejects if you're in the worktree.
 - **Don't run `bl update TASK_ID status=closed`** — on claimed tasks this is rejected. Use `bl review`.
 - **Don't edit files on main directly** — use worktrees. Other workers may be closing tasks on main concurrently.
-- **Don't delete `.ball/` files manually** — use `bl drop` to release a claim, `bl repair --fix` to clean up orphans.
+- **Don't delete `.balls/` files manually** — use `bl drop` to release a claim, `bl repair --fix` to clean up orphans.
 
 ## Session Start
 
@@ -118,9 +118,9 @@ bl link add TASK_ID supersedes OTHER_ID
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `BALL_IDENTITY` | Your worker identity | `$USER`, then `"unknown"` |
+| `BALLS_IDENTITY` | Your worker identity | `$USER`, then `"unknown"` |
 
-Set `BALL_IDENTITY` in your environment or use `--as` on commands that accept it.
+Set `BALLS_IDENTITY` in your environment or use `--as` on commands that accept it.
 
 ## Error Recovery
 

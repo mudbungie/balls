@@ -9,7 +9,7 @@ fn resolve_file_that_doesnt_exist_errors() {
     let repo = new_repo();
     init_in(repo.path());
     bl(repo.path())
-        .args(["resolve", ".ball/tasks/nonexistent.json"])
+        .args(["resolve", ".balls/tasks/nonexistent.json"])
         .assert()
         .failure();
 }
@@ -60,12 +60,12 @@ fn repair_fix_on_clean_repo_is_noop() {
 }
 
 #[test]
-fn ball_identity_env_fallback() {
+fn balls_identity_env_fallback() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "ident-test");
     bl(repo.path())
-        .env("BALL_IDENTITY", "env-agent")
+        .env("BALLS_IDENTITY", "env-agent")
         .args(["claim", &id])
         .assert()
         .success();
@@ -78,7 +78,7 @@ fn claim_task_already_claimed_by_another_repo() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "remote-claimed");
-    let task_path = repo.path().join(".ball/tasks").join(format!("{}.json", id));
+    let task_path = repo.path().join(".balls/tasks").join(format!("{}.json", id));
     let mut j: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&task_path).unwrap()).unwrap();
     j["claimed_by"] = serde_json::json!("remote-user");
@@ -95,7 +95,7 @@ fn claim_rejected_when_worktree_dir_already_exists() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
-    let wt = repo.path().join(".ball-worktrees").join(&id);
+    let wt = repo.path().join(".balls-worktrees").join(&id);
     std::fs::create_dir_all(&wt).unwrap();
     bl(repo.path())
         .args(["claim", &id])
@@ -121,7 +121,7 @@ fn claim_rolls_back_on_worktree_add_failure() {
     assert_eq!(j["status"], "open");
     assert!(j["claimed_by"].is_null());
     assert!(j["branch"].is_null());
-    assert!(!repo.path().join(".ball/local/claims").join(&id).exists());
+    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn claim_rejected_when_stale_claim_file_exists() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
-    let claim = repo.path().join(".ball/local/claims").join(&id);
+    let claim = repo.path().join(".balls/local/claims").join(&id);
     std::fs::create_dir_all(claim.parent().unwrap()).unwrap();
     std::fs::write(&claim, "worker=ghost\n").unwrap();
     bl(repo.path())
@@ -156,7 +156,7 @@ fn repair_removes_orphan_worktree() {
         .args(["claim", &id])
         .assert()
         .success();
-    let claim = repo.path().join(".ball/local/claims").join(&id);
+    let claim = repo.path().join(".balls/local/claims").join(&id);
     std::fs::remove_file(&claim).unwrap();
 
     let out = bl(repo.path())

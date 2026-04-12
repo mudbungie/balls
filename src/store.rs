@@ -38,14 +38,14 @@ pub struct Store {
 }
 
 impl Store {
-    /// Discover the ball root from a starting directory.
+    /// Discover the project root from a starting directory.
     /// In a worktree, returns the main repo root so that all writes go there.
     pub fn discover(from: &Path) -> Result<Self> {
         let _worktree_root = git::git_root(from)?;
         let common_dir = git::git_common_dir(from)?;
         let main_root = find_main_root(&common_dir)?;
-        let ball_dir = main_root.join(".ball");
-        if !ball_dir.exists() {
+        let balls_dir = main_root.join(".balls");
+        if !balls_dir.exists() {
             return Err(BallError::NotInitialized);
         }
         let (tasks_dir_path, stealth) = resolve_tasks_dir(&main_root);
@@ -57,30 +57,30 @@ impl Store {
         git::git_ensure_user(&repo_root)?;
         git::git_init_commit(&repo_root)?;
 
-        let ball_dir = repo_root.join(".ball");
-        let plugins_dir = ball_dir.join("plugins");
-        let local_dir = ball_dir.join("local");
+        let balls_dir = repo_root.join(".balls");
+        let plugins_dir = balls_dir.join("plugins");
+        let local_dir = balls_dir.join("local");
 
-        let already = ball_dir.join("config.json").exists();
+        let already = balls_dir.join("config.json").exists();
 
         fs::create_dir_all(&plugins_dir)?;
         fs::create_dir_all(local_dir.join("claims"))?;
         fs::create_dir_all(local_dir.join("lock"))?;
         fs::create_dir_all(local_dir.join("plugins"))?;
 
-        let config_path = ball_dir.join("config.json");
+        let config_path = balls_dir.join("config.json");
         if !config_path.exists() {
             Config::default().save(&config_path)?;
         }
 
-        // Stealth: write external tasks dir to .ball/local/tasks_dir
+        // Stealth: write external tasks dir to .balls/local/tasks_dir
         let (tasks_dir_path, is_stealth) = if stealth {
             let ext = stealth_tasks_dir(&repo_root);
             fs::create_dir_all(&ext)?;
             fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
             (ext, true)
         } else {
-            let td = ball_dir.join("tasks");
+            let td = balls_dir.join("tasks");
             fs::create_dir_all(&td)?;
             let keep = td.join(".gitkeep");
             if !keep.exists() {
@@ -96,17 +96,17 @@ impl Store {
         } else {
             String::new()
         };
-        let need_local = !gitignore.lines().any(|l| l.trim() == ".ball/local");
-        let need_wt = !gitignore.lines().any(|l| l.trim() == ".ball-worktrees");
+        let need_local = !gitignore.lines().any(|l| l.trim() == ".balls/local");
+        let need_wt = !gitignore.lines().any(|l| l.trim() == ".balls-worktrees");
         if need_local || need_wt {
             if !gitignore.is_empty() && !gitignore.ends_with('\n') {
                 gitignore.push('\n');
             }
             if need_local {
-                gitignore.push_str(".ball/local\n");
+                gitignore.push_str(".balls/local\n");
             }
             if need_wt {
-                gitignore.push_str(".ball-worktrees\n");
+                gitignore.push_str(".balls-worktrees\n");
             }
             fs::write(&gitignore_path, gitignore)?;
         }
@@ -117,23 +117,23 @@ impl Store {
         }
 
         let mut paths: Vec<&Path> = vec![
-            Path::new(".ball/config.json"),
-            Path::new(".ball/plugins/.gitkeep"),
+            Path::new(".balls/config.json"),
+            Path::new(".balls/plugins/.gitkeep"),
             Path::new(".gitignore"),
         ];
         if !is_stealth {
-            paths.push(Path::new(".ball/tasks/.gitkeep"));
+            paths.push(Path::new(".balls/tasks/.gitkeep"));
         }
         git::git_add(&repo_root, &paths)?;
 
-        let msg = if already { "ball: reinitialize" } else { "ball: initialize" };
+        let msg = if already { "balls: reinitialize" } else { "balls: initialize" };
         git::git_commit(&repo_root, msg)?;
 
         Ok(Store { root: repo_root, stealth: is_stealth, tasks_dir_path })
     }
 
-    pub fn ball_dir(&self) -> PathBuf {
-        self.root.join(".ball")
+    pub fn balls_dir(&self) -> PathBuf {
+        self.root.join(".balls")
     }
 
     pub fn tasks_dir(&self) -> PathBuf {
@@ -141,7 +141,7 @@ impl Store {
     }
 
     pub fn local_dir(&self) -> PathBuf {
-        self.ball_dir().join("local")
+        self.balls_dir().join("local")
     }
 
     pub fn claims_dir(&self) -> PathBuf {
@@ -157,7 +157,7 @@ impl Store {
     }
 
     pub fn config_path(&self) -> PathBuf {
-        self.ball_dir().join("config.json")
+        self.balls_dir().join("config.json")
     }
 
     pub fn load_config(&self) -> Result<Config> {
@@ -205,7 +205,7 @@ impl Store {
         if self.stealth {
             return Ok(());
         }
-        let rel = PathBuf::from(".ball/tasks").join(format!("{}.json", id));
+        let rel = PathBuf::from(".balls/tasks").join(format!("{}.json", id));
         git::git_add(&self.root, &[rel.as_path()])?;
         git::git_commit(&self.root, message)?;
         Ok(())
@@ -216,7 +216,7 @@ impl Store {
         if self.stealth {
             return Ok(());
         }
-        let rel = PathBuf::from(format!(".ball/tasks/{}.json", id));
+        let rel = PathBuf::from(format!(".balls/tasks/{}.json", id));
         git::git_rm(&self.root, &[rel.as_path()])?;
         Ok(())
     }
@@ -245,16 +245,16 @@ impl Store {
     }
 }
 
-/// Check .ball/local/tasks_dir for an external tasks directory override.
+/// Check .balls/local/tasks_dir for an external tasks directory override.
 fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
-    let override_file = root.join(".ball/local/tasks_dir");
+    let override_file = root.join(".balls/local/tasks_dir");
     if let Ok(s) = fs::read_to_string(&override_file) {
         let p = PathBuf::from(s.trim());
         if p.is_absolute() {
             return (p, true);
         }
     }
-    (root.join(".ball/tasks"), false)
+    (root.join(".balls/tasks"), false)
 }
 
 /// Generate a deterministic external path for stealth tasks.
@@ -268,9 +268,9 @@ fn stealth_tasks_dir(root: &Path) -> PathBuf {
 
 fn dirs_base(hash: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
-        format!("{}/.local/share/ball/{}", home, &hash[..12])
+        format!("{}/.local/share/balls/{}", home, &hash[..12])
     } else {
-        format!("/tmp/ball-stealth-{}", &hash[..12])
+        format!("/tmp/balls-stealth-{}", &hash[..12])
     }
 }
 
@@ -292,6 +292,6 @@ mod tests {
         if let Some(h) = saved {
             std::env::set_var("HOME", h);
         }
-        assert!(result.starts_with("/tmp/ball-stealth-"));
+        assert!(result.starts_with("/tmp/balls-stealth-"));
     }
 }

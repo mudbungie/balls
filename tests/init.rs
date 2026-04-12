@@ -9,15 +9,15 @@ use predicates::prelude::*;
 fn story_1_init_in_existing_git_repo() {
     let repo = new_repo();
     bl(repo.path()).arg("init").assert().success();
-    assert!(repo.path().join(".ball/config.json").exists());
-    assert!(repo.path().join(".ball/tasks").exists());
-    assert!(repo.path().join(".ball/local/claims").exists());
-    assert!(repo.path().join(".ball/local/lock").exists());
+    assert!(repo.path().join(".balls/config.json").exists());
+    assert!(repo.path().join(".balls/tasks").exists());
+    assert!(repo.path().join(".balls/local/claims").exists());
+    assert!(repo.path().join(".balls/local/lock").exists());
     let gi = std::fs::read_to_string(repo.path().join(".gitignore")).unwrap();
-    assert!(gi.contains(".ball/local"));
-    assert!(gi.contains(".ball-worktrees"));
+    assert!(gi.contains(".balls/local"));
+    assert!(gi.contains(".balls-worktrees"));
     let log = git(repo.path(), &["log", "--oneline"]);
-    assert!(log.contains("ball: initialize"));
+    assert!(log.contains("balls: initialize"));
 }
 
 #[test]
@@ -38,10 +38,10 @@ fn story_3_init_in_cloned_repo_creates_local_only() {
     push(dev_a.path());
 
     let dev_b = clone_from_remote(remote.path(), "bob");
-    assert!(dev_b.path().join(".ball/tasks").exists());
-    assert!(!dev_b.path().join(".ball/local").exists());
+    assert!(dev_b.path().join(".balls/tasks").exists());
+    assert!(!dev_b.path().join(".balls/local").exists());
     bl(dev_b.path()).arg("init").assert().success();
-    assert!(dev_b.path().join(".ball/local/claims").exists());
+    assert!(dev_b.path().join(".balls/local/claims").exists());
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn story_73_init_in_repo_with_no_commits() {
     git(dir.path(), &["config", "user.email", "t@t"]);
     git(dir.path(), &["config", "user.name", "t"]);
     bl(dir.path()).arg("init").assert().success();
-    assert!(dir.path().join(".ball/config.json").exists());
+    assert!(dir.path().join(".balls/config.json").exists());
 }
 
 #[test]
@@ -83,9 +83,9 @@ fn stealth_init_creates_external_tasks_dir() {
         .success()
         .stdout(predicate::str::contains("stealth"));
     // Tasks dir is outside the repo
-    assert!(!repo.path().join(".ball/tasks").exists());
-    // .ball/local/tasks_dir file exists with external path
-    let td = std::fs::read_to_string(repo.path().join(".ball/local/tasks_dir")).unwrap();
+    assert!(!repo.path().join(".balls/tasks").exists());
+    // .balls/local/tasks_dir file exists with external path
+    let td = std::fs::read_to_string(repo.path().join(".balls/local/tasks_dir")).unwrap();
     let ext = std::path::PathBuf::from(td.trim());
     assert!(ext.is_absolute());
     assert!(ext.exists());
@@ -100,7 +100,7 @@ fn stealth_mode_full_lifecycle() {
         .success();
     let id = create_task(repo.path(), "stealth task");
     // Task exists in external dir, not in repo
-    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", id)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
     // List works
     let out = bl(repo.path()).arg("list").output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
@@ -121,7 +121,7 @@ fn stealth_mode_full_lifecycle() {
         .assert()
         .success();
     // Task archived (external file deleted)
-    let td = std::fs::read_to_string(repo.path().join(".ball/local/tasks_dir")).unwrap();
+    let td = std::fs::read_to_string(repo.path().join(".balls/local/tasks_dir")).unwrap();
     let ext = std::path::PathBuf::from(td.trim());
     assert!(!ext.join(format!("{}.json", id)).exists());
     // No task commits in git log (stealth)

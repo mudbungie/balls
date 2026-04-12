@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Git pre-commit hook for ball.
+# Git pre-commit hook for balls.
 #
 # Blocks any commit that:
 #   1. Has clippy warnings or compiler warnings

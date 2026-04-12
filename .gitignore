@@ -1,4 +1,4 @@
-.ball/local
-.ball-worktrees
+.balls/local
+.balls-worktrees
 target
 *.profraw

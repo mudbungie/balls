@@ -3,7 +3,7 @@
   "id_length": 4,
   "stale_threshold_seconds": 60,
   "auto_fetch_on_ready": true,
-  "worktree_dir": ".ball-worktrees",
+  "worktree_dir": ".balls-worktrees",
   "protected_main": false,
   "plugins": {}
 }

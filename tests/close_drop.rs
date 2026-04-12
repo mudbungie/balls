@@ -14,7 +14,7 @@ fn story_33_review_then_close() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".ball-worktrees").join(&id);
+    let wt = repo.path().join(".balls-worktrees").join(&id);
     std::fs::write(wt.join("feature.txt"), "code").unwrap();
 
     // Agent submits for review (from worktree — safe, worktree stays)
@@ -31,8 +31,8 @@ fn story_33_review_then_close() {
         .assert()
         .success();
     assert!(!wt.exists());
-    assert!(!repo.path().join(".ball/local/claims").join(&id).exists());
-    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", id)).exists());
+    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn story_34_close_with_message_is_in_git_history() {
         .success();
     // Task is archived; the close commit preserves the data in git history.
     // Verify archival.
-    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", id)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
     // The close commit message references the task
     let log = git(repo.path(), &["log", "--oneline"]);
     assert!(log.contains(&format!("archive {}", id)));
@@ -128,8 +128,8 @@ fn story_38_drop_resets_task() {
     assert_eq!(j["status"], "open");
     assert!(j["claimed_by"].is_null());
     assert!(j["branch"].is_null());
-    assert!(!repo.path().join(".ball-worktrees").join(&id).exists());
-    assert!(!repo.path().join(".ball/local/claims").join(&id).exists());
+    assert!(!repo.path().join(".balls-worktrees").join(&id).exists());
+    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn story_39_drop_uncommitted_requires_force() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".ball-worktrees").join(&id);
+    let wt = repo.path().join(".balls-worktrees").join(&id);
     std::fs::write(wt.join("dirty.txt"), "work").unwrap();
     bl(repo.path())
         .args(["drop", &id])
@@ -195,7 +195,7 @@ fn close_child_updates_parent_closed_children() {
         .success();
 
     // Child task file archived
-    assert!(!repo.path().join(".ball/tasks").join(format!("{}.json", child)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", child)).exists());
     // Parent records the archived child
     let j = read_task_json(repo.path(), &parent);
     let cc = j["closed_children"].as_array().unwrap();
@@ -239,14 +239,14 @@ fn review_merges_main_into_worktree_first() {
 
     // Task A: claim, work, review, close (advances main)
     bl_as(repo.path(), "alice").args(["claim", &a]).assert().success();
-    let wt_a = repo.path().join(".ball-worktrees").join(&a);
+    let wt_a = repo.path().join(".balls-worktrees").join(&a);
     std::fs::write(wt_a.join("file_a.txt"), "from task a").unwrap();
     bl(repo.path()).args(["review", &a]).assert().success();
     bl(repo.path()).args(["close", &a]).assert().success();
 
     // Task B: claim, work, review succeeds despite main divergence
     bl_as(repo.path(), "bob").args(["claim", &b]).assert().success();
-    let wt_b = repo.path().join(".ball-worktrees").join(&b);
+    let wt_b = repo.path().join(".balls-worktrees").join(&b);
     std::fs::write(wt_b.join("file_b.txt"), "from task b").unwrap();
     bl(repo.path()).args(["review", &b]).assert().success();
     bl(repo.path()).args(["close", &b]).assert().success();
@@ -263,8 +263,8 @@ fn review_detects_conflict_with_main() {
     let b = create_task(repo.path(), "second");
     bl_as(repo.path(), "alice").args(["claim", &a]).assert().success();
     bl_as(repo.path(), "bob").args(["claim", &b]).assert().success();
-    let wt_a = repo.path().join(".ball-worktrees").join(&a);
-    let wt_b = repo.path().join(".ball-worktrees").join(&b);
+    let wt_a = repo.path().join(".balls-worktrees").join(&a);
+    let wt_b = repo.path().join(".balls-worktrees").join(&b);
     std::fs::write(wt_a.join("shared.txt"), "version A").unwrap();
     git(wt_a.as_path(), &["add", "shared.txt"]);
     git(wt_a.as_path(), &["commit", "-m", "A", "--no-verify"]);

@@ -1,6 +1,6 @@
-# ball
+# balls
 
-**ball** is a git-native task tracker for parallel agent workflows. Tasks are JSON files committed to your repo. Worktrees provide isolation. Git provides sync, history, and collaboration. There is no database, no daemon, no external service.
+**balls** is a git-native task tracker for parallel agent workflows. Tasks are JSON files committed to your repo. Worktrees provide isolation. Git provides sync, history, and collaboration. There is no database, no daemon, no external service.
 
 The CLI is `bl`. Every `bl` operation is expressible as file edits and git commands. The system is designed for a single developer running many agents, multiple developers each running many agents, and anything in between. It works offline. It degrades gracefully.
 
@@ -8,13 +8,13 @@ The CLI is `bl`. Every `bl` operation is expressible as file edits and git comma
 
 ## Installation
 
-Ball ships as a single small Rust binary called `bl`. The only runtime dependency is `git`.
+Balls ships as a single small Rust binary called `bl`. The only runtime dependency is `git`.
 
 ### From source (recommended today)
 
 ```bash
-git clone https://github.com/mudbungie/ball.git
-cd ball
+git clone https://github.com/mudbungie/balls.git
+cd balls
 make install
 ```
 
@@ -38,8 +38,8 @@ cargo zigbuild --release --target aarch64-apple-darwin
 
 ### Planned (not yet available)
 
-- `cargo install ball` (crates.io publish pending)
-- Prebuilt binaries: `curl -fsSL https://github.com/mudbungie/ball/releases/latest/download/bl-$(uname -s)-$(uname -m) -o /usr/local/bin/bl && chmod +x /usr/local/bin/bl`
+- `cargo install balls` (crates.io publish pending)
+- Prebuilt binaries: `curl -fsSL https://github.com/mudbungie/balls/releases/latest/download/bl-$(uname -s)-$(uname -m) -o /usr/local/bin/bl && chmod +x /usr/local/bin/bl`
 - Homebrew tap
 
 ### Verify
@@ -52,23 +52,23 @@ bl create "My first task"
 bl list
 ```
 
-Ball is MIT licensed. See `LICENSE`.
+Balls is MIT licensed. See `LICENSE`.
 
 ### Environment variables
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `BALL_IDENTITY` | Worker identity for claim/close/prime operations | `$USER`, then `"unknown"` |
+| `BALLS_IDENTITY` | Worker identity for claim/close/prime operations | `$USER`, then `"unknown"` |
 
 ### Library usage
 
 Ball is also available as a Rust library crate for programmatic integration:
 
 ```rust
-use ball::{Store, Task};
+use balls::{Store, Task};
 
 let store = Store::discover(&std::env::current_dir().unwrap()).unwrap();
-for t in ball::ready::ready_queue(&store.all_tasks().unwrap()) {
+for t in balls::ready::ready_queue(&store.all_tasks().unwrap()) {
     println!("[P{}] {} {}", t.priority, t.id, t.title);
 }
 ```
@@ -80,7 +80,7 @@ for t in ball::ready::ready_queue(&store.all_tasks().unwrap()) {
 1. **Git is the database.** Task files are committed, pushed, pulled, and merged like code. No external storage engine.
 2. **One file per task.** Atomic unit of state. Git merge conflicts are per-task, never global.
 3. **Derived state is computed, never stored.** Completion percentages, ready queues, dependency trees — all calculated at read time from task files.
-4. **Local cache is disposable.** The `.ball/local/` directory is gitignored ephemeral state. Deleting it loses nothing durable.
+4. **Local cache is disposable.** The `.balls/local/` directory is gitignored ephemeral state. Deleting it loses nothing durable.
 5. **Offline-safe.** All operations produce valid local state. Conflicts are resolved at merge time, never prevented by connectivity checks.
 6. **Worktrees are first-class.** Claiming a task creates a worktree. The worktree name is the task ID. One task, one workspace.
 7. **The CLI is a convenience, not a requirement.** Every operation is expressible as file edits + git commands. A human with vim, ln, and git can do everything `bl` does.
@@ -92,7 +92,7 @@ for t in ball::ready::ready_queue(&store.all_tasks().unwrap()) {
 
 | Term | Meaning |
 |---|---|
-| **task** | A unit of work. One JSON file in `.ball/tasks/`. |
+| **task** | A unit of work. One JSON file in `.balls/tasks/`. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a worktree. |
 | **review** | Submitting work for approval. Merges to main, keeps worktree for potential rework. |
@@ -107,7 +107,7 @@ for t in ball::ready::ready_queue(&store.all_tasks().unwrap()) {
 
 ```
 project/
-├── .ball/                       # root of task tracking
+├── .balls/                       # root of task tracking
 │   ├── tasks/                   # git-tracked task files
 │   │   ├── bl-a1b2.json
 │   │   ├── bl-c3d4.json
@@ -119,7 +119,7 @@ project/
 │       ├── claims/              # one file per active local claim
 │       ├── lock/                # flock files for local atomic operations
 │       └── plugins/             # plugin runtime state (tokens, caches)
-├── .ball-worktrees/             # gitignored, worktree checkouts
+├── .balls-worktrees/             # gitignored, worktree checkouts
 │   ├── bl-a1b2/                 # worktree for task bl-a1b2
 │   └── bl-c3d4/                 # worktree for task bl-c3d4
 └── ... (project files)
@@ -128,15 +128,15 @@ project/
 ### .gitignore entries
 
 ```
-.ball/local/
-.ball-worktrees/
+.balls/local/
+.balls-worktrees/
 ```
 
 ---
 
 ## Task File Schema
 
-Each task is a single JSON file at `.ball/tasks/<id>.json`.
+Each task is a single JSON file at `.balls/tasks/<id>.json`.
 
 ```json
 {
@@ -213,18 +213,18 @@ A task is dependency-blocked if any ID in `depends_on` refers to a task with `st
 
 ### Task archival
 
-When a task is closed via `bl close`, the task file is deleted from `.ball/tasks/` after the close commit. The full task data is preserved in git history. If the task has a parent, the parent's `closed_children` array is updated with the archived child's ID, title, and close timestamp. This keeps the working set small — only live tasks exist in HEAD.
+When a task is closed via `bl close`, the task file is deleted from `.balls/tasks/` after the close commit. The full task data is preserved in git history. If the task has a parent, the parent's `closed_children` array is updated with the archived child's ID, title, and close timestamp. This keeps the working set small — only live tasks exist in HEAD.
 
 ---
 
-## Local Cache (.ball/local/)
+## Local Cache (.balls/local/)
 
 ### flock
 
 `flock` is a Linux utility (part of `util-linux`, present on all Ubuntu/Debian/RHEL systems) that provides advisory file locking. It uses a lock file and the `flock(2)` syscall to ensure only one process runs a critical section at a time:
 
 ```bash
-flock .ball/local/lock/bl-a1b2.lock -c 'update-task-and-commit'
+flock .balls/local/lock/bl-a1b2.lock -c 'update-task-and-commit'
 ```
 
 If another process holds the lock, the caller blocks until it's released. No polling, no races.
@@ -253,30 +253,30 @@ One lock file per task ID during write operations. Used via `flock` to serialize
 
 ```bash
 # 1. Acquire local lock
-flock .ball/local/lock/bl-a1b2.lock -c '
+flock .balls/local/lock/bl-a1b2.lock -c '
 
 # 2. Check not already claimed (local cache)
-[ ! -f .ball/local/claims/bl-a1b2 ] || exit 1
+[ ! -f .balls/local/claims/bl-a1b2 ] || exit 1
 
 # 3. Update task file
 #    Set claimed_by, status -> in_progress, branch -> work/bl-a1b2
 tmp=$(mktemp)
 jq ".claimed_by = \"agent-alpha\" | .status = \"in_progress\" | .branch = \"work/bl-a1b2\"" \
-  .ball/tasks/bl-a1b2.json > "$tmp"
-mv "$tmp" .ball/tasks/bl-a1b2.json
+  .balls/tasks/bl-a1b2.json > "$tmp"
+mv "$tmp" .balls/tasks/bl-a1b2.json
 
 # 4. Commit the claim
-git add .ball/tasks/bl-a1b2.json
-git commit -m "ball: claim bl-a1b2"
+git add .balls/tasks/bl-a1b2.json
+git commit -m "balls: claim bl-a1b2"
 
 # 5. Create worktree
-git worktree add .ball-worktrees/bl-a1b2 -b work/bl-a1b2
+git worktree add .balls-worktrees/bl-a1b2 -b work/bl-a1b2
 
 # 6. Symlink local cache into worktree
-ln -s "$(pwd)/.ball/local" ".ball-worktrees/bl-a1b2/.ball/local"
+ln -s "$(pwd)/.balls/local" ".balls-worktrees/bl-a1b2/.balls/local"
 
 # 7. Write local claim file
-cat > .ball/local/claims/bl-a1b2 <<EOF
+cat > .balls/local/claims/bl-a1b2 <<EOF
 worker=agent-alpha
 pid=$$
 claimed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -288,19 +288,19 @@ EOF
 
 ```bash
 # 1. Commit all work in worktree
-cd .ball-worktrees/bl-a1b2
-git add -A && git commit -m "ball: work on bl-a1b2"
+cd .balls-worktrees/bl-a1b2
+git add -A && git commit -m "balls: work on bl-a1b2"
 
 # 2. Merge main into worktree (forward merge, catches up)
 git merge main
 
 # 3. Set task status to review
-jq '.status = "review"' .ball/tasks/bl-a1b2.json > tmp && mv tmp .ball/tasks/bl-a1b2.json
-git add -A && git commit -m "ball: review bl-a1b2"
+jq '.status = "review"' .balls/tasks/bl-a1b2.json > tmp && mv tmp .balls/tasks/bl-a1b2.json
+git add -A && git commit -m "balls: review bl-a1b2"
 
 # 4. Merge worktree into main (--no-ff: preserves branch topology)
 cd ../..
-git merge --no-ff work/bl-a1b2 -m "ball: merge bl-a1b2"
+git merge --no-ff work/bl-a1b2 -m "balls: merge bl-a1b2"
 ```
 
 The worktree stays. The agent's CWD is never destroyed.
@@ -310,12 +310,12 @@ The worktree stays. The agent's CWD is never destroyed.
 ```bash
 # Run from the repo root, never from inside the worktree.
 # 1. Archive the task file (delete from HEAD, preserved in git history)
-git rm .ball/tasks/bl-a1b2.json && git commit -m "ball: archive bl-a1b2"
+git rm .balls/tasks/bl-a1b2.json && git commit -m "balls: archive bl-a1b2"
 
 # 2. Remove worktree and branch
-git worktree remove .ball-worktrees/bl-a1b2
+git worktree remove .balls-worktrees/bl-a1b2
 git branch -d work/bl-a1b2
-rm -f .ball/local/claims/bl-a1b2
+rm -f .balls/local/claims/bl-a1b2
 ```
 
 ### Reject (reviewer requests rework)
@@ -355,11 +355,11 @@ When merging task files that conflict:
 
 ### bl init [--stealth]
 
-Creates `.ball/tasks/`, `.ball/local/`, `.ball/plugins/`, `.ball/config.json`. Adds gitignore entries. Commits. If `.ball/tasks/` already exists (cloned repo), creates only local dirs.
+Creates `.balls/tasks/`, `.balls/local/`, `.balls/plugins/`, `.balls/config.json`. Adds gitignore entries. Commits. If `.balls/tasks/` already exists (cloned repo), creates only local dirs.
 
-With `--stealth`, tasks are stored outside the repo (`~/.local/share/ball/<hash>/tasks/`) and are not git-tracked. All other operations (create, list, claim, close) work identically. Useful for local-only planning that shouldn't appear in PRs.
+With `--stealth`, tasks are stored outside the repo (`~/.local/share/balls/<hash>/tasks/`) and are not git-tracked. All other operations (create, list, claim, close) work identically. Useful for local-only planning that shouldn't appear in PRs.
 
-**By hand:** `mkdir -p .ball/{tasks,plugins,local/{claims,lock}}`, write `config.json`, append to `.gitignore`, commit.
+**By hand:** `mkdir -p .balls/{tasks,plugins,local/{claims,lock}}`, write `config.json`, append to `.gitignore`, commit.
 
 ### bl create TITLE [options]
 
@@ -384,7 +384,7 @@ bl list --all              # including closed
 
 Reads task files, filters, sorts by priority then `created_at`.
 
-**By hand:** `cat .ball/tasks/*.json | jq 'select(.status != "closed")' | jq -s 'sort_by(.priority, .created_at)'`
+**By hand:** `cat .balls/tasks/*.json | jq 'select(.status != "closed")' | jq -s 'sort_by(.priority, .created_at)'`
 
 ### bl ready
 
@@ -406,7 +406,7 @@ bl show bl-a1b2 --json
 
 Displays one task with computed fields (blocked status, children if parent, dependency chain).
 
-**By hand:** `cat .ball/tasks/bl-a1b2.json | jq .`
+**By hand:** `cat .balls/tasks/bl-a1b2.json | jq .`
 
 ### bl claim ID [--as IDENTITY]
 
@@ -495,7 +495,7 @@ bl sync
 
 1. `git fetch origin`
 2. Merge remote into current branch
-3. Auto-resolve any `.ball/tasks/` conflicts per resolution rules
+3. Auto-resolve any `.balls/tasks/` conflicts per resolution rules
 4. `git push origin`
 5. Run plugin sync (if configured)
 
@@ -518,7 +518,7 @@ Manual conflict resolution helper. Parses both sides of a conflicted task file, 
 
 ---
 
-## Config (.ball/config.json)
+## Config (.balls/config.json)
 
 Git-tracked, shared across team.
 
@@ -528,19 +528,19 @@ Git-tracked, shared across team.
   "id_length": 4,
   "stale_threshold_seconds": 60,
   "auto_fetch_on_ready": true,
-  "worktree_dir": ".ball-worktrees",
+  "worktree_dir": ".balls-worktrees",
   "tasks_dir": null,
   "plugins": {
     "jira": {
       "enabled": true,
       "sync_on_change": true,
-      "config_file": ".ball/plugins/jira.json"
+      "config_file": ".balls/plugins/jira.json"
     }
   }
 }
 ```
 
-`tasks_dir` overrides the default tasks location (`.ball/tasks/`). Set automatically by `bl init --stealth` to an external path (`~/.local/share/ball/<repo-hash>/tasks/`). When tasks are external, they are not git-tracked.
+`tasks_dir` overrides the default tasks location (`.balls/tasks/`). Set automatically by `bl init --stealth` to an external path (`~/.local/share/balls/<repo-hash>/tasks/`). When tasks are external, they are not git-tracked.
 
 ---
 
@@ -548,18 +548,18 @@ Git-tracked, shared across team.
 
 ### Design
 
-Plugins are external executables that implement a defined interface. Core knows how to call them but never contains integration-specific logic. Auth flows (Single Sign-On (SSO), Personal Access Tokens (PATs), OAuth, etc.) are entirely the plugin's responsibility, managed in `.ball/local/plugins/` where credentials and tokens live (gitignored, never committed).
+Plugins are external executables that implement a defined interface. Core knows how to call them but never contains integration-specific logic. Auth flows (Single Sign-On (SSO), Personal Access Tokens (PATs), OAuth, etc.) are entirely the plugin's responsibility, managed in `.balls/local/plugins/` where credentials and tokens live (gitignored, never committed).
 
 ### Interface
 
 A plugin is an executable (any language) that responds to commands via argv:
 
 ```
-ball-plugin-jira auth-setup --auth-dir .ball/local/plugins/jira/
-ball-plugin-jira auth-check --auth-dir .ball/local/plugins/jira/
-ball-plugin-jira push --task bl-a1b2 --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
-ball-plugin-jira sync --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
-ball-plugin-jira sync --task bl-a1b2 --config .ball/plugins/jira.json --auth-dir .ball/local/plugins/jira/
+balls-plugin-jira auth-setup --auth-dir .balls/local/plugins/jira/
+balls-plugin-jira auth-check --auth-dir .balls/local/plugins/jira/
+balls-plugin-jira push --task bl-a1b2 --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
+balls-plugin-jira sync --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
+balls-plugin-jira sync --task bl-a1b2 --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
 ```
 
 ### Commands a plugin must implement
@@ -669,7 +669,7 @@ When core calls `sync`, it sends all local tasks as a JSON array on stdin (same 
 
 When `--task ID` is passed, the plugin should filter its operations to the specified item. The ID may be a local ball ID (e.g., `bl-a1b2`) or a remote key (e.g., `PROJ-123`) — the plugin is responsible for resolving which.
 
-### Plugin config (.ball/plugins/jira.json)
+### Plugin config (.balls/plugins/jira.json)
 
 Git-tracked. Contains non-secret configuration.
 
@@ -695,12 +695,12 @@ Git-tracked. Contains non-secret configuration.
 }
 ```
 
-### Plugin auth (.ball/local/plugins/jira/)
+### Plugin auth (.balls/local/plugins/jira/)
 
 Gitignored. Plugin owns this directory entirely. Might contain:
 
 ```
-.ball/local/plugins/jira/
+.balls/local/plugins/jira/
 ├── token.json           # OAuth tokens, PATs, session cookies
 ├── .sso-cache           # SSO session state
 └── auth-meta.json       # token expiry, refresh timestamps
@@ -737,7 +737,7 @@ Core calls `auth-check` before every push or sync. If auth is expired (exit 1), 
 
 The model is identical to single-machine. Each developer:
 
-1. Clones the repo. Gets `.ball/tasks/` with full task state.
+1. Clones the repo. Gets `.balls/tasks/` with full task state.
 2. Runs `bl init` to create local ephemeral dirs.
 3. Runs `bl sync` to stay current.
 4. Claims tasks, works in worktrees, pushes.
@@ -752,9 +752,9 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ### Setup
 
-1. Initialize ball in an existing git repo. Creates directory structure, gitignore entries, initial commit.
-2. Initialize in a repo that already has ball initialized. No-op, prints "already initialized."
-3. Clone a repo that has ball tasks. `.ball/tasks/` is present; `bl init` creates only local ephemeral dirs.
+1. Initialize balls in an existing git repo. Creates directory structure, gitignore entries, initial commit.
+2. Initialize in a repo that already has balls initialized. No-op, prints "already initialized."
+3. Clone a repo that has balls tasks. `.balls/tasks/` is present; `bl init` creates only local ephemeral dirs.
 
 ### Task Creation
 
@@ -790,7 +790,7 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 24. Claim a task with unmet dependencies. Rejected with error.
 25. Claim a closed task. Rejected with error.
 26. Claim a task when worktree directory already exists (stale). Rejected, suggests `bl drop`.
-27. Worktree has access to `.ball/local/` via symlink.
+27. Worktree has access to `.balls/local/` via symlink.
 28. Claim with explicit worker identity (`--as`).
 29. Claim triggers plugin push if configured.
 
@@ -856,13 +856,13 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ### Plugin System
 
-64. Configure Jira plugin. Write `.ball/plugins/jira.json`, run `ball-plugin-jira auth-setup`.
+64. Configure Jira plugin. Write `.balls/plugins/jira.json`, run `balls-plugin-jira auth-setup`.
 65. Create task with plugin sync enabled. Task created locally, then pushed to Jira. `external.jira.key` populated.
 66. Close task with plugin sync enabled. Jira issue transitioned to Done.
 67. Run `bl sync` with plugin. Bidirectional: new Jira issues become local tasks, local changes pushed to Jira.
 68. Jira issue created by someone else. After `bl sync`, local task file exists with `external.jira.key` set.
 69. Jira issue deleted. After `bl sync`, local task marked deferred with explanatory note.
-70. Plugin auth expires. `auth-check` returns 1. `bl sync` warns "Jira plugin: auth expired, run `ball-plugin-jira auth-setup`." Local operations unaffected.
+70. Plugin auth expires. `auth-check` returns 1. `bl sync` warns "Jira plugin: auth expired, run `balls-plugin-jira auth-setup`." Local operations unaffected.
 71. Plugin is unavailable (network down). Sync skips plugin, warns, continues with git-only sync.
 72. Plugin config committed to repo. New dev clones, gets config. Runs `auth-setup` once to provide their own credentials.
 
@@ -870,7 +870,7 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 73. Create task in a repo with no commits. `bl init` creates initial commit first.
 74. Run `bl` outside a git repo. Error: "not a git repository."
-75. Run `bl` in repo without `.ball/`. Error: "not initialized. Run `bl init`."
+75. Run `bl` in repo without `.balls/`. Error: "not initialized. Run `bl init`."
 76. Malformed task JSON. Error on read, suggests `bl repair`.
 77. Worktree creation fails (disk full, permissions). Claim rolled back (task file reverted, local claim removed).
 78. Hundreds of tasks. Performance is fine — ls + jq on hundreds of small JSON files is milliseconds.
@@ -882,11 +882,11 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 Ball's thesis: every layer of infrastructure you add is a layer that can break, a layer to learn, a layer to operate. The best tool is the one with the fewest moving parts that solves the problem.
 
-**The CLI is the agent interface.** Agents already have shell access. `bl ready --json` is a tool call. There is no need for MCP servers, REST APIs, or protocol adapters. If you can run a command, you can use ball.
+**The CLI is the agent interface.** Agents already have shell access. `bl ready --json` is a tool call. There is no need for MCP servers, REST APIs, or protocol adapters. If you can run a command, you can use balls.
 
 **Git is the archive.** Closed tasks are deleted from HEAD and preserved in git history. There is no compaction, no garbage collection, no cleanup threshold. Only live tasks exist in the working set. Old tasks are retrievable via `git log` when needed. The working set stays small naturally.
 
-**Git is the database.** Task files are committed, pushed, pulled, and merged like code. There is no second version-control system to reconcile, no schema migrations, no embedded database engine. If you understand git, you understand ball's storage model.
+**Git is the database.** Task files are committed, pushed, pulled, and merged like code. There is no second version-control system to reconcile, no schema migrations, no embedded database engine. If you understand git, you understand balls's storage model.
 
 ---
 
@@ -908,6 +908,6 @@ Cline Kanban provides a visual board for agent orchestration with worktree-per-t
 
 Traditional trackers weren't designed for agent workflows. They require network round-trips for every read, can't be queried offline, don't support the claim-and-worktree lifecycle, and have no concept of local-first operation. They remain the right tools for human project management. Ball integrates with them via plugins rather than replacing them.
 
-### The ball approach
+### The balls approach
 
 Ball takes the core insight — structured task files, dependency tracking, agent-native CLI — and implements it on the only infrastructure every developer already has: git. Tasks are files. Sync is push/pull. History is git log. Collaboration is merge. There is nothing to install except a small CLI, nothing to configure except a JSON file, and nothing to operate except git.

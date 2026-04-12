@@ -215,7 +215,7 @@ fn story_76_malformed_task_json() {
     init_in(repo.path());
     let id = create_task(repo.path(), "good");
     std::fs::write(
-        repo.path().join(".ball/tasks").join(format!("{}.json", id)),
+        repo.path().join(".balls/tasks").join(format!("{}.json", id)),
         "not valid json",
     )
     .unwrap();

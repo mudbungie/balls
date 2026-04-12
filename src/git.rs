@@ -80,7 +80,7 @@ pub fn git_commit(dir: &Path, message: &str) -> Result<()> {
 }
 
 pub fn is_merging(dir: &Path) -> bool {
-    // git_commit is only called from within ball-managed repos, so
+    // git_commit is only called from within balls-managed repos, so
     // git_common_dir always succeeds here; we treat a failure (genuine I/O
     // weirdness) as "not merging" so the caller skips the merge-finalize
     // path.
@@ -217,11 +217,11 @@ pub(crate) fn git_ensure_user(dir: &Path) -> Result<()> {
     // In test environments we may need a user.email/user.name configured
     let email = run_git_ok(dir, &["config", "user.email"]).unwrap_or_default();
     if email.trim().is_empty() {
-        run_git_ok(dir, &["config", "user.email", "ball@example.local"])?;
+        run_git_ok(dir, &["config", "user.email", "balls@example.local"])?;
     }
     let name = run_git_ok(dir, &["config", "user.name"]).unwrap_or_default();
     if name.trim().is_empty() {
-        run_git_ok(dir, &["config", "user.name", "ball"])?;
+        run_git_ok(dir, &["config", "user.name", "balls"])?;
     }
     Ok(())
 }
