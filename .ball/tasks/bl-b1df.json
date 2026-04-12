@@ -3,13 +3,13 @@
   "title": "bl skill command: dump SKILL.md to stdout",
   "type": "task",
   "priority": 2,
-  "status": "review",
+  "status": "closed",
   "parent": null,
   "depends_on": [],
   "description": "",
   "created_at": "2026-04-11T18:24:24.559295791Z",
-  "updated_at": "2026-04-11T18:25:39.796220631Z",
-  "closed_at": null,
+  "updated_at": "2026-04-11T18:25:55.803179514Z",
+  "closed_at": "2026-04-11T18:25:55.803175026Z",
   "claimed_by": "mark",
   "branch": "work/bl-b1df",
   "tags": [
@@ -20,6 +20,11 @@
       "ts": "2026-04-11T18:25:39.796212156Z",
       "author": "mark",
       "text": "bl skill command: include_str embeds SKILL.md in binary"
+    },
+    {
+      "ts": "2026-04-11T18:25:55.803178152Z",
+      "author": "mark",
+      "text": "Approved"
     }
   ],
   "links": [],
