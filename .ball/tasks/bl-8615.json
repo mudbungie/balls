@@ -1,0 +1,23 @@
+{
+  "id": "bl-8615",
+  "title": "No-ff merge in review, rejection workflow guidance",
+  "type": "bug",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "",
+  "created_at": "2026-04-11T16:46:07.735849485Z",
+  "updated_at": "2026-04-11T16:46:07.735849485Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "merge",
+    "review"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
