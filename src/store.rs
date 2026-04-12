@@ -181,30 +181,37 @@ impl Store {
         task.save(&self.task_path(&task.id)?)
     }
 
-    pub fn delete_task_file(&self, id: &str) -> Result<()> {
+    /// Remove a task's files from disk and (non-stealth) from the
+    /// state branch's index. Unified replacement for the previous
+    /// `delete_task_file` + `rm_task_git` pair.
+    pub fn remove_task(&self, id: &str) -> Result<()> {
         let p = self.task_path(id)?;
-        if p.exists() {
-            std::fs::remove_file(&p)?;
+        if self.stealth {
+            if p.exists() { fs::remove_file(&p)?; }
+            task_io::delete_notes_file(&p)?;
+            return Ok(());
         }
-        task_io::delete_notes_file(&p)?;
+        let dir = self.state_worktree_dir();
+        let json = PathBuf::from(format!(".balls/tasks/{}.json", id));
+        let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
+        // `-f`: the files may carry uncommitted field mutations from
+        // the archiving path (status=closed, closed_at) that we don't
+        // want to stage separately before rm.
+        git::git_rm_force(&dir, &[json.as_path(), notes.as_path()])?;
         Ok(())
     }
 
     /// Stage and commit a task file change on the state branch. No-op
-    /// in stealth mode. Also stages the sibling notes file if it exists.
+    /// in stealth mode. Stages the sibling notes file too (always
+    /// present after a `Task::save`).
     pub fn commit_task(&self, id: &str, message: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
         let dir = self.state_worktree_dir();
-        let rel_json = PathBuf::from(".balls/tasks").join(format!("{}.json", id));
-        git::git_add(&dir, &[rel_json.as_path()])?;
-        let notes_abs = task_io::notes_path_for(&self.task_path(id)?);
-        if notes_abs.exists() {
-            let rel_notes =
-                PathBuf::from(".balls/tasks").join(format!("{}.notes.jsonl", id));
-            git::git_add(&dir, &[rel_notes.as_path()])?;
-        }
+        let json = PathBuf::from(format!(".balls/tasks/{}.json", id));
+        let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
+        git::git_add(&dir, &[json.as_path(), notes.as_path()])?;
         git::git_commit(&dir, message)?;
         Ok(())
     }
@@ -216,22 +223,6 @@ impl Store {
             return Ok(());
         }
         git::git_commit(&self.state_worktree_dir(), message)?;
-        Ok(())
-    }
-
-    /// Git-rm a task file on the state branch. No-op in stealth mode.
-    /// Also removes the sibling notes file from the index if tracked.
-    pub fn rm_task_git(&self, id: &str) -> Result<()> {
-        if self.stealth {
-            return Ok(());
-        }
-        let dir = self.state_worktree_dir();
-        let rel_json = PathBuf::from(format!(".balls/tasks/{}.json", id));
-        git::git_rm(&dir, &[rel_json.as_path()])?;
-        let rel_notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
-        if dir.join(&rel_notes).exists() {
-            let _ = git::git_rm(&dir, &[rel_notes.as_path()]);
-        }
         Ok(())
     }
 

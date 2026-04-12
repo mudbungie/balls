@@ -132,3 +132,22 @@ fn stealth_mode_full_lifecycle() {
     let log = git(repo.path(), &["log", "--oneline"]);
     assert!(!log.contains(&format!("create {}", id)));
 }
+
+#[test]
+fn stealth_list_returns_empty_when_external_dir_gone() {
+    let repo = new_repo();
+    bl(repo.path())
+        .args(["init", "--stealth"])
+        .assert()
+        .success();
+    // Read the external tasks dir out of the stealth pointer file,
+    // then blow it away to simulate a user cleaning up /tmp.
+    let td = std::fs::read_to_string(repo.path().join(".balls/local/tasks_dir")).unwrap();
+    let ext = std::path::PathBuf::from(td.trim());
+    let _ = std::fs::remove_dir_all(&ext);
+    // `bl list` must succeed with empty output — not crash on the
+    // missing dir inside Store::all_tasks.
+    let out = bl(repo.path()).arg("list").output().unwrap();
+    assert!(out.status.success(), "list should succeed: {:?}", out);
+    assert!(String::from_utf8_lossy(&out.stdout).trim().is_empty());
+}

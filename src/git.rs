@@ -54,8 +54,12 @@ pub fn git_add(dir: &Path, paths: &[&Path]) -> Result<()> {
     Ok(())
 }
 
-pub fn git_rm(dir: &Path, paths: &[&Path]) -> Result<()> {
-    let mut args = vec!["rm", "--"];
+/// `git rm -f`: remove from index and working tree, even if the file
+/// has uncommitted modifications. Balls always uses -f because the
+/// archiving path may have just mutated the task file's fields before
+/// deleting it.
+pub fn git_rm_force(dir: &Path, paths: &[&Path]) -> Result<()> {
+    let mut args = vec!["rm", "-f", "--"];
     let strs: Vec<String> = paths.iter().map(|p| p.to_string_lossy().to_string()).collect();
     for s in &strs {
         args.push(s.as_str());
@@ -117,70 +121,33 @@ pub enum MergeResult {
     Conflict,
 }
 
-pub fn git_merge(dir: &Path, branch: &str, message: Option<&str>) -> Result<MergeResult> {
-    git_merge_inner(dir, branch, message, false)
-}
-
-/// Merge with --no-ff: always create a merge commit even if fast-forward is possible.
-pub fn git_merge_no_ff(dir: &Path, branch: &str, message: Option<&str>) -> Result<MergeResult> {
-    git_merge_inner(dir, branch, message, true)
+pub fn git_merge(dir: &Path, branch: &str) -> Result<MergeResult> {
+    classify_merge(run_git_in(dir, &["merge", "--no-edit", branch])?, "merge")
 }
 
 /// Squash merge: stage all changes from branch but do NOT commit.
 /// Caller must call `git_commit()` afterward to finalize.
 pub fn git_merge_squash(dir: &Path, branch: &str) -> Result<MergeResult> {
-    let args = vec!["merge", "--squash", branch];
-    let out = run_git_in(dir, &args)?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    if out.status.success() {
-        if stdout.contains("Already up to date") || stdout.contains("Already up-to-date") {
-            Ok(MergeResult::UpToDate)
-        } else {
-            Ok(MergeResult::Clean)
-        }
-    } else {
-        let combined = format!("{}{}", stdout, stderr);
-        if combined.contains("CONFLICT") || combined.contains("conflict") {
-            Ok(MergeResult::Conflict)
-        } else {
-            Err(BallError::Git(format!(
-                "merge --squash failed: {}",
-                combined.trim()
-            )))
-        }
-    }
+    classify_merge(
+        run_git_in(dir, &["merge", "--squash", branch])?,
+        "merge --squash",
+    )
 }
 
-fn git_merge_inner(dir: &Path, branch: &str, message: Option<&str>, no_ff: bool) -> Result<MergeResult> {
-    let mut args = vec!["merge", "--no-edit"];
-    if no_ff {
-        args.push("--no-ff");
-    }
-    if let Some(m) = message {
-        args.push("-m");
-        args.push(m);
-    }
-    args.push(branch);
-    let out = run_git_in(dir, &args)?;
+fn classify_merge(out: std::process::Output, what: &str) -> Result<MergeResult> {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     if out.status.success() {
         if stdout.contains("Already up to date") || stdout.contains("Already up-to-date") {
-            Ok(MergeResult::UpToDate)
-        } else {
-            Ok(MergeResult::Clean)
+            return Ok(MergeResult::UpToDate);
         }
+        return Ok(MergeResult::Clean);
+    }
+    let combined = format!("{}{}", stdout, stderr);
+    if combined.contains("CONFLICT") || combined.contains("conflict") {
+        Ok(MergeResult::Conflict)
     } else {
-        let combined = format!("{}{}", stdout, stderr);
-        if combined.contains("CONFLICT") || combined.contains("conflict") {
-            Ok(MergeResult::Conflict)
-        } else {
-            Err(BallError::Git(format!(
-                "merge failed: {}",
-                combined.trim()
-            )))
-        }
+        Err(BallError::Git(format!("{} failed: {}", what, combined.trim())))
     }
 }
 
