@@ -3,7 +3,7 @@
 //! Absorbs per-item failures: a malformed entry logs a warning and moves
 //! on rather than aborting the whole report.
 
-use super::basic::generate_unique_id;
+use super::id_gen::generate_unique_id;
 use balls::error::Result;
 use balls::plugin::SyncReport;
 use balls::store::{task_lock, Store};
