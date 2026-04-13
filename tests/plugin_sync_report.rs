@@ -72,7 +72,7 @@ fn sync_updates_existing_task() {
     write_sync_response(repo.path(), &format!(r#"{{
         "created": [],
         "updated": [{{
-            "task_id": "{}",
+            "task_id": "{id}",
             "fields": {{
                 "priority": 1,
                 "status": "in_progress",
@@ -85,7 +85,7 @@ fn sync_updates_existing_task() {
             "add_note": "Priority changed by PM in Jira"
         }}],
         "deleted": []
-    }}"#, id));
+    }}"#));
 
     bl(repo.path())
         .env("PATH", path_with_mock(bin_dir.path()))
@@ -102,8 +102,7 @@ fn sync_updates_existing_task() {
     let notes = read_task_notes(repo.path(), &id);
     assert!(
         notes.iter().any(|n| n["text"].as_str().unwrap().contains("Priority changed by PM")),
-        "should have a note from the sync: {:?}",
-        notes
+        "should have a note from the sync: {notes:?}"
     );
 }
 
@@ -121,10 +120,10 @@ fn sync_defers_deleted_task() {
         "created": [],
         "updated": [],
         "deleted": [{{
-            "task_id": "{}",
+            "task_id": "{id}",
             "reason": "Issue PROJ-789 deleted in Jira"
         }}]
-    }}"#, id));
+    }}"#));
 
     bl(repo.path())
         .env("PATH", path_with_mock(bin_dir.path()))
@@ -137,8 +136,7 @@ fn sync_defers_deleted_task() {
     let notes = read_task_notes(repo.path(), &id);
     assert!(
         notes.iter().any(|n| n["text"].as_str().unwrap().contains("PROJ-789 deleted")),
-        "should have a deletion note: {:?}",
-        notes
+        "should have a deletion note: {notes:?}"
     );
 }
 
@@ -210,8 +208,8 @@ fn sync_deleted_skips_already_closed() {
         .success();
 
     write_sync_response(repo.path(), &format!(r#"{{
-        "deleted": [{{ "task_id": "{}", "reason": "should not affect closed task" }}]
-    }}"#, id));
+        "deleted": [{{ "task_id": "{id}", "reason": "should not affect closed task" }}]
+    }}"#));
 
     bl(repo.path())
         .env("PATH", path_with_mock(bin_dir.path()))
@@ -219,7 +217,7 @@ fn sync_deleted_skips_already_closed() {
         .assert()
         .success();
 
-    let task_path = repo.path().join(format!(".balls/tasks/{}.json", id));
+    let task_path = repo.path().join(format!(".balls/tasks/{id}.json"));
     if task_path.exists() {
         let task = read_task_json(repo.path(), &id);
         assert_ne!(

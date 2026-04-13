@@ -50,13 +50,12 @@ pub fn git(cwd: &Path, args: &[&str]) -> String {
         cmd.env_remove(var);
     }
     let out = cmd.output().expect("git");
-    if !out.status.success() {
-        panic!(
-            "git {} failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
+    assert!(
+        out.status.success(),
+        "git {} failed: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&out.stderr)
+    );
     String::from_utf8_lossy(&out.stdout).to_string()
 }
 
@@ -94,7 +93,7 @@ pub fn new_bare_remote() -> Repo {
 /// and origin is set to the remote.
 pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
     let dir = tempfile::Builder::new()
-        .prefix(&format!("balls-it-{}-", name))
+        .prefix(&format!("balls-it-{name}-"))
         .tempdir()
         .expect("tempdir");
 
@@ -122,12 +121,11 @@ pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
             clone_cmd.env_remove(var);
         }
         let out = clone_cmd.output().expect("git clone");
-        if !out.status.success() {
-            panic!(
-                "git clone failed: {}",
-                String::from_utf8_lossy(&out.stderr)
-            );
-        }
+        assert!(
+            out.status.success(),
+            "git clone failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     } else {
         // Empty remote: init a fresh repo, add origin, and let the caller
         // push later.
@@ -138,7 +136,7 @@ pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
 
     git(
         dir.path(),
-        &["config", "user.email", &format!("{}@example.com", name)],
+        &["config", "user.email", &format!("{name}@example.com")],
     );
     git(dir.path(), &["config", "user.name", name]);
     git(dir.path(), &["config", "commit.gpgsign", "false"]);
@@ -216,7 +214,7 @@ pub fn init_in(cwd: &Path) {
 
 /// Read and JSON-parse a task file directly from the store.
 pub fn read_task_json(repo_root: &Path, id: &str) -> serde_json::Value {
-    let path = repo_root.join(".balls/tasks").join(format!("{}.json", id));
+    let path = repo_root.join(".balls/tasks").join(format!("{id}.json"));
     let s = std::fs::read_to_string(&path).expect("read task");
     serde_json::from_str(&s).expect("parse task json")
 }
@@ -226,7 +224,7 @@ pub fn read_task_json(repo_root: &Path, id: &str) -> serde_json::Value {
 pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
     let path = repo_root
         .join(".balls/tasks")
-        .join(format!("{}.notes.jsonl", id));
+        .join(format!("{id}.notes.jsonl"));
     let Ok(s) = std::fs::read_to_string(&path) else {
         return Vec::new();
     };

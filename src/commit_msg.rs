@@ -18,7 +18,7 @@ pub fn format_squash(message: Option<&str>, task_title: &str, id: &str) -> Strin
     let (title, body) = split_title_body(raw);
     let tagged = format!("{} [{}]", title.trim_end(), id);
     match body {
-        Some(b) if !b.is_empty() => format!("{}\n\n{}", tagged, b),
+        Some(b) if !b.is_empty() => format!("{tagged}\n\n{b}"),
         _ => tagged,
     }
 }

@@ -104,7 +104,7 @@ fn stealth_mode_full_lifecycle() {
         .success();
     let id = create_task(repo.path(), "stealth task");
     // Task exists in external dir, not in repo
-    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{id}.json")).exists());
     // List works
     let out = bl(repo.path()).arg("list").output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
@@ -127,10 +127,10 @@ fn stealth_mode_full_lifecycle() {
     // Task archived (external file deleted)
     let td = std::fs::read_to_string(repo.path().join(".balls/local/tasks_dir")).unwrap();
     let ext = std::path::PathBuf::from(td.trim());
-    assert!(!ext.join(format!("{}.json", id)).exists());
+    assert!(!ext.join(format!("{id}.json")).exists());
     // No task commits in git log (stealth)
     let log = git(repo.path(), &["log", "--oneline"]);
-    assert!(!log.contains(&format!("create {}", id)));
+    assert!(!log.contains(&format!("create {id}")));
 }
 
 #[test]
@@ -148,6 +148,6 @@ fn stealth_list_returns_empty_when_external_dir_gone() {
     // `bl list` must succeed with empty output — not crash on the
     // missing dir inside Store::all_tasks.
     let out = bl(repo.path()).arg("list").output().unwrap();
-    assert!(out.status.success(), "list should succeed: {:?}", out);
+    assert!(out.status.success(), "list should succeed: {out:?}");
     assert!(String::from_utf8_lossy(&out.stdout).trim().is_empty());
 }

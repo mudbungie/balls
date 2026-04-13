@@ -66,14 +66,11 @@ fn sync_warns_when_main_is_behind_state_close() {
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
         out.status.success(),
-        "sync should succeed even with a half-push: {}",
-        stderr
+        "sync should succeed even with a half-push: {stderr}"
     );
     assert!(
-        stderr.contains(&format!("state branch records close for {}", id)),
-        "expected half-push warning for {}, got: {}",
-        id,
-        stderr
+        stderr.contains(&format!("state branch records close for {id}")),
+        "expected half-push warning for {id}, got: {stderr}"
     );
 }
 
@@ -104,7 +101,6 @@ fn update_closed_without_review_is_not_a_half_push() {
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
         !stderr.contains("state branch records close"),
-        "update status=closed must not trigger half-push warning: {}",
-        stderr
+        "update status=closed must not trigger half-push warning: {stderr}"
     );
 }

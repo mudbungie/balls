@@ -68,7 +68,7 @@ pub fn apply_push_response(
     }
     task.touch();
     store.save_task(&task)?;
-    store.commit_task(task_id, &format!("balls: update external for {}", task_id))?;
+    store.commit_task(task_id, &format!("balls: update external for {task_id}"))?;
     Ok(())
 }
 

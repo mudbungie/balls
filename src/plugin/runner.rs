@@ -16,7 +16,7 @@ pub struct Plugin {
 
 impl Plugin {
     pub fn resolve(store: &Store, name: &str, entry: &PluginEntry) -> Self {
-        let executable = format!("balls-plugin-{}", name);
+        let executable = format!("balls-plugin-{name}");
         let config_path = store.root.join(&entry.config_file);
         let auth_dir = store.local_plugins_dir().join(name);
         Plugin {
@@ -73,7 +73,7 @@ impl Plugin {
             .spawn()?;
         let json = serde_json::to_string(task)?;
         let outcome = run_with_limits(child, json.as_bytes())?;
-        self.parse_outcome::<PushResponse>("push", outcome)
+        Ok(self.parse_outcome::<PushResponse>("push", outcome))
     }
 
     /// Run the plugin's sync command. Sends all local tasks on stdin.
@@ -90,7 +90,7 @@ impl Plugin {
             .spawn()?;
         let json = serde_json::to_string(tasks)?;
         let outcome = run_with_limits(child, json.as_bytes())?;
-        self.parse_outcome::<SyncReport>("sync", outcome)
+        Ok(self.parse_outcome::<SyncReport>("sync", outcome))
     }
 
     /// Build a `Command` for a plugin subcommand. Puts the child in
@@ -114,33 +114,33 @@ impl Plugin {
         &self,
         op: &str,
         outcome: PluginOutcome,
-    ) -> Result<Option<T>> {
+    ) -> Option<T> {
         let exe = &self.executable;
         if outcome.timed_out {
             let secs = limits::timeout().as_secs();
             eprintln!("warning: plugin `{exe}` {op} timed out after {secs}s, killed");
-            return Ok(None);
+            return None;
         }
         if outcome.truncated {
             let cap = limits::max_stream_bytes();
             eprintln!("warning: plugin `{exe}` {op} exceeded {cap} bytes of stdout, discarding");
-            return Ok(None);
+            return None;
         }
         if !outcome.status.success() {
             let stderr = String::from_utf8_lossy(&outcome.stderr);
             eprintln!("warning: plugin `{exe}` {op} failed: {}", stderr.trim());
-            return Ok(None);
+            return None;
         }
         let stdout = String::from_utf8_lossy(&outcome.stdout);
         let trimmed = stdout.trim();
         if trimmed.is_empty() {
-            return Ok(None);
+            return None;
         }
         match serde_json::from_str::<T>(trimmed) {
-            Ok(v) => Ok(Some(v)),
+            Ok(v) => Some(v),
             Err(e) => {
                 eprintln!("warning: plugin `{exe}` {op} returned invalid JSON: {e}");
-                Ok(None)
+                None
             }
         }
     }

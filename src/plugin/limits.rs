@@ -67,17 +67,15 @@ pub fn run_with_limits(mut child: Child, stdin_bytes: &[u8]) -> Result<PluginOut
     let deadline = Instant::now() + timeout();
     let mut timed_out = false;
     let status = loop {
-        match child.try_wait()? {
-            Some(s) => break s,
-            None => {
-                if Instant::now() >= deadline {
-                    kill_process_group(child.id());
-                    timed_out = true;
-                    break child.wait()?;
-                }
-                std::thread::sleep(POLL_INTERVAL);
-            }
+        if let Some(s) = child.try_wait()? {
+            break s;
         }
+        if Instant::now() >= deadline {
+            kill_process_group(child.id());
+            timed_out = true;
+            break child.wait()?;
+        }
+        std::thread::sleep(POLL_INTERVAL);
     };
 
     let (stdout_buf, stdout_trunc) = stdout_thread.join().unwrap_or_default();
@@ -125,7 +123,7 @@ fn drain_capped<R: Read>(mut r: R, cap: usize) -> (Vec<u8>, bool) {
 fn kill_process_group(pid: u32) {
     let _ = Command::new("kill")
         .arg("-KILL")
-        .arg(format!("-{}", pid))
+        .arg(format!("-{pid}"))
         .status();
 }
 

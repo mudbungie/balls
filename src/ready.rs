@@ -11,10 +11,8 @@ pub fn ready_queue(tasks: &[Task]) -> Vec<&Task> {
         .filter(|t| t.claimed_by.is_none())
         .filter(|t| {
             t.depends_on.iter().all(|d| {
-                by_id
-                    .get(d.as_str())
-                    .map(|dep| dep.status == Status::Closed)
-                    .unwrap_or(true) // missing dep = archived = closed
+                // missing dep = archived = closed
+                by_id.get(d.as_str()).is_none_or(|dep| dep.status == Status::Closed)
             })
         })
         .collect();
@@ -31,10 +29,8 @@ pub fn ready_queue(tasks: &[Task]) -> Vec<&Task> {
 pub fn is_dep_blocked(tasks: &[Task], task: &Task) -> bool {
     let by_id: HashMap<&str, &Task> = tasks.iter().map(|t| (t.id.as_str(), t)).collect();
     task.depends_on.iter().any(|d| {
-        by_id
-            .get(d.as_str())
-            .map(|dep| dep.status != Status::Closed)
-            .unwrap_or(false) // missing dep = archived = closed
+        // missing dep = archived = closed
+        by_id.get(d.as_str()).is_some_and(|dep| dep.status != Status::Closed)
     })
 }
 
@@ -47,7 +43,7 @@ pub fn children_of<'a>(tasks: &'a [Task], parent_id: &str) -> Vec<&'a Task> {
 
 pub fn completion(tasks: &[Task], parent_id: &str) -> f64 {
     let parent = tasks.iter().find(|t| t.id == parent_id);
-    let archived = parent.map(|p| p.closed_children.len()).unwrap_or(0);
+    let archived = parent.map_or(0, |p| p.closed_children.len());
     let live = children_of(tasks, parent_id);
     let live_closed = live.iter().filter(|t| t.status == Status::Closed).count();
     let total = archived + live.len();
@@ -87,8 +83,7 @@ pub fn validate_deps(tasks: &[Task], deps: &[String]) -> Result<()> {
     for d in deps {
         if !by_id.contains_key(d.as_str()) {
             return Err(BallError::InvalidTask(format!(
-                "dependency does not exist: {}",
-                d
+                "dependency does not exist: {d}"
             )));
         }
     }
@@ -195,7 +190,7 @@ mod tests {
     #[test]
     fn completion_no_children_is_zero() {
         let tasks = vec![make("p", Status::Open, vec![])];
-        assert_eq!(completion(&tasks, "p"), 0.0);
+        assert!(completion(&tasks, "p").abs() < f64::EPSILON);
     }
 
     #[test]

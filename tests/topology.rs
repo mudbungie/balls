@@ -12,7 +12,7 @@ fn symlink_exposes_tasks_to_stock_tools() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "visible");
-    let path = repo.path().join(".balls/tasks").join(format!("{}.json", id));
+    let path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
     assert!(path.exists(), "task file must be reachable via symlink");
     let contents = std::fs::read_to_string(&path).unwrap();
     assert!(contents.contains(&id));
@@ -40,18 +40,15 @@ fn main_log_stays_clean_through_task_lifecycle() {
     let main_log = git(repo.path(), &["log", "--oneline", "main"]);
     assert!(
         !main_log.contains("create bl-"),
-        "main must not carry balls: create commits: {}",
-        main_log
+        "main must not carry balls: create commits: {main_log}"
     );
     assert!(
         !main_log.contains("update bl-"),
-        "main must not carry balls: update commits: {}",
-        main_log
+        "main must not carry balls: update commits: {main_log}"
     );
     assert!(
         !main_log.contains("close bl-"),
-        "main must not carry balls: close commits: {}",
-        main_log
+        "main must not carry balls: close commits: {main_log}"
     );
 
     // The state branch has all the bookkeeping.
@@ -149,7 +146,7 @@ fn claimed_worktree_shares_state_with_main() {
     let wt = repo.path().join(".balls-worktrees").join(&id);
     // The bl worktree's .balls/tasks symlink must resolve to a file
     // containing this task — proving it targets the same state.
-    let task_path_via_wt = wt.join(".balls/tasks").join(format!("{}.json", id));
+    let task_path_via_wt = wt.join(".balls/tasks").join(format!("{id}.json"));
     assert!(
         task_path_via_wt.exists(),
         "bl worktree's .balls/tasks symlink must expose the task"

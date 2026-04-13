@@ -36,8 +36,7 @@ pub fn resolve(repo_root: &Path, task: &Task) -> Delivery {
     if let Some(hint) = &task.delivered_in {
         if git::git_is_ancestor(repo_root, hint, &main_branch)
             && git::git_commit_subject(repo_root, hint)
-                .map(|s| s.contains(&tag))
-                .unwrap_or(false)
+                .is_some_and(|s| s.contains(&tag))
         {
             return Delivery {
                 sha: Some(hint.clone()),
@@ -66,7 +65,7 @@ pub fn resolve(repo_root: &Path, task: &Task) -> Delivery {
 pub fn describe(repo_root: &Path, sha: &str) -> String {
     let short = git::git_short_sha(repo_root, sha).unwrap_or_else(|| sha.to_string());
     match git::git_commit_subject(repo_root, sha) {
-        Some(subj) if !subj.is_empty() => format!("{} {}", short, subj),
+        Some(subj) if !subj.is_empty() => format!("{short} {subj}"),
         _ => short,
     }
 }

@@ -20,7 +20,7 @@ fn story_22_claim_creates_worktree() {
     let j = read_task_json(repo.path(), &id);
     assert_eq!(j["status"], "in_progress");
     assert_eq!(j["claimed_by"], "alice");
-    assert_eq!(j["branch"], format!("work/{}", id));
+    assert_eq!(j["branch"], format!("work/{id}"));
     let claim = repo.path().join(".balls/local/claims").join(&id);
     assert!(claim.exists());
 }

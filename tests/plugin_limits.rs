@@ -40,13 +40,11 @@ fn plugin_sync_timeout_is_killed_and_warned() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("timed out"),
-        "expected timeout warning, got: {}",
-        stderr
+        "expected timeout warning, got: {stderr}"
     );
     assert!(
         elapsed < std::time::Duration::from_secs(10),
-        "timeout should fire near 2s; took {:?}",
-        elapsed
+        "timeout should fire near 2s; took {elapsed:?}"
     );
 }
 
@@ -76,8 +74,7 @@ fn plugin_sync_huge_stdout_is_bounded_and_warned() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("exceeded"),
-        "expected overflow warning, got: {}",
-        stderr
+        "expected overflow warning, got: {stderr}"
     );
 }
 
@@ -105,10 +102,9 @@ fn plugin_push_timeout_is_killed_and_warned() {
 
     assert!(out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("timed out"), "stderr: {}", stderr);
+    assert!(stderr.contains("timed out"), "stderr: {stderr}");
     assert!(
         elapsed < std::time::Duration::from_secs(10),
-        "took {:?}",
-        elapsed
+        "took {elapsed:?}"
     );
 }

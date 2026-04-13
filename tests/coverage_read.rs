@@ -27,7 +27,7 @@ fn show_renders_all_optional_sections() {
         .args([
             "update",
             &id,
-            &format!("parent={}", parent),
+            &format!("parent={parent}"),
             "description=My feature",
             "--note",
             "first note",

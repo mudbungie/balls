@@ -75,7 +75,7 @@ mod tests {
         .unwrap_err();
         match err {
             BallError::Other(s) => assert!(s.contains("1000 tries")),
-            other => panic!("expected Other, got {:?}", other),
+            other => panic!("expected Other, got {other:?}"),
         }
         assert!(*calls.borrow() > 1000);
     }

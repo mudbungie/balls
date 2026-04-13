@@ -21,7 +21,7 @@ impl TaskType {
             "epic" => Ok(TaskType::Epic),
             "task" => Ok(TaskType::Task),
             "bug" => Ok(TaskType::Bug),
-            _ => Err(BallError::InvalidTask(format!("unknown type: {}", s))),
+            _ => Err(BallError::InvalidTask(format!("unknown type: {s}"))),
         }
     }
 }
@@ -57,7 +57,7 @@ impl Status {
             "blocked" => Ok(Status::Blocked),
             "closed" => Ok(Status::Closed),
             "deferred" => Ok(Status::Deferred),
-            _ => Err(BallError::InvalidTask(format!("unknown status: {}", s))),
+            _ => Err(BallError::InvalidTask(format!("unknown status: {s}"))),
         }
     }
 
@@ -114,7 +114,7 @@ impl LinkType {
             "duplicates" => Ok(LinkType::Duplicates),
             "supersedes" => Ok(LinkType::Supersedes),
             "replies_to" => Ok(LinkType::RepliesTo),
-            _ => Err(BallError::InvalidTask(format!("unknown link type: {}", s))),
+            _ => Err(BallError::InvalidTask(format!("unknown link type: {s}"))),
         }
     }
 
@@ -214,7 +214,7 @@ pub fn validate_id(id: &str) -> Result<()> {
         && id.len() > 3
         && id[3..].chars().all(|c| c.is_ascii_hexdigit());
     if !valid {
-        return Err(BallError::InvalidTask(format!("invalid task id: {}", id)));
+        return Err(BallError::InvalidTask(format!("invalid task id: {id}")));
     }
     Ok(())
 }

@@ -28,18 +28,17 @@ pub fn review_worktree(
 ) -> Result<()> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;
-    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{}", id));
+    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{id}"));
 
     with_task_lock(store, id, || {
         git::git_add_all(&wt_path)?;
-        let _ = git::git_commit(&wt_path, &format!("wip: {}", id));
+        let _ = git::git_commit(&wt_path, &format!("wip: {id}"));
         let main_branch = git::git_current_branch(&store.root)?;
         merge_or_fail(
             &wt_path,
             &main_branch,
             &format!(
-                "conflicts merging {} into work/{}. Resolve in worktree, then retry.",
-                main_branch, id
+                "conflicts merging {main_branch} into work/{id}. Resolve in worktree, then retry."
             ),
         )?;
 
@@ -68,7 +67,7 @@ pub fn review_worktree(
         if let Some(msg) = message {
             task_io::append_note_to(&task_path, identity, msg)?;
         }
-        store.commit_task(id, &format!("state: review {}", id))?;
+        store.commit_task(id, &format!("state: review {id}"))?;
 
         // Sync main back into worktree so re-review after rejection only
         // picks up new changes (squash merge doesn't record branch ancestry).
@@ -96,7 +95,7 @@ pub fn close_worktree(
 
     with_task_lock(store, id, || {
         let mut t = store.load_task(id)?;
-        let branch = t.branch.clone().unwrap_or_else(|| format!("work/{}", id));
+        let branch = t.branch.clone().unwrap_or_else(|| format!("work/{id}"));
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
         t.touch();

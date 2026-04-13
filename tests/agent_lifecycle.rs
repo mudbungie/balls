@@ -226,20 +226,18 @@ fn update_status_closed_archives_unclaimed_task() {
         .assert()
         .success();
     // Task file is archived (deleted from the state branch's tree)
-    let task_path = repo.path().join(format!(".balls/tasks/{}.json", id));
+    let task_path = repo.path().join(format!(".balls/tasks/{id}.json"));
     assert!(!task_path.exists());
     // Main log must NOT contain balls bookkeeping — only feature commits.
     let main_log = git(repo.path(), &["log", "--oneline", "main"]);
     assert!(
-        !main_log.contains(&format!("close {}", id)),
-        "main log should be free of balls close commits: {}",
-        main_log
+        !main_log.contains(&format!("close {id}")),
+        "main log should be free of balls close commits: {main_log}"
     );
     // The close commit lives on the state branch instead.
     let state_log = git(repo.path(), &["log", "--oneline", "balls/tasks"]);
     assert!(
-        state_log.contains(&format!("close {}", id)),
-        "state branch should record the close: {}",
-        state_log
+        state_log.contains(&format!("close {id}")),
+        "state branch should record the close: {state_log}"
     );
 }

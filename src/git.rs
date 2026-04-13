@@ -30,7 +30,7 @@ fn run_git_in(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
     let out = clean_git_command(dir)
         .args(args)
         .output()
-        .map_err(|e| BallError::Git(format!("failed to spawn git: {}", e)))?;
+        .map_err(|e| BallError::Git(format!("failed to spawn git: {e}")))?;
     Ok(out)
 }
 
@@ -166,7 +166,7 @@ fn classify_merge(out: std::process::Output, what: &str) -> Result<MergeResult> 
         }
         return Ok(MergeResult::Clean);
     }
-    let combined = format!("{}{}", stdout, stderr);
+    let combined = format!("{stdout}{stderr}");
     if combined.contains("CONFLICT") || combined.contains("conflict") {
         Ok(MergeResult::Conflict)
     } else {

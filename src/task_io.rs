@@ -23,7 +23,7 @@ pub(crate) fn notes_path_for(task_path: &Path) -> PathBuf {
         .and_then(|s| s.to_str())
         .unwrap_or("task");
     let parent = task_path.parent().unwrap_or_else(|| Path::new("."));
-    parent.join(format!("{}.notes.jsonl", stem))
+    parent.join(format!("{stem}.notes.jsonl"))
 }
 
 fn load_notes_file(path: &Path) -> Result<Vec<Note>> {

@@ -23,24 +23,24 @@ pub enum BallError {
 impl fmt::Display for BallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BallError::Io(e) => write!(f, "io error: {}", e),
-            BallError::Json(e) => write!(f, "json error: {}", e),
-            BallError::Git(s) => write!(f, "git error: {}", s),
-            BallError::TaskNotFound(id) => write!(f, "task not found: {}", id),
-            BallError::InvalidTask(s) => write!(f, "invalid task: {}", s),
+            BallError::Io(e) => write!(f, "io error: {e}"),
+            BallError::Json(e) => write!(f, "json error: {e}"),
+            BallError::Git(s) => write!(f, "git error: {s}"),
+            BallError::TaskNotFound(id) => write!(f, "task not found: {id}"),
+            BallError::InvalidTask(s) => write!(f, "invalid task: {s}"),
             BallError::NotInitialized => {
                 write!(f, "not initialized. Run `bl init`")
             }
             BallError::NotARepo => write!(f, "not a git repository"),
-            BallError::AlreadyClaimed(id) => write!(f, "task {} is already claimed", id),
-            BallError::DepsUnmet(id) => write!(f, "task {} has unmet dependencies", id),
-            BallError::NotClaimable(id) => write!(f, "task {} is not claimable", id),
-            BallError::Cycle(s) => write!(f, "dependency cycle: {}", s),
+            BallError::AlreadyClaimed(id) => write!(f, "task {id} is already claimed"),
+            BallError::DepsUnmet(id) => write!(f, "task {id} has unmet dependencies"),
+            BallError::NotClaimable(id) => write!(f, "task {id} is not claimable"),
+            BallError::Cycle(s) => write!(f, "dependency cycle: {s}"),
             BallError::WorktreeExists(p) => {
                 write!(f, "worktree already exists: {} (try `bl drop`)", p.display())
             }
-            BallError::Conflict(s) => write!(f, "conflict: {}", s),
-            BallError::Other(s) => write!(f, "{}", s),
+            BallError::Conflict(s) => write!(f, "conflict: {s}"),
+            BallError::Other(s) => write!(f, "{s}"),
         }
     }
 }
@@ -84,7 +84,7 @@ mod tests {
             BallError::Other("misc".into()),
         ];
         for e in &cases {
-            let s = format!("{}", e);
+            let s = format!("{e}");
             assert!(!s.is_empty());
         }
     }

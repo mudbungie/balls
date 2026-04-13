@@ -40,7 +40,7 @@ fn plugin_sync_invalid_json_warns() {
         .unwrap();
     assert!(out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("invalid JSON"), "stderr: {}", stderr);
+    assert!(stderr.contains("invalid JSON"), "stderr: {stderr}");
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn plugin_push_invalid_json_warns() {
         .unwrap();
     assert!(out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("invalid JSON"), "stderr: {}", stderr);
+    assert!(stderr.contains("invalid JSON"), "stderr: {stderr}");
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn plugin_push_fails_with_nonzero_exit_warns() {
         .unwrap();
     assert!(out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("push failed"), "stderr: {}", stderr);
+    assert!(stderr.contains("push failed"), "stderr: {stderr}");
 }
 
 #[test]
@@ -112,12 +112,12 @@ fn plugin_auth_check_spawn_error_returns_false() {
     // When the plugin executable is present but unexecutable, the
     // spawn call inside auth_check returns an io::Error — exercises
     // the `Err(_) => false` branch in runner.rs.
+    use std::os::unix::fs::PermissionsExt;
     let bin_dir = tempfile::tempdir().unwrap();
     let path = bin_dir.path().join("balls-plugin-mock");
     fs::write(&path, "#!/bin/false\n").unwrap();
     // Not executable.
     let mut p = fs::metadata(&path).unwrap().permissions();
-    use std::os::unix::fs::PermissionsExt;
     p.set_mode(0o644);
     fs::set_permissions(&path, p).unwrap();
 

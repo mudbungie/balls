@@ -22,7 +22,7 @@ fn parallel_bl_create_across_workers_all_succeed() {
             let root = root.clone();
             thread::spawn(move || {
                 let out = bl(&root)
-                    .args(["create", &format!("parallel-{}", i)])
+                    .args(["create", &format!("parallel-{i}")])
                     .output()
                     .expect("bl create");
                 (out.status.success(), String::from_utf8_lossy(&out.stderr).to_string())
@@ -42,8 +42,7 @@ fn parallel_bl_create_across_workers_all_succeed() {
     }
     assert_eq!(
         successes, PARALLEL_WORKERS,
-        "expected all {} creates to succeed, failures: {:#?}",
-        PARALLEL_WORKERS, failures
+        "expected all {PARALLEL_WORKERS} creates to succeed, failures: {failures:#?}"
     );
 
     // All tasks visible after the storm settles.
@@ -51,10 +50,8 @@ fn parallel_bl_create_across_workers_all_succeed() {
     let s = String::from_utf8_lossy(&list_out.stdout);
     for i in 0..PARALLEL_WORKERS {
         assert!(
-            s.contains(&format!("parallel-{}", i)),
-            "list missing parallel-{}: {}",
-            i,
-            s
+            s.contains(&format!("parallel-{i}")),
+            "list missing parallel-{i}: {s}"
         );
     }
 }
@@ -76,7 +73,7 @@ fn parallel_bl_create_and_update_mix() {
         let root = root.clone();
         handles.push(thread::spawn(move || {
             let out = bl(&root)
-                .args(["create", &format!("mix-create-{}", i)])
+                .args(["create", &format!("mix-create-{i}")])
                 .output()
                 .expect("bl create");
             out.status.success()
@@ -87,7 +84,7 @@ fn parallel_bl_create_and_update_mix() {
         let id = seed_id.clone();
         handles.push(thread::spawn(move || {
             let out = bl(&root)
-                .args(["update", &id, "--note", &format!("worker {} note", i)])
+                .args(["update", &id, "--note", &format!("worker {i} note")])
                 .output()
                 .expect("bl update");
             out.status.success()

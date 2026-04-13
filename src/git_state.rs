@@ -11,7 +11,7 @@ fn run(dir: &Path, args: &[&str]) -> Result<String> {
     let out = clean_git_command(dir)
         .args(args)
         .output()
-        .map_err(|e| BallError::Git(format!("spawn git: {}", e)))?;
+        .map_err(|e| BallError::Git(format!("spawn git: {e}")))?;
     if !out.status.success() {
         return Err(BallError::Git(format!(
             "git {}: {}",
@@ -39,7 +39,7 @@ pub fn branch_exists(dir: &Path, branch: &str) -> bool {
             "rev-parse",
             "--verify",
             "--quiet",
-            &format!("refs/heads/{}", branch),
+            &format!("refs/heads/{branch}"),
         ],
     )
     .is_ok()
@@ -53,7 +53,7 @@ pub fn has_remote_branch(dir: &Path, remote: &str, branch: &str) -> bool {
             "rev-parse",
             "--verify",
             "--quiet",
-            &format!("refs/remotes/{}/{}", remote, branch),
+            &format!("refs/remotes/{remote}/{branch}"),
         ],
     )
     .is_ok()
@@ -62,7 +62,7 @@ pub fn has_remote_branch(dir: &Path, remote: &str, branch: &str) -> bool {
 /// Create a local branch tracking `remote/branch`. Assumes the remote
 /// branch already exists as a remote-tracking ref.
 pub fn create_tracking_branch(dir: &Path, branch: &str, remote: &str) -> Result<()> {
-    run(dir, &["branch", branch, &format!("{}/{}", remote, branch)])?;
+    run(dir, &["branch", branch, &format!("{remote}/{branch}")])?;
     Ok(())
 }
 
@@ -71,7 +71,7 @@ pub fn create_tracking_branch(dir: &Path, branch: &str, remote: &str) -> Result<
 /// we reverse for stable order).
 pub fn log_subjects(dir: &Path, refname: &str) -> Result<Vec<String>> {
     let out = run(dir, &["log", "--format=%s", refname])?;
-    Ok(out.lines().map(|l| l.to_string()).collect())
+    Ok(out.lines().map(String::from).collect())
 }
 
 /// Create an orphan branch pointing at a single empty-tree commit.
@@ -82,7 +82,7 @@ pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<(
         .args(["mktree"])
         .stdin(Stdio::null())
         .output()
-        .map_err(|e| BallError::Git(format!("git mktree spawn: {}", e)))?;
+        .map_err(|e| BallError::Git(format!("git mktree spawn: {e}")))?;
     if !tree_out.status.success() {
         return Err(BallError::Git(format!(
             "git mktree: {}",
@@ -95,7 +95,7 @@ pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<(
         .to_string();
     run(
         dir,
-        &["update-ref", &format!("refs/heads/{}", branch), &commit],
+        &["update-ref", &format!("refs/heads/{branch}"), &commit],
     )?;
     Ok(())
 }
@@ -111,7 +111,7 @@ mod tests {
         let err = create_orphan_branch(dir.path(), "any", "msg").unwrap_err();
         match err {
             BallError::Git(_) => {}
-            other => panic!("expected Git error, got {:?}", other),
+            other => panic!("expected Git error, got {other:?}"),
         }
     }
 }

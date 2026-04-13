@@ -78,7 +78,7 @@ fn claim_task_already_claimed_by_another_repo() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "remote-claimed");
-    let task_path = repo.path().join(".balls/tasks").join(format!("{}.json", id));
+    let task_path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
     let mut j: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&task_path).unwrap()).unwrap();
     j["claimed_by"] = serde_json::json!("remote-user");
@@ -108,7 +108,7 @@ fn claim_rolls_back_on_worktree_add_failure() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "rollback test");
-    let branch = format!("work/{}", id);
+    let branch = format!("work/{id}");
     git(repo.path(), &["branch", &branch]);
 
     let out = bl_as(repo.path(), "alice")
