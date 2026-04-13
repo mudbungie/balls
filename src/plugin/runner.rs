@@ -1,9 +1,10 @@
+use super::limits::{self, run_with_limits, PluginOutcome};
 use super::types::{PushResponse, SyncReport};
 use crate::config::PluginEntry;
 use crate::error::Result;
 use crate::store::Store;
 use crate::task::Task;
-use std::io::Write;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -60,100 +61,85 @@ impl Plugin {
         }
     }
 
-    /// Run the plugin's push command. Returns the plugin's response (to be
-    /// written into task.external) or None if the plugin failed.
-    /// Callers guard with `auth_check`, which already filters out plugins
-    /// that aren't on PATH.
+    /// Run the plugin's push command. Returns the plugin's response
+    /// (stored into task.external) or None if the plugin failed,
+    /// timed out, or exceeded the output cap.
     pub fn push(&self, task: &Task) -> Result<Option<PushResponse>> {
-        let mut child = Command::new(&self.executable)
-            .arg("push")
-            .arg("--task")
-            .arg(&task.id)
-            .arg("--config")
-            .arg(&self.config_path)
-            .arg("--auth-dir")
-            .arg(&self.auth_dir)
+        let child = self
+            .command("push", Some(&task.id))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
-        if let Some(stdin) = child.stdin.as_mut() {
-            let json = serde_json::to_string(task)?;
-            let _ = stdin.write_all(json.as_bytes());
-        }
-        let out = child.wait_with_output()?;
-        if !out.status.success() {
-            eprintln!(
-                "warning: plugin `{}` push failed: {}",
-                self.executable,
-                String::from_utf8_lossy(&out.stderr).trim()
-            );
-            return Ok(None);
-        }
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        let trimmed = stdout.trim();
-        if trimmed.is_empty() {
-            return Ok(None);
-        }
-        match serde_json::from_str::<PushResponse>(trimmed) {
-            Ok(result) => Ok(Some(result)),
-            Err(e) => {
-                eprintln!(
-                    "warning: plugin `{}` push returned invalid JSON: {}",
-                    self.executable, e
-                );
-                Ok(None)
-            }
-        }
+        let json = serde_json::to_string(task)?;
+        let outcome = run_with_limits(child, json.as_bytes())?;
+        self.parse_outcome::<PushResponse>("push", outcome)
     }
 
     /// Run the plugin's sync command. Sends all local tasks on stdin.
-    /// Returns a SyncReport or None if the plugin failed. Callers
-    /// guard with `auth_check`, so `is_available` is already true here.
     pub fn sync(
         &self,
         tasks: &[Task],
         filter: Option<&str>,
     ) -> Result<Option<SyncReport>> {
-        let mut cmd = Command::new(&self.executable);
-        cmd.arg("sync")
-            .arg("--config")
-            .arg(&self.config_path)
-            .arg("--auth-dir")
-            .arg(&self.auth_dir);
-        if let Some(task_id) = filter {
-            cmd.arg("--task").arg(task_id);
-        }
-        let mut child = cmd
+        let child = self
+            .command("sync", filter)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
-        if let Some(stdin) = child.stdin.as_mut() {
-            let json = serde_json::to_string(tasks)?;
-            let _ = stdin.write_all(json.as_bytes());
+        let json = serde_json::to_string(tasks)?;
+        let outcome = run_with_limits(child, json.as_bytes())?;
+        self.parse_outcome::<SyncReport>("sync", outcome)
+    }
+
+    /// Build a `Command` for a plugin subcommand. Puts the child in
+    /// its own process group so the timeout path can kill the whole
+    /// subtree.
+    fn command(&self, subcmd: &str, task_filter: Option<&str>) -> Command {
+        let mut cmd = Command::new(&self.executable);
+        cmd.arg(subcmd);
+        if let Some(id) = task_filter {
+            cmd.arg("--task").arg(id);
         }
-        let out = child.wait_with_output()?;
-        if !out.status.success() {
-            eprintln!(
-                "warning: plugin `{}` sync failed: {}",
-                self.executable,
-                String::from_utf8_lossy(&out.stderr).trim()
-            );
+        cmd.arg("--config")
+            .arg(&self.config_path)
+            .arg("--auth-dir")
+            .arg(&self.auth_dir);
+        cmd.process_group(0);
+        cmd
+    }
+
+    fn parse_outcome<T: for<'de> serde::Deserialize<'de>>(
+        &self,
+        op: &str,
+        outcome: PluginOutcome,
+    ) -> Result<Option<T>> {
+        let exe = &self.executable;
+        if outcome.timed_out {
+            let secs = limits::timeout().as_secs();
+            eprintln!("warning: plugin `{exe}` {op} timed out after {secs}s, killed");
             return Ok(None);
         }
-        let stdout = String::from_utf8_lossy(&out.stdout);
+        if outcome.truncated {
+            let cap = limits::max_stream_bytes();
+            eprintln!("warning: plugin `{exe}` {op} exceeded {cap} bytes of stdout, discarding");
+            return Ok(None);
+        }
+        if !outcome.status.success() {
+            let stderr = String::from_utf8_lossy(&outcome.stderr);
+            eprintln!("warning: plugin `{exe}` {op} failed: {}", stderr.trim());
+            return Ok(None);
+        }
+        let stdout = String::from_utf8_lossy(&outcome.stdout);
         let trimmed = stdout.trim();
         if trimmed.is_empty() {
             return Ok(None);
         }
-        match serde_json::from_str::<SyncReport>(trimmed) {
-            Ok(report) => Ok(Some(report)),
+        match serde_json::from_str::<T>(trimmed) {
+            Ok(v) => Ok(Some(v)),
             Err(e) => {
-                eprintln!(
-                    "warning: plugin `{}` sync returned invalid JSON: {}",
-                    self.executable, e
-                );
+                eprintln!("warning: plugin `{exe}` {op} returned invalid JSON: {e}");
                 Ok(None)
             }
         }
