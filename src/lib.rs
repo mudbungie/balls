@@ -17,6 +17,7 @@
 //! }
 //! ```
 
+pub mod commit_msg;
 pub mod config;
 pub mod delivery;
 pub mod error;

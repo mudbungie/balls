@@ -45,13 +45,13 @@ pub fn review_worktree(
 
         // Squash merge the worker's branch into main. This is the single
         // substantive feature commit — the delivery tag [bl-XXXX] is
-        // embedded so tooling and humans can trace main <-> state branch.
-        // Merge-in above already reconciled main into the worktree, so
-        // this squash cannot itself produce fresh conflicts.
-        let squash_msg = match message {
-            Some(msg) => format!("{} [{}]", msg, id),
-            None => format!("{} [{}]", task.title, id),
-        };
+        // embedded in the title so tooling and humans can trace main
+        // <-> state branch. The message is formatted in standard git
+        // shape (title, blank, body) so `git log --oneline` stays
+        // readable. Merge-in above already reconciled main into the
+        // worktree, so this squash cannot itself produce fresh
+        // conflicts.
+        let squash_msg = crate::commit_msg::format_squash(message, &task.title, id);
         git::git_merge_squash(&store.root, &branch)?;
         git::git_commit(&store.root, &squash_msg)?;
         let delivered_sha = git::git_resolve_sha(&store.root, "HEAD")?;

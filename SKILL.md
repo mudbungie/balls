@@ -63,10 +63,33 @@ Important:
 
 1. Commits all uncommitted work in your worktree
 2. Merges main into your worktree (catches up, surfaces conflicts HERE not on main)
-3. Sets task status to `review`
-4. Merges your branch into main with `--no-ff` (preserves branch topology)
+3. Squash-merges your branch into main as a single feature commit
+4. Writes the delivery hint and flips task status to `review` on the state branch
 
 If step 2 produces a merge conflict, review fails. Resolve the conflict in your worktree, then run `bl review` again.
+
+### Commit messages: 50/72 shape
+
+`bl review -m` uses the first line of the message as the commit
+title and everything after the first newline as the body. The
+delivery tag `[bl-xxxx]` is appended to the title automatically.
+
+Pass a structured message so `git log --oneline` stays readable:
+
+```
+bl review bl-abcd -m "$(cat <<'EOF'
+Short imperative title under ~50 chars
+
+Body paragraph explaining the change in detail. Wrap at ~72.
+Add more paragraphs as needed — everything after the blank line
+is preserved as the commit body.
+EOF
+)"
+```
+
+A single-line `-m "fix foo"` still works — it becomes `fix foo [bl-abcd]`
+with no body. Don't stuff a multi-sentence summary into a single
+line; that produces an unreadable `git log --oneline`.
 
 ## What NOT to Do
 
