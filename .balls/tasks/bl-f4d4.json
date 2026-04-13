@@ -11,9 +11,9 @@
   "links": [],
   "parent": null,
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["architecture"],
   "title": "100% coverage + module split (worktree, lifecycle) + hook enforces coverage",
   "type": "task",
-  "updated_at": "2026-04-13T20:49:03.284147998Z"
+  "updated_at": "2026-04-13T21:07:43.150535387Z"
 }
