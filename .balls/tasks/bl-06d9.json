@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T22:13:15.809939275Z",
-  "delivered_in": null,
+  "delivered_in": "b662a095d32d5cba3440d912851dccbf50567af1",
   "depends_on": [],
   "description": "src/worktree.rs link_shared_state uses 'if !dst.exists()' before symlinking. exists() follows symlinks, so a hostile pre-existing symlink at .balls/local / .balls/tasks / .balls/worktree inside an about-to-be-created bl worktree would be silently adopted. Low practical exposure (git worktree add just ran milliseconds earlier) but the primary ensure_tasks_symlink in store_init.rs uses a strict is_symlink() + error-if-non-symlink check. Mirror that pattern here.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["security"],
   "title": "Worktree claim: strict symlink check in link_shared_state",
   "type": "bug",
-  "updated_at": "2026-04-13T22:31:44.745969578Z"
+  "updated_at": "2026-04-13T22:41:35.647619716Z"
 }
