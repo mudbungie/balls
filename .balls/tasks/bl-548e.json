@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-13T22:13:38.325516097Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "cargo clippy -W clippy::pedantic produces about 40 warnings, mostly format! inlining (format!(\"{}\", x) -> format!(\"{x}\")) and missing # Errors sections on Result-returning public fns. Not correctness issues, but worth a pass for first impressions when users run clippy on a crates.io install. Optional.",
+  "external": {},
+  "id": "bl-548e",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["style"],
+  "title": "Clippy pedantic cleanup",
+  "type": "task",
+  "updated_at": "2026-04-13T22:13:38.325516097Z"
+}
