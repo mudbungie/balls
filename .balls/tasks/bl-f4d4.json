@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f4d4",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T20:48:50.079308024Z",
@@ -11,9 +11,9 @@
   "links": [],
   "parent": null,
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["architecture"],
   "title": "100% coverage + module split (worktree, lifecycle) + hook enforces coverage",
   "type": "task",
-  "updated_at": "2026-04-13T20:48:50.079308024Z"
+  "updated_at": "2026-04-13T20:49:03.284147998Z"
 }
