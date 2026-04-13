@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-13T22:54:13.663997918Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "GitHub Actions deprecated Node.js 20 on 2025-09-19. actions/checkout@v4 emits a deprecation warning and will be forced to Node 24 on 2026-06-02, removed on 2026-09-16. Upgrade .github/workflows/ci.yml and .github/workflows/release-plz.yml from actions/checkout@v4 to @v5. Check if Swatinem/rust-cache and taiki-e/install-action also need upgrades at the same time.",
+  "external": {},
+  "id": "bl-7ec1",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["ci"],
+  "title": "Upgrade actions/checkout to v5 (Node 24)",
+  "type": "task",
+  "updated_at": "2026-04-13T22:54:13.663997918Z"
+}
