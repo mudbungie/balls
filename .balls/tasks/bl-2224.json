@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2224",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T22:13:22.275543846Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["security"],
   "title": "Config validation: clamp id_length + reject escaping worktree_dir",
   "type": "bug",
-  "updated_at": "2026-04-13T22:13:22.275543846Z"
+  "updated_at": "2026-04-13T22:31:27.053706128Z"
 }
