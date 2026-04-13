@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-534c",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T23:40:31.721473486Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["git","ci"],
   "title": "Call git_ensure_user() on every command path",
   "type": "bug",
-  "updated_at": "2026-04-13T23:40:31.721473486Z"
+  "updated_at": "2026-04-13T23:40:58.538259028Z"
 }
