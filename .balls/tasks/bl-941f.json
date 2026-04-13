@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-941f",
+  "claimed_by": "agent-claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T22:13:31.303631576Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["docs"],
   "title": "Doc polish: SKILL.md, bl resolve help, bl show delivery line, beads rewrite",
   "type": "task",
-  "updated_at": "2026-04-13T22:13:31.303631576Z"
+  "updated_at": "2026-04-13T23:13:27.882423903Z"
 }
