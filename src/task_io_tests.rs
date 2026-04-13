@@ -150,3 +150,23 @@ fn delete_notes_file_removes_sibling() {
     delete_notes_file(&path).unwrap();
     assert!(!notes_file.exists());
 }
+
+#[test]
+fn load_notes_file_skips_blank_lines() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("bl-b1ff.json");
+    let t = fresh_task("bl-b1ff");
+    t.save(&path).unwrap();
+    let notes_path = notes_path_for(&path);
+    // Hand-write a notes file with a blank line between real entries;
+    // loader must skip it instead of failing JSON-parse on "".
+    std::fs::write(
+        &notes_path,
+        "{\"ts\":\"2026-01-01T00:00:00Z\",\"author\":\"a\",\"text\":\"one\"}\n\
+         \n\
+         {\"ts\":\"2026-01-01T00:00:01Z\",\"author\":\"a\",\"text\":\"two\"}\n",
+    )
+    .unwrap();
+    let back = Task::load(&path).unwrap();
+    assert_eq!(back.notes.len(), 2);
+}

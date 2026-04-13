@@ -44,6 +44,7 @@ fn task_type_parse_all() {
 fn status_parse_all() {
     assert_eq!(Status::parse("open").unwrap(), Status::Open);
     assert_eq!(Status::parse("in_progress").unwrap(), Status::InProgress);
+    assert_eq!(Status::parse("review").unwrap(), Status::Review);
     assert_eq!(Status::parse("blocked").unwrap(), Status::Blocked);
     assert_eq!(Status::parse("closed").unwrap(), Status::Closed);
     assert_eq!(Status::parse("deferred").unwrap(), Status::Deferred);
@@ -52,12 +53,14 @@ fn status_parse_all() {
 
 #[test]
 fn status_precedence_and_str() {
-    assert!(Status::Closed.precedence() > Status::InProgress.precedence());
+    assert!(Status::Closed.precedence() > Status::Review.precedence());
+    assert!(Status::Review.precedence() > Status::InProgress.precedence());
     assert!(Status::InProgress.precedence() > Status::Blocked.precedence());
     assert!(Status::Blocked.precedence() > Status::Open.precedence());
     assert!(Status::Open.precedence() > Status::Deferred.precedence());
     assert_eq!(Status::Open.as_str(), "open");
     assert_eq!(Status::InProgress.as_str(), "in_progress");
+    assert_eq!(Status::Review.as_str(), "review");
     assert_eq!(Status::Blocked.as_str(), "blocked");
     assert_eq!(Status::Closed.as_str(), "closed");
     assert_eq!(Status::Deferred.as_str(), "deferred");

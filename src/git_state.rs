@@ -66,6 +66,14 @@ pub fn create_tracking_branch(dir: &Path, branch: &str, remote: &str) -> Result<
     Ok(())
 }
 
+/// Return the subject line of every commit reachable from `refname`,
+/// oldest first in output iteration order (git log gives newest first;
+/// we reverse for stable order).
+pub fn log_subjects(dir: &Path, refname: &str) -> Result<Vec<String>> {
+    let out = run(dir, &["log", "--format=%s", refname])?;
+    Ok(out.lines().map(|l| l.to_string()).collect())
+}
+
 /// Create an orphan branch pointing at a single empty-tree commit.
 /// Uses `mktree` + `commit-tree` + `update-ref` so no working tree is
 /// disturbed; safe to call from any checkout.
@@ -91,4 +99,20 @@ pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<(
         &["update-ref", &format!("refs/heads/{}", branch), &commit],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn create_orphan_branch_in_non_git_dir_errors() {
+        let dir = TempDir::new().unwrap();
+        let err = create_orphan_branch(dir.path(), "any", "msg").unwrap_err();
+        match err {
+            BallError::Git(_) => {}
+            other => panic!("expected Git error, got {:?}", other),
+        }
+    }
 }

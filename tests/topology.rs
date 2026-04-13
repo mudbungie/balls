@@ -3,6 +3,7 @@
 mod common;
 
 use common::*;
+use predicates::prelude::*;
 
 /// §14.10 — Naïve visibility: `.balls/tasks/<id>.json` is readable with
 /// stock tools immediately after `bl init` runs on a fresh checkout.
@@ -100,6 +101,37 @@ fn bl_init_self_heals_missing_symlink() {
     assert!(!repo.path().join(".balls/tasks").exists());
     init_in(repo.path());
     assert!(repo.path().join(".balls/tasks").is_symlink());
+}
+
+/// `bl init` must refuse when `.balls/tasks` already exists as a real
+/// file or directory — that's an ambiguous pre-existing state we
+/// don't want to clobber.
+#[test]
+fn bl_init_refuses_when_tasks_path_is_not_a_symlink() {
+    let repo = new_repo();
+    std::fs::create_dir_all(repo.path().join(".balls/tasks")).unwrap();
+    std::fs::write(repo.path().join(".balls/tasks/marker"), b"").unwrap();
+    bl(repo.path())
+        .arg("init")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unexpected non-symlink"));
+}
+
+/// If the state worktree is missing in a non-stealth repo,
+/// `Store::discover` must fail with NotInitialized instead of
+/// silently returning an empty store.
+#[test]
+fn bl_list_fails_when_state_worktree_missing() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let _ = std::fs::remove_file(repo.path().join(".balls/tasks"));
+    let _ = std::fs::remove_dir_all(repo.path().join(".balls/worktree"));
+    bl(repo.path())
+        .arg("list")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not initialized"));
 }
 
 /// Bl worktrees created by `bl claim` inherit the state symlink so a

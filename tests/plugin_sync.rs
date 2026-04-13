@@ -37,6 +37,24 @@ fn story_71_plugin_unavailable_does_not_block_sync() {
 }
 
 #[test]
+fn sync_warns_when_plugin_framework_errors() {
+    // Corrupt the balls config so `run_plugin_sync` errors before
+    // touching any plugin — exercises the outer Err match arm in
+    // cmd_sync, which should warn but not fail the command.
+    let repo = new_repo();
+    init_in(repo.path());
+    std::fs::write(repo.path().join(".balls/config.json"), "not json").unwrap();
+    let out = bl(repo.path()).arg("sync").output().unwrap();
+    assert!(out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("plugin sync failed"),
+        "expected plugin sync failure warning: {}",
+        stderr
+    );
+}
+
+#[test]
 fn plugin_sync_failure_is_warned_not_fatal() {
     let (bin_dir, log) = install_failing_plugin();
     let repo = new_repo();

@@ -19,7 +19,7 @@ pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
         // Plugin response committed to main after worktree creation —
         // merge main into worktree to keep it current.
         let main_branch = balls::git::git_current_branch(&store.root)?;
-        let _ = balls::git::git_merge(&path, &main_branch, None);
+        let _ = balls::git::git_merge(&path, &main_branch);
     }
     println!("{}", path.display());
     Ok(())

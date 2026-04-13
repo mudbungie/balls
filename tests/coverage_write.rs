@@ -91,12 +91,14 @@ fn dep_add_already_present_noop() {
 
 #[test]
 fn dep_tree_status_markers() {
-    // Closed tasks are archived (deleted), so dep tree shows 4 statuses.
+    // Closed tasks are archived out of the tree; dep tree renders the
+    // other five status markers.
     let repo = new_repo();
     init_in(repo.path());
     let ids = [
         create_task(repo.path(), "open-t"),
         create_task(repo.path(), "prog-t"),
+        create_task(repo.path(), "review-t"),
         create_task(repo.path(), "block-t"),
         create_task(repo.path(), "deferred-t"),
     ];
@@ -105,19 +107,35 @@ fn dep_tree_status_markers() {
         .assert()
         .success();
     bl(repo.path())
-        .args(["update", &ids[2], "status=blocked"])
+        .args(["update", &ids[2], "status=review"])
         .assert()
         .success();
     bl(repo.path())
-        .args(["update", &ids[3], "status=deferred"])
+        .args(["update", &ids[3], "status=blocked"])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["update", &ids[4], "status=deferred"])
         .assert()
         .success();
     let out = bl(repo.path()).args(["dep", "tree"]).output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(s.contains("[ ]"));
     assert!(s.contains("[~]"));
+    assert!(s.contains("[r]"));
     assert!(s.contains("[!]"));
     assert!(s.contains("[-]"));
+}
+
+#[test]
+fn bl_skill_dumps_skill_doc() {
+    // `bl skill` emits the embedded SKILL.md verbatim and does not
+    // require a balls-initialized repo.
+    let repo = new_repo();
+    let out = bl(repo.path()).arg("skill").output().unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("balls"));
 }
 
 #[test]
