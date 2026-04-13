@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-13T22:12:52.853726088Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "README still describes the pre-topology model: .balls/tasks/ tracked on main, commits like balls:claim/review/close landing on main, .gitignore missing .balls/tasks + .balls/worktree, no mention of the state branch, delivered_in, symlinks, or half-push detection. Sections to overhaul: File and Folder Layout, Task File Schema (add delivered_in), Worktree Lifecycle (squash merge, state branch writes), Conflict Resolution (most conflicts handled by merge=union now, not the custom resolver), CLI Commands bl init/claim/review/close/sync, Config tasks_dir section. Include a new section on the state branch and delivery tag. User-facing blocker: first thing a crates.io visitor reads. Reference docs/SPEC-orphan-branch-state.md.",
+  "external": {},
+  "id": "bl-1e60",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": ["docs"],
+  "title": "Rewrite README for orphan-branch topology",
+  "type": "task",
+  "updated_at": "2026-04-13T22:12:52.853726088Z"
+}
