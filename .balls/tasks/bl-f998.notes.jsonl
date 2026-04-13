@@ -1,1 +1,0 @@
-{"ts":"2026-04-13T23:24:49.215707797Z","author":"mark","text":"Add timeout-minutes: 6 to the CI test job. 3x the observed healthy runtime (2m0s cold-compile baseline). Prevents future hung jobs (like the bl-2b7e plugin-runner deadlock) from sitting at GitHub's 6-hour default."}
