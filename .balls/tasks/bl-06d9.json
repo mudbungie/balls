@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-06d9",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T22:13:15.809939275Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["security"],
   "title": "Worktree claim: strict symlink check in link_shared_state",
   "type": "bug",
-  "updated_at": "2026-04-13T22:13:15.809939275Z"
+  "updated_at": "2026-04-13T22:31:44.745969578Z"
 }
