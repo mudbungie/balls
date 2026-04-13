@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-5650",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T23:17:44.493055522Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["docs"],
   "title": "SKILL.md: cover reviewer use-cases",
   "type": "task",
-  "updated_at": "2026-04-13T23:17:44.493055522Z"
+  "updated_at": "2026-04-13T23:17:46.538463860Z"
 }
