@@ -145,6 +145,6 @@ fn story_32_update_note_from_worktree() {
         .args(["update", &id, "--note", "progress update"])
         .assert()
         .success();
-    let j = read_task_json(repo.path(), &id);
-    assert_eq!(j["notes"][0]["text"], "progress update");
+    let notes = read_task_notes(repo.path(), &id);
+    assert_eq!(notes[0]["text"], "progress update");
 }

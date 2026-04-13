@@ -221,6 +221,21 @@ pub fn read_task_json(repo_root: &Path, id: &str) -> serde_json::Value {
     serde_json::from_str(&s).expect("parse task json")
 }
 
+/// Read the sibling notes file for a task as a list of JSON values, one
+/// per line. Returns an empty list if the file does not exist.
+pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
+    let path = repo_root
+        .join(".balls/tasks")
+        .join(format!("{}.notes.jsonl", id));
+    let Ok(s) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    s.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).expect("parse note"))
+        .collect()
+}
+
 /// Push current branch (main) to origin.
 pub fn push(cwd: &Path) {
     git(cwd, &["push", "origin", "main"]);

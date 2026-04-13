@@ -41,7 +41,7 @@ fn story_47_sync_conflicting_tasks_auto_resolve() {
     let j_alice = read_task_json(alice.path(), &id);
     let j_bob = read_task_json(bob.path(), &id);
     assert_eq!(j_alice["priority"], j_bob["priority"]);
-    let notes = j_bob["notes"].as_array().unwrap();
+    let notes = read_task_notes(bob.path(), &id);
     assert!(notes.iter().any(|n| n["text"] == "bob note"));
 }
 
@@ -135,8 +135,7 @@ fn story_58_offline_then_resolve() {
 
     bl(bob.path()).arg("sync").assert().success();
 
-    let j = read_task_json(bob.path(), &id);
-    let notes = j["notes"].as_array().unwrap();
+    let notes = read_task_notes(bob.path(), &id);
     assert!(notes.iter().any(|n| n["text"] == "alice"));
     assert!(notes.iter().any(|n| n["text"] == "bob offline"));
 }
@@ -198,8 +197,7 @@ fn sync_push_retry_path_after_race() {
     bl(alice.path()).arg("sync").assert().success();
 
     bl(bob.path()).arg("sync").assert().success();
-    let j = read_task_json(bob.path(), &id);
-    let notes = j["notes"].as_array().unwrap();
+    let notes = read_task_notes(bob.path(), &id);
     assert!(notes.iter().any(|n| n["text"] == "alice v1"));
     assert!(notes.iter().any(|n| n["text"] == "bob v1"));
 }

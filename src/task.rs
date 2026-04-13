@@ -5,8 +5,6 @@ use serde_json::Value;
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs;
-use std::path::Path;
 
 /// Type of work item: epic (container), task (default), or bug.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -250,30 +248,16 @@ impl Task {
         }
     }
 
-    pub fn load(path: &Path) -> Result<Self> {
-        let s = fs::read_to_string(path)?;
-        let t: Task = serde_json::from_str(&s)
-            .map_err(|e| BallError::InvalidTask(format!("{}: {}", path.display(), e)))?;
-        validate_id(&t.id)?;
-        Ok(t)
-    }
-
-    pub fn save(&self, path: &Path) -> Result<()> {
-        let s = serde_json::to_string_pretty(self)?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        // Atomic write via tmp + rename
-        let tmp = path.with_extension("json.tmp");
-        fs::write(&tmp, s + "\n")?;
-        fs::rename(&tmp, path)?;
-        Ok(())
-    }
+    // `save` and `load` live in `task_io.rs` to keep this file focused on
+    // type definitions and to localize the on-disk format in one module.
 
     pub fn touch(&mut self) {
         self.updated_at = Utc::now();
     }
 
+    /// In-memory note append. **Does not persist.** For on-disk persistence,
+    /// use `task_io::append_note_to`, which writes to the append-only
+    /// sibling file and is safe for concurrent writers.
     pub fn append_note(&mut self, author: &str, text: &str) {
         self.notes.push(Note {
             ts: Utc::now(),

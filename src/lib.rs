@@ -24,7 +24,9 @@ pub mod plugin;
 pub mod ready;
 pub mod resolve;
 pub mod store;
+mod store_paths;
 pub mod task;
+pub mod task_io;
 pub mod worktree;
 
 pub use config::Config;

@@ -99,7 +99,7 @@ fn sync_updates_existing_task() {
     assert_eq!(task["description"].as_str().unwrap(), "Updated from remote");
     assert_eq!(task["external"]["mock"]["remote_key"].as_str().unwrap(), "PROJ-100");
 
-    let notes = task["notes"].as_array().unwrap();
+    let notes = read_task_notes(repo.path(), &id);
     assert!(
         notes.iter().any(|n| n["text"].as_str().unwrap().contains("Priority changed by PM")),
         "should have a note from the sync: {:?}",
@@ -134,7 +134,7 @@ fn sync_defers_deleted_task() {
 
     let task = read_task_json(repo.path(), &id);
     assert_eq!(task["status"].as_str().unwrap(), "deferred", "deleted task should be deferred");
-    let notes = task["notes"].as_array().unwrap();
+    let notes = read_task_notes(repo.path(), &id);
     assert!(
         notes.iter().any(|n| n["text"].as_str().unwrap().contains("PROJ-789 deleted")),
         "should have a deletion note: {:?}",
