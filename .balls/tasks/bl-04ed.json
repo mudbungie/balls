@@ -11,9 +11,9 @@
   "links": [],
   "parent": null,
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["architecture"],
   "title": "Sync half-push recovery + coverage + cleanup",
   "type": "task",
-  "updated_at": "2026-04-13T20:02:24.191019432Z"
+  "updated_at": "2026-04-13T20:27:47.152672650Z"
 }
