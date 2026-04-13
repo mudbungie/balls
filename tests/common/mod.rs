@@ -34,7 +34,7 @@ pub fn tmp() -> TempDir {
 
 /// Environment variables that git sets during hooks. Must be cleared so
 /// tests using temp repos are fully isolated from the parent repo.
-const GIT_ENV_VARS: &[&str] = &[
+pub const GIT_ENV_VARS: &[&str] = &[
     "GIT_DIR",
     "GIT_INDEX_FILE",
     "GIT_WORK_TREE",

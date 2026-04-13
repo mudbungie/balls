@@ -74,6 +74,11 @@ impl Store {
         if !stealth && !tasks_dir_path.exists() {
             return Err(BallError::NotInitialized);
         }
+        // A repo with no user.email/user.name causes `git commit` to fail
+        // with "Author identity unknown". Worktrees share the main repo's
+        // config, so seeding identity here covers every command path that
+        // goes through discover (create, claim, review, close, sync, ...).
+        git::git_ensure_user(&main_root)?;
         Ok(Store { root: main_root, stealth, tasks_dir_path })
     }
 
