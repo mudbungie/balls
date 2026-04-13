@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-13T21:50:12.776790841Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Add a 'make hooks' target that runs scripts/install-hooks.sh, and document it in README so new clones know to run it once. Also serves as an end-to-end dogfood of the new 50/72 commit message formatter.",
+  "external": {},
+  "id": "bl-e547",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": ["dx"],
+  "title": "make hooks target + README note",
+  "type": "task",
+  "updated_at": "2026-04-13T21:50:12.776790841Z"
+}
