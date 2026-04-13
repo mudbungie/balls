@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-13T23:52:31.444595571Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Today every command requires the full 'bl-xxxx' id (bl show bl-534c, bl close bl-534c, bl claim bl-534c). The 'bl-' is pure noise — there is exactly one id namespace and the prefix never disambiguates anything. Accept the bare hex form everywhere a task id is taken: bl show 534c, bl close 534c, bl claim 534c, bl update 534c --note ..., bl dep add 534c 1e60, etc. Implementation: normalize once at the CLI boundary (probably a small helper that prepends 'bl-' if the arg matches /^[0-9a-f]+$/ and isn't already prefixed), so the storage layer keeps using full ids and serialized task files are unchanged. Keep accepting the prefixed form for backward compatibility and for copy-paste from delivery tags. Tests: every command that takes an id gets a bare-hex case alongside its existing prefixed case.",
+  "external": {},
+  "id": "bl-e501",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["cli"],
+  "title": "Accept task ids without bl- prefix on the CLI",
+  "type": "task",
+  "updated_at": "2026-04-13T23:52:31.444595571Z"
+}
