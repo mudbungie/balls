@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c9f1",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T22:13:01.230058038Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["architecture"],
   "title": "State worktree lock for concurrent bl invocations",
   "type": "bug",
-  "updated_at": "2026-04-13T22:13:01.230058038Z"
+  "updated_at": "2026-04-13T22:14:06.737769938Z"
 }
