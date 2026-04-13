@@ -7,6 +7,7 @@ use std::env;
 pub mod basic;
 pub mod completions;
 pub mod dep_link;
+mod id_gen;
 pub mod lifecycle;
 pub mod sync;
 mod sync_report;

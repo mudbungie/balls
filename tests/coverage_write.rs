@@ -183,25 +183,21 @@ fn init_with_partially_existing_gitignore() {
 }
 
 #[test]
-fn id_collision_retry_triggered() {
+fn out_of_range_id_length_is_clamped_on_load() {
     let repo = new_repo();
     init_in(repo.path());
     let cfg_path = repo.path().join(".balls/config.json");
     let mut cfg: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&cfg_path).unwrap()).unwrap();
-    cfg["id_length"] = serde_json::json!(1);
+    cfg["id_length"] = serde_json::json!(0);
     std::fs::write(&cfg_path, cfg.to_string()).unwrap();
-    let mut ids = std::collections::HashSet::new();
-    for i in 0..20 {
-        let out = bl(repo.path())
-            .args(["create", &format!("collision-{}", i)])
-            .output()
-            .unwrap();
-        if !out.status.success() {
-            break;
-        }
-        let id = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        assert!(ids.insert(id));
-    }
-    assert!(ids.len() >= 5);
+    // bl create must succeed: the loader clamps id_length to its minimum,
+    // so id generation cannot infinite-loop.
+    let out = bl(repo.path())
+        .args(["create", "after-clamp"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "bl create failed after id_length clamp");
+    let id = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    assert_eq!(id.len(), "bl-".len() + 4);
 }

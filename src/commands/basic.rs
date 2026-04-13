@@ -1,6 +1,7 @@
 //! init, create, list, show, ready — the read-mostly commands.
 
 use super::discover;
+use super::id_gen::generate_unique_id;
 use balls::error::{BallError, Result};
 use balls::git;
 use balls::plugin;
@@ -20,26 +21,6 @@ pub fn cmd_init(stealth: bool) -> Result<()> {
         println!("Initialized balls in {}", store.root.display());
     }
     Ok(())
-}
-
-/// Generate a task id that does not yet exist in the store, retrying with an
-/// incremented timestamp on collision. Returns an error if no unique id can
-/// be found within a reasonable number of attempts.
-pub(crate) fn generate_unique_id(title: &str, store: &Store, id_length: usize) -> Result<String> {
-    let mut now = chrono::Utc::now();
-    let mut id = Task::generate_id(title, now, id_length);
-    let mut tries = 0;
-    while store.task_exists(&id) {
-        tries += 1;
-        if tries > 1000 {
-            return Err(BallError::Other(
-                "could not generate unique task id after 1000 tries".into(),
-            ));
-        }
-        now += chrono::Duration::milliseconds(1);
-        id = Task::generate_id(title, now, id_length);
-    }
-    Ok(id)
 }
 
 pub fn cmd_create(
