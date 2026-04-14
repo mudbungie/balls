@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-61b3",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-14T00:02:19.471352746Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["ci","plugin"],
   "title": "Plugin runner: kill_process_group should use libc::killpg",
   "type": "bug",
-  "updated_at": "2026-04-14T00:02:19.471352746Z"
+  "updated_at": "2026-04-14T00:02:21.737877624Z"
 }
