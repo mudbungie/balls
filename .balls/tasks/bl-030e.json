@@ -1,0 +1,23 @@
+{
+  "id": "bl-030e",
+  "title": "Spec: orphan-branch task state (eliminate balls-bookkeeping commits from main)",
+  "type": "task",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Design spec for moving task state to an orphan branch (balls/tasks) with a symlinked worktree, so the main git log contains only feature commits. Covers: topology, text-mergeable schema invariant, delivery-tag ground truth, push ordering, stealth mode carveout, hand-edit workflow. First step in spec -> integ tests -> code cycle. No code changes in this task; produces SPEC.md only.",
+  "created_at": "2026-04-13T18:54:17.711107716Z",
+  "updated_at": "2026-04-13T18:54:17.711107716Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "spec",
+    "architecture"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
