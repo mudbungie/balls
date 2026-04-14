@@ -2,32 +2,44 @@
 
 You are using **balls** (`bl`), a git-native task tracker. Tasks are JSON files in the repo. Worktrees isolate your work. Git provides sync.
 
-## Core Workflow
+## Roles
+
+You may be acting as a **worker**, a **reviewer**, or both across different sessions on the same task. The commands and the rules differ — read the section that matches what the user asked you to do.
+
+- **Worker**: `bl claim` → work in the worktree → `bl review`. Never close your own task.
+- **Reviewer**: `bl show` / `git show` → `bl close` (approve) or `bl update status=in_progress` (reject). `bl close` must run from the repo root, **not** from inside the worktree.
+
+If unsure: a worker is told to *do* something, a reviewer is told to *check*, *approve*, or *land* something.
+
+## Session Start
+
+Run `bl prime` at the start of every session:
 
 ```
-bl prime --as YOUR_IDENTITY    # see what's ready and what you own
-bl claim TASK_ID               # get a worktree, start working
-# ... do your work in the worktree ...
-bl review TASK_ID -m "summary" # submit for review (safe — worktree stays)
+bl prime --as YOUR_IDENTITY --json
 ```
 
-**Never run `bl close`.** Close is a reviewer/supervisor operation. Your job ends at `bl review`.
+It syncs with the remote and returns:
+- **claimed**: tasks you already own — resume in their worktrees.
+- **ready**: open tasks available to claim, sorted by priority.
 
-## Commands You'll Use
+Reviewers also want `bl list --status review` to see what's waiting on a decision.
 
-| Command | What it does | When to use it |
-|---------|-------------|----------------|
-| `bl prime --as ID` | Sync, show ready tasks + your claimed tasks | Session start |
-| `bl prime --as ID --json` | Same, machine-readable | Session start (structured) |
-| `bl claim TASK_ID` | Create worktree, set status=in_progress | Starting a task |
-| `bl review TASK_ID -m "msg"` | Merge work to main, set status=review | Done with a task |
-| `bl show TASK_ID` | View task details | Checking requirements |
-| `bl show TASK_ID --json` | Same, machine-readable | Programmatic access |
-| `bl ready` | List tasks ready to claim | Finding work |
-| `bl ready --json` | Same, machine-readable | Finding work (structured) |
-| `bl list` | List all non-closed tasks | Overview |
-| `bl update TASK_ID --note "text"` | Add a note | Progress updates |
-| `bl dep tree` | Show dependency graph | Understanding blockers |
+## Commands
+
+| Command | What it does |
+|---------|-------------|
+| `bl prime --as ID` [`--json`] | Sync, show ready + your claimed tasks. Run at session start. |
+| `bl ready` [`--json`] | List open tasks ready to claim. |
+| `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
+| `bl show TASK_ID` [`--json`] | Task details, including `delivered_in` sha after review. |
+| `bl claim TASK_ID` | Worker: create worktree, set status=in_progress. |
+| `bl review TASK_ID -m "msg"` | Worker: squash to main, set status=review. Worktree stays. |
+| `bl close TASK_ID -m "msg"` | Reviewer: approve. Archive task, remove worktree + branch. **Repo root only.** |
+| `bl update TASK_ID status=in_progress --note "..."` | Reviewer: reject. Bounces task back to the worker. |
+| `bl update TASK_ID --note "text"` | Add a note (any role). |
+| `bl drop TASK_ID` | Release a claim, remove worktree (worker self-recovery). |
+| `bl dep tree` | Show dependency graph. |
 
 ## Task Lifecycle
 
@@ -37,42 +49,44 @@ open ──claim──> in_progress ──review──> review ──close──
                      └────── reject ──────┘
 ```
 
-- **open**: Available to claim.
-- **in_progress**: You own it. Work in the worktree.
-- **review**: You submitted. Worktree stays. Wait for approval.
-- **closed/archived**: Task file deleted from the state branch's HEAD (not main). Work is in git history.
+- **open**: available to claim.
+- **in_progress**: claimed; the worker owns it.
+- **review**: worker submitted; waiting on a reviewer. Worktree still exists.
+- **closed/archived**: task file deleted from the state branch's HEAD (not main). The work itself lives in main's git history.
 
-If a reviewer rejects (sets status back to `in_progress`), resume in your existing worktree. Your next `bl review` will merge main first.
+A reject sets status back to `in_progress`. The worker resumes in their existing worktree; their next `bl review` re-merges main automatically.
 
-## Working in a Worktree
-
-When you `bl claim`, the output is the worktree path. **Change to that directory** to work:
+## Worker Workflow
 
 ```
-/home/user/repo/.balls-worktrees/bl-a1b2
+bl prime --as YOUR_ID
+bl claim TASK_ID            # prints worktree path
+cd <worktree path>          # work happens HERE, never in the main repo
+# ... edit, commit ...
+bl review TASK_ID -m "msg"  # submit; worktree stays for rework
 ```
 
-The worktree is a full checkout on a branch named `work/TASK_ID`. All your changes are isolated from main and other tasks.
+Worktrees live at `.balls-worktrees/bl-xxxx`, on branch `work/TASK_ID`, with `.balls/local` symlinked for shared lock state.
 
 Important:
-- **Commit your work** before running `bl review`. Review will `git add -A` and commit anything uncommitted, but explicit commits give you better history.
-- **Don't modify files in the main repo** while working in a worktree. Use the worktree.
-- The worktree has `.balls/local` symlinked for shared lock/claim state.
+- **Commit your work** before `bl review`. Review will `git add -A` anything left behind, but explicit commits give better history.
+- **Don't modify files in the main repo** while working on a claimed task. Use the worktree.
+- **Don't close your own task.** `bl review` is the worker's exit; the reviewer runs `bl close`.
+- **Don't `bl update TASK_ID status=closed`** on a claimed task — it's rejected. Use `bl review`.
+- **Don't delete `.balls/` files manually.** Use `bl drop` to release a claim, `bl repair --fix` to clean up orphans.
 
-## What `bl review` Does
+### What `bl review` does
 
-1. Commits all uncommitted work in your worktree
-2. Merges main into your worktree (catches up, surfaces conflicts HERE not on main)
-3. Squash-merges your branch into main as a single feature commit
-4. Writes the delivery hint and flips task status to `review` on the state branch
+1. Commits all uncommitted work in your worktree.
+2. Merges main into your worktree (catches up; conflicts surface HERE, not on main).
+3. Squash-merges your branch into main as a single feature commit.
+4. Writes the delivery hint and flips status to `review` on the state branch.
 
-If step 2 produces a merge conflict, review fails. Resolve the conflict in your worktree, then run `bl review` again.
+If step 2 conflicts, review fails. Resolve in the worktree, then retry.
 
 ### Commit messages: 50/72 shape
 
-`bl review -m` uses the first line of the message as the commit
-title and everything after the first newline as the body. The
-delivery tag `[bl-xxxx]` is appended to the title automatically.
+`bl review -m` uses the first line as the commit title and everything after the first newline as the body. The delivery tag `[bl-xxxx]` is appended to the title automatically.
 
 Pass a structured message so `git log --oneline` stays readable:
 
@@ -87,30 +101,33 @@ EOF
 )"
 ```
 
-A single-line `-m "fix foo"` still works — it becomes `fix foo [bl-abcd]`
-with no body. Don't stuff a multi-sentence summary into a single
-line; that produces an unreadable `git log --oneline`.
+A single-line `-m "fix foo"` becomes `fix foo [bl-abcd]` with no body. Don't stuff a multi-sentence summary into a single line; that produces an unreadable `git log --oneline`.
 
-## What NOT to Do
+## Reviewer Workflow
 
-- **Don't run `bl close`** — that's for reviewers, and it rejects if you're in the worktree.
-- **Don't run `bl update TASK_ID status=closed`** — on claimed tasks this is rejected. Use `bl review`.
-- **Don't edit files on main directly** — use worktrees. Other workers may be closing tasks on main concurrently.
-- **Don't delete `.balls/` files manually** — use `bl drop` to release a claim, `bl repair --fix` to clean up orphans.
-
-## Session Start
-
-Run `bl prime` at the start of every session:
+A task in `review` status is waiting for a reviewer to approve or reject it. The work has already squashed to main; the reviewer's job is to accept it or send it back.
 
 ```
-bl prime --as agent-alpha --json
+bl list --status review                       # find tasks awaiting review
+bl show TASK_ID                               # status, claimant, delivered_in sha
+git show <delivered_in sha>                   # inspect what landed on main
+# (optional) peek at the worker's worktree state without editing:
+#   ls .balls-worktrees/bl-xxxx
+cd <repo root>                                # MUST be at repo root for close
+
+# Approve:
+bl close TASK_ID -m "approval note"
+
+# Reject:
+bl update TASK_ID status=in_progress --note "what to fix" --as reviewer
 ```
 
-This syncs with the remote and returns:
-- **claimed**: Tasks you already own (resume in existing worktree)
-- **ready**: Tasks available to claim (sorted by priority)
-
-If you have a claimed task, resume in its worktree. If not, claim the top ready task.
+Important:
+- **`bl close` must run from the repo root.** It removes the very worktree you'd be standing in; running from inside that worktree errors out with "cannot close from within the worktree".
+- **Don't edit files inside the worker's worktree** to fix their work. Reject with notes and let the worker iterate. Their lock state and history stay clean.
+- **Approval is durable.** Close archives the task file from the state branch HEAD and removes the worker's worktree + `work/TASK_ID` branch. The squash commit on main carries the work.
+- **Rejection keeps the worktree.** The worker resumes in place; their next `bl review` re-merges main automatically.
+- If the work needs to be undone entirely instead of accepted, that's a `git revert` of the delivered sha on main, not a `bl close` thing — close still archives the task.
 
 ## Creating Tasks
 
@@ -150,6 +167,7 @@ Set `BALLS_IDENTITY` in your environment or use `--as` on commands that accept i
 | Situation | Solution |
 |-----------|----------|
 | Merge conflict on `bl review` | Resolve in worktree, run `bl review` again |
+| `bl close` errors "cannot close from within the worktree" | `cd` to the repo root, retry |
 | Task claimed by someone else | Pick another from `bl ready` |
 | Worktree in bad state | `bl drop TASK_ID --force` (loses uncommitted work) |
 | Orphaned claims/worktrees | `bl repair --fix` |
