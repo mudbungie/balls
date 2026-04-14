@@ -122,7 +122,7 @@ pub enum Command {
         sub: DepCmd,
     },
 
-    /// Manage typed links (relates_to, duplicates, supersedes, replies_to).
+    /// Manage typed links (relates_to, duplicates, supersedes, replies_to, gates).
     Link {
         #[command(subcommand)]
         sub: LinkCmd,
@@ -189,7 +189,8 @@ pub enum DepCmd {
 
 #[derive(Subcommand, Debug)]
 pub enum LinkCmd {
-    /// Add a typed link: relates_to, duplicates, supersedes, replies_to.
+    /// Add a typed link: relates_to, duplicates, supersedes, replies_to, gates.
+    /// `gates` blocks the source task from closing until the target closes.
     Add {
         task: String,
         link_type: String,
