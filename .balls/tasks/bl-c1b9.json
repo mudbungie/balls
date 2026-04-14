@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-14T16:44:32.349050725Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Gate child for bl-3662. Verify that the new 'Scripting with bl' section in SKILL.md accurately describes the stdout contract of bl create, the --parent flag, epic-as-label semantics, and bl init bootstrap behavior against the actual binary. Close once the audit is signed off.",
+  "external": {},
+  "id": "bl-c1b9",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "Audit: SKILL.md scripting section matches binary behavior",
+  "type": "task",
+  "updated_at": "2026-04-14T16:44:32.349050725Z"
+}
