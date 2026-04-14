@@ -78,6 +78,98 @@ fn story_75_not_initialized() {
         .stderr(predicate::str::contains("not initialized"));
 }
 
+/// Regression: bl must work on a system with no git identity configured,
+/// neither globally nor in the local repo. Previously git_ensure_user()
+/// only ran inside Store::init(), so post-init commands (create, claim,
+/// review, ...) hit `git commit` with no identity and failed (or, in CI
+/// hooks that swallow stderr, hung waiting on a prompt).
+#[test]
+fn fresh_install_no_git_identity() {
+    use assert_cmd::Command;
+    use std::process::Command as StdCommand;
+
+    let home = tmp();
+    let dir = tmp();
+
+    // Initialize a git repo without configuring any user.email/user.name.
+    // Crucially, we also point HOME at an empty dir and silence any
+    // global/system gitconfig the test machine may have, so we truly
+    // simulate a fresh box.
+    let mut g = StdCommand::new("git");
+    g.current_dir(dir.path())
+        .args(["init", "-q", "-b", "main"])
+        .env("HOME", home.path())
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    for var in GIT_ENV_VARS {
+        g.env_remove(var);
+    }
+    assert!(g.output().expect("git init").status.success());
+
+    let bl_fresh = || {
+        let mut c = Command::cargo_bin("bl").unwrap();
+        c.current_dir(dir.path())
+            .env("BALLS_IDENTITY", "test-user")
+            .env("HOME", home.path())
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null");
+        for var in GIT_ENV_VARS {
+            c.env_remove(var);
+        }
+        c
+    };
+
+    bl_fresh().arg("init").assert().success();
+
+    // Clear any local identity that `bl init` set. This proves the fix:
+    // `Store::discover()` must re-seed identity on every command path,
+    // not rely on init having done it once. Simulates a fresh system,
+    // a wiped repo config, or any path where init's seed didn't stick.
+    let mut clear_email = StdCommand::new("git");
+    clear_email
+        .current_dir(dir.path())
+        .args(["config", "--local", "--unset", "user.email"])
+        .env("HOME", home.path())
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    for var in GIT_ENV_VARS {
+        clear_email.env_remove(var);
+    }
+    let _ = clear_email.output();
+    let mut clear_name = StdCommand::new("git");
+    clear_name
+        .current_dir(dir.path())
+        .args(["config", "--local", "--unset", "user.name"])
+        .env("HOME", home.path())
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    for var in GIT_ENV_VARS {
+        clear_name.env_remove(var);
+    }
+    let _ = clear_name.output();
+
+    bl_fresh().args(["create", "fresh task"]).assert().success();
+
+    // Find the new task id and exercise the rest of the lifecycle so
+    // every command path runs against a repo whose only identity comes
+    // from git_ensure_user on discover.
+    let ready = bl_fresh().args(["ready", "--json"]).output().unwrap();
+    assert!(ready.status.success());
+    let stdout = String::from_utf8_lossy(&ready.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let id = v[0]["id"].as_str().expect("ready task id").to_string();
+
+    bl_fresh().args(["claim", &id]).assert().success();
+    bl_fresh()
+        .args(["update", &id, "--note", "progress"])
+        .assert()
+        .success();
+    bl_fresh()
+        .args(["review", &id, "-m", "fresh review"])
+        .assert()
+        .success();
+}
+
 #[test]
 fn stealth_init_creates_external_tasks_dir() {
     let repo = new_repo();
