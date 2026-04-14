@@ -40,7 +40,7 @@ open ──claim──> in_progress ──review──> review ──close──
 - **open**: Available to claim.
 - **in_progress**: You own it. Work in the worktree.
 - **review**: You submitted. Worktree stays. Wait for approval.
-- **closed/archived**: Task file deleted from HEAD. Work is in git history.
+- **closed/archived**: Task file deleted from the state branch's HEAD (not main). Work is in git history.
 
 If a reviewer rejects (sets status back to `in_progress`), resume in your existing worktree. Your next `bl review` will merge main first.
 
