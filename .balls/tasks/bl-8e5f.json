@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8e5f",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-14T06:53:17.102443269Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-c97d",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["gates","tests"],
   "title": "Test coverage review: gates feature",
   "type": "task",
-  "updated_at": "2026-04-14T06:53:17.102443269Z"
+  "updated_at": "2026-04-14T07:47:12.699736317Z"
 }
