@@ -1,0 +1,22 @@
+{
+  "id": "bl-5308",
+  "title": "Text-mergeable task file schema",
+  "type": "task",
+  "priority": 1,
+  "status": "open",
+  "parent": null,
+  "depends_on": [],
+  "description": "Implement SPEC section 5 (schema invariant): serialize task files so git text merge is clean on disjoint-field edits, and split notes out to a sibling <id>.notes.jsonl append-only file. Keys sorted, one field per line, trailing newline, stable ordering. Unit tests for roundtrip. Fixture tests that do real git merges on two divergent branches (disjoint fields -> clean; concurrent notes append -> clean). No topology changes yet; task files still live in main. Reference: docs/SPEC-orphan-branch-state.md.",
+  "created_at": "2026-04-13T19:06:20.688497973Z",
+  "updated_at": "2026-04-13T19:06:20.688497973Z",
+  "closed_at": null,
+  "claimed_by": null,
+  "branch": null,
+  "tags": [
+    "architecture"
+  ],
+  "notes": [],
+  "links": [],
+  "closed_children": [],
+  "external": {}
+}
