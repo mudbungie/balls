@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-e501",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T23:52:31.444595571Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["cli"],
   "title": "Accept task ids without bl- prefix on the CLI",
   "type": "task",
-  "updated_at": "2026-04-13T23:52:31.444595571Z"
+  "updated_at": "2026-04-14T06:52:52.287604480Z"
 }
