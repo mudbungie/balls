@@ -88,21 +88,23 @@ fn story_10_list_open_tasks() {
 
 #[test]
 fn story_11_list_filtered_by_status() {
+    // Titles deliberately use non-hex characters: 4-hex bl-XXXX IDs in
+    // the listing can otherwise collide with short titles like "aa"/"bb".
     let repo = new_repo();
     init_in(repo.path());
-    let a = create_task(repo.path(), "aa");
+    let a = create_task(repo.path(), "blocked-one");
     bl(repo.path())
         .args(["update", &a, "status=blocked"])
         .assert()
         .success();
-    create_task(repo.path(), "bb");
+    create_task(repo.path(), "open-one");
     let out = bl(repo.path())
         .args(["list", "--status", "blocked"])
         .output()
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    assert!(s.contains("aa"));
-    assert!(!s.contains("bb"));
+    assert!(s.contains("blocked-one"));
+    assert!(!s.contains("open-one"));
 }
 
 #[test]
