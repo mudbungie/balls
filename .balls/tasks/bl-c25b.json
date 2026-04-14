@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-14T06:26:45.685232176Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Agents currently have to run 'bl create --help' to figure out how to file tasks because SKILL.md only covers the claim->review workflow. Add a section (or table row) documenting 'bl create TITLE [-d DESCRIPTION] [-p PRIORITY] [-t TYPE] [--parent ID] [--dep ID] [--tag TAG]' so agents can file tasks without a help round-trip.",
+  "external": {},
+  "id": "bl-c25b",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": [],
+  "title": "SKILL.md: document bl create for agents",
+  "type": "task",
+  "updated_at": "2026-04-14T06:26:45.685232176Z"
+}
