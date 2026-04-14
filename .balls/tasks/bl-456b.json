@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-14T00:52:33.220723445Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "The release-plz.yml workflow sets 'command: release-plz' on the release-plz/action@v0.5 step. The valid values for that input are empty (run both release-pr and release), 'release-pr', or 'release'. 'release-plz' matches neither condition in the action's shell script, so both release-pr and release branches are skipped — the action prints 'Using forge github' and exits without ever running release-plz. Result: every release-plz workflow run completes 'successfully' in 15s but never opens a PR, tags, or publishes.\n\nFix: remove the 'command: release-plz' line from .github/workflows/release-plz.yml. Let it default to empty so the action runs both release-pr and release. Verify by inspecting the next release-plz run log — it should print '-- Running release-plz release-pr --' followed by JSON output, and open a PR bumping Cargo.toml + regenerating CHANGELOG.md.",
+  "external": {},
+  "id": "bl-456b",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": ["ci","release"],
+  "title": "release-plz workflow: drop invalid command input",
+  "type": "bug",
+  "updated_at": "2026-04-14T00:52:33.220723445Z"
+}
