@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-14T06:53:01.888402579Z",
+  "delivered_in": null,
+  "depends_on": ["bl-c97d"],
+  "description": "Security review of the gates feature (parent: bl-c97d).\n\nFocus areas:\n- Can a malicious or buggy task file with crafted 'gates' links cause panics, infinite loops, or unbounded recursion in the dep/gate resolver?\n- Does the 'bl close' gate check have any TOCTOU window where a child is closed concurrently while the parent is being closed?\n- Lenient LinkType deserialization (Unknown(String)) — confirm the catch-all can't be abused to smuggle data into other fields or break round-trip serialization.\n- Confirm gate enforcement is bypassed only through documented paths (no silent --force flag added without review).",
+  "external": {},
+  "id": "bl-00ef",
+  "links": [],
+  "parent": "bl-c97d",
+  "priority": 2,
+  "status": "open",
+  "tags": ["gates","audit"],
+  "title": "Security audit: gates link type",
+  "type": "task",
+  "updated_at": "2026-04-14T06:53:01.888402579Z"
+}
