@@ -32,6 +32,7 @@ Reviewers also want `bl list --status review` to see what's waiting on a decisio
 | `bl ready` [`--json`] | List open tasks ready to claim. |
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
 | `bl show TASK_ID` [`--json`] | Task details, including `delivered_in` sha after review. |
+| `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--dep ID] [--tag T]` | File a new task. See **Creating Tasks** below. |
 | `bl claim TASK_ID` | Worker: create worktree, set status=in_progress. |
 | `bl review TASK_ID -m "msg"` | Worker: squash to main, set status=review. Worktree stays. |
 | `bl close TASK_ID -m "msg"` | Reviewer: approve. Archive task, remove worktree + branch. **Repo root only.** |
