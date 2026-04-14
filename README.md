@@ -86,6 +86,38 @@ for t in balls::ready::ready_queue(&store.all_tasks().unwrap()) {
 
 ---
 
+## Releasing
+
+Releases to [crates.io](https://crates.io/crates/balls) are automated via [release-plz](https://release-plz.dev/) and GitHub Actions. The normal flow:
+
+1. Merge feature PRs to `main` using the project's usual commit style — a short title with a `[bl-xxxx]` trailer, optionally followed by a body. Every non-`balls:` commit is picked up by release-plz's changelog.
+2. On every push to `main`, `.github/workflows/release-plz.yml` opens (or updates) a **Release PR** that bumps `Cargo.toml`, regenerates `CHANGELOG.md`, and lists the commits going into the release. Because commits are not Conventional Commits, release-plz defaults to patch bumps — hand-edit the version in the Release PR if you want a minor or major bump.
+3. Review the Release PR. CI (`.github/workflows/ci.yml`) runs `cargo test`, `cargo clippy`, line-length + 100% coverage checks, and `cargo publish --dry-run` against it.
+4. Merge the Release PR. release-plz tags `vX.Y.Z`, creates a GitHub release, and publishes to crates.io.
+
+Commit-parser and semver-check behavior is configured in `release-plz.toml` at the repo root.
+
+### One-time setup
+
+- Add a crates.io API token as the repo secret `CARGO_REGISTRY_TOKEN` (Settings → Secrets and variables → Actions). Scope it to `publish-update` for this crate.
+- Under Settings → Actions → General → Workflow permissions, allow GitHub Actions to create and approve pull requests.
+
+### Manual release (fallback)
+
+If you need to cut a release without release-plz:
+
+```bash
+# on main, with a clean tree
+cargo test && cargo publish --dry-run
+# bump version in Cargo.toml, update CHANGELOG.md
+git commit -am "Release vX.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+cargo publish
+```
+
+---
+
 ## Principles
 
 1. **Git is the database.** Task files are committed, pushed, pulled, and merged like code. No external storage engine.
