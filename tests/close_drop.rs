@@ -48,12 +48,18 @@ fn story_34_close_with_message_is_in_git_history() {
         .args(["close", &id, "-m", "all done"])
         .assert()
         .success();
-    // Task is archived; the close commit preserves the data in git history.
-    // Verify archival.
+    // Archived: task file gone, main log clean, state branch has the close.
     assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
-    // The close commit message references the task (close+archive combined)
-    let log = git(repo.path(), &["log", "--oneline"]);
-    assert!(log.contains(&format!("close {}", id)));
+    let main_log = git(repo.path(), &["log", "--oneline", "main"]);
+    assert!(
+        !main_log.contains(&format!("close {}", id)),
+        "main must not carry balls close commits: {}", main_log
+    );
+    let state_log = git(repo.path(), &["log", "--oneline", "balls/tasks"]);
+    assert!(
+        state_log.contains(&format!("close {}", id)),
+        "state branch should record the close: {}", state_log
+    );
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
+use crate::store_init::{ensure_main_gitignore, setup_state_branch, STATE_WORKTREE_REL};
 use crate::store_paths::{find_main_root, resolve_tasks_dir, stealth_tasks_dir};
 use crate::task::{self, Task};
 use crate::task_io;
@@ -52,6 +53,13 @@ impl Store {
             return Err(BallError::NotInitialized);
         }
         let (tasks_dir_path, stealth) = resolve_tasks_dir(&main_root);
+        // Non-stealth mode requires the state worktree to exist. If it's
+        // missing, the user cloned without running `bl init` — fail fast
+        // with a clear message instead of letting reads/writes land in
+        // limbo.
+        if !stealth && !tasks_dir_path.exists() {
+            return Err(BallError::NotInitialized);
+        }
         Ok(Store { root: main_root, stealth, tasks_dir_path })
     }
 
@@ -63,7 +71,6 @@ impl Store {
         let balls_dir = repo_root.join(".balls");
         let plugins_dir = balls_dir.join("plugins");
         let local_dir = balls_dir.join("local");
-
         let already = balls_dir.join("config.json").exists();
 
         fs::create_dir_all(&plugins_dir)?;
@@ -76,72 +83,28 @@ impl Store {
             Config::default().save(&config_path)?;
         }
 
-        // Stealth: write external tasks dir to .balls/local/tasks_dir
         let (tasks_dir_path, is_stealth) = if stealth {
             let ext = stealth_tasks_dir(&repo_root);
             fs::create_dir_all(&ext)?;
             fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
             (ext, true)
         } else {
-            let td = balls_dir.join("tasks");
-            fs::create_dir_all(&td)?;
-            let keep = td.join(".gitkeep");
-            if !keep.exists() {
-                fs::write(&keep, "")?;
-            }
-            // Mark notes sidecars as union-merge so concurrent appends from
-            // two workers merge cleanly under stock git. `union` is a
-            // built-in git driver; no custom tooling required.
-            let attrs = td.join(".gitattributes");
-            let attrs_line = "*.notes.jsonl merge=union\n";
-            let needs_write = match fs::read_to_string(&attrs) {
-                Ok(s) => !s.contains("*.notes.jsonl merge=union"),
-                Err(_) => true,
-            };
-            if needs_write {
-                fs::write(&attrs, attrs_line)?;
-            }
-            (td, false)
+            setup_state_branch(&repo_root)?;
+            (repo_root.join(".balls/worktree/.balls/tasks"), false)
         };
 
-        // Ensure .gitignore entries
-        let gitignore_path = repo_root.join(".gitignore");
-        let mut gitignore = if gitignore_path.exists() {
-            fs::read_to_string(&gitignore_path)?
-        } else {
-            String::new()
-        };
-        let need_local = !gitignore.lines().any(|l| l.trim() == ".balls/local");
-        let need_wt = !gitignore.lines().any(|l| l.trim() == ".balls-worktrees");
-        if need_local || need_wt {
-            if !gitignore.is_empty() && !gitignore.ends_with('\n') {
-                gitignore.push('\n');
-            }
-            if need_local {
-                gitignore.push_str(".balls/local\n");
-            }
-            if need_wt {
-                gitignore.push_str(".balls-worktrees\n");
-            }
-            fs::write(&gitignore_path, gitignore)?;
-        }
-
+        ensure_main_gitignore(&repo_root, is_stealth)?;
         let plugins_keep = plugins_dir.join(".gitkeep");
         if !plugins_keep.exists() {
             fs::write(&plugins_keep, "")?;
         }
 
-        let mut paths: Vec<&Path> = vec![
+        let paths: Vec<&Path> = vec![
             Path::new(".balls/config.json"),
             Path::new(".balls/plugins/.gitkeep"),
             Path::new(".gitignore"),
         ];
-        if !is_stealth {
-            paths.push(Path::new(".balls/tasks/.gitkeep"));
-            paths.push(Path::new(".balls/tasks/.gitattributes"));
-        }
         git::git_add(&repo_root, &paths)?;
-
         let msg = if already { "balls: reinitialize" } else { "balls: initialize" };
         git::git_commit(&repo_root, msg)?;
 
@@ -154,6 +117,15 @@ impl Store {
 
     pub fn tasks_dir(&self) -> PathBuf {
         self.tasks_dir_path.clone()
+    }
+
+    /// Directory where git operations against task state should run.
+    /// In non-stealth mode this is the state worktree (commits land on
+    /// the `balls/tasks` orphan branch, never on main). In stealth mode
+    /// the concept is meaningless — callers should branch on `stealth`
+    /// before using this.
+    pub fn state_worktree_dir(&self) -> PathBuf {
+        self.root.join(STATE_WORKTREE_REL)
     }
 
     pub fn local_dir(&self) -> PathBuf {
@@ -218,46 +190,47 @@ impl Store {
         Ok(())
     }
 
-    /// Stage and commit a task file change. No-op in stealth mode.
-    /// Also stages the sibling notes file if it exists.
+    /// Stage and commit a task file change on the state branch. No-op
+    /// in stealth mode. Also stages the sibling notes file if it exists.
     pub fn commit_task(&self, id: &str, message: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
+        let dir = self.state_worktree_dir();
         let rel_json = PathBuf::from(".balls/tasks").join(format!("{}.json", id));
-        git::git_add(&self.root, &[rel_json.as_path()])?;
+        git::git_add(&dir, &[rel_json.as_path()])?;
         let notes_abs = task_io::notes_path_for(&self.task_path(id)?);
         if notes_abs.exists() {
             let rel_notes =
                 PathBuf::from(".balls/tasks").join(format!("{}.notes.jsonl", id));
-            git::git_add(&self.root, &[rel_notes.as_path()])?;
+            git::git_add(&dir, &[rel_notes.as_path()])?;
         }
-        git::git_commit(&self.root, message)?;
+        git::git_commit(&dir, message)?;
         Ok(())
     }
 
-    /// Commit whatever is already staged. No-op in stealth mode.
+    /// Commit whatever is already staged on the state branch. No-op in
+    /// stealth mode.
     pub fn commit_staged(&self, message: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
-        git::git_commit(&self.root, message)?;
+        git::git_commit(&self.state_worktree_dir(), message)?;
         Ok(())
     }
 
-    /// Git-rm a task file. No-op in stealth mode.
+    /// Git-rm a task file on the state branch. No-op in stealth mode.
     /// Also removes the sibling notes file from the index if tracked.
     pub fn rm_task_git(&self, id: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
+        let dir = self.state_worktree_dir();
         let rel_json = PathBuf::from(format!(".balls/tasks/{}.json", id));
-        git::git_rm(&self.root, &[rel_json.as_path()])?;
+        git::git_rm(&dir, &[rel_json.as_path()])?;
         let rel_notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
-        let abs_notes = self.root.join(&rel_notes);
-        if abs_notes.exists() {
-            // Best-effort: notes file may not be tracked if never committed.
-            let _ = git::git_rm(&self.root, &[rel_notes.as_path()]);
+        if dir.join(&rel_notes).exists() {
+            let _ = git::git_rm(&dir, &[rel_notes.as_path()]);
         }
         Ok(())
     }

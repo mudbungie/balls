@@ -20,10 +20,12 @@
 pub mod config;
 pub mod error;
 pub mod git;
+pub mod git_state;
 pub mod plugin;
 pub mod ready;
 pub mod resolve;
 pub mod store;
+mod store_init;
 mod store_paths;
 pub mod task;
 pub mod task_io;

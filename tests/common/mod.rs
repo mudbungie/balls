@@ -239,6 +239,18 @@ pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
 /// Push current branch (main) to origin.
 pub fn push(cwd: &Path) {
     git(cwd, &["push", "origin", "main"]);
+    // Push the state branch too if it exists — mirrors `bl sync`, so
+    // tests that round-trip tasks across clones don't need to call sync.
+    if git_ok(
+        cwd,
+        &["rev-parse", "--verify", "--quiet", "refs/heads/balls/tasks"],
+    ) {
+        let _ = StdCommand::new("git")
+            .current_dir(cwd)
+            .args(["push", "origin", "balls/tasks"])
+            .env_remove("GIT_DIR")
+            .output();
+    }
 }
 
 /// Pull from origin (fetch + merge).

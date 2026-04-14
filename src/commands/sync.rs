@@ -40,26 +40,38 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
         eprintln!("warning: fetch failed, continuing offline");
     }
 
-    let branch = git::git_current_branch(&store.root)?;
-    let remote_branch = format!("{}/{}", remote, branch);
+    // Main branch: fetch, merge, push.
+    let main_branch = git::git_current_branch(&store.root)?;
+    let main_remote = format!("{}/{}", remote, main_branch);
+    fetch_merge_resolve_at(&store.root, remote, &main_remote)?;
+    if git::git_push(&store.root, remote, &main_branch).is_err() {
+        fetch_merge_resolve_at(&store.root, remote, &main_remote)?;
+        git::git_push(&store.root, remote, &main_branch)?;
+    }
 
-    fetch_merge_resolve(store, remote, &remote_branch)?;
-
-    if git::git_push(&store.root, remote, &branch).is_err() {
-        fetch_merge_resolve(store, remote, &remote_branch)?;
-        git::git_push(&store.root, remote, &branch)?;
+    // State branch: fetch, merge in the state worktree, push.
+    // Stealth mode has no state branch — skip.
+    if !store.stealth {
+        let state_dir = store.state_worktree_dir();
+        let state_remote = format!("{}/balls/tasks", remote);
+        fetch_merge_resolve_at(&state_dir, remote, &state_remote)?;
+        if git::git_push(&state_dir, remote, "balls/tasks").is_err() {
+            fetch_merge_resolve_at(&state_dir, remote, &state_remote)?;
+            let _ = git::git_push(&state_dir, remote, "balls/tasks");
+        }
     }
     Ok(())
 }
 
-/// Fetch from `remote`, merge `remote_branch` into the current branch, and
-/// auto-resolve any task-file conflicts. Tolerates a missing upstream branch.
-fn fetch_merge_resolve(store: &Store, remote: &str, remote_branch: &str) -> Result<()> {
-    let _ = git::git_fetch(&store.root, remote);
-    match git::git_merge(&store.root, remote_branch, None) {
+/// Fetch from `remote` in `dir`, merge `remote_branch` into whatever HEAD
+/// points at there, and auto-resolve task-file conflicts. Tolerates a
+/// missing upstream branch (the "first push" case).
+fn fetch_merge_resolve_at(dir: &Path, remote: &str, remote_branch: &str) -> Result<()> {
+    let _ = git::git_fetch(dir, remote);
+    match git::git_merge(dir, remote_branch, None) {
         Ok(git::MergeResult::Conflict) => {
-            auto_resolve_conflicts(store)?;
-            git::git_commit(&store.root, "balls: auto-resolve sync conflicts")?;
+            auto_resolve_conflicts_at(dir)?;
+            git::git_commit(dir, "state: auto-resolve sync conflicts")?;
         }
         Ok(_) => {}
         Err(_) => {
@@ -69,10 +81,10 @@ fn fetch_merge_resolve(store: &Store, remote: &str, remote_branch: &str) -> Resu
     Ok(())
 }
 
-fn auto_resolve_conflicts(store: &Store) -> Result<()> {
-    let conflicted = git::git_list_conflicted_files(&store.root)?;
+fn auto_resolve_conflicts_at(dir: &Path) -> Result<()> {
+    let conflicted = git::git_list_conflicted_files(dir)?;
     for path in conflicted {
-        let rel = path.strip_prefix(&store.root).unwrap_or(&path);
+        let rel = path.strip_prefix(dir).unwrap_or(&path);
         let rel_str = rel.to_string_lossy();
         if !rel_str.starts_with(".balls/tasks/") || !rel_str.ends_with(".json") {
             return Err(BallError::Conflict(format!(
@@ -85,7 +97,7 @@ fn auto_resolve_conflicts(store: &Store) -> Result<()> {
         let merged = resolve::resolve_conflict(&ours, &theirs);
         merged.save(&path)?;
         let rel_p = Path::new(&*rel_str).to_path_buf();
-        git::git_add(&store.root, &[rel_p.as_path()])?;
+        git::git_add(dir, &[rel_p.as_path()])?;
     }
     Ok(())
 }

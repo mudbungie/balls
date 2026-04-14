@@ -82,16 +82,21 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
             let _ = rollback_claim(store, id);
         })?;
 
-        // Symlink .balls/local inside the worktree so claims/lock are shared
-        let wt_balls_dir = wt_path.join(".balls");
-        fs::create_dir_all(&wt_balls_dir)?;
-        let wt_local = wt_balls_dir.join("local");
-        let src_local = store.local_dir();
-        if !wt_local.exists() {
-            #[cfg(unix)]
-            {
-                std::os::unix::fs::symlink(&src_local, &wt_local)?;
-            }
+        // Symlink .balls/local, .balls/worktree, .balls/tasks so the bl
+        // worktree sees the same shared state as main: claims/locks,
+        // the state-branch checkout, and the task symlink.
+        let wt_balls = wt_path.join(".balls");
+        fs::create_dir_all(&wt_balls)?;
+        use std::os::unix::fs::symlink;
+        let link = |src: PathBuf, name: &str| -> Result<()> {
+            let dst = wt_balls.join(name);
+            if !dst.exists() { symlink(src, dst)?; }
+            Ok(())
+        };
+        link(store.local_dir(), "local")?;
+        if !store.stealth {
+            link(store.state_worktree_dir(), "worktree")?;
+            link(PathBuf::from("worktree/.balls/tasks"), "tasks")?;
         }
 
         write_claim_file(store, id, identity)?;
@@ -112,7 +117,10 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Submit for review: commit, squash-merge to main, set status=review. Keeps worktree.
+/// Submit for review: commit the worker's code, squash-merge to main as
+/// the single feature commit, flip task status to review on the state
+/// branch. Keeps the worktree so a rejected review can be re-worked in
+/// place.
 pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<()> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;
@@ -120,20 +128,16 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
 
     with_task_lock(store, id, || {
         git::git_add_all(&wt_path)?;
-        let _ = git::git_commit(&wt_path, &format!("balls: work on {}", id));
+        let _ = git::git_commit(&wt_path, &format!("wip: {}", id));
         let main_branch = git::git_current_branch(&store.root)?;
         merge_or_fail(
             &wt_path, &main_branch, None,
             &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
         )?;
 
-        // Set review status (on top of latest main state). Task metadata
-        // lives in the worktree's checkout except in stealth mode.
-        let task_path = if store.stealth {
-            store.task_path(id)?
-        } else {
-            wt_path.join(".balls/tasks").join(format!("{}.json", id))
-        };
+        // Flip the task to review on the state branch. store.task_path
+        // points at the state worktree's copy, not the bl worktree's.
+        let task_path = store.task_path(id)?;
         let mut t = Task::load(&task_path)?;
         t.status = Status::Review;
         t.touch();
@@ -141,10 +145,11 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
         if let Some(msg) = message {
             task_io::append_note_to(&task_path, identity, msg)?;
         }
-        git::git_add_all(&wt_path)?;
-        let _ = git::git_commit(&wt_path, &format!("balls: review {}", id));
+        store.commit_task(id, &format!("state: review {}", id))?;
 
-        // Squash merge: collapse all worktree commits into one on main
+        // Squash merge the worker's branch into main. This is the single
+        // substantive feature commit — the delivery tag [bl-XXXX] is
+        // embedded so tooling and humans can trace main <-> state branch.
         let squash_msg = match message {
             Some(msg) => format!("{} [{}]", msg, id),
             None => format!("{} [{}]", task.title, id),
@@ -187,18 +192,15 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
             task_io::append_note_to(&task_path, identity, msg)?;
         }
 
-        // Remove worktree before archiving (archive needs git rm from repo root)
         if wt_path.exists() {
             git::git_worktree_remove(&store.root, &wt_path, true)?;
         }
         let _ = git::git_branch_delete(&store.root, &branch, true);
         let _ = fs::remove_file(claim_file_path(store, id));
 
-        // Archive (stage deletions) then commit everything in one shot
+        // Archive stages deletions on the state branch; commit there, not main.
         archive_task(store, &t)?;
-        if !store.stealth {
-            git::git_commit(&store.root, &format!("balls: close {} - {}", id, t.title))?;
-        }
+        store.commit_staged(&format!("state: close {} - {}", id, t.title))?;
         Ok(t)
     })
 }
@@ -221,12 +223,12 @@ pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
             store.save_task(&parent)?;
             if !store.stealth {
                 let rel = PathBuf::from(format!(".balls/tasks/{}.json", pid));
-                git::git_add(&store.root, &[rel.as_path()])?;
+                git::git_add(&store.state_worktree_dir(), &[rel.as_path()])?;
             }
         }
     }
 
-    // Delete the closed task file (stages the git rm, but does not commit)
+    // Delete the closed task file (stages the git rm, but does not commit).
     store.delete_task_file(&task.id)?;
     store.rm_task_git(&task.id)?;
     Ok(())

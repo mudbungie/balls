@@ -5,7 +5,10 @@ use crate::error::{BallError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Check `.balls/local/tasks_dir` for an external tasks directory override.
+/// Task directory resolution. Stealth mode honors an override file at
+/// `.balls/local/tasks_dir`; non-stealth mode points at the state
+/// worktree's `.balls/tasks/` (the canonical location — main's
+/// `.balls/tasks` is a gitignored symlink to the same place).
 pub(crate) fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
     let override_file = root.join(".balls/local/tasks_dir");
     if let Ok(s) = fs::read_to_string(&override_file) {
@@ -14,7 +17,7 @@ pub(crate) fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
             return (p, true);
         }
     }
-    (root.join(".balls/tasks"), false)
+    (root.join(".balls/worktree/.balls/tasks"), false)
 }
 
 /// Generate a deterministic external path for stealth tasks.

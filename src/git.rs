@@ -80,12 +80,17 @@ pub fn git_commit(dir: &Path, message: &str) -> Result<()> {
 }
 
 pub fn is_merging(dir: &Path) -> bool {
-    // git_commit is only called from within balls-managed repos, so
-    // git_common_dir always succeeds here; we treat a failure (genuine I/O
-    // weirdness) as "not merging" so the caller skips the merge-finalize
-    // path.
-    git_common_dir(dir)
-        .map(|c| c.join("MERGE_HEAD").exists())
+    // In a linked worktree, MERGE_HEAD lives in that worktree's private
+    // admin dir (`.git/worktrees/<name>/`), not in the shared common
+    // dir. `git rev-parse --git-dir` returns the per-worktree admin
+    // dir, so MERGE_HEAD next to it is the right place to look.
+    run_git_ok(dir, &["rev-parse", "--git-dir"])
+        .map(|s| {
+            let raw = s.trim();
+            let gd = PathBuf::from(raw);
+            let abs = if gd.is_absolute() { gd } else { dir.join(gd) };
+            abs.join("MERGE_HEAD").exists()
+        })
         .unwrap_or(false)
 }
 
