@@ -1,4 +1,4 @@
-.PHONY: build test check install uninstall clean
+.PHONY: build test check install uninstall clean hooks
 
 PREFIX ?= $(HOME)/.local
 BIN_DIR := $(PREFIX)/bin
@@ -22,6 +22,13 @@ install: build
 uninstall:
 	-$(BIN_DIR)/bl completions --uninstall
 	rm -f $(BIN_DIR)/bl
+
+# Install the repo-local pre-commit hook (line-length + clippy + tests
+# + 100% coverage). Run once per clone; not part of `make install`
+# because a user installing the binary should not have hooks wired
+# into whatever repo they happen to be in.
+hooks:
+	scripts/install-hooks.sh
 
 clean:
 	cargo clean

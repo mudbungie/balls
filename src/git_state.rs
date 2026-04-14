@@ -3,12 +3,12 @@
 //! Separate from `git.rs` so that module stays under the 300-line cap.
 
 use crate::error::{BallError, Result};
+use crate::git::clean_git_command;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 fn run(dir: &Path, args: &[&str]) -> Result<String> {
-    let out = Command::new("git")
-        .current_dir(dir)
+    let out = clean_git_command(dir)
         .args(args)
         .output()
         .map_err(|e| BallError::Git(format!("spawn git: {}", e)))?;
@@ -78,8 +78,7 @@ pub fn log_subjects(dir: &Path, refname: &str) -> Result<Vec<String>> {
 /// Uses `mktree` + `commit-tree` + `update-ref` so no working tree is
 /// disturbed; safe to call from any checkout.
 pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<()> {
-    let tree_out = Command::new("git")
-        .current_dir(dir)
+    let tree_out = clean_git_command(dir)
         .args(["mktree"])
         .stdin(Stdio::null())
         .output()

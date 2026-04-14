@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# Install the balls pre-commit hook into this repository's .git/hooks dir.
+# Install the balls pre-commit hook into this repository's shared
+# hooks dir. Works from any linked worktree: uses --git-common-dir
+# to find the shared admin dir (where hooks/ actually lives) and
+# points the symlink at the MAIN checkout's scripts/pre-commit so
+# removing a worktree never leaves a dangling hook target.
 
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
-HOOK_DIR="$ROOT/.git/hooks"
-SRC="$ROOT/scripts/pre-commit"
+COMMON_DIR="$(git rev-parse --git-common-dir)"
+case "$COMMON_DIR" in
+    /*) ;;
+    *) COMMON_DIR="$ROOT/$COMMON_DIR" ;;
+esac
+MAIN_ROOT="$(cd "$(dirname "$COMMON_DIR")" && pwd)"
+HOOK_DIR="$COMMON_DIR/hooks"
+SRC="$MAIN_ROOT/scripts/pre-commit"
 DEST="$HOOK_DIR/pre-commit"
 
 mkdir -p "$HOOK_DIR"
