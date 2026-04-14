@@ -61,15 +61,10 @@ impl Plugin {
     }
 
     /// Run the plugin's push command. Returns the plugin's response (to be
-    /// written into task.external) or None if the plugin failed/was unavailable.
+    /// written into task.external) or None if the plugin failed.
+    /// Callers guard with `auth_check`, which already filters out plugins
+    /// that aren't on PATH.
     pub fn push(&self, task: &Task) -> Result<Option<PushResponse>> {
-        if !self.is_available() {
-            eprintln!(
-                "warning: plugin `{}` not found on PATH, skipping push",
-                self.executable
-            );
-            return Ok(None);
-        }
         let mut child = Command::new(&self.executable)
             .arg("push")
             .arg("--task")
@@ -113,19 +108,13 @@ impl Plugin {
     }
 
     /// Run the plugin's sync command. Sends all local tasks on stdin.
-    /// Returns a SyncReport or None if the plugin failed.
+    /// Returns a SyncReport or None if the plugin failed. Callers
+    /// guard with `auth_check`, so `is_available` is already true here.
     pub fn sync(
         &self,
         tasks: &[Task],
         filter: Option<&str>,
     ) -> Result<Option<SyncReport>> {
-        if !self.is_available() {
-            eprintln!(
-                "warning: plugin `{}` not found on PATH, skipping sync",
-                self.executable
-            );
-            return Ok(None);
-        }
         let mut cmd = Command::new(&self.executable);
         cmd.arg("sync")
             .arg("--config")

@@ -17,9 +17,7 @@ pub fn cmd_sync(remote: String, task_filter: Option<String>) -> Result<()> {
     match plugin::run_plugin_sync(&store, task_filter.as_deref()) {
         Ok(reports) => {
             for (plugin_name, report) in reports {
-                if let Err(e) = apply_sync_report(&store, &plugin_name, &report) {
-                    eprintln!("warning: failed to apply {} sync report: {}", plugin_name, e);
-                }
+                apply_sync_report(&store, &plugin_name, &report);
             }
         }
         Err(e) => eprintln!("warning: plugin sync failed: {}", e),

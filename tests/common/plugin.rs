@@ -174,3 +174,44 @@ pub fn write_sync_response(repo_path: &Path, response: &str) {
     let response_path = repo_path.join(".balls/plugins/mock.json.sync-response");
     fs::write(response_path, response).unwrap();
 }
+
+/// Mock plugin that passes auth-check but returns the provided body on
+/// push/sync (empty, invalid JSON, etc.). Used to exercise plugin
+/// runner's graceful-degradation paths.
+pub fn install_plugin_with_body(body: &str) -> tempfile::TempDir {
+    let bin_dir = tempfile::Builder::new()
+        .prefix("balls-body-bin-")
+        .tempdir()
+        .unwrap();
+    let script = format!(
+        r#"#!/bin/sh
+CMD="$1"
+shift
+AUTH_DIR=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --auth-dir) AUTH_DIR="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+case "$CMD" in
+    auth-check)
+        [ -f "$AUTH_DIR/token.json" ] && exit 0 || exit 1
+        ;;
+    push|sync)
+        cat - >/dev/null
+        printf '%s' '{body}'
+        exit 0
+        ;;
+    *) exit 0 ;;
+esac
+"#,
+        body = body.replace('\'', "'\\''")
+    );
+    let path = bin_dir.path().join("balls-plugin-mock");
+    fs::write(&path, script).unwrap();
+    let mut p = fs::metadata(&path).unwrap().permissions();
+    p.set_mode(0o755);
+    fs::set_permissions(&path, p).unwrap();
+    bin_dir
+}
