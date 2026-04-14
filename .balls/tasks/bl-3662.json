@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-14T16:44:27.969442571Z",
-  "delivered_in": null,
+  "delivered_in": "58e650fa6106faebe2a8cb1dfd5f654d6cff7f7c",
   "depends_on": [],
   "description": "Agent feedback: SKILL.md is written for a human reading the table, not a scripting agent. Gaps to close: (1) bl create's stdout contract (bare task id) is undocumented; (2) --parent flag is not mentioned, leaving agents to misuse --dep or --link relates_to for hierarchy; (3) semantics of the 'epic' task type are never explained (it is a label, nothing more); (4) bl init's bootstrap behavior in a zero-commit repo is not documented (it creates its own commit, a balls/tasks state branch, and .gitignore entries); (5) no 'Scripting with bl' section exists documenting which commands print machine-parseable output and which accept --json. Add a dedicated scripting section and fill the missing pieces.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [{"link_type":"gates","target":"bl-c1b9"}],
   "parent": null,
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "Document scripting contract in SKILL.md",
   "type": "task",
-  "updated_at": "2026-04-14T16:44:37.977635651Z"
+  "updated_at": "2026-04-14T16:48:05.483500706Z"
 }
