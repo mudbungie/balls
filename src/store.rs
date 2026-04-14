@@ -20,14 +20,28 @@ impl Drop for LockGuard {
 
 pub fn task_lock(store: &Store, id: &str) -> Result<LockGuard> {
     task::validate_id(id)?;
-    fs::create_dir_all(store.lock_dir())?;
-    let lock_path = store.lock_dir().join(format!("{}.lock", id));
+    acquire_flock(&store.lock_dir().join(format!("{}.lock", id)))
+}
+
+/// Acquire the store-wide state-worktree lock. Held for the duration
+/// of any write sequence targeting the state branch (commit_task,
+/// commit_staged, remove_task, close_and_archive). Serializes
+/// concurrent bl invocations from different tasks so git's
+/// `index.lock` never sees contention.
+fn state_worktree_flock(store: &Store) -> Result<LockGuard> {
+    acquire_flock(&store.lock_dir().join("state-worktree.lock"))
+}
+
+fn acquire_flock(path: &Path) -> Result<LockGuard> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let f = fs::OpenOptions::new()
         .create(true)
         .truncate(false)
         .read(true)
         .write(true)
-        .open(&lock_path)?;
+        .open(path)?;
     f.lock_exclusive()?;
     Ok(LockGuard(f))
 }
@@ -184,30 +198,15 @@ impl Store {
     /// Remove a task's files from disk and (non-stealth) from the
     /// state branch's index. Unified replacement for the previous
     /// `delete_task_file` + `rm_task_git` pair.
-    pub fn remove_task(&self, id: &str) -> Result<()> {
-        let p = self.task_path(id)?;
-        if self.stealth {
-            if p.exists() { fs::remove_file(&p)?; }
-            task_io::delete_notes_file(&p)?;
-            return Ok(());
-        }
-        let dir = self.state_worktree_dir();
-        let json = PathBuf::from(format!(".balls/tasks/{}.json", id));
-        let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
-        // `-f`: the files may carry uncommitted field mutations from
-        // the archiving path (status=closed, closed_at) that we don't
-        // want to stage separately before rm.
-        git::git_rm_force(&dir, &[json.as_path(), notes.as_path()])?;
-        Ok(())
-    }
-
     /// Stage and commit a task file change on the state branch. No-op
     /// in stealth mode. Stages the sibling notes file too (always
-    /// present after a `Task::save`).
+    /// present after a `Task::save`). Holds the store-wide
+    /// state-worktree lock for the duration of the git ops.
     pub fn commit_task(&self, id: &str, message: &str) -> Result<()> {
         if self.stealth {
             return Ok(());
         }
+        let _g = state_worktree_flock(self)?;
         let dir = self.state_worktree_dir();
         let json = PathBuf::from(format!(".balls/tasks/{}.json", id));
         let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
@@ -216,13 +215,48 @@ impl Store {
         Ok(())
     }
 
-    /// Commit whatever is already staged on the state branch. No-op in
-    /// stealth mode.
-    pub fn commit_staged(&self, message: &str) -> Result<()> {
+    /// Archive a task and commit the archive on the state branch in a
+    /// single locked sequence. Replaces the old `archive_task` +
+    /// `commit_staged` pair, which could interleave with another
+    /// worker's writes between the `git rm` and the `git commit`.
+    ///
+    /// The caller has already mutated `task` (status=Closed,
+    /// closed_at set, etc.) but must NOT have called `save_task` —
+    /// this method handles parent-side bookkeeping and file removal
+    /// atomically under the state-worktree lock.
+    pub fn close_and_archive(&self, task: &Task, commit_msg: &str) -> Result<()> {
         if self.stealth {
+            let p = self.task_path(&task.id)?;
+            if p.exists() {
+                fs::remove_file(&p)?;
+            }
+            task_io::delete_notes_file(&p)?;
             return Ok(());
         }
-        git::git_commit(&self.state_worktree_dir(), message)?;
+        let _g = state_worktree_flock(self)?;
+        let dir = self.state_worktree_dir();
+        // Parent bookkeeping: record this task in closed_children on
+        // the parent, if any.
+        if let Some(pid) = &task.parent {
+            if let Ok(mut parent) = self.load_task(pid) {
+                parent.closed_children.push(task::ArchivedChild {
+                    id: task.id.clone(),
+                    title: task.title.clone(),
+                    closed_at: task.closed_at.unwrap_or_else(chrono::Utc::now),
+                });
+                parent.touch();
+                self.save_task(&parent)?;
+                let rel = PathBuf::from(format!(".balls/tasks/{}.json", pid));
+                git::git_add(&dir, &[rel.as_path()])?;
+            }
+        }
+        // Stage removal of the task's files. `-f` because the working
+        // tree may carry uncommitted field mutations (status=closed,
+        // closed_at) we don't want to stage separately.
+        let json = PathBuf::from(format!(".balls/tasks/{}.json", task.id));
+        let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", task.id));
+        git::git_rm_force(&dir, &[json.as_path(), notes.as_path()])?;
+        git::git_commit(&dir, commit_msg)?;
         Ok(())
     }
 

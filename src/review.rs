@@ -4,10 +4,10 @@
 
 use crate::error::{BallError, Result};
 use crate::store::Store;
-use crate::task::{ArchivedChild, Status, Task};
+use crate::task::{Status, Task};
 use crate::worktree::{claim_file_path, with_task_lock, worktree_path};
 use crate::{git, task_io};
-use std::{fs, path::PathBuf};
+use std::fs;
 
 fn merge_or_fail(dir: &std::path::Path, branch: &str, ctx: &str) -> Result<()> {
     if let git::MergeResult::Conflict = git::git_merge(dir, branch)? {
@@ -100,11 +100,6 @@ pub fn close_worktree(
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
         t.touch();
-        store.save_task(&t)?;
-        if let Some(msg) = message {
-            let task_path = store.task_path(id)?;
-            task_io::append_note_to(&task_path, identity, msg)?;
-        }
 
         if wt_path.exists() {
             git::git_worktree_remove(&store.root, &wt_path, true)?;
@@ -112,37 +107,15 @@ pub fn close_worktree(
         let _ = git::git_branch_delete(&store.root, &branch, true);
         let _ = fs::remove_file(claim_file_path(store, id));
 
-        // Archive stages deletions on the state branch; commit there, not main.
-        archive_task(store, &t)?;
-        store.commit_staged(&format!("state: close {} - {}", id, t.title))?;
+        // close_and_archive is one atomic state-branch commit. The
+        // reviewer's message is embedded in the commit body so it
+        // survives the notes-file rm.
+        let _ = identity;
+        let msg = match message {
+            Some(m) => format!("state: close {} - {}\n\n{}", id, t.title, m),
+            None => format!("state: close {} - {}", id, t.title),
+        };
+        store.close_and_archive(&t, &msg)?;
         Ok(t)
     })
-}
-
-/// Stage task deletion and parent updates. Does NOT commit — caller is
-/// responsible for committing all staged changes in one shot.
-pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
-    let archived = ArchivedChild {
-        id: task.id.clone(),
-        title: task.title.clone(),
-        closed_at: task.closed_at.unwrap_or_else(chrono::Utc::now),
-    };
-
-    // If this task has a parent, record the archived child on the parent
-    if let Some(pid) = &task.parent {
-        if let Ok(mut parent) = store.load_task(pid) {
-            parent.closed_children.push(archived);
-            parent.touch();
-            store.save_task(&parent)?;
-            if !store.stealth {
-                let rel = PathBuf::from(format!(".balls/tasks/{}.json", pid));
-                git::git_add(&store.state_worktree_dir(), &[rel.as_path()])?;
-            }
-        }
-    }
-
-    // Stage the git rm (non-stealth) or remove from fs (stealth).
-    // The commit is issued by the caller via `commit_staged`.
-    store.remove_task(&task.id)?;
-    Ok(())
 }

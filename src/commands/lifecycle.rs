@@ -80,14 +80,21 @@ pub fn cmd_update(
             task.closed_at = Some(chrono::Utc::now());
         }
         task.touch();
-        store.save_task(&task)?;
-        if let Some(n) = &note {
-            task_io::append_note_to(&store.task_path(&id)?, &ident, n)?;
-        }
         if closing {
-            balls::review::archive_task(&store, &task)?;
-            store.commit_staged(&format!("balls: close {} - {}", id, task.title))?;
+            // Close + archive is one atomic state-branch commit. The
+            // reviewer's note is embedded in the commit message so it
+            // survives the git-rm of the notes file.
+            let msg = match &note {
+                Some(n) => format!("balls: close {} - {}\n\n{}", id, task.title, n),
+                None => format!("balls: close {} - {}", id, task.title),
+            };
+            let _ = &ident; // ident not used on the close path
+            store.close_and_archive(&task, &msg)?;
         } else {
+            store.save_task(&task)?;
+            if let Some(n) = &note {
+                task_io::append_note_to(&store.task_path(&id)?, &ident, n)?;
+            }
             store.commit_task(&id, &format!("balls: update {} - {}", id, task.title))?;
         }
         task
