@@ -24,8 +24,7 @@ fn dep_add(store: &Store, task: String, depends_on: String) -> Result<()> {
     }
     if ready::would_create_cycle(&all, &task, &depends_on) {
         return Err(BallError::Cycle(format!(
-            "adding {} -> {} would create a cycle",
-            task, depends_on
+            "adding {task} -> {depends_on} would create a cycle"
         )));
     }
     {
@@ -37,11 +36,11 @@ fn dep_add(store: &Store, task: String, depends_on: String) -> Result<()> {
             store.save_task(&t)?;
             store.commit_task(
                 &task,
-                &format!("balls: dep add {} -> {}", task, depends_on),
+                &format!("balls: dep add {task} -> {depends_on}"),
             )?;
         }
     }
-    println!("{} now depends on {}", task, depends_on);
+    println!("{task} now depends on {depends_on}");
     Ok(())
 }
 
@@ -56,11 +55,11 @@ fn dep_rm(store: &Store, task: String, depends_on: String) -> Result<()> {
             store.save_task(&t)?;
             store.commit_task(
                 &task,
-                &format!("balls: dep rm {} -x {}", task, depends_on),
+                &format!("balls: dep rm {task} -x {depends_on}"),
             )?;
         }
     }
-    println!("{} no longer depends on {}", task, depends_on);
+    println!("{task} no longer depends on {depends_on}");
     Ok(())
 }
 

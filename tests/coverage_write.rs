@@ -24,7 +24,7 @@ fn update_parent_to_null() {
     let parent = create_task(repo.path(), "parent");
     let child = create_task(repo.path(), "child");
     bl(repo.path())
-        .args(["update", &child, &format!("parent={}", parent)])
+        .args(["update", &child, &format!("parent={parent}")])
         .assert()
         .success();
     let j = read_task_json(repo.path(), &child);

@@ -72,7 +72,7 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
             return Err(BallError::AlreadyClaimed(id.to_string()));
         }
 
-        let branch = format!("work/{}", id);
+        let branch = format!("work/{id}");
         task.status = Status::InProgress;
         task.claimed_by = Some(identity.to_string());
         task.branch = Some(branch.clone());
@@ -131,7 +131,7 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-        let _ = store.commit_task(id, &format!("balls: rollback claim {}", id));
+        let _ = store.commit_task(id, &format!("balls: rollback claim {id}"));
     }
     let _ = fs::remove_file(claim_file_path(store, id));
     Ok(())
@@ -140,7 +140,7 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
 pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;
-    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{}", id));
+    let branch = task.branch.clone().unwrap_or_else(|| format!("work/{id}"));
 
     with_task_lock(store, id, || {
         if wt_path.exists() && !force && git::has_uncommitted_changes(&wt_path)? {
@@ -157,7 +157,7 @@ pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
         t.branch = None;
         t.touch();
         store.save_task(&t)?;
-        store.commit_task(id, &format!("balls: drop {} - {}", id, title))?;
+        store.commit_task(id, &format!("balls: drop {id} - {title}"))?;
 
         if wt_path.exists() {
             git::git_worktree_remove(&store.root, &wt_path, true)?;

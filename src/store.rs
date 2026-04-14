@@ -20,7 +20,7 @@ impl Drop for LockGuard {
 
 pub fn task_lock(store: &Store, id: &str) -> Result<LockGuard> {
     task::validate_id(id)?;
-    acquire_flock(&store.lock_dir().join(format!("{}.lock", id)))
+    acquire_flock(&store.lock_dir().join(format!("{id}.lock")))
 }
 
 /// Acquire the store-wide state-worktree lock. Held for the duration
@@ -173,7 +173,7 @@ impl Store {
 
     pub fn task_path(&self, id: &str) -> Result<PathBuf> {
         task::validate_id(id)?;
-        Ok(self.tasks_dir().join(format!("{}.json", id)))
+        Ok(self.tasks_dir().join(format!("{id}.json")))
     }
 
     pub fn task_exists(&self, id: &str) -> bool {
@@ -208,8 +208,8 @@ impl Store {
         }
         let _g = state_worktree_flock(self)?;
         let dir = self.state_worktree_dir();
-        let json = PathBuf::from(format!(".balls/tasks/{}.json", id));
-        let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", id));
+        let json = PathBuf::from(format!(".balls/tasks/{id}.json"));
+        let notes = PathBuf::from(format!(".balls/tasks/{id}.notes.jsonl"));
         git::git_add(&dir, &[json.as_path(), notes.as_path()])?;
         git::git_commit(&dir, message)?;
         Ok(())
@@ -246,7 +246,7 @@ impl Store {
                 });
                 parent.touch();
                 self.save_task(&parent)?;
-                let rel = PathBuf::from(format!(".balls/tasks/{}.json", pid));
+                let rel = PathBuf::from(format!(".balls/tasks/{pid}.json"));
                 git::git_add(&dir, &[rel.as_path()])?;
             }
         }

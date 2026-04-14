@@ -84,12 +84,12 @@ fn story_51_two_workers_close_same_task() {
         .assert()
         .success();
     // Alice's close archived the task — file is gone
-    assert!(!alice.path().join(format!(".balls/tasks/{}.json", id)).exists());
+    assert!(!alice.path().join(format!(".balls/tasks/{id}.json")).exists());
 
     bl(alice.path()).arg("sync").assert().success();
     bl(bob.path()).arg("sync").assert().success();
     // Bob now sees the task is gone (archived by alice)
-    assert!(!bob.path().join(format!(".balls/tasks/{}.json", id)).exists());
+    assert!(!bob.path().join(format!(".balls/tasks/{id}.json")).exists());
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn concurrent_claims_local_flock() {
 
     let s1 = out1.status.success();
     let s2 = out2.status.success();
-    assert!(s1 ^ s2, "exactly one claim must succeed, got {} {}", s1, s2);
+    assert!(s1 ^ s2, "exactly one claim must succeed, got {s1} {s2}");
 }
 
 #[test]
@@ -230,18 +230,17 @@ fn sync_resolve_command_on_single_file() {
     init_in(repo.path());
     let id = create_task(repo.path(), "r");
 
-    let path = repo.path().join(".balls/tasks").join(format!("{}.json", id));
+    let path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
     let orig = std::fs::read_to_string(&path).unwrap();
     let ours = orig.replace("\"priority\": 3", "\"priority\": 1");
     let theirs = orig.replace("\"priority\": 3", "\"priority\": 2");
     let conflict = format!(
-        "<<<<<<< HEAD\n{}=======\n{}>>>>>>> theirs\n",
-        ours, theirs
+        "<<<<<<< HEAD\n{ours}=======\n{theirs}>>>>>>> theirs\n"
     );
     std::fs::write(&path, conflict).unwrap();
 
     bl(repo.path())
-        .args(["resolve", &format!(".balls/tasks/{}.json", id)])
+        .args(["resolve", &format!(".balls/tasks/{id}.json")])
         .assert()
         .success();
 

@@ -32,7 +32,7 @@ fn story_33_review_then_close() {
         .success();
     assert!(!wt.exists());
     assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
-    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{id}.json")).exists());
 }
 
 #[test]
@@ -49,16 +49,16 @@ fn story_34_close_with_message_is_in_git_history() {
         .assert()
         .success();
     // Archived: task file gone, main log clean, state branch has the close.
-    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", id)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{id}.json")).exists());
     let main_log = git(repo.path(), &["log", "--oneline", "main"]);
     assert!(
-        !main_log.contains(&format!("close {}", id)),
-        "main must not carry balls close commits: {}", main_log
+        !main_log.contains(&format!("close {id}")),
+        "main must not carry balls close commits: {main_log}"
     );
     let state_log = git(repo.path(), &["log", "--oneline", "balls/tasks"]);
     assert!(
-        state_log.contains(&format!("close {}", id)),
-        "state branch should record the close: {}", state_log
+        state_log.contains(&format!("close {id}")),
+        "state branch should record the close: {state_log}"
     );
 }
 
@@ -91,11 +91,11 @@ fn story_36_parent_completion_reaches_100() {
     let c1 = create_task(repo.path(), "c1");
     let c2 = create_task(repo.path(), "c2");
     bl(repo.path())
-        .args(["update", &c1, &format!("parent={}", parent)])
+        .args(["update", &c1, &format!("parent={parent}")])
         .assert()
         .success();
     bl(repo.path())
-        .args(["update", &c2, &format!("parent={}", parent)])
+        .args(["update", &c2, &format!("parent={parent}")])
         .assert()
         .success();
     bl(repo.path())
@@ -188,7 +188,7 @@ fn close_child_updates_parent_closed_children() {
     let parent = create_task(repo.path(), "parent");
     let child = create_task(repo.path(), "child");
     bl(repo.path())
-        .args(["update", &child, &format!("parent={}", parent)])
+        .args(["update", &child, &format!("parent={parent}")])
         .assert()
         .success();
     bl_as(repo.path(), "alice")
@@ -201,7 +201,7 @@ fn close_child_updates_parent_closed_children() {
         .success();
 
     // Child task file archived
-    assert!(!repo.path().join(".balls/tasks").join(format!("{}.json", child)).exists());
+    assert!(!repo.path().join(".balls/tasks").join(format!("{child}.json")).exists());
     // Parent records the archived child
     let j = read_task_json(repo.path(), &parent);
     let cc = j["closed_children"].as_array().unwrap();

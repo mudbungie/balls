@@ -58,7 +58,7 @@ fn close_after_review_archives_and_removes_worktree() {
     // Worktree removed
     assert!(!wt.exists());
     // Task archived
-    assert!(!repo.path().join(format!(".balls/tasks/{}.json", id)).exists());
+    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
     // Claim removed
     assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
 }
@@ -146,21 +146,20 @@ fn review_squash_commit_uses_50_72_shape_with_body() {
                 the change in detail and wraps across multiple \
                 sentences without polluting the oneline log.";
     bl(repo.path())
-        .args(["review", &id, "-m", &format!("Short title\n\n{}", body)])
+        .args(["review", &id, "-m", &format!("Short title\n\n{body}")])
         .assert()
         .success();
 
     // Subject (first line) only contains "Short title [bl-id]".
     let subject = git(repo.path(), &["log", "-1", "--format=%s", "main"]);
-    let expected_subject = format!("Short title [{}]", id);
+    let expected_subject = format!("Short title [{id}]");
     assert_eq!(subject.trim(), expected_subject);
 
     // Body (after the first blank line) carries the paragraph.
     let full_body = git(repo.path(), &["log", "-1", "--format=%b", "main"]);
     assert!(
         full_body.contains(body),
-        "body should be present in full commit message: {}",
-        full_body
+        "body should be present in full commit message: {full_body}"
     );
 }
 
@@ -196,6 +195,6 @@ fn review_creates_squash_commit_with_title() {
 
     // The squash commit should include the task title and id
     let log = git(repo.path(), &["log", "--oneline", "-1"]);
-    assert!(log.contains("feature"), "squash commit should contain task title, got: {}", log);
-    assert!(log.contains(&id), "squash commit should contain task id, got: {}", log);
+    assert!(log.contains("feature"), "squash commit should contain task title, got: {log}");
+    assert!(log.contains(&id), "squash commit should contain task id, got: {log}");
 }

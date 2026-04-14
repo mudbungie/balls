@@ -31,7 +31,7 @@ fn story_5_create_with_all_options() {
     assert_eq!(j["tags"][0], "auth");
     assert_eq!(j["tags"][1], "api");
     bl(repo.path())
-        .args(["update", &id, &format!("parent={}", parent)])
+        .args(["update", &id, &format!("parent={parent}")])
         .assert()
         .success();
 }
@@ -215,7 +215,7 @@ fn story_76_malformed_task_json() {
     init_in(repo.path());
     let id = create_task(repo.path(), "good");
     std::fs::write(
-        repo.path().join(".balls/tasks").join(format!("{}.json", id)),
+        repo.path().join(".balls/tasks").join(format!("{id}.json")),
         "not valid json",
     )
     .unwrap();
@@ -229,7 +229,7 @@ fn story_78_many_tasks_perf() {
     let repo = new_repo();
     init_in(repo.path());
     for i in 0..50 {
-        create_task(repo.path(), &format!("task {}", i));
+        create_task(repo.path(), &format!("task {i}"));
     }
     let start = std::time::Instant::now();
     bl(repo.path()).arg("list").assert().success();

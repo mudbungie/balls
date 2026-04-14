@@ -28,11 +28,11 @@ fn seed_task(repo: &Path, id: &str) {
     let tasks_dir = repo.join(".balls/tasks");
     fs::create_dir_all(&tasks_dir).unwrap();
     fs::write(tasks_dir.join(".gitattributes"), "*.notes.jsonl merge=union\n").unwrap();
-    let task_path = tasks_dir.join(format!("{}.json", id));
+    let task_path = tasks_dir.join(format!("{id}.json"));
     t.save(&task_path).unwrap();
     // Pre-seed an empty notes file so divergent first-append operations
     // modify an existing file rather than each creating a new one.
-    fs::write(tasks_dir.join(format!("{}.notes.jsonl", id)), "").unwrap();
+    fs::write(tasks_dir.join(format!("{id}.notes.jsonl")), "").unwrap();
     git(repo, &["add", "-A"]);
     git(repo, &["commit", "-q", "-m", "seed task"]);
 }
@@ -46,7 +46,7 @@ fn branch_and_commit<F: FnOnce(&Task) -> Task>(
     f: F,
 ) {
     git(repo, &["checkout", "-q", "-b", branch]);
-    let task_path = repo.join(".balls/tasks").join(format!("{}.json", id));
+    let task_path = repo.join(".balls/tasks").join(format!("{id}.json"));
     let t = Task::load(&task_path).unwrap();
     let updated = f(&t);
     updated.save(&task_path).unwrap();
