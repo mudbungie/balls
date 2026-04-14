@@ -570,13 +570,69 @@ bl link add bl-a1b2 relates_to bl-c3d4
 bl link add bl-a1b2 duplicates bl-e5f6
 bl link add bl-a1b2 supersedes bl-g7h8
 bl link add bl-a1b2 replies_to bl-i9j0
+bl link add bl-a1b2 gates     bl-k1l2
 ```
 
-Adds a typed link. Link types: `relates_to`, `duplicates`, `supersedes`, `replies_to`. Validates target exists. Idempotent. Commits.
+Adds a typed link. Link types: `relates_to`, `duplicates`, `supersedes`, `replies_to`, `gates`. Validates target exists. Idempotent. Commits. See [Gates: post-review blockers](#gates-post-review-blockers) for what `gates` does.
 
 ### bl link rm TASK TYPE TARGET
 
 Removes a typed link. Commits.
+
+## Gates: post-review blockers
+
+Gates are the answer to a question every shipping team eventually asks: *when the implementation is done, how do I make sure the security review, the doc update, and the test-coverage audit actually happen before the task is archived?*
+
+Most trackers handle this with process — a checklist in the ticket, a reminder, a Slack ping, a hope. Balls makes it a first-class link type.
+
+A `gates` link says: *this parent task cannot transition to `closed` until the target task is closed first.* It's structurally different from a `dep`:
+
+| | `dep` (depends_on) | `gates` |
+|---|---|---|
+| Blocks | **claim** of the child | **close** of the parent |
+| Direction | child → parent (child blocks on parent finishing) | parent → child (parent blocks on child finishing) |
+| Typical use | "build the API before the UI that consumes it" | "security audit before the feature ships" |
+
+### Worked example
+
+You just finished implementing a new auth middleware. Code is in review. Before it ships, you want three audits: security, docs, test coverage. Here's the whole flow:
+
+```
+# Create the audit children.
+bl create "Security audit: auth middleware" --parent bl-auth
+bl create "Doc review: auth middleware"     --parent bl-auth
+bl create "Test coverage: auth middleware"  --parent bl-auth
+# (Say these come back as bl-sec, bl-doc, bl-cov.)
+
+# Wire them as gates on the parent.
+bl link add bl-auth gates bl-sec
+bl link add bl-auth gates bl-doc
+bl link add bl-auth gates bl-cov
+
+# Now try to close the parent too early.
+bl close bl-auth
+# Error: cannot close bl-auth: blocked by open gates bl-sec, bl-doc, bl-cov.
+#        Close the gate tasks first, or run `bl link rm bl-auth gates <id>` to drop a gate.
+
+# Finish the audits one by one; when the last one closes, the parent closes cleanly.
+```
+
+### Why it's a primitive, not a convention
+
+A checklist in a description is a convention: nothing enforces it, and it rots. A gate is a data-structure-level invariant — `close_and_archive` literally refuses to run while any gate child is still open. You can't bypass it with a typo or a hurry, only by explicitly dropping the gate link, which leaves a commit trail.
+
+It's also additive. Existing projects get nothing new to learn until they want gates; existing tasks keep working unchanged. And because `gates` is just another link-type variant in the same JSON schema, older `bl` binaries that predate this feature still round-trip the link verbatim — the worst they can do is fail to *enforce* the gate, not corrupt the task file. (That forward-compat guarantee kicks in starting with this release; `bl` versions before `0.3.0` will hard-error on a `gates` link, which is why `0.3.0` is a breaking version bump.)
+
+### When to reach for gates
+
+- Post-implementation audits (security, docs, test coverage, accessibility, perf).
+- Cross-team sign-offs that need to happen *after* code is merged but *before* the task closes.
+- Any "one task, many mandatory follow-ups" pattern where forgetting one is expensive.
+
+### When *not* to
+
+- Pre-implementation blockers — use `dep`. Gates is about close, not claim.
+- Soft recommendations — gates is a hard stop. If "we should probably also do X" is fine, it's not a gate.
 
 ### bl sync
 

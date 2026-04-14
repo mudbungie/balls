@@ -45,8 +45,8 @@ Reviewers also want `bl list --status review` to see what's waiting on a decisio
 
 ```
 open ──claim──> in_progress ──review──> review ──close──> archived
-                     ^                    │
-                     └────── reject ──────┘
+                     ^                    │      │
+                     └────── reject ──────┘      └── blocked while open `gates` links exist
 ```
 
 - **open**: available to claim.
@@ -55,6 +55,8 @@ open ──claim──> in_progress ──review──> review ──close──
 - **closed/archived**: task file deleted from the state branch's HEAD (not main). The work itself lives in main's git history.
 
 A reject sets status back to `in_progress`. The worker resumes in their existing worktree; their next `bl review` re-merges main automatically.
+
+A `bl close` is additionally blocked if the task has any open `gates` links — see the link-types table below.
 
 ## Worker Workflow
 
@@ -148,7 +150,21 @@ bl dep tree                          # show full dependency graph
 bl link add TASK_ID relates_to OTHER_ID   # non-blocking relationship
 bl link add TASK_ID duplicates OTHER_ID
 bl link add TASK_ID supersedes OTHER_ID
+bl link add TASK_ID replies_to  OTHER_ID  # thread reply
+bl link add TASK_ID gates       OTHER_ID  # post-review blocker — see below
 ```
+
+Link types:
+
+| Type | Enforced? | Blocks | Use for |
+|---|---|---|---|
+| `relates_to` | no | nothing | cross-reference |
+| `duplicates` | no | nothing | mark a dup |
+| `supersedes` | no | nothing | "this replaces that" |
+| `replies_to` | no | nothing | threaded discussion |
+| `gates` | **yes** | **close of the source task** | post-review audits (security, docs, coverage) — parent can't archive until gate targets close |
+
+`gates` is the thing to reach for when "this task is done but I still need someone to audit it" is a hard requirement, not a convention. A parent with an open gate link will refuse `bl close` until the gate child is itself closed. Use `bl link rm PARENT gates CHILD` if you need to drop a gate explicitly (it leaves a commit trail). `dep` blocks claim of the child; `gates` blocks close of the parent — they are intentionally different primitives. See the README "Gates: post-review blockers" section for the full pitch and worked example.
 
 ## Environment
 

@@ -6,6 +6,11 @@ use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use std::fmt;
 
+// LinkType and Link live in `crate::link` to keep this file under the
+// 300-line cap. Re-exported here for call sites that still import from
+// `balls::task`.
+pub use crate::link::{Link, LinkType};
+
 /// Type of work item: epic (container), task (default), or bug.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -96,49 +101,6 @@ pub struct Note {
     pub ts: DateTime<Utc>,
     pub author: String,
     pub text: String,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum LinkType {
-    RelatesTo,
-    Duplicates,
-    Supersedes,
-    RepliesTo,
-}
-
-impl LinkType {
-    pub fn parse(s: &str) -> Result<Self> {
-        match s {
-            "relates_to" => Ok(LinkType::RelatesTo),
-            "duplicates" => Ok(LinkType::Duplicates),
-            "supersedes" => Ok(LinkType::Supersedes),
-            "replies_to" => Ok(LinkType::RepliesTo),
-            _ => Err(BallError::InvalidTask(format!("unknown link type: {s}"))),
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            LinkType::RelatesTo => "relates_to",
-            LinkType::Duplicates => "duplicates",
-            LinkType::Supersedes => "supersedes",
-            LinkType::RepliesTo => "replies_to",
-        }
-    }
-}
-
-impl fmt::Display for LinkType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Typed relationship between two tasks.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Link {
-    pub link_type: LinkType,
-    pub target: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
