@@ -6,7 +6,7 @@
   "created_at": "2026-04-14T03:22:43.469604511Z",
   "delivered_in": null,
   "depends_on": [],
-  "description": "The installer should create a 'balls' symlink pointing to the bd binary so the tool is available on the command line as both 'bd' and 'balls'.",
+  "description": "The installer should create a 'balls' symlink pointing to the bl binary so the tool is available on the command line as both 'bl' and 'balls'. Update the install target in the Makefile; also update uninstall.",
   "external": {},
   "id": "bl-e28f",
   "links": [],
@@ -16,5 +16,5 @@
   "tags": [],
   "title": "Installer symlinks 'balls' to bd",
   "type": "task",
-  "updated_at": "2026-04-14T03:22:43.469604511Z"
+  "updated_at": "2026-04-14T03:22:55.224565683Z"
 }
