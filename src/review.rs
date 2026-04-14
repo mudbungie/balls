@@ -3,11 +3,62 @@
 //! so neither file hits the 300-line cap.
 
 use crate::error::{BallError, Result};
+use crate::link::LinkType;
 use crate::store::Store;
 use crate::task::{Status, Task};
 use crate::worktree::{claim_file_path, with_task_lock, worktree_path};
 use crate::{git, task_io};
 use std::fs;
+
+/// Return the IDs of any `gates`-linked children of `parent` that are
+/// still open in the store. A child is "open" if its task file is still
+/// present — once closed, `close_and_archive` removes it. Callers that
+/// are about to close `parent` must reject the close if this list is
+/// non-empty.
+pub fn open_gate_blockers(store: &Store, parent: &Task) -> Result<Vec<String>> {
+    let mut blockers = Vec::new();
+    for link in &parent.links {
+        if !matches!(link.link_type, LinkType::Gates) {
+            continue;
+        }
+        // load_task returns TaskNotFound if the child is already
+        // archived (i.e. the gate has been satisfied). Any other
+        // error bubbles up — we don't want to silently skip a
+        // malformed gate child and let the parent close.
+        match store.load_task(&link.target) {
+            Ok(child) => {
+                if child.status != Status::Closed {
+                    blockers.push(link.target.clone());
+                }
+            }
+            Err(BallError::TaskNotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(blockers)
+}
+
+/// Build the error returned when a close is blocked by open gates.
+/// Factored out so both close paths produce the same message.
+fn gate_blocked_error(parent_id: &str, blockers: &[String]) -> BallError {
+    BallError::Other(format!(
+        "cannot close {parent_id}: blocked by open gate{plural} {list}. \
+         Close the gate task{plural} first, or run `bl link rm {parent_id} gates <id>` to drop a gate.",
+        plural = if blockers.len() == 1 { "" } else { "s" },
+        list = blockers.join(", "),
+    ))
+}
+
+/// Public wrapper: check gates and return a ready-to-return error if
+/// any are open. Both close paths share this to keep the message and
+/// semantics aligned.
+pub fn enforce_gates(store: &Store, parent: &Task) -> Result<()> {
+    let blockers = open_gate_blockers(store, parent)?;
+    if !blockers.is_empty() {
+        return Err(gate_blocked_error(&parent.id, &blockers));
+    }
+    Ok(())
+}
 
 fn merge_or_fail(dir: &std::path::Path, branch: &str, ctx: &str) -> Result<()> {
     if let git::MergeResult::Conflict = git::git_merge(dir, branch)? {
@@ -95,6 +146,7 @@ pub fn close_worktree(
 
     with_task_lock(store, id, || {
         let mut t = store.load_task(id)?;
+        enforce_gates(store, &t)?;
         let branch = t.branch.clone().unwrap_or_else(|| format!("work/{id}"));
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
