@@ -12,7 +12,7 @@
 
 use crate::error::Result;
 use std::io::{Read, Write};
-use std::process::{Child, Command, ExitStatus};
+use std::process::{Child, ExitStatus};
 use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_STREAM_BYTES: usize = 1024 * 1024;
@@ -119,12 +119,16 @@ fn drain_capped<R: Read>(mut r: R, cap: usize) -> (Vec<u8>, bool) {
 
 /// SIGKILL the process group led by `pid`. Relies on the child
 /// having been spawned with `process_group(0)`, so pgid == pid.
-/// Shells out to `/bin/kill` so we don't need a libc dep.
-fn kill_process_group(pid: u32) {
-    let _ = Command::new("kill")
-        .arg("-KILL")
-        .arg(format!("-{pid}"))
-        .status();
+/// Direct syscall: `/bin/kill -KILL -{pid}` parses ambiguously across
+/// kill implementations and was observed to hang on GitHub Actions.
+fn kill_process_group(child_pid: u32) {
+    #[allow(clippy::cast_possible_wrap)]
+    let pgid = child_pid as i32;
+    // SAFETY: killpg is async-signal-safe; any error is ignored because
+    // the timeout path has no recovery beyond "kill harder".
+    unsafe {
+        libc::killpg(pgid, libc::SIGKILL);
+    }
 }
 
 #[cfg(test)]
