@@ -85,12 +85,12 @@ pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) 
             task.external.insert(plugin_name.to_string(), ext_value);
         }
 
-        if let Some(note) = &item.add_note {
-            task.append_note(plugin_name, note);
-        }
-
         task.touch();
         store.save_task(&task)?;
+        if let Some(note) = &item.add_note {
+            let task_path = store.task_path(&item.task_id)?;
+            balls::task_io::append_note_to(&task_path, plugin_name, note)?;
+        }
         store.commit_task(
             &item.task_id,
             &format!("balls: sync-update {} from {}", item.task_id, plugin_name),
@@ -118,9 +118,10 @@ pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) 
         } else {
             item.reason.clone()
         };
-        task.append_note(plugin_name, &reason);
         task.touch();
         store.save_task(&task)?;
+        let task_path = store.task_path(&item.task_id)?;
+        balls::task_io::append_note_to(&task_path, plugin_name, &reason)?;
         store.commit_task(
             &item.task_id,
             &format!("balls: sync-defer {} from {}", item.task_id, plugin_name),

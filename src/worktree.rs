@@ -1,7 +1,7 @@
 use crate::error::{BallError, Result};
 use crate::store::{task_lock, Store};
 use crate::task::{Status, Task};
-use crate::{git, task};
+use crate::{git, task, task_io};
 use std::{fs, path::PathBuf};
 
 fn with_task_lock<T>(store: &Store, id: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
@@ -46,11 +46,7 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
         // task can't both pass.
         let mut task = store.load_task(id)?;
         if task.status != Status::Open {
-            return Err(BallError::NotClaimable(format!(
-                "{} (status = {})",
-                id,
-                task.status.as_str()
-            )));
+            return Err(BallError::NotClaimable(format!("{} (status = {})", id, task.status.as_str())));
         }
         if task.claimed_by.is_some() {
             return Err(BallError::AlreadyClaimed(id.to_string()));
@@ -131,23 +127,19 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
             &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
         )?;
 
-        // Set review status (on top of latest main state)
-        let mut t = if store.stealth {
-            store.load_task(id)?
+        // Set review status (on top of latest main state). Task metadata
+        // lives in the worktree's checkout except in stealth mode.
+        let task_path = if store.stealth {
+            store.task_path(id)?
         } else {
-            let wt_task = wt_path.join(".balls/tasks").join(format!("{}.json", id));
-            Task::load(&wt_task)?
+            wt_path.join(".balls/tasks").join(format!("{}.json", id))
         };
+        let mut t = Task::load(&task_path)?;
         t.status = Status::Review;
-        if let Some(msg) = message {
-            t.append_note(identity, msg);
-        }
         t.touch();
-        if store.stealth {
-            store.save_task(&t)?;
-        } else {
-            let wt_task = wt_path.join(".balls/tasks").join(format!("{}.json", id));
-            t.save(&wt_task)?;
+        t.save(&task_path)?;
+        if let Some(msg) = message {
+            task_io::append_note_to(&task_path, identity, msg)?;
         }
         git::git_add_all(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("balls: review {}", id));
@@ -188,11 +180,12 @@ pub fn close_worktree(store: &Store, id: &str, message: Option<&str>, identity: 
         let branch = t.branch.clone().unwrap_or_else(|| format!("work/{}", id));
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
-        if let Some(msg) = message {
-            t.append_note(identity, msg);
-        }
         t.touch();
         store.save_task(&t)?;
+        if let Some(msg) = message {
+            let task_path = store.task_path(id)?;
+            task_io::append_note_to(&task_path, identity, msg)?;
+        }
 
         // Remove worktree before archiving (archive needs git rm from repo root)
         if wt_path.exists() {

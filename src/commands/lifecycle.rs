@@ -7,7 +7,7 @@ use balls::plugin;
 use balls::ready;
 use balls::store::task_lock;
 use balls::task::{Link, LinkType, Status, Task, TaskType};
-use balls::worktree;
+use balls::{task_io, worktree};
 
 pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
     let store = discover()?;
@@ -62,10 +62,7 @@ pub fn cmd_update(
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
-
-    // Check if any assignment sets status=closed
     let closing = assignments.iter().any(|a| a == "status=closed");
-
     let task = {
         let _g = task_lock(&store, &id)?;
         let mut task = store.load_task(&id)?;
@@ -76,7 +73,6 @@ pub fn cmd_update(
                 "use `bl close` for claimed tasks (handles worktree teardown and merge)".into(),
             ));
         }
-
         for assign in &assignments {
             let (field, value) = assign.split_once('=').ok_or_else(|| {
                 BallError::InvalidTask(format!("expected field=value, got: {}", assign))
@@ -86,13 +82,12 @@ pub fn cmd_update(
         if closing {
             task.closed_at = Some(chrono::Utc::now());
         }
-        if let Some(n) = &note {
-            task.append_note(&ident, n);
-        }
         task.touch();
         store.save_task(&task)?;
+        if let Some(n) = &note {
+            task_io::append_note_to(&store.task_path(&id)?, &ident, n)?;
+        }
         if closing {
-            // Archive stages deletions; commit everything in one shot
             worktree::archive_task(&store, &task)?;
             store.commit_staged(&format!("balls: close {} - {}", id, task.title))?;
         } else {
