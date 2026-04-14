@@ -24,6 +24,16 @@ It syncs with the remote and returns:
 
 Reviewers also want `bl list --status review` to see what's waiting on a decision.
 
+### First-time setup in a repo
+
+`bl init` bootstraps a repo that has never used balls. It is not a no-op:
+
+- If the repo has zero commits, it creates an initial commit so balls has something to anchor to.
+- It creates a `balls/tasks` orphan state branch (non-stealth mode) where task JSON lives, separate from `main`'s history.
+- It adds `.balls/config.json`, `.balls/plugins/.gitkeep`, and a `.gitignore` entry for runtime state, then commits them to the current branch (`balls: initialize`).
+
+If you're scripting against a fresh repo, expect `bl init` to add one commit to whatever branch you're on. Make any pre-existing commit you want on main *before* running it.
+
 ## Commands
 
 | Command | What it does |
@@ -32,7 +42,7 @@ Reviewers also want `bl list --status review` to see what's waiting on a decisio
 | `bl ready` [`--json`] | List open tasks ready to claim. |
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
 | `bl show TASK_ID` [`--json`] | Task details, including `delivered_in` sha after review. |
-| `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--dep ID] [--tag T]` | File a new task. See **Creating Tasks** below. |
+| `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
 | `bl claim TASK_ID` | Worker: create worktree, set status=in_progress. |
 | `bl review TASK_ID -m "msg"` | Worker: squash to main, set status=review. Worktree stays. |
 | `bl close TASK_ID -m "msg"` | Reviewer: approve. Archive task, remove worktree + branch. **Repo root only.** |
@@ -134,12 +144,16 @@ If you discover work that needs doing:
 ```
 bl create "Fix the auth timeout" -p 1 -t bug --tag auth -d "Description here"
 bl create "Add rate limiting" -p 2 --dep bl-a1b2 --tag api
+bl create "Spike: retry strategy" --parent bl-a1b2        # child of an epic
 ```
 
 - Priority: 1 (highest) to 4 (lowest)
-- Types: `epic`, `task`, `bug`
-- Dependencies: `--dep TASK_ID` (blocks the new task until dep is closed)
-- Tags: `--tag NAME` (freeform labels)
+- Types: `epic`, `task`, `bug`. The type is a label, not a behavior switch — `epic` does not gate anything, does not auto-link children, and imposes no workflow of its own. Use it as a visual/organizational marker for container work and wire real hierarchy with `--parent`.
+- Parent: `--parent TASK_ID` establishes a hierarchical parent (e.g. an epic). Does not block; use `--dep` for that.
+- Dependencies: `--dep TASK_ID` (blocks the new task until dep is closed, repeatable)
+- Tags: `--tag NAME` (freeform labels, repeatable)
+
+`bl create` prints the new bare task id (`bl-xxxx`) to stdout and nothing else on success — capture it directly in a shell variable when scripting.
 
 ## Dependencies and Links
 
@@ -165,6 +179,37 @@ Link types:
 | `gates` | **yes** | **close of the source task** | post-review audits (security, docs, coverage) — parent can't archive until gate targets close |
 
 `gates` is the thing to reach for when "this task is done but I still need someone to audit it" is a hard requirement, not a convention. A parent with an open gate link will refuse `bl close` until the gate child is itself closed. Use `bl link rm PARENT gates CHILD` if you need to drop a gate explicitly (it leaves a commit trail). `dep` blocks claim of the child; `gates` blocks close of the parent — they are intentionally different primitives. See the README "Gates: post-review blockers" section for the full pitch and worked example.
+
+## Scripting with bl
+
+When driving `bl` from a script or another agent, treat the following as the machine contract. Everything else in this doc is for humans reading task state — the contract below is what a loop can rely on.
+
+**Machine-parseable stdout.** These commands accept `--json` and print a single JSON document to stdout (stderr is diagnostics only): `bl prime`, `bl ready`, `bl list`, `bl show`. Prefer `--json` over parsing the table output.
+
+**Commands that print a single token on success.** Capture stdout directly:
+
+| Command | Stdout on success |
+|---|---|
+| `bl create ...` | bare task id, e.g. `bl-3f2a` |
+| `bl claim TASK_ID` | absolute worktree path |
+| `bl link add A TYPE B` | `A TYPE B` confirmation line |
+
+`bl review`, `bl close`, `bl update`, `bl drop`, `bl dep add/rm`, `bl init` print human status lines; don't grep them. Check the exit code (`0` = ok, non-zero = error with a message on stderr).
+
+**Building a tree in one pass.** `--parent` plus `--dep` compose cleanly:
+
+```
+EPIC=$(bl create "Migrate auth layer" -t epic -p 1)
+A=$(bl create "Extract token store" --parent "$EPIC")
+B=$(bl create "Swap middleware"       --parent "$EPIC" --dep "$A")
+bl link add "$EPIC" gates "$(bl create "Audit: rollback plan reviewed" --parent "$EPIC")"
+```
+
+Parents are hierarchy; deps are claim-time blockers; gates are close-time blockers on the source task. They do not interact — pick each one on its own merits.
+
+**Identity.** Set `BALLS_IDENTITY` in the environment once, or pass `--as` on every command that accepts it (`prime`, `claim`, `update`). Scripts should prefer the env var so a single export covers the whole session.
+
+**Exit codes and errors.** Every `bl` subcommand exits non-zero on failure and writes `error: <message>` to stderr. No command writes partial output on failure, so a non-zero exit means the stdout token you were about to capture is not there — always check `$?` before using it.
 
 ## Environment
 
