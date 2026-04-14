@@ -23,8 +23,8 @@ fn write_claim_file(store: &Store, id: &str, worker: &str) -> Result<()> {
     Ok(())
 }
 
-fn merge_or_fail(dir: &std::path::Path, branch: &str, msg: Option<&str>, ctx: &str) -> Result<()> {
-    if let git::MergeResult::Conflict = git::git_merge(dir, branch, msg)? {
+fn merge_or_fail(dir: &std::path::Path, branch: &str, ctx: &str) -> Result<()> {
+    if let git::MergeResult::Conflict = git::git_merge(dir, branch)? {
         return Err(BallError::Conflict(ctx.to_string()));
     }
     Ok(())
@@ -131,7 +131,7 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
         let _ = git::git_commit(&wt_path, &format!("wip: {}", id));
         let main_branch = git::git_current_branch(&store.root)?;
         merge_or_fail(
-            &wt_path, &main_branch, None,
+            &wt_path, &main_branch,
             &format!("conflicts merging {} into work/{}. Resolve in worktree, then retry.", main_branch, id),
         )?;
 
@@ -163,7 +163,7 @@ pub fn review_worktree(store: &Store, id: &str, message: Option<&str>, identity:
 
         // Sync main back into worktree so re-review after rejection only
         // picks up new changes (squash merge doesn't record branch ancestry).
-        let _ = git::git_merge(&wt_path, &main_branch, None);
+        let _ = git::git_merge(&wt_path, &main_branch);
 
         Ok(())
     })
@@ -228,9 +228,9 @@ pub fn archive_task(store: &Store, task: &Task) -> Result<()> {
         }
     }
 
-    // Delete the closed task file (stages the git rm, but does not commit).
-    store.delete_task_file(&task.id)?;
-    store.rm_task_git(&task.id)?;
+    // Stage the git rm (non-stealth) or remove from fs (stealth).
+    // The commit is issued by the caller via `commit_staged`.
+    store.remove_task(&task.id)?;
     Ok(())
 }
 
