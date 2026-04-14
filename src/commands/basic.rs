@@ -149,6 +149,7 @@ pub fn cmd_show(id: String, json: bool) -> Result<()> {
     let store = discover()?;
     let task = store.load_task(&id)?;
     let all = store.all_tasks()?;
+    let delivery = balls::delivery::resolve(&store.root, &task);
 
     if json {
         let blocked = ready::is_dep_blocked(&all, &task);
@@ -159,16 +160,24 @@ pub fn cmd_show(id: String, json: bool) -> Result<()> {
             "children": children.iter().map(|t| &t.id).collect::<Vec<_>>(),
             "closed_children": task.closed_children,
             "completion": ready::completion(&all, &id),
+            "delivered_in_resolved": delivery.sha,
+            "delivered_in_hint_stale": delivery.hint_stale,
         });
         println!("{}", serde_json::to_string_pretty(&pretty)?);
         return Ok(());
     }
 
-    render_text(&task, &all, &id);
+    render_text(&task, &all, &id, &delivery, &store.root);
     Ok(())
 }
 
-fn render_text(task: &Task, all: &[Task], id: &str) {
+fn render_text(
+    task: &Task,
+    all: &[Task],
+    id: &str,
+    delivery: &balls::delivery::Delivery,
+    repo_root: &std::path::Path,
+) {
     println!("{} - {}", task.id, task.title);
     println!("  type:     {:?}", task.task_type);
     println!("  priority: {}", task.priority);
@@ -193,6 +202,14 @@ fn render_text(task: &Task, all: &[Task], id: &str) {
     }
     if let Some(b) = &task.branch {
         println!("  branch:   {}", b);
+    }
+    if let Some(sha) = &delivery.sha {
+        let label = if delivery.hint_stale { " (hint stale)" } else { "" };
+        println!(
+            "  delivered: {}{}",
+            balls::delivery::describe(repo_root, sha),
+            label
+        );
     }
     if ready::is_dep_blocked(all, task) {
         println!("  dep_blocked: yes");
