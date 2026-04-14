@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b993",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-13T23:28:31.122257763Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["tests"],
   "title": "Flaky test: story_11_list_filtered_by_status",
   "type": "bug",
-  "updated_at": "2026-04-13T23:28:31.122257763Z"
+  "updated_at": "2026-04-14T00:07:25.789458561Z"
 }
