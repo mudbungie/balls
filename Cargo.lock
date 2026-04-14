@@ -107,6 +107,7 @@ dependencies = [
  "clap_complete",
  "fs2",
  "hex",
+ "libc",
  "predicates",
  "serde",
  "serde_json",
