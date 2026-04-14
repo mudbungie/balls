@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-3662",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-14T16:44:27.969442571Z",
@@ -12,9 +12,9 @@
   "links": [{"link_type":"gates","target":"bl-c1b9"}],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Document scripting contract in SKILL.md",
   "type": "task",
-  "updated_at": "2026-04-14T16:44:35.563216959Z"
+  "updated_at": "2026-04-14T16:44:37.977635651Z"
 }
