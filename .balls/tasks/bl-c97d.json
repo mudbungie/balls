@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-14T06:52:55.123884280Z",
-  "delivered_in": null,
+  "delivered_in": "318bab8c0711b18fb2557ffadc58dd565dcd40c5",
   "depends_on": [],
   "description": "Implement a new 'gates' link type so a parent task in 'review' cannot transition to 'closed' while any gates-linked child is still open. This enables post-dev workflows where finishing implementation spawns mandatory audit subtasks (security, docs, test coverage) that must complete before the parent can be archived.\n\nScope:\n- Add 'gates' variant to LinkType in src/task.rs.\n- Make LinkType deserialization lenient: add an Unknown(String) variant with #[serde(other)] (or custom Deserialize) so older binaries reading newer task files don't hard-error on unknown variants. This is groundwork for future link-type additions to be forward-compatible — but does NOT retroactively save existing 0.2.0 clients, which will still hard-error on 'gates'. That's the breaking part.\n- Enforce gate semantics in 'bl close': reject if any gates-linked child task is not closed.\n- Optional: bl review (or a hook) spawns audit children from a per-repo template and creates the gate links automatically. Out of scope for v1 — manual creation via 'bl link add PARENT gates CHILD' is fine to start.\n- Bump Cargo.toml to 0.3.0. This is a breaking release because 0.2.0 binaries will fail to parse task files containing the new link variant.\n- README: add a short sales-pitch section on gates as a first-class concept (it's a great feature — sell it).\n\nDesign notes already discussed:\n- 'gates' is intentionally a separate concept from 'dep'. dep blocks CLAIM (must close before child can start). gates blocks CLOSE (parent can't archive until child closes). Reusing dep with reversed direction would break the dep invariant and force audit tasks to exist before the parent is even claimable.\n- Forward-compat fix to the parser must land in the same release as the 'gates' variant — it doesn't help retroactively, but it makes future variant additions painless.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["gates","0.3.0"],
   "title": "Add gates link type for post-review subtask blocking",
   "type": "epic",
-  "updated_at": "2026-04-14T06:55:17.438002955Z"
+  "updated_at": "2026-04-14T07:08:34.880109229Z"
 }
