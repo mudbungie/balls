@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-15T01:56:33.128330701Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Task (src/task.rs:113-146) has no #[serde(flatten)] extra field. Unknown top-level fields from a future bl version deserialize cleanly (serde ignores unknowns by default) but are DROPPED on next save - serialize_mergeable in src/task_io.rs round-trips through to_value and only emits fields the current struct knows about. external: BTreeMap covers plugin namespaced data, not first-party future fields. Fix: add extra: BTreeMap<String, Value> with #[serde(flatten)] and include its keys in the mergeable writer's sorted key walk. Note struct (src/task.rs:99-104) has the same gap - lower risk because notes live in an append-only sidecar, but apply the same passthrough. Test: extend tests/gates_compat.rs with a future-field round-trip that mutates the task and verifies the unknown field survives.",
+  "external": {},
+  "id": "bl-f9db",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "Forward-compat passthrough on Task and Note structs",
+  "type": "task",
+  "updated_at": "2026-04-15T01:56:33.128330701Z"
+}
