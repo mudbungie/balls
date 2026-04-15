@@ -52,6 +52,7 @@ pub fn append_note_to(task_path: &Path, author: &str, text: &str) -> Result<Note
         ts: Utc::now(),
         author: author.to_string(),
         text: text.to_string(),
+        extra: std::collections::BTreeMap::new(),
     };
     let notes_path = notes_path_for(task_path);
     if let Some(parent) = notes_path.parent() {

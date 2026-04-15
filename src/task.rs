@@ -102,6 +102,11 @@ pub struct Note {
     pub ts: DateTime<Utc>,
     pub author: String,
     pub text: String,
+    /// Forward-compat passthrough: unknown fields from a newer `bl`
+    /// land here on deserialize and round-trip back out on save. See
+    /// the `Task::extra` doc for the full rationale.
+    #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,6 +149,14 @@ pub struct Task {
     /// in the commit message — see `crate::delivery`.
     #[serde(default)]
     pub delivered_in: Option<String>,
+    /// Forward-compat passthrough. Any top-level JSON field that the
+    /// current struct doesn't name lands here on deserialize and
+    /// round-trips back out on save. Lets an older `bl` load a task
+    /// file written by a future version without silently dropping
+    /// new first-party fields. `external` already exists for plugin
+    /// data; `extra` is the catch-all for everything else.
+    #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: BTreeMap<String, Value>,
 }
 
 pub struct NewTaskOpts {
@@ -214,6 +227,7 @@ impl Task {
             closed_children: Vec::new(),
             external: BTreeMap::new(),
             delivered_in: None,
+            extra: BTreeMap::new(),
         }
     }
 
@@ -232,6 +246,7 @@ impl Task {
             ts: Utc::now(),
             author: author.to_string(),
             text: text.to_string(),
+            extra: BTreeMap::new(),
         });
     }
 }
