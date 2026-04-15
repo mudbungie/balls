@@ -1,12 +1,13 @@
+use super::diag::prepare_diag_pipe;
 use super::limits::{self, run_with_limits, PluginOutcome};
-use super::types::{PushResponse, SyncReport};
+use super::types::{PluginDiagnostic, PushResponse, SyncReport};
 use crate::config::PluginEntry;
 use crate::error::Result;
 use crate::store::Store;
 use crate::task::Task;
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 pub struct Plugin {
     pub executable: String,
@@ -31,32 +32,28 @@ impl Plugin {
     }
 
     /// Check if the plugin's auth is valid. Returns true if auth is good,
-    /// false if expired/missing. Prints a warning on auth failure.
+    /// false if expired/missing. Plugin diagnostics (if any) are
+    /// rendered before the warning, so a plugin that explains *why* auth
+    /// is missing via the diagnostics channel gets its message surfaced.
     pub fn auth_check(&self) -> bool {
         if !self.is_available() {
             return false;
         }
-        let result = self
-            .command("auth-check", None)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output();
-        match result {
-            Ok(out) => {
-                if out.status.success() {
-                    true
-                } else {
-                    eprintln!(
-                        "warning: {} auth expired. Run `{} auth-setup --config {} --auth-dir {}` to re-authenticate.",
-                        self.executable,
-                        self.executable,
-                        self.config_path.display(),
-                        self.auth_dir.display()
-                    );
-                    false
-                }
-            }
-            Err(_) => false,
+        let Ok(outcome) = self.spawn_and_run("auth-check", None, &[]) else {
+            return false;
+        };
+        self.render_diagnostics("auth-check", &outcome.diagnostics);
+        if outcome.status.success() {
+            true
+        } else {
+            eprintln!(
+                "warning: {} auth expired. Run `{} auth-setup --config {} --auth-dir {}` to re-authenticate.",
+                self.executable,
+                self.executable,
+                self.config_path.display(),
+                self.auth_dir.display()
+            );
+            false
         }
     }
 
@@ -64,14 +61,8 @@ impl Plugin {
     /// (stored into task.external) or None if the plugin failed,
     /// timed out, or exceeded the output cap.
     pub fn push(&self, task: &Task) -> Result<Option<PushResponse>> {
-        let child = self
-            .command("push", Some(&task.id))
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
         let json = serde_json::to_string(task)?;
-        let outcome = run_with_limits(child, json.as_bytes())?;
+        let outcome = self.spawn_and_run("push", Some(&task.id), json.as_bytes())?;
         Ok(self.parse_outcome::<PushResponse>("push", outcome))
     }
 
@@ -81,15 +72,68 @@ impl Plugin {
         tasks: &[Task],
         filter: Option<&str>,
     ) -> Result<Option<SyncReport>> {
-        let child = self
-            .command("sync", filter)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
         let json = serde_json::to_string(tasks)?;
-        let outcome = run_with_limits(child, json.as_bytes())?;
+        let outcome = self.spawn_and_run("sync", filter, json.as_bytes())?;
         Ok(self.parse_outcome::<SyncReport>("sync", outcome))
+    }
+
+    /// Spawn the plugin with stdin/stdout/stderr piped and a
+    /// diagnostics channel on FD 3 (advertised via BALLS_DIAG_FD).
+    /// Pipes the given bytes on stdin, runs under the usual limits,
+    /// and returns the outcome including any diagnostics the plugin
+    /// wrote. The child becomes the sole writer of the diag pipe
+    /// after we drop our write end, so the pipe EOFs on exit.
+    fn spawn_and_run(
+        &self,
+        subcmd: &str,
+        task_filter: Option<&str>,
+        stdin_bytes: &[u8],
+    ) -> Result<PluginOutcome> {
+        let mut cmd = self.command(subcmd, task_filter);
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let diag = prepare_diag_pipe(&mut cmd)?;
+        let child: Child = cmd.spawn()?;
+        drop(diag.write);
+        run_with_limits(child, stdin_bytes, Some(diag.read))
+    }
+
+    /// Parse newline-delimited JSON diagnostics from the plugin and
+    /// print each record to stderr. Malformed lines are surfaced as a
+    /// single warning and do not abort the rest.
+    fn render_diagnostics(&self, op: &str, diag_bytes: &[u8]) {
+        if diag_bytes.is_empty() {
+            return;
+        }
+        let text = String::from_utf8_lossy(diag_bytes);
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            match serde_json::from_str::<PluginDiagnostic>(line) {
+                Ok(d) => {
+                    let code = d.code.as_deref().map(|c| format!(" [{c}]")).unwrap_or_default();
+                    eprintln!(
+                        "plugin {} {} {}{}: {}",
+                        self.executable, op, d.level, code, d.message
+                    );
+                    if let Some(hint) = d.hint {
+                        eprintln!("  hint: {hint}");
+                    }
+                    if let Some(task_id) = d.task_id {
+                        eprintln!("  task: {task_id}");
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "warning: plugin `{}` {op} emitted invalid diagnostic JSON: {e}",
+                        self.executable
+                    );
+                }
+            }
+        }
     }
 
     /// Build a `Command` for a plugin subcommand. Puts the child in
@@ -114,6 +158,7 @@ impl Plugin {
         op: &str,
         outcome: PluginOutcome,
     ) -> Option<T> {
+        self.render_diagnostics(op, &outcome.diagnostics);
         let exe = &self.executable;
         if outcome.timed_out {
             let secs = limits::timeout().as_secs();

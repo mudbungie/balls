@@ -11,6 +11,7 @@
 //!   leaves orphaned children holding our stdout pipe open.
 
 use crate::error::Result;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Child, ExitStatus};
 use std::time::{Duration, Instant};
@@ -38,6 +39,9 @@ pub struct PluginOutcome {
     pub status: ExitStatus,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+    /// Raw bytes read from the diagnostics channel (FD 3 in the child).
+    /// Empty when the plugin ignored the channel or didn't have one.
+    pub diagnostics: Vec<u8>,
     /// True if stdout exceeded the per-stream byte cap.
     pub truncated: bool,
     /// True if the plugin was killed because it exceeded the wall clock.
@@ -47,9 +51,15 @@ pub struct PluginOutcome {
 /// Run `child` to completion with bounded output and a wall-clock
 /// timeout. Feeds `stdin_bytes` on a writer thread so the main
 /// thread never blocks on a full stdin pipe if the plugin isn't
-/// reading. Returns `PluginOutcome` with flags for the two failure
-/// modes.
-pub fn run_with_limits(mut child: Child, stdin_bytes: &[u8]) -> Result<PluginOutcome> {
+/// reading. If `diag_read` is provided, the parent also drains the
+/// diagnostics channel in a separate thread; a plugin that ignores
+/// the channel yields an empty `diagnostics` buffer. Returns
+/// `PluginOutcome` with flags for the two failure modes.
+pub fn run_with_limits(
+    mut child: Child,
+    stdin_bytes: &[u8],
+    diag_read: Option<File>,
+) -> Result<PluginOutcome> {
     if let Some(mut sin) = child.stdin.take() {
         let bytes = stdin_bytes.to_vec();
         std::thread::spawn(move || {
@@ -63,6 +73,7 @@ pub fn run_with_limits(mut child: Child, stdin_bytes: &[u8]) -> Result<PluginOut
     let stderr = child.stderr.take().expect("stderr piped");
     let stdout_thread = std::thread::spawn(move || drain_capped(stdout, cap));
     let stderr_thread = std::thread::spawn(move || drain_capped(stderr, cap));
+    let diag_thread = diag_read.map(|r| std::thread::spawn(move || drain_capped(r, cap)));
 
     let deadline = Instant::now() + timeout();
     let mut timed_out = false;
@@ -80,11 +91,15 @@ pub fn run_with_limits(mut child: Child, stdin_bytes: &[u8]) -> Result<PluginOut
 
     let (stdout_buf, stdout_trunc) = stdout_thread.join().unwrap_or_default();
     let (stderr_buf, _) = stderr_thread.join().unwrap_or_default();
+    let diagnostics = diag_thread
+        .map(|t| t.join().unwrap_or_default().0)
+        .unwrap_or_default();
 
     Ok(PluginOutcome {
         status,
         stdout: stdout_buf,
         stderr: stderr_buf,
+        diagnostics,
         truncated: stdout_trunc,
         timed_out,
     })
