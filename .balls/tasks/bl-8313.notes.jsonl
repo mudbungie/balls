@@ -1,1 +1,0 @@
-{"ts":"2026-04-15T02:17:37.426206473Z","author":"mark","text":"Consolidate priority validation into task::parse_priority\n\nExtracts PRIORITY_MIN/PRIORITY_MAX plus validate_priority and\nparse_priority helpers in task.rs. commands/basic.rs and\ncommands/lifecycle.rs now call through the helpers instead of\nduplicating the 1..=4 range check. Pure consolidation."}
