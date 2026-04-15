@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/mudbungie/balls/compare/v0.2.1...v0.3.0) - 2026-04-14
+
+### Changes
+
+- cli help: include gates in link subcommand doc strings [bl-fdde]
+- Add gates link type for post-review close blockers [bl-c97d]
+- accept bare-hex task ids without bl- prefix [bl-e501]
+- add bl create row to commands table [bl-c25b]
+
 ## [0.2.1](https://github.com/mudbungie/balls/compare/v0.2.0...v0.2.1) - 2026-04-14
 
 ### Changes
