@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-15T01:56:50.124319421Z",
-  "delivered_in": null,
+  "delivered_in": "513b92bb2a633cbfd6f6c5b5028ae8fc928bfd3a",
   "depends_on": [],
   "description": "Priority range 1..=4 is hardcoded in two places: src/commands/basic.rs:38 and src/commands/lifecycle.rs:125. Task.priority is u8 on the struct (accepts 0..=255 on load). Extract a single balls::task::parse_priority(&str) -> Result<u8> helper and call it from both sites. Future widening (e.g. 1..=5) then lives in one place. This is prep work that makes task bl-f9db simpler - NOT a behavior change. Keep 1..=4 as the current range.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "Consolidate priority validation into one helper",
   "type": "task",
-  "updated_at": "2026-04-15T02:14:06.457247039Z"
+  "updated_at": "2026-04-15T02:17:37.426076088Z"
 }
