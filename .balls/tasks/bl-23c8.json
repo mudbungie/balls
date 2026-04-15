@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-23c8",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-15T01:56:18.242533585Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Lenient Status deserialization (preserve unknown)",
   "type": "task",
-  "updated_at": "2026-04-15T01:56:18.242533585Z"
+  "updated_at": "2026-04-15T01:57:03.454957317Z"
 }
