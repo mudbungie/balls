@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8313",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-15T01:56:50.124319421Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Consolidate priority validation into one helper",
   "type": "task",
-  "updated_at": "2026-04-15T01:56:50.124319421Z"
+  "updated_at": "2026-04-15T02:14:06.457247039Z"
 }
