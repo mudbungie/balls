@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-15T23:31:57.590431229Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Reported by a Jira-sync plugin author. Today plugin errors can only surface via stderr text that balls prints verbatim (src/plugin/runner.rs parse_outcome warnings). There is no structured way for a plugin to return user-facing diagnostics (code, message, hint, affected task ids).\n\nChosen approach (option b): dedicated diagnostics channel separate from stdout (which carries the JSON protocol) and stderr (which stays human-readable). Likely implementation: pass an extra file descriptor (e.g. FD 3) to the child via pre_exec/dup2, advertised through a BALLS_DIAG_FD env var. Plugin writes newline-delimited JSON diagnostic records; balls reads, renders, and optionally surfaces them to the user.\n\nHard requirement: MUST be a no-op for plugins that don't use it. A plugin that ignores BALLS_DIAG_FD and never writes to the channel must behave exactly as today. Don't break the existing stdout JSON contract.\n\nDeliverables: spec bump in README plugin section, runner.rs wiring, diagnostic record type, rendering path, tests that cover (a) plugin ignores the channel, (b) plugin writes one record, (c) plugin writes many records, (d) plugin emits malformed JSON on the diag channel.",
+  "external": {},
+  "id": "bl-4758",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": ["plugin"],
+  "title": "Plugin diagnostics channel (structured errors)",
+  "type": "task",
+  "updated_at": "2026-04-15T23:31:57.590431229Z"
+}
