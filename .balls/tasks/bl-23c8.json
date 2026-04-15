@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-15T01:56:18.242533585Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "v0.3.0 made LinkType forward-compat with an Unknown(String) variant. Status (src/task.rs:47-96) still hard-errors on unknown variants via #[serde(rename_all=snake_case)]. A future bl that adds e.g. triaged/backlog/archived would brick older clients trying to load any task file carrying the new value. Mirror the LinkType pattern: add Unknown(String), custom Deserialize that falls through, keep Status::parse strict (CLI entry point). Status loses Copy (becomes Clone). precedence() needs an Unknown arm - lowest precedence so it never accidentally wins a conflict resolution. Round-trip test in tests/gates_compat.rs style. Mind the 300-line cap on src/task.rs; may need to split Status into its own module like link.rs was.",
+  "external": {},
+  "id": "bl-23c8",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "Lenient Status deserialization (preserve unknown)",
+  "type": "task",
+  "updated_at": "2026-04-15T01:56:18.242533585Z"
+}
