@@ -115,6 +115,82 @@ fn push_skipped_without_auth() {
 }
 
 #[test]
+fn push_records_top_level_synced_at_for_plugin() {
+    // After a successful push response, balls writes
+    // task.synced_at[plugin_name] so plugins can use it for
+    // conflict resolution on subsequent syncs without maintaining
+    // their own side-cache.
+    let (bin_dir, _log) = install_mock_plugin();
+    let repo = new_repo();
+    init_in(repo.path());
+    configure_plugin(repo.path());
+    create_mock_auth(repo.path());
+
+    let id = {
+        let out = bl(repo.path())
+            .env("PATH", path_with_mock(bin_dir.path()))
+            .args(["create", "synced_at writeback"])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+
+    let task = read_task_json(repo.path(), &id);
+    let ts = task["synced_at"]["mock"].as_str().unwrap_or("");
+    assert!(
+        !ts.is_empty(),
+        "synced_at.mock should be set after push: {}",
+        task["synced_at"]
+    );
+    // Should be a parseable RFC3339 timestamp.
+    chrono::DateTime::parse_from_rfc3339(ts).expect("synced_at must be RFC3339");
+}
+
+#[test]
+fn subsequent_push_includes_synced_at_in_stdin() {
+    // On the second push (from `bl update`), the task JSON sent on
+    // stdin should carry the synced_at field that the first push
+    // wrote, proving plugins see what balls has recorded.
+    let (bin_dir, log) = install_mock_plugin();
+    let repo = new_repo();
+    init_in(repo.path());
+    configure_plugin(repo.path());
+    create_mock_auth(repo.path());
+
+    let id = {
+        let out = bl(repo.path())
+            .env("PATH", path_with_mock(bin_dir.path()))
+            .args(["create", "second push sees synced_at"])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+
+    // Truncate the stdin log so the next assertion inspects only
+    // the update-triggered push, not the original create push
+    // (which had no synced_at yet).
+    let stdin_path = format!("{}.stdin", log.display());
+    fs::write(&stdin_path, "").unwrap();
+
+    bl(repo.path())
+        .env("PATH", path_with_mock(bin_dir.path()))
+        .args(["update", &id, "priority=1"])
+        .assert()
+        .success();
+
+    let stdin = fs::read_to_string(&stdin_path).unwrap_or_default();
+    assert!(
+        stdin.contains("\"synced_at\""),
+        "second push stdin should include synced_at: {stdin}"
+    );
+    assert!(
+        stdin.contains("\"mock\""),
+        "second push stdin should name the mock plugin inside synced_at: {stdin}"
+    );
+}
+
+#[test]
 fn update_writes_back_push_response() {
     let (bin_dir, _log) = install_mock_plugin();
     let repo = new_repo();

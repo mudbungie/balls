@@ -920,6 +920,8 @@ Core calls `auth-check` before every push or sync. If auth is expired (exit 1), 
 - **Remote task deleted:** Plugin returns it in `sync.deleted`. Core marks local task as `deferred` with an explanatory note.
 - **Local task closed:** Plugin receives the closed status via `push` and transitions the remote issue.
 
+Core maintains a top-level `synced_at` map on every task, keyed by plugin name, pointing to the RFC3339 timestamp of the last successful push or sync-report application for that plugin. The map is sent back to the plugin on every subsequent push/sync — plugins compare their remote's `updated_at` against `task.synced_at.{plugin_name}` to decide whether the remote has changes they haven't yet applied locally, without maintaining their own side-cache under `auth-dir`. A missing key means "never synced". Failed pushes and failed sync-report entries leave the map untouched.
+
 ---
 
 ## Multi-Machine / Multi-Dev Operation
