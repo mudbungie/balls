@@ -41,6 +41,41 @@ fn task_type_parse_all() {
 }
 
 #[test]
+fn task_type_deserialize_unknown_preserves_string() {
+    // Forward-compat: older binary reading a future variant preserves
+    // it verbatim instead of erroring on the whole task file.
+    let back: TaskType = serde_json::from_str("\"spike\"").unwrap();
+    assert_eq!(back, TaskType::Unknown("spike".to_string()));
+    let s = serde_json::to_string(&back).unwrap();
+    assert_eq!(s, "\"spike\"");
+}
+
+#[test]
+fn task_type_parse_rejects_unknown_cli_input() {
+    // parse() stays strict at the CLI layer so `bl create -t spike`
+    // cannot silently fabricate an Unknown variant. Only deserialize
+    // produces Unknown.
+    assert!(TaskType::parse("spike").is_err());
+    assert!(TaskType::parse("").is_err());
+}
+
+#[test]
+fn task_type_known_round_trip_preserves_variant() {
+    for tt in [TaskType::Epic, TaskType::Task, TaskType::Bug] {
+        let j = serde_json::to_string(&tt).unwrap();
+        let back: TaskType = serde_json::from_str(&j).unwrap();
+        assert_eq!(back, tt);
+    }
+}
+
+#[test]
+fn task_type_as_str_and_display_unknown() {
+    let u = TaskType::Unknown("spike".to_string());
+    assert_eq!(u.as_str(), "spike");
+    assert_eq!(format!("{u}"), "spike");
+}
+
+#[test]
 fn status_parse_all() {
     assert_eq!(Status::parse("open").unwrap(), Status::Open);
     assert_eq!(Status::parse("in_progress").unwrap(), Status::InProgress);
