@@ -2,12 +2,45 @@
 //! older clients must preserve enum variants they don't recognize
 //! instead of hard-erroring on the whole task file. Established by the
 //! v0.3.0 `LinkType::Unknown` change (tests/gates_compat.rs) and
-//! extended here to `Status`.
+//! extended here to `Status` and `TaskType`.
 
 mod common;
 
 use common::*;
 use predicates::prelude::*;
+
+#[test]
+fn unknown_task_type_round_trips_through_task_file() {
+    // If a future version writes a task type we don't know (e.g.
+    // "spike"), the whole task file must still load, `show` must
+    // render it, and a save must preserve it.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "future-type");
+
+    let path = repo
+        .path()
+        .join(".balls/tasks")
+        .join(format!("{id}.json"));
+    let mut v: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    v["type"] = serde_json::json!("spike");
+    std::fs::write(&path, serde_json::to_string_pretty(&v).unwrap()).unwrap();
+
+    bl(repo.path())
+        .args(["show", &id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("spike"));
+
+    bl(repo.path())
+        .args(["update", &id, "--note", "touching"])
+        .assert()
+        .success();
+    let back: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(back["type"], "spike");
+}
 
 #[test]
 fn unknown_status_round_trips_through_task_file() {

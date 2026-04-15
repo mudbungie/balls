@@ -6,40 +6,11 @@ use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use std::fmt;
 
-// LinkType and Link live in `crate::link` to keep this file under the
-// 300-line cap. Re-exported here for call sites that still import from
-// `balls::task`.
+// `LinkType`/`Link` and `TaskType` live in their own modules to keep
+// this file under the 300-line cap. Re-exported here for call sites
+// that import from `balls::task`.
 pub use crate::link::{Link, LinkType};
-
-/// Type of work item: epic (container), task (default), or bug.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum TaskType {
-    Epic,
-    Task,
-    Bug,
-}
-
-impl TaskType {
-    pub fn parse(s: &str) -> Result<Self> {
-        match s {
-            "epic" => Ok(TaskType::Epic),
-            "task" => Ok(TaskType::Task),
-            "bug" => Ok(TaskType::Bug),
-            _ => Err(BallError::InvalidTask(format!("unknown type: {s}"))),
-        }
-    }
-}
-
-impl fmt::Display for TaskType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(match self {
-            TaskType::Epic => "epic",
-            TaskType::Task => "task",
-            TaskType::Bug => "bug",
-        })
-    }
-}
+pub use crate::task_type::TaskType;
 
 /// Task lifecycle status.
 ///
