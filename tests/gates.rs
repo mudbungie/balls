@@ -245,6 +245,98 @@ fn malformed_gate_child_propagates_load_error() {
 }
 
 #[test]
+fn dep_tree_handles_mixed_dep_and_gates() {
+    // A task holding both `depends_on` and `gates` links should
+    // render through `bl dep tree` without error and show both
+    // relationships. Guards against a future regression where the
+    // tree walker trips on unrecognised link types.
+    let repo = new_repo();
+    init_in(repo.path());
+    let base = create_task(repo.path(), "base");
+    let parent = create_task_full(repo.path(), "parent", 3, &[&base], &[]);
+    let gate = create_task(repo.path(), "gate");
+    bl(repo.path())
+        .args(["link", "add", &parent, "gates", &gate])
+        .assert()
+        .success();
+    let out = bl(repo.path())
+        .args(["dep", "tree"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains(&parent));
+    assert!(s.contains(&base));
+}
+
+#[test]
+fn gate_children_are_claim_ready() {
+    // Locks in the documented semantics: `gates` blocks close of
+    // the parent, NOT claim of the child. A gate target should
+    // appear in `bl ready` the moment it exists, regardless of
+    // parent state. (Contrast with `dep`, which suppresses the
+    // child from ready until the dep closes.)
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "impl");
+    let gate = create_task(repo.path(), "audit");
+    bl(repo.path())
+        .args(["link", "add", &parent, "gates", &gate])
+        .assert()
+        .success();
+
+    let out = bl(repo.path())
+        .args(["ready"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        s.contains(&gate),
+        "gate child must be claim-ready: {s}"
+    );
+    assert!(
+        s.contains(&parent),
+        "parent with only gate links must also be claim-ready: {s}"
+    );
+}
+
+#[test]
+fn pre_gates_task_file_parses_unchanged() {
+    // Back-compat guard: a task file written before gates existed
+    // (no `links` array at all, or empty) must load cleanly. The
+    // 0.3.0 release ships the forward-compat serde change, but
+    // backward-compat to prior on-disk shapes is non-negotiable.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "legacy");
+    let path = repo
+        .path()
+        .join(".balls/tasks")
+        .join(format!("{id}.json"));
+    let mut v: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    // Strip the links field entirely, mimicking a pre-gates write.
+    let obj = v.as_object_mut().unwrap();
+    obj.remove("links");
+    std::fs::write(&path, serde_json::to_string_pretty(&v).unwrap()).unwrap();
+
+    // Show should succeed and report zero links.
+    bl(repo.path())
+        .args(["show", &id])
+        .assert()
+        .success();
+    // Any mutation must re-save without inventing spurious content.
+    bl(repo.path())
+        .args(["update", &id, "--note", "touch"])
+        .assert()
+        .success();
+    let back: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let links = back["links"].as_array().unwrap();
+    assert!(links.is_empty(), "pre-gates file should round-trip with empty links");
+}
+
+#[test]
 fn unknown_link_does_not_block_close() {
     // An unknown link type is NOT a gate — only the `gates` variant
     // blocks close. This guards against a future bug where any non-
