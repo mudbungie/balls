@@ -260,6 +260,19 @@ fn validate_id_accepts_valid() {
 }
 
 #[test]
+fn validate_id_accepts_uppercase_hex() {
+    // Forward-compat pinning: `is_ascii_hexdigit` accepts upper,
+    // lower, and mixed case. `generate_id` only ever emits lowercase,
+    // but a future bl that switches its generator to uppercase or
+    // mixed case must still be loadable by older clients reading the
+    // same repo. Don't tighten this back to [a-f0-9] — it would
+    // silently brick forward-compat for no meaningful gain.
+    assert!(validate_id("bl-DEADBEEF").is_ok());
+    assert!(validate_id("bl-DeAdBeEf").is_ok());
+    assert!(validate_id("bl-A1B2").is_ok());
+}
+
+#[test]
 fn validate_id_rejects_path_traversal() {
     assert!(validate_id("../../../etc/passwd").is_err());
     assert!(validate_id("bl-../../etc").is_err());
