@@ -36,10 +36,8 @@ impl Plugin {
         if !self.is_available() {
             return false;
         }
-        let result = Command::new(&self.executable)
-            .arg("auth-check")
-            .arg("--auth-dir")
-            .arg(&self.auth_dir)
+        let result = self
+            .command("auth-check", None)
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .output();
@@ -49,9 +47,10 @@ impl Plugin {
                     true
                 } else {
                     eprintln!(
-                        "warning: {} auth expired. Run `{} auth-setup --auth-dir {}` to re-authenticate.",
+                        "warning: {} auth expired. Run `{} auth-setup --config {} --auth-dir {}` to re-authenticate.",
                         self.executable,
                         self.executable,
+                        self.config_path.display(),
                         self.auth_dir.display()
                     );
                     false

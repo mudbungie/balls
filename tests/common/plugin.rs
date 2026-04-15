@@ -40,7 +40,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $CMD task=$TASK_ID" >> "{log}"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $CMD task=$TASK_ID config=$CONFIG auth=$AUTH_DIR" >> "{log}"
 
 case "$CMD" in
     auth-check)
