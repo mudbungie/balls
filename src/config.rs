@@ -38,7 +38,7 @@ fn default_true() -> bool {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: 1,
+            version: CONFIG_SCHEMA_VERSION,
             id_length: 4,
             stale_threshold_seconds: 60,
             auto_fetch_on_ready: true,
@@ -52,6 +52,15 @@ impl Default for Config {
 
 pub const ID_LENGTH_MIN: usize = 4;
 pub const ID_LENGTH_MAX: usize = 32;
+
+/// Current on-disk schema version for `.balls/config.json`. Bump this
+/// when a config change requires migration logic. Older clients
+/// reading a config written with a higher version refuse to load
+/// with a clear "your bl is too old" error rather than silently
+/// losing fields. Lower-or-equal versions load normally because the
+/// struct definition is backward-compatible by design (new fields
+/// carry serde defaults).
+pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
@@ -79,8 +88,17 @@ impl Config {
         }
     }
 
-    /// Reject `worktree_dir` values that would escape the repo root.
+    /// Reject `worktree_dir` values that would escape the repo root,
+    /// and refuse configs written with a schema version newer than
+    /// this binary understands.
     fn validate(&self) -> Result<()> {
+        if self.version > CONFIG_SCHEMA_VERSION {
+            return Err(BallError::Other(format!(
+                "config schema version {} is newer than this bl (supports up to {}); \
+                 upgrade bl to read this repo's config",
+                self.version, CONFIG_SCHEMA_VERSION
+            )));
+        }
         if self.worktree_dir.starts_with('/') || self.worktree_dir.contains("..") {
             return Err(BallError::Other(format!(
                 "invalid config: worktree_dir {:?} must be a relative path with no '..' segments",
@@ -210,6 +228,36 @@ mod tests {
         );
         let err = Config::load(&p).unwrap_err();
         assert!(matches!(err, BallError::Other(ref s) if s.contains("worktree_dir")));
+    }
+
+    #[test]
+    fn load_rejects_future_schema_version() {
+        let dir = TempDir::new().unwrap();
+        let future = CONFIG_SCHEMA_VERSION + 1;
+        let p = write_cfg(
+            &dir,
+            &format!(
+                r#"{{"version":{future},"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees"}}"#
+            ),
+        );
+        let err = Config::load(&p).unwrap_err();
+        assert!(
+            matches!(err, BallError::Other(ref s) if s.contains("schema version") && s.contains("upgrade bl")),
+            "expected schema-version error, got: {err:?}",
+        );
+    }
+
+    #[test]
+    fn load_accepts_current_schema_version() {
+        let dir = TempDir::new().unwrap();
+        let p = write_cfg(
+            &dir,
+            &format!(
+                r#"{{"version":{CONFIG_SCHEMA_VERSION},"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees"}}"#
+            ),
+        );
+        let cfg = Config::load(&p).unwrap();
+        assert_eq!(cfg.version, CONFIG_SCHEMA_VERSION);
     }
 
     #[test]
