@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f9db",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-15T01:56:33.128330701Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Forward-compat passthrough on Task and Note structs",
   "type": "task",
-  "updated_at": "2026-04-15T01:56:33.128330701Z"
+  "updated_at": "2026-04-15T02:08:43.959676934Z"
 }
