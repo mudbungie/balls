@@ -118,15 +118,7 @@ pub fn cmd_update(
 fn apply_field(task: &mut Task, field: &str, value: &str) -> Result<()> {
     match field {
         "title" => task.title = value.to_string(),
-        "priority" => {
-            let p: u8 = value
-                .parse()
-                .map_err(|_| BallError::InvalidTask(format!("priority not integer: {value}")))?;
-            if !(1..=4).contains(&p) {
-                return Err(BallError::InvalidTask("priority must be 1..=4".into()));
-            }
-            task.priority = p;
-        }
+        "priority" => task.priority = balls::task::parse_priority(value)?,
         "status" => task.status = Status::parse(value)?,
         "type" => task.task_type = TaskType::parse(value)?,
         "parent" => {

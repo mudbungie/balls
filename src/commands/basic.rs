@@ -34,9 +34,7 @@ pub fn cmd_create(
 ) -> Result<()> {
     let store = discover()?;
 
-    if !(1..=4).contains(&priority) {
-        return Err(BallError::InvalidTask("priority must be 1..=4".to_string()));
-    }
+    balls::task::validate_priority(priority)?;
     let task_type = TaskType::parse(&task_type)?;
 
     let all = store.all_tasks()?;
