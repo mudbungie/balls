@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-15T23:31:49.076458934Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Reported by a Jira-sync plugin author. `auth-check` and `auth-setup` are invoked with only `--auth-dir`; `push`/`sync` already receive `--config --auth-dir` via Plugin::command() in src/plugin/runner.rs. Without the config path a plugin that targets multiple instances cannot know which one to authenticate against and currently resorts to convention-walking auth-dir/../../../plugins/*.json.\n\nFix: route auth-check (and the auth-setup hint string) through command() or otherwise pass --config alongside --auth-dir. Update the warning string in runner.rs:52 that tells users how to re-authenticate. Update README/spec docs for the plugin contract. Tests in tests/plugin_*.rs should cover the auth-check invocation argv.",
+  "external": {},
+  "id": "bl-e5d1",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": ["plugin"],
+  "title": "auth-setup/auth-check: pass --config to plugin",
+  "type": "bug",
+  "updated_at": "2026-04-15T23:31:49.076458934Z"
+}
