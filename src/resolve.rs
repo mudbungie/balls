@@ -195,12 +195,14 @@ mod tests {
             ts,
             author: "x".into(),
             text: "dup".into(),
+            extra: std::collections::BTreeMap::new(),
         });
         let mut theirs = base("a");
         theirs.notes.push(Note {
             ts,
             author: "x".into(),
             text: "dup".into(),
+            extra: std::collections::BTreeMap::new(),
         });
         let merged = resolve_conflict(&ours, &theirs);
         assert_eq!(merged.notes.len(), 1);
