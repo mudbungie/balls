@@ -57,6 +57,11 @@ fn sync_creates_task_from_remote() {
     assert_eq!(t["priority"].as_u64().unwrap(), 1);
     assert_eq!(t["description"].as_str().unwrap(), "This was created in Jira");
     assert_eq!(t["external"]["mock"]["remote_key"].as_str().unwrap(), "PROJ-999");
+    assert!(
+        t["synced_at"]["mock"].is_string(),
+        "sync-create should populate synced_at.mock: {}",
+        t["synced_at"]
+    );
 }
 
 #[test]
@@ -98,6 +103,12 @@ fn sync_updates_existing_task() {
     assert_eq!(task["status"].as_str().unwrap(), "in_progress", "status should be updated");
     assert_eq!(task["description"].as_str().unwrap(), "Updated from remote");
     assert_eq!(task["external"]["mock"]["remote_key"].as_str().unwrap(), "PROJ-100");
+    let synced = task["synced_at"]["mock"].as_str().unwrap_or("");
+    assert!(
+        !synced.is_empty(),
+        "sync-update should bump synced_at.mock: {}",
+        task["synced_at"]
+    );
 
     let notes = read_task_notes(repo.path(), &id);
     assert!(
@@ -133,6 +144,11 @@ fn sync_defers_deleted_task() {
 
     let task = read_task_json(repo.path(), &id);
     assert_eq!(task["status"].as_str().unwrap(), "deferred", "deleted task should be deferred");
+    assert!(
+        task["synced_at"]["mock"].is_string(),
+        "sync-defer should bump synced_at.mock: {}",
+        task["synced_at"]
+    );
     let notes = read_task_notes(repo.path(), &id);
     assert!(
         notes.iter().any(|n| n["text"].as_str().unwrap().contains("PROJ-789 deleted")),

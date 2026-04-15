@@ -8,6 +8,7 @@ use balls::error::Result;
 use balls::plugin::SyncReport;
 use balls::store::{task_lock, Store};
 use balls::task::{NewTaskOpts, Status, Task, TaskType};
+use chrono::Utc;
 use serde_json::Value;
 
 pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) {
@@ -61,6 +62,7 @@ fn apply_created(
     task.status = status;
     task.external
         .insert(plugin_name.to_string(), Value::Object(item.external.clone()));
+    task.synced_at.insert(plugin_name.to_string(), Utc::now());
     let _g = task_lock(store, &id)?;
     store.save_task(&task)?;
     store.commit_task(&id, &format!("balls: sync-create {id} from {plugin_name}"))?;
@@ -87,6 +89,7 @@ fn apply_updated(
         task.external
             .insert(plugin_name.to_string(), Value::Object(item.external.clone()));
     }
+    task.synced_at.insert(plugin_name.to_string(), Utc::now());
     task.touch();
     store.save_task(&task)?;
     if let Some(note) = &item.add_note {
@@ -146,6 +149,7 @@ fn apply_deleted(
     } else {
         item.reason.clone()
     };
+    task.synced_at.insert(plugin_name.to_string(), Utc::now());
     task.touch();
     store.save_task(&task)?;
     let task_path = store.task_path(&item.task_id)?;

@@ -236,6 +236,38 @@ fn extra_map_does_not_collide_with_known_fields() {
 }
 
 #[test]
+fn synced_at_defaults_to_empty_and_is_omitted_on_save() {
+    // A fresh task has no synced_at entries; serialize_mergeable
+    // should omit the key entirely (skip_serializing_if empty) so the
+    // on-disk format stays identical for tasks no plugin has touched.
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("bl-5a00.json");
+    let t = fresh_task("bl-5a00");
+    assert!(t.synced_at.is_empty());
+    t.save(&path).unwrap();
+    let raw = std::fs::read_to_string(&path).unwrap();
+    assert!(!raw.contains("synced_at"), "empty synced_at must not serialize: {raw}");
+    let back = Task::load(&path).unwrap();
+    assert!(back.synced_at.is_empty());
+}
+
+#[test]
+fn synced_at_roundtrips_per_plugin_timestamps() {
+    use chrono::{DateTime, Utc};
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("bl-5a01.json");
+    let mut t = fresh_task("bl-5a01");
+    let ts: DateTime<Utc> = "2026-04-10T12:00:00Z".parse().unwrap();
+    t.synced_at.insert("jira".into(), ts);
+    t.synced_at.insert("slack".into(), ts);
+    t.save(&path).unwrap();
+    let back = Task::load(&path).unwrap();
+    assert_eq!(back.synced_at.len(), 2);
+    assert_eq!(back.synced_at.get("jira"), Some(&ts));
+    assert_eq!(back.synced_at.get("slack"), Some(&ts));
+}
+
+#[test]
 fn load_notes_file_skips_blank_lines() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("bl-b1ff.json");

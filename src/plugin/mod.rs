@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::store::{task_lock, Store};
 use crate::task::Task;
+use chrono::Utc;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -63,9 +64,11 @@ pub fn apply_push_response(
     }
     let _g = task_lock(store, task_id)?;
     let mut task = store.load_task(task_id)?;
+    let now = Utc::now();
     for (plugin_name, response) in results {
         let ext_value = Value::Object(response.0.clone());
         task.external.insert(plugin_name.clone(), ext_value);
+        task.synced_at.insert(plugin_name.clone(), now);
     }
     task.touch();
     store.save_task(&task)?;
