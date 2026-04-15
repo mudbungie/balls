@@ -67,6 +67,53 @@ fn status_precedence_and_str() {
 }
 
 #[test]
+fn status_unknown_is_lowest_precedence() {
+    // Unknown must never win a conflict-resolution race against a real
+    // status — `Status::Deferred` is the lowest known value and Unknown
+    // must sit strictly below it.
+    let u = Status::Unknown("triaged".to_string());
+    assert!(u.precedence() < Status::Deferred.precedence());
+    assert_eq!(u.as_str(), "triaged");
+    assert_eq!(format!("{u}"), "triaged");
+}
+
+#[test]
+fn status_deserialize_unknown_preserves_string() {
+    // Forward-compat: an older binary reading a JSON file written by a
+    // future bl version must not hard-error on the whole task file. The
+    // unknown variant is preserved verbatim and re-serializes unchanged.
+    let back: Status = serde_json::from_str("\"from_the_future\"").unwrap();
+    assert_eq!(back, Status::Unknown("from_the_future".to_string()));
+    let s = serde_json::to_string(&back).unwrap();
+    assert_eq!(s, "\"from_the_future\"");
+}
+
+#[test]
+fn status_parse_rejects_unknown_cli_input() {
+    // parse() is the CLI entry point — it must refuse unknown strings
+    // so `bl update status=...` can't silently create Unknown variants.
+    // Only deserialization produces Unknown.
+    assert!(Status::parse("from_the_future").is_err());
+    assert!(Status::parse("").is_err());
+}
+
+#[test]
+fn status_known_round_trip_preserves_variant() {
+    for s in [
+        Status::Open,
+        Status::InProgress,
+        Status::Review,
+        Status::Blocked,
+        Status::Closed,
+        Status::Deferred,
+    ] {
+        let j = serde_json::to_string(&s).unwrap();
+        let back: Status = serde_json::from_str(&j).unwrap();
+        assert_eq!(back, s);
+    }
+}
+
+#[test]
 fn save_and_load_task_file() {
     let dir = TempDir::new().unwrap();
     let t = Task::new(
