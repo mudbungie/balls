@@ -41,6 +41,38 @@ fn task_type_parse_all() {
 }
 
 #[test]
+fn validate_priority_accepts_in_range() {
+    for p in PRIORITY_MIN..=PRIORITY_MAX {
+        validate_priority(p).unwrap();
+    }
+}
+
+#[test]
+fn validate_priority_rejects_out_of_range() {
+    assert!(validate_priority(0).is_err());
+    assert!(validate_priority(PRIORITY_MAX + 1).is_err());
+    assert!(validate_priority(255).is_err());
+}
+
+#[test]
+fn parse_priority_accepts_valid_strings() {
+    assert_eq!(parse_priority("1").unwrap(), 1);
+    assert_eq!(parse_priority("4").unwrap(), 4);
+}
+
+#[test]
+fn parse_priority_rejects_non_integer() {
+    let err = parse_priority("high").unwrap_err();
+    assert!(matches!(err, BallError::InvalidTask(ref s) if s.contains("not integer")));
+}
+
+#[test]
+fn parse_priority_rejects_out_of_range_string() {
+    let err = parse_priority("5").unwrap_err();
+    assert!(matches!(err, BallError::InvalidTask(ref s) if s.contains("1..=4")));
+}
+
+#[test]
 fn task_type_deserialize_unknown_preserves_string() {
     // Forward-compat: older binary reading a future variant preserves
     // it verbatim instead of erroring on the whole task file.
