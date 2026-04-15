@@ -1,3 +1,4 @@
+mod diag;
 mod limits;
 mod runner;
 mod types;
