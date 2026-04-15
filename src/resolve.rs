@@ -15,7 +15,7 @@ pub fn resolve_conflict(ours: &Task, theirs: &Task) -> Task {
     } else {
         (theirs, ours)
     };
-    let winning_status = status_winner.status;
+    let winning_status = status_winner.status.clone();
 
     // Later updated_at wins for other fields
     let (newer, older) = if ours.updated_at >= theirs.updated_at {
@@ -25,7 +25,7 @@ pub fn resolve_conflict(ours: &Task, theirs: &Task) -> Task {
     };
 
     let mut result = newer.clone();
-    result.status = winning_status;
+    result.status = winning_status.clone();
 
     // Merge notes (union, dedup)
     let mut seen: BTreeSet<(String, String, String)> = BTreeSet::new();

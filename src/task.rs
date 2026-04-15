@@ -1,6 +1,6 @@
 use crate::error::{BallError, Result};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
@@ -42,8 +42,14 @@ impl fmt::Display for TaskType {
 }
 
 /// Task lifecycle status.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+///
+/// `Unknown(String)` exists purely for forward compatibility, mirroring
+/// `LinkType::Unknown`: if a newer `bl` writes a status we don't recognize,
+/// older clients round-trip it verbatim instead of hard-erroring on the
+/// whole task file. `Status::parse` (the CLI entry point) never produces
+/// `Unknown` — users cannot craft one by hand. An `Unknown` status has the
+/// lowest precedence, so conflict resolution never accidentally elects it.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Status {
     Open,
     InProgress,
@@ -51,6 +57,7 @@ pub enum Status {
     Blocked,
     Closed,
     Deferred,
+    Unknown(String),
 }
 
 impl Status {
@@ -74,10 +81,11 @@ impl Status {
             Status::Blocked => 3,
             Status::Open => 2,
             Status::Deferred => 1,
+            Status::Unknown(_) => 0,
         }
     }
 
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             Status::Open => "open",
             Status::InProgress => "in_progress",
@@ -85,6 +93,7 @@ impl Status {
             Status::Blocked => "blocked",
             Status::Closed => "closed",
             Status::Deferred => "deferred",
+            Status::Unknown(s) => s.as_str(),
         }
     }
 }
@@ -92,6 +101,27 @@ impl Status {
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for Status {
+    fn serialize<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for Status {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        Ok(match s.as_str() {
+            "open" => Status::Open,
+            "in_progress" => Status::InProgress,
+            "review" => Status::Review,
+            "blocked" => Status::Blocked,
+            "closed" => Status::Closed,
+            "deferred" => Status::Deferred,
+            _ => Status::Unknown(s),
+        })
     }
 }
 
