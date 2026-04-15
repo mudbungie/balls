@@ -23,6 +23,7 @@ pub mod delivery;
 pub mod error;
 pub mod git;
 pub mod git_state;
+pub mod link;
 pub mod plugin;
 pub mod ready;
 pub mod resolve;

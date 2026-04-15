@@ -70,6 +70,9 @@ pub fn cmd_update(
                 "use `bl close` for claimed tasks (handles worktree teardown and merge)".into(),
             ));
         }
+        if closing {
+            balls::review::enforce_gates(&store, &task)?;
+        }
         for assign in &assignments {
             let (field, value) = assign.split_once('=').ok_or_else(|| {
                 BallError::InvalidTask(format!("expected field=value, got: {assign}"))

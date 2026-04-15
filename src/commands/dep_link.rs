@@ -115,6 +115,7 @@ fn link_add(store: &Store, task: String, link_type: String, target: String) -> R
     if !all.iter().any(|t| t.id == target) {
         return Err(BallError::TaskNotFound(target));
     }
+    let lt_str = lt.as_str().to_string();
     let _g = task_lock(store, &task)?;
     let mut t = store.load_task(&task)?;
     let link = Link { link_type: lt, target: target.clone() };
@@ -124,15 +125,16 @@ fn link_add(store: &Store, task: String, link_type: String, target: String) -> R
         store.save_task(&t)?;
         store.commit_task(
             &task,
-            &format!("balls: link {} {} {}", task, lt.as_str(), target),
+            &format!("balls: link {task} {lt_str} {target}"),
         )?;
     }
-    println!("{} {} {}", task, lt.as_str(), target);
+    println!("{task} {lt_str} {target}");
     Ok(())
 }
 
 fn link_rm(store: &Store, task: String, link_type: String, target: String) -> Result<()> {
     let lt = LinkType::parse(&link_type)?;
+    let lt_str = lt.as_str().to_string();
     let _g = task_lock(store, &task)?;
     let mut t = store.load_task(&task)?;
     let link = Link { link_type: lt, target: target.clone() };
@@ -143,9 +145,9 @@ fn link_rm(store: &Store, task: String, link_type: String, target: String) -> Re
         store.save_task(&t)?;
         store.commit_task(
             &task,
-            &format!("balls: unlink {} {} {}", task, lt.as_str(), target),
+            &format!("balls: unlink {task} {lt_str} {target}"),
         )?;
     }
-    println!("removed {} {} {}", task, lt.as_str(), target);
+    println!("removed {task} {lt_str} {target}");
     Ok(())
 }
