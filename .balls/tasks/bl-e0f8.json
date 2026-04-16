@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T06:26:40.704361406Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Allow balls to function entirely without a git repository when using --tasks-dir.\n\nChanges:\n- Store gets no_git: bool field (implies stealth)\n- bl init --tasks-dir /path works outside git (skip git_root, state branch, commit)\n- Store::discover walks up dirs for .balls/config.json when not in git\n- bl claim --no-worktree: status flip only, no git worktree. Required in no-git mode.\n- bl review/close auto-detect no-git: status flips + file delete, no merge\n- bl drop in no-git: status reset only\n- bl sync in no-git: plugin sync only, skip git fetch/push\n- Guards on ready auto-fetch, repair worktree cleanup\n- Extract commit_init to store_init.rs to keep store.rs under 300 lines\n- Fix stealth close_and_archive skipping parent bookkeeping\n- New tests/no_git.rs integration suite\n- Update README, SKILL.md",
+  "external": {},
+  "id": "bl-e0f8",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": ["stealth","portability"],
+  "title": "No-git mode: bl works without a git repo via --tasks-dir + --no-worktree",
+  "type": "task",
+  "updated_at": "2026-04-16T06:26:40.704361406Z"
+}
