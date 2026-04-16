@@ -26,7 +26,7 @@ pub struct DiagPipe {
 /// caller spawns, drops `DiagPipe::write`, then passes `DiagPipe::read`
 /// into `run_with_limits`.
 pub fn prepare_diag_pipe(cmd: &mut Command) -> std::io::Result<DiagPipe> {
-    let (read, write) = make_pipe(libc::O_CLOEXEC)?;
+    let (read, write) = make_pipe()?;
     let write_raw = write.as_raw_fd();
     // SAFETY: pre_exec runs between fork and exec; dup_fd calls
     // async-signal-safe dup2 and only touches the child's fd table.
@@ -39,17 +39,61 @@ pub fn prepare_diag_pipe(cmd: &mut Command) -> std::io::Result<DiagPipe> {
     Ok(DiagPipe { read, write })
 }
 
-/// Unit-testable pipe2 wrapper. Flags are passed through so tests can
-/// drive the error branch with a deliberately invalid flag.
-fn make_pipe(flags: libc::c_int) -> std::io::Result<(File, OwnedFd)> {
+/// Create a pipe with CLOEXEC set on both endpoints. Uses the atomic
+/// `pipe2(O_CLOEXEC)` Linux syscall where available; falls back to
+/// `pipe` + `fcntl(FD_CLOEXEC)` on macOS/BSD which lack pipe2. Balls
+/// only calls this from the synchronous plugin-invocation path, so
+/// the classical race window between pipe() and fcntl() against a
+/// concurrent fork+exec on another thread is not reachable here.
+fn make_pipe() -> std::io::Result<(File, OwnedFd)> {
+    #[cfg(target_os = "linux")]
+    let (fd_r, fd_w) = pipe2_cloexec(libc::O_CLOEXEC)?;
+    #[cfg(not(target_os = "linux"))]
+    let (fd_r, fd_w) = {
+        let (r, w) = pipe_raw()?;
+        set_cloexec(r)?;
+        set_cloexec(w)?;
+        (r, w)
+    };
+    // SAFETY: fd_r and fd_w are fresh, valid, owned fds returned by
+    // the OS; ownership transfers into File/OwnedFd here.
+    Ok(unsafe { (File::from_raw_fd(fd_r), OwnedFd::from_raw_fd(fd_w)) })
+}
+
+/// Linux pipe2 wrapper. Flags are passed through so tests can drive
+/// the error branch with a deliberately invalid flag.
+#[cfg(target_os = "linux")]
+fn pipe2_cloexec(flags: libc::c_int) -> std::io::Result<(RawFd, RawFd)> {
     let mut fds = [0 as libc::c_int; 2];
     // SAFETY: pipe2 writes two valid fds into `fds` on success; on
     // failure it returns non-zero without touching the array.
     if unsafe { libc::pipe2(fds.as_mut_ptr(), flags) } != 0 {
         return Err(std::io::Error::last_os_error());
     }
-    // SAFETY: fds[0] and fds[1] are fresh, valid, owned fds.
-    Ok(unsafe { (File::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) })
+    Ok((fds[0], fds[1]))
+}
+
+/// Portable pipe(2) for platforms without pipe2 (macOS, BSD). The
+/// caller must follow up with `set_cloexec` on both returned fds.
+#[cfg(not(target_os = "linux"))]
+fn pipe_raw() -> std::io::Result<(RawFd, RawFd)> {
+    let mut fds = [0 as libc::c_int; 2];
+    // SAFETY: pipe writes two valid fds into `fds` on success.
+    if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok((fds[0], fds[1]))
+}
+
+/// Set `FD_CLOEXEC` on `fd` via fcntl. Used by the non-Linux pipe
+/// path; Linux gets CLOEXEC atomically from pipe2 and skips this.
+#[cfg(not(target_os = "linux"))]
+fn set_cloexec(fd: RawFd) -> std::io::Result<()> {
+    // SAFETY: fcntl with F_SETFD only modifies fd flags.
+    if unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) } == -1 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 /// Unit-testable dup2 wrapper. Extracted out of the pre_exec closure
@@ -71,7 +115,7 @@ mod tests {
 
     #[test]
     fn make_pipe_success_returns_usable_endpoints() {
-        let (mut r, w) = make_pipe(libc::O_CLOEXEC).expect("real pipe");
+        let (mut r, w) = make_pipe().expect("real pipe");
         let w_raw = w.as_raw_fd();
         // SAFETY: take ownership of the raw fd via File, forget `w` so
         // it doesn't double-close when dropped.
@@ -84,10 +128,15 @@ mod tests {
         assert_eq!(buf, b"ping");
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
-    fn make_pipe_error_branch_triggers_on_bad_flags() {
-        // -1 as flags is never valid; pipe2 returns EINVAL.
-        let err = make_pipe(-1).expect_err("bad flags must error");
+    fn pipe2_cloexec_error_branch_triggers_on_bad_flags() {
+        // -1 as flags is never valid; pipe2 returns EINVAL. The macOS
+        // fallback path has no equivalent injection point (pipe takes
+        // no flags), but tarpaulin doesn't run on macOS either, so
+        // this Linux-only test is sufficient to cover the branch in
+        // the measured build.
+        let err = pipe2_cloexec(-1).expect_err("bad flags must error");
         assert!(err.raw_os_error().is_some());
     }
 
