@@ -241,6 +241,7 @@ pub fn cmd_ready(json: bool, no_fetch: bool) -> Result<()> {
 }
 
 fn maybe_auto_fetch(store: &Store, stale_threshold_seconds: u64) {
+    if store.no_git { return; }
     let last_fetch = store.local_dir().join("last_fetch");
     let stale = match fs::metadata(&last_fetch).and_then(|m| m.modified()) {
         Ok(t) => std::time::SystemTime::now()

@@ -34,6 +34,8 @@ Reviewers also want `bl list --status review` to see what's waiting on a decisio
 
 If you're scripting against a fresh repo, expect `bl init` to add one commit to whatever branch you're on. Make any pre-existing commit you want on main *before* running it.
 
+**No-git mode:** `bl init --tasks-dir /path` also works outside git repos. All commands work; `bl claim` requires `--no-worktree`; `bl review`/`bl close` are status flips with no merge.
+
 ## Commands
 
 | Command | What it does |
@@ -43,9 +45,9 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
 | `bl show TASK_ID` [`--json`] | Task details, including `delivered_in` sha after review. |
 | `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
-| `bl claim TASK_ID` | Worker: create worktree, set status=in_progress. |
-| `bl review TASK_ID -m "msg"` | Worker: squash to main, set status=review. Worktree stays. |
-| `bl close TASK_ID -m "msg"` | Reviewer: approve. Archive task, remove worktree + branch. **Repo root only.** |
+| `bl claim TASK_ID` [`--no-worktree`] | Worker: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). |
+| `bl review TASK_ID -m "msg"` | Worker: squash to main, set status=review. Worktree stays. In no-git mode, status flip only. |
+| `bl close TASK_ID -m "msg"` | Reviewer: approve. Archive task, remove worktree + branch. **Repo root only.** In no-git mode, archives file directly. |
 | `bl update TASK_ID status=in_progress --note "..."` | Reviewer: reject. Bounces task back to the worker. |
 | `bl update TASK_ID --note "text"` | Add a note (any role). |
 | `bl drop TASK_ID` | Release a claim, remove worktree (worker self-recovery). |
@@ -191,7 +193,7 @@ When driving `bl` from a script or another agent, treat the following as the mac
 | Command | Stdout on success |
 |---|---|
 | `bl create ...` | bare task id, e.g. `bl-3f2a` |
-| `bl claim TASK_ID` | absolute worktree path |
+| `bl claim TASK_ID` | absolute worktree path (or `claimed ID (no worktree)` with `--no-worktree`) |
 | `bl link add A TYPE B` | `A TYPE B` confirmation line |
 
 `bl review`, `bl close`, `bl update`, `bl drop`, `bl dep add/rm`, `bl init` print human status lines; don't grep them. Check the exit code (`0` = ok, non-zero = error with a message on stderr).
