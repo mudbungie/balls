@@ -1,8 +1,8 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::store_init::{ensure_main_gitignore, setup_state_branch, STATE_WORKTREE_REL};
-use crate::store_paths::{find_main_root, resolve_tasks_dir, stealth_tasks_dir};
+use crate::store_init::{commit_init, setup_state_branch, STATE_WORKTREE_REL};
+use crate::store_paths::{find_balls_root, find_main_root, resolve_tasks_dir, stealth_tasks_dir};
 use crate::task::{self, Task};
 use crate::task_io;
 use fs2::FileExt;
@@ -47,11 +47,10 @@ fn acquire_flock(path: &Path) -> Result<LockGuard> {
 }
 
 pub struct Store {
-    /// The main repo root (git-common-dir's parent, effectively the primary checkout)
     pub root: PathBuf,
-    /// True when tasks live outside the repo (stealth mode).
     pub stealth: bool,
-    /// Resolved tasks directory (may be external in stealth mode).
+    /// True when no git repository is available. Implies stealth.
+    pub no_git: bool,
     tasks_dir_path: PathBuf,
 }
 
@@ -59,27 +58,34 @@ impl Store {
     /// Discover the project root from a starting directory.
     /// In a worktree, returns the main repo root so that all writes go there.
     pub fn discover(from: &Path) -> Result<Self> {
-        let _worktree_root = git::git_root(from)?;
+        match Self::discover_git(from) {
+            Err(BallError::NotARepo) => Self::discover_no_git(from),
+            other => other,
+        }
+    }
+
+    fn discover_git(from: &Path) -> Result<Self> {
+        git::git_root(from)?;
         let common_dir = git::git_common_dir(from)?;
         let main_root = find_main_root(&common_dir)?;
-        let balls_dir = main_root.join(".balls");
-        if !balls_dir.exists() {
+        if !main_root.join(".balls").exists() {
             return Err(BallError::NotInitialized);
         }
         let (tasks_dir_path, stealth) = resolve_tasks_dir(&main_root);
-        // Non-stealth mode requires the state worktree to exist. If it's
-        // missing, the user cloned without running `bl init` — fail fast
-        // with a clear message instead of letting reads/writes land in
-        // limbo.
         if !stealth && !tasks_dir_path.exists() {
             return Err(BallError::NotInitialized);
         }
-        // A repo with no user.email/user.name causes `git commit` to fail
-        // with "Author identity unknown". Worktrees share the main repo's
-        // config, so seeding identity here covers every command path that
-        // goes through discover (create, claim, review, close, sync, ...).
         git::git_ensure_user(&main_root)?;
-        Ok(Store { root: main_root, stealth, tasks_dir_path })
+        Ok(Store { root: main_root, stealth, no_git: false, tasks_dir_path })
+    }
+
+    fn discover_no_git(from: &Path) -> Result<Self> {
+        let root = find_balls_root(from)?;
+        let (tasks_dir_path, stealth) = resolve_tasks_dir(&root);
+        if !stealth || !tasks_dir_path.exists() {
+            return Err(BallError::NotInitialized);
+        }
+        Ok(Store { root, stealth, no_git: true, tasks_dir_path })
     }
 
     pub fn init(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
@@ -88,20 +94,25 @@ impl Store {
                 return Err(BallError::Other(format!("--tasks-dir must be an absolute path, got: {td}")));
             }
         }
-        let repo_root = git::git_root(from)?;
-        git::git_ensure_user(&repo_root)?;
-        git::git_init_commit(&repo_root)?;
+        let (repo_root, no_git) = match git::git_root(from) {
+            Ok(r) => (r, false),
+            Err(BallError::NotARepo) if tasks_dir.is_some() => {
+                (fs::canonicalize(from).unwrap_or_else(|_| from.to_path_buf()), true)
+            }
+            Err(e) => return Err(e),
+        };
+        if !no_git {
+            git::git_ensure_user(&repo_root)?;
+            git::git_init_commit(&repo_root)?;
+        }
 
         let balls_dir = repo_root.join(".balls");
-        let plugins_dir = balls_dir.join("plugins");
         let local_dir = balls_dir.join("local");
         let already = balls_dir.join("config.json").exists();
-
-        fs::create_dir_all(&plugins_dir)?;
+        fs::create_dir_all(balls_dir.join("plugins"))?;
         fs::create_dir_all(local_dir.join("claims"))?;
         fs::create_dir_all(local_dir.join("lock"))?;
         fs::create_dir_all(local_dir.join("plugins"))?;
-
         let config_path = balls_dir.join("config.json");
         if !config_path.exists() {
             Config::default().save(&config_path)?;
@@ -121,22 +132,10 @@ impl Store {
             (repo_root.join(".balls/worktree/.balls/tasks"), false)
         };
 
-        ensure_main_gitignore(&repo_root, is_stealth)?;
-        let plugins_keep = plugins_dir.join(".gitkeep");
-        if !plugins_keep.exists() {
-            fs::write(&plugins_keep, "")?;
+        if !no_git {
+            commit_init(&repo_root, is_stealth, already)?;
         }
-
-        let paths: Vec<&Path> = vec![
-            Path::new(".balls/config.json"),
-            Path::new(".balls/plugins/.gitkeep"),
-            Path::new(".gitignore"),
-        ];
-        git::git_add(&repo_root, &paths)?;
-        let msg = if already { "balls: reinitialize" } else { "balls: initialize" };
-        git::git_commit(&repo_root, msg)?;
-
-        Ok(Store { root: repo_root, stealth: is_stealth, tasks_dir_path })
+        Ok(Store { root: repo_root, stealth: is_stealth, no_git, tasks_dir_path })
     }
 
     pub fn balls_dir(&self) -> PathBuf {
@@ -239,18 +238,6 @@ impl Store {
     /// this method handles parent-side bookkeeping and file removal
     /// atomically under the state-worktree lock.
     pub fn close_and_archive(&self, task: &Task, commit_msg: &str) -> Result<()> {
-        if self.stealth {
-            let p = self.task_path(&task.id)?;
-            if p.exists() {
-                fs::remove_file(&p)?;
-            }
-            task_io::delete_notes_file(&p)?;
-            return Ok(());
-        }
-        let _g = state_worktree_flock(self)?;
-        let dir = self.state_worktree_dir();
-        // Parent bookkeeping: record this task in closed_children on
-        // the parent, if any.
         if let Some(pid) = &task.parent {
             if let Ok(mut parent) = self.load_task(pid) {
                 parent.closed_children.push(task::ArchivedChild {
@@ -260,13 +247,20 @@ impl Store {
                 });
                 parent.touch();
                 self.save_task(&parent)?;
-                let rel = PathBuf::from(format!(".balls/tasks/{pid}.json"));
-                git::git_add(&dir, &[rel.as_path()])?;
             }
         }
-        // Stage removal of the task's files. `-f` because the working
-        // tree may carry uncommitted field mutations (status=closed,
-        // closed_at) we don't want to stage separately.
+        if self.stealth {
+            let p = self.task_path(&task.id)?;
+            if p.exists() { fs::remove_file(&p)?; }
+            task_io::delete_notes_file(&p)?;
+            return Ok(());
+        }
+        let _g = state_worktree_flock(self)?;
+        let dir = self.state_worktree_dir();
+        if let Some(pid) = &task.parent {
+            let rel = PathBuf::from(format!(".balls/tasks/{pid}.json"));
+            git::git_add(&dir, &[rel.as_path()])?;
+        }
         let json = PathBuf::from(format!(".balls/tasks/{}.json", task.id));
         let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", task.id));
         git::git_rm_force(&dir, &[json.as_path(), notes.as_path()])?;

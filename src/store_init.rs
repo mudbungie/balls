@@ -117,9 +117,29 @@ fn ensure_tasks_symlink(root: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Commit the init-time files (.gitignore, config.json, plugins .gitkeep)
+/// to the main branch. Extracted from Store::init so the no-git path
+/// can skip it without duplicating the line-budget in store.rs.
+pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Result<()> {
+    ensure_main_gitignore(root, is_stealth)?;
+    let plugins_keep = root.join(".balls/plugins/.gitkeep");
+    if !plugins_keep.exists() {
+        fs::write(&plugins_keep, "")?;
+    }
+    let paths: Vec<&Path> = vec![
+        Path::new(".balls/config.json"),
+        Path::new(".balls/plugins/.gitkeep"),
+        Path::new(".gitignore"),
+    ];
+    git::git_add(root, &paths)?;
+    let msg = if already { "balls: reinitialize" } else { "balls: initialize" };
+    git::git_commit(root, msg)?;
+    Ok(())
+}
+
 /// Add `.balls/local`, `.balls-worktrees`, and (non-stealth only)
 /// `.balls/tasks` + `.balls/worktree` to the main checkout's gitignore.
-pub(crate) fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
+fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     let path = root.join(".gitignore");
     let mut content = if path.exists() {
         fs::read_to_string(&path)?

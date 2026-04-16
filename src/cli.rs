@@ -85,6 +85,9 @@ pub enum Command {
         id: String,
         #[arg(long = "as")]
         identity: Option<String>,
+        /// Claim without creating a git worktree (status flip only).
+        #[arg(long)]
+        no_worktree: bool,
     },
 
     /// Submit work for review: merge to main, keep worktree for rework.

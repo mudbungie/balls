@@ -442,6 +442,8 @@ With `--stealth`, tasks are stored outside the repo at `~/.local/share/balls/<re
 
 With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of the auto-generated hash-based location. Implies `--stealth`. Useful for project integrations where multiple repos or external tools need tasks at a predictable, shared location (e.g. `bl init --tasks-dir /opt/project/tasks`).
 
+**No-git mode:** `bl init --tasks-dir PATH` also works outside a git repository. In this mode balls stores tasks as flat JSON files at the given path with no git operations at all — no state branch, no commits, no worktrees. All commands work: `create`, `list`, `show`, `update`, `sync` (plugin-only), `ready`, `repair`. The only behavioral difference is that `bl claim` requires `--no-worktree` (since there's no git repo to create a worktree in), and `bl review`/`bl close` are status flips with no merge.
+
 **By hand:** see SPEC §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
 
 ### bl create TITLE [options]
@@ -496,14 +498,17 @@ Displays one task with computed fields — blocked status, children if parent, d
 
 **By hand:** `cat .balls/tasks/bl-a1b2.json | jq .` — the symlink transparently reads from the state worktree.
 
-### bl claim ID [--as IDENTITY]
+### bl claim ID [--as IDENTITY] [--no-worktree]
 
 ```
 bl claim bl-a1b2
 bl claim bl-a1b2 --as dev1/agent-alpha
+bl claim bl-a1b2 --no-worktree
 ```
 
 Validates the task is claimable → flips status/claimed_by/branch on the state branch → commits (`balls: claim bl-a1b2`) → creates a git worktree at `.balls-worktrees/bl-a1b2/` on `work/bl-a1b2` → symlinks `.balls/local`, `.balls/worktree`, and `.balls/tasks` into the new worktree → writes the local claim file → prints the worktree path. Triggers plugin push if configured.
+
+With `--no-worktree`, skips worktree creation — only flips the task status and writes the claim file. Required in no-git mode; optional in git mode for workflows that don't need branch isolation.
 
 Fails if already claimed locally, deps unmet, or task not `open`.
 

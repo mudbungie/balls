@@ -128,6 +128,44 @@ pub fn review_worktree(
     })
 }
 
+/// Review in no-git mode: flip status, no squash merge.
+pub fn review_no_git(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<()> {
+    with_task_lock(store, id, || {
+        let task_path = store.task_path(id)?;
+        let mut t = Task::load(&task_path)?;
+        t.status = Status::Review;
+        t.touch();
+        t.save(&task_path)?;
+        if let Some(msg) = message {
+            task_io::append_note_to(&task_path, identity, msg)?;
+        }
+        store.commit_task(id, &format!("state: review {id}"))?;
+        Ok(())
+    })
+}
+
+/// Close in no-git mode: archive task, no worktree teardown.
+pub fn close_no_git(store: &Store, id: &str, message: Option<&str>, identity: &str) -> Result<Task> {
+    with_task_lock(store, id, || {
+        let mut t = store.load_task(id)?;
+        enforce_gates(store, &t)?;
+        t.status = Status::Closed;
+        t.closed_at = Some(chrono::Utc::now());
+        t.touch();
+        let _ = fs::remove_file(claim_file_path(store, id));
+        let msg = match message {
+            Some(m) => format!("state: close {} - {}\n\n{}", id, t.title, m),
+            None => format!("state: close {} - {}", id, t.title),
+        };
+        if let Some(note) = message {
+            let task_path = store.task_path(id)?;
+            task_io::append_note_to(&task_path, identity, note)?;
+        }
+        store.close_and_archive(&t, &msg)?;
+        Ok(t)
+    })
+}
+
 /// Close a reviewed task: archive + remove worktree. Rejects from inside worktree.
 pub fn close_worktree(
     store: &Store,
