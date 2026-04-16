@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T20:08:02.076410079Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Gate on epic bl-a847. Keeps the 100%-coverage rule from pre-commit hooks honest across the overhaul.\n\nRequired coverage:\n- display.rs module: every branch of status_glyph, prio_dot, tree_prefix, use_color, use_unicode, badge functions.\n- TTY detection: NO_COLOR set, CLICOLOR=0 set, --plain passed, piped-to-file (via assert_cmd's Command::assert stdout capture, which disables isatty).\n- ASCII fallback: golden tests comparing Unicode and ASCII output for each command.\n- bl dep tree: tree drawing correctness (depth, is_last, ancestors trail), cycle detection, multi-root handling.\n- Epic progress bar: bounds (0/0, 10/10, partial), ASCII vs Unicode fallback, json schema.\n- Column truncation: narrow terminal (COLUMNS=40) trims tags then title correctly.\n- bl list grouping: unfiltered groups by status; --status X flattens.\n- bl ready parent hint: shown when parent is set, omitted otherwise.\n\nAll existing tests must still pass — the visual redesign must not regress the JSON contract or any state transition.\n\nAcceptance:\n- cargo tarpaulin reports 100% line coverage on src/display.rs and every consumer file touched.\n- CI (if wired) green.\n- make hooks precommit passes.",
+  "external": {},
+  "id": "bl-ab8d",
+  "links": [],
+  "parent": "bl-a847",
+  "priority": 3,
+  "status": "open",
+  "tags": ["display","tests"],
+  "title": "Test coverage gate for CLI display overhaul",
+  "type": "task",
+  "updated_at": "2026-04-16T20:08:02.076410079Z"
+}
