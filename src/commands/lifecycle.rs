@@ -44,7 +44,7 @@ pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {
         let _ = plugin::apply_push_response(&store, &id, &results);
     }
-    println!("submitted {id} for review");
+    println!("reviewed {id} — from the repo root, run `bl close {id} -m \"...\"` to finish");
     Ok(())
 }
 
