@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T01:07:15.373850484Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "libc::pipe2 is Linux-only. balls 0.3.2 builds fine on Linux but fails to compile on macOS because src/plugin/diag.rs:prepare_diag_pipe calls pipe2(O_CLOEXEC). Reported while trying to use balls on macOS.\n\nFix: split make_pipe by cfg(target_os). On Linux, keep pipe2 (atomic CLOEXEC). On macOS/BSD, fall back to pipe() + fcntl(FD_CLOEXEC). Balls only calls prepare_diag_pipe from the synchronous plugin-invocation path, so the classical pipe+fcntl race against another thread's fork/exec isn't reachable.\n\nKeep 100% coverage on Linux. The Linux-only pipe2 error-branch test can stay cfg-gated; the macOS branch isn't measured by tarpaulin in CI anyway but must compile cleanly.",
+  "external": {},
+  "id": "bl-eee4",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": ["plugin","portability"],
+  "title": "Cross-platform diag pipe: fall back to pipe+fcntl off Linux",
+  "type": "bug",
+  "updated_at": "2026-04-16T01:07:15.373850484Z"
+}
