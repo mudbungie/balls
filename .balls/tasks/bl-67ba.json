@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-67ba",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-16T06:14:33.476040179Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["stealth"],
   "title": "Custom tasks-dir for stealth mode",
   "type": "task",
-  "updated_at": "2026-04-16T06:14:33.476040179Z"
+  "updated_at": "2026-04-16T06:14:37.292836822Z"
 }
