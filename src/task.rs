@@ -144,6 +144,14 @@ pub struct Task {
     pub closed_children: Vec<ArchivedChild>,
     #[serde(default)]
     pub external: BTreeMap<String, Value>,
+    /// Per-plugin timestamp of the last time balls applied a push or
+    /// sync response for this task from the named plugin. Plugins
+    /// compare their remote's `updated_at` against this value for
+    /// bidirectional conflict resolution without maintaining a
+    /// side-cache. Written by balls, sent back on every push/sync.
+    /// Missing keys mean "never synced by that plugin".
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub synced_at: BTreeMap<String, DateTime<Utc>>,
     /// Performance hint: SHA of the squash-merge on main that
     /// delivered this task. Ground truth is the `[id]` tag embedded
     /// in the commit message — see `crate::delivery`.
@@ -260,6 +268,7 @@ impl Task {
             links: Vec::new(),
             closed_children: Vec::new(),
             external: BTreeMap::new(),
+            synced_at: BTreeMap::new(),
             delivered_in: None,
             extra: BTreeMap::new(),
         }
