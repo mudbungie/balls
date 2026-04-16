@@ -55,6 +55,22 @@ pub struct SyncDelete {
     pub reason: String,
 }
 
+/// A user-facing diagnostic emitted by a plugin on its diagnostics
+/// channel (one JSON object per line on the fd referenced by
+/// `BALLS_DIAG_FD`). Plugins that ignore the env var never write, and
+/// the channel is a silent no-op for them.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PluginDiagnostic {
+    pub level: String,
+    pub message: String,
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub hint: Option<String>,
+    #[serde(default)]
+    pub task_id: Option<String>,
+}
+
 fn default_task_type() -> String {
     "task".into()
 }

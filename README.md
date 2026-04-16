@@ -872,6 +872,31 @@ Gitignored. Plugin owns this directory entirely. Might contain:
 
 Core never reads these files. Core only passes the directory path to the plugin.
 
+### Diagnostics channel (`BALLS_DIAG_FD`)
+
+Plugins have stdout (for the JSON protocol) and stderr (unstructured text balls prints verbatim). For user-facing diagnostics that deserve structure — error codes, hints, the task id the problem applies to — balls also opens a dedicated diagnostics channel and advertises its fd via the `BALLS_DIAG_FD` environment variable.
+
+A plugin that ignores this env var is unaffected: the channel is a silent no-op. A plugin that wants to use it writes newline-delimited JSON records to the fd — one object per line — and balls parses each record and renders it on stderr.
+
+```sh
+# inside a plugin (POSIX sh example)
+if [ -n "$BALLS_DIAG_FD" ]; then
+    printf '%s\n' '{"level":"error","code":"AUTH_EXPIRED","message":"token expired 2026-04-10","hint":"run auth-setup","task_id":"bl-abcd"}' >&"$BALLS_DIAG_FD"
+fi
+```
+
+Record schema:
+
+| Field | Required | Description |
+|---|---|---|
+| `level` | yes | `error`, `warning`, or `info` (rendered verbatim) |
+| `message` | yes | Human-readable summary |
+| `code` | no | Stable machine-readable identifier, shown in brackets |
+| `hint` | no | Suggested remediation, rendered on its own line |
+| `task_id` | no | Local ball id the diagnostic applies to, if any |
+
+Malformed lines produce a single warning and do not abort the rest of the stream. The channel is available on every subcommand (`auth-setup`, `auth-check`, `push`, `sync`) and is subject to the same stream-size cap as stdout/stderr.
+
 ### Sync lifecycle
 
 When `sync_on_change` is true in config:

@@ -215,6 +215,38 @@ esac
     bin_dir
 }
 
+/// Install a plugin that writes `diag_snippet` (verbatim POSIX sh) to
+/// the diagnostics fd on push/sync, then returns an empty sync report.
+pub fn install_plugin_with_diag(diag_snippet: &str) -> tempfile::TempDir {
+    let bin_dir = tempfile::Builder::new().prefix("balls-diag-bin-").tempdir().unwrap();
+    let script = format!(
+        r#"#!/bin/sh
+CMD="$1"; shift
+AUTH_DIR=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --auth-dir) AUTH_DIR="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+case "$CMD" in
+    auth-check) [ -f "$AUTH_DIR/token.json" ] && exit 0 || exit 1 ;;
+    push|sync)
+        {diag_snippet}
+        cat - >/dev/null
+        echo '{{"created":[],"updated":[],"deleted":[]}}'
+        ;;
+esac
+"#
+    );
+    let path = bin_dir.path().join("balls-plugin-mock");
+    fs::write(&path, script).unwrap();
+    let mut p = fs::metadata(&path).unwrap().permissions();
+    p.set_mode(0o755);
+    fs::set_permissions(&path, p).unwrap();
+    bin_dir
+}
+
 /// Mock plugin that passes auth-check but returns the provided body on
 /// push/sync (empty, invalid JSON, etc.). Used to exercise plugin
 /// runner's graceful-degradation paths.
