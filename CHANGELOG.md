@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4](https://github.com/mudbungie/balls/compare/v0.3.3...v0.3.4) - 2026-04-16
+
+### Changes
+
+- Add --tasks-dir for custom stealth task storage [bl-67ba]
+
 ## [0.3.3](https://github.com/mudbungie/balls/compare/v0.3.2...v0.3.3) - 2026-04-16
 
 ### Changes
