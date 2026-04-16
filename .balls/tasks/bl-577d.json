@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T20:07:41.816572229Z",
+  "delivered_in": null,
+  "depends_on": ["bl-c784"],
+  "description": "Today bl dep tree prints a flat list with [ ] checkboxes — it is not a tree. Fix by walking parent + depends_on edges and rendering with box-drawing characters.\n\nFormat (Unicode default, ASCII fallback):\n  bl-a3f8  Migrate auth layer                         [epic]  ○ open\n  ├── bl-1234  Extract token store                            ✓ closed\n  ├── bl-5678  Swap middleware                                » in_progress\n  │   └── bl-9abc  Audit rollback plan                        ⛓ gates parent\n  └── bl-def0  Cut over prod switch                           ⌀ blocked by bl-5678\n\nWith no id argument: render every root (parentless task) as a separate top-level tree.\nWith id: render the subtree rooted at that id, following children (parent edge) first, deps second (shown as annotations, not nesting).\n\nCycle detection: if a cycle is encountered, mark the repeated node with (↺ cycle) and stop descending.\n\nASCII fallback prefixes: |--, `--, |  , (space)(space)(space)(space).\n\n--json: emit a nested structure rather than re-using the flat task list. Shape:\n  { id, title, status, children: [ ... ] }",
+  "external": {},
+  "id": "bl-577d",
+  "links": [],
+  "parent": "bl-a847",
+  "priority": 2,
+  "status": "open",
+  "tags": ["display"],
+  "title": "bl dep tree: actual tree rendering with box-drawing",
+  "type": "task",
+  "updated_at": "2026-04-16T20:07:41.816572229Z"
+}
