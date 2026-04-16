@@ -719,8 +719,8 @@ Plugins are external executables that implement a defined interface. Core knows 
 A plugin is an executable (any language) that responds to commands via argv:
 
 ```
-balls-plugin-jira auth-setup --auth-dir .balls/local/plugins/jira/
-balls-plugin-jira auth-check --auth-dir .balls/local/plugins/jira/
+balls-plugin-jira auth-setup --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
+balls-plugin-jira auth-check --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
 balls-plugin-jira push --task bl-a1b2 --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
 balls-plugin-jira sync --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
 balls-plugin-jira sync --task bl-a1b2 --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
@@ -730,8 +730,8 @@ balls-plugin-jira sync --task bl-a1b2 --config .balls/plugins/jira.json --auth-d
 
 | Command | Input | Output | Description |
 |---|---|---|---|
-| `auth-setup` | (interactive) | Writes creds to `auth-dir` | One-time auth configuration. Handles SSO, PAT entry, OAuth flows — whatever the service needs. |
-| `auth-check` | Reads `auth-dir` | Exit 0 if valid, 1 if expired/missing | Tests whether current credentials work. Core calls this before push/sync. |
+| `auth-setup` | Reads `config`, writes creds to `auth-dir` | (interactive) | One-time auth configuration. Handles SSO, PAT entry, OAuth flows — whatever the service needs. The config is passed so plugins that target multiple instances know which one to authenticate against. |
+| `auth-check` | Reads `config` and `auth-dir` | Exit 0 if valid, 1 if expired/missing | Tests whether current credentials work. Core calls this before push/sync. |
 | `push --task ID` | Task JSON on stdin, config, auth | JSON on stdout (see Push Response Schema) | Pushes one task's state to the remote tracker. Returns external metadata for core to store. |
 | `sync [--task ID]` | All tasks JSON on stdin, config, auth | JSON on stdout (see Sync Report Schema) | Bidirectional sync. Optional `--task` filters to a single item by local ball ID or remote key. |
 

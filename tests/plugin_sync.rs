@@ -25,6 +25,43 @@ fn story_67_sync_triggers_plugin_sync() {
 }
 
 #[test]
+fn auth_check_and_sync_receive_config_path() {
+    // Regression for plugin authors that target multiple instances: every
+    // subcommand — including auth-check and auth-setup — must be given the
+    // --config path so the plugin knows which instance it's acting on.
+    let (bin_dir, log) = install_mock_plugin();
+    let repo = new_repo();
+    init_in(repo.path());
+    configure_plugin(repo.path());
+    create_mock_auth(repo.path());
+
+    bl(repo.path())
+        .env("PATH", path_with_mock(bin_dir.path()))
+        .arg("sync")
+        .assert()
+        .success();
+
+    let log_contents = fs::read_to_string(&log).unwrap_or_default();
+    let config_suffix = ".balls/plugins/mock.json";
+    let auth_check_line = log_contents
+        .lines()
+        .find(|l| l.contains("auth-check"))
+        .unwrap_or_else(|| panic!("expected auth-check in log: {log_contents}"));
+    assert!(
+        auth_check_line.contains(config_suffix),
+        "auth-check should receive --config: {auth_check_line}"
+    );
+    let sync_line = log_contents
+        .lines()
+        .find(|l| l.contains(" sync "))
+        .unwrap_or_else(|| panic!("expected sync in log: {log_contents}"));
+    assert!(
+        sync_line.contains(config_suffix),
+        "sync should receive --config: {sync_line}"
+    );
+}
+
+#[test]
 fn story_71_plugin_unavailable_does_not_block_sync() {
     let repo = new_repo();
     init_in(repo.path());
@@ -88,6 +125,10 @@ fn story_70_auth_expired_warns_and_skips() {
     assert!(
         stderr.contains("auth") || stderr.contains("expired") || stderr.contains("auth-setup"),
         "should warn about auth: {stderr}"
+    );
+    assert!(
+        stderr.contains("--config") && stderr.contains(".balls/plugins/mock.json"),
+        "re-auth hint should reference the plugin config path: {stderr}"
     );
 }
 
