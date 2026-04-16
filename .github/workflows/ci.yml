@@ -43,3 +43,23 @@ jobs:
 
       - name: cargo publish --dry-run
         run: cargo publish --dry-run
+
+  cross-check:
+    name: cross-compile check (macOS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain with macOS target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Catches Linux-only syscalls (e.g. pipe2) landing in portable
+      # code without cfg gating. `cargo check` is the lightest tool
+      # that verifies the non-Linux branches actually compile.
+      - name: cargo check --target x86_64-apple-darwin
+        run: cargo check --target x86_64-apple-darwin --all-targets
