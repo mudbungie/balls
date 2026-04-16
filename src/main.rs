@@ -101,7 +101,7 @@ fn handle_completions(shell: Option<ShellArg>, install: bool, uninstall: bool) -
 fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
-        Command::Init { stealth } => commands::cmd_init(stealth),
+        Command::Init { stealth, tasks_dir } => commands::cmd_init(stealth, tasks_dir),
         Command::Create {
             title,
             priority,

@@ -427,7 +427,7 @@ When two workers edit the same field of the same task, `bl sync` invokes the res
 
 ## CLI Commands
 
-### bl init [--stealth]
+### bl init [--stealth] [--tasks-dir PATH]
 
 One-time setup per clone. `bl init` is idempotent and self-healing — running it on an already-initialized repo verifies and repairs. Specifically:
 
@@ -439,6 +439,8 @@ One-time setup per clone. `bl init` is idempotent and self-healing — running i
 6. Commits the main-side additions (`.gitignore`, `config.json`, `plugins/.gitkeep`) as a single `balls: initialize` commit.
 
 With `--stealth`, tasks are stored outside the repo at `~/.local/share/balls/<repo-hash>/tasks/` with no state branch at all. Useful for local-only planning that shouldn't appear in any git history. All other bl commands work identically; the orphan-branch topology is simply bypassed.
+
+With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of the auto-generated hash-based location. Implies `--stealth`. Useful for project integrations where multiple repos or external tools need tasks at a predictable, shared location (e.g. `bl init --tasks-dir /opt/project/tasks`).
 
 **By hand:** see SPEC §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
 
@@ -695,7 +697,7 @@ Committed to main, shared across the team.
 | `stale_threshold_seconds` | `bl ready` auto-fetches if the last fetch is older than this. |
 | `auto_fetch_on_ready` | Whether `bl ready` auto-fetches at all. |
 | `worktree_dir` | Where `bl claim` creates worktrees. Must be a relative path under the repo; values containing `..` or starting with `/` are rejected on load. |
-| `tasks_dir` | Stealth-mode override for the task storage location. Normally null; set by `bl init --stealth` to an external path outside the repo. |
+| `tasks_dir` | *(removed in 0.3.4)* Stealth-mode task storage is controlled via `bl init --stealth [--tasks-dir PATH]` and persisted in `.balls/local/tasks_dir`, not in the committed config. Older configs that carry this field are unaffected — it was never read. |
 | `plugins` | Per-plugin enable/sync flags and config file paths. |
 
 ### Environment overrides
