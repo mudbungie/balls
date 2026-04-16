@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-eee4",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-16T01:07:15.373850484Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["plugin","portability"],
   "title": "Cross-platform diag pipe: fall back to pipe+fcntl off Linux",
   "type": "bug",
-  "updated_at": "2026-04-16T01:07:15.373850484Z"
+  "updated_at": "2026-04-16T01:07:18.251269326Z"
 }
