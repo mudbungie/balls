@@ -82,7 +82,12 @@ impl Store {
         Ok(Store { root: main_root, stealth, tasks_dir_path })
     }
 
-    pub fn init(from: &Path, stealth: bool) -> Result<Self> {
+    pub fn init(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
+        if let Some(ref td) = tasks_dir {
+            if !Path::new(td).is_absolute() {
+                return Err(BallError::Other(format!("--tasks-dir must be an absolute path, got: {td}")));
+            }
+        }
         let repo_root = git::git_root(from)?;
         git::git_ensure_user(&repo_root)?;
         git::git_init_commit(&repo_root)?;
@@ -102,8 +107,12 @@ impl Store {
             Config::default().save(&config_path)?;
         }
 
-        let (tasks_dir_path, is_stealth) = if stealth {
-            let ext = stealth_tasks_dir(&repo_root);
+        let use_stealth = stealth || tasks_dir.is_some();
+        let (tasks_dir_path, is_stealth) = if use_stealth {
+            let ext = match tasks_dir {
+                Some(td) => PathBuf::from(td),
+                None => stealth_tasks_dir(&repo_root),
+            };
             fs::create_dir_all(&ext)?;
             fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
             (ext, true)

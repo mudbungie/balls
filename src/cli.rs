@@ -14,6 +14,9 @@ pub enum Command {
         /// Stealth mode: store tasks outside the repo (not git-tracked).
         #[arg(long)]
         stealth: bool,
+        /// Custom absolute path for task storage. Implies --stealth.
+        #[arg(long)]
+        tasks_dir: Option<String>,
     },
 
     /// Create a new task.
