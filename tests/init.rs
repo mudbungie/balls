@@ -226,6 +226,60 @@ fn stealth_mode_full_lifecycle() {
 }
 
 #[test]
+fn custom_tasks_dir_stores_tasks_at_user_path() {
+    let repo = new_repo();
+    let custom = tempfile::Builder::new()
+        .prefix("balls-custom-")
+        .tempdir()
+        .unwrap();
+    let custom_path = custom.path().join("my-tasks");
+    bl(repo.path())
+        .args(["init", "--tasks-dir", custom_path.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("stealth"));
+    assert!(custom_path.exists(), "custom tasks dir should be created");
+    let td = std::fs::read_to_string(repo.path().join(".balls/local/tasks_dir")).unwrap();
+    assert_eq!(td.trim(), custom_path.to_str().unwrap());
+    let id = create_task(repo.path(), "custom dir task");
+    assert!(
+        custom_path.join(format!("{id}.json")).exists(),
+        "task should be in custom dir"
+    );
+}
+
+#[test]
+fn tasks_dir_implies_stealth_without_flag() {
+    let repo = new_repo();
+    let custom = tempfile::Builder::new()
+        .prefix("balls-impl-")
+        .tempdir()
+        .unwrap();
+    let custom_path = custom.path().join("tasks");
+    bl(repo.path())
+        .args(["init", "--tasks-dir", custom_path.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("stealth"));
+    assert!(!repo.path().join(".balls/tasks").exists());
+}
+
+#[test]
+fn tasks_dir_rejects_relative_path() {
+    let repo = new_repo();
+    let out = bl(repo.path())
+        .args(["init", "--tasks-dir", "relative/path"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("absolute"),
+        "should reject relative path: {stderr}"
+    );
+}
+
+#[test]
 fn stealth_list_returns_empty_when_external_dir_gone() {
     let repo = new_repo();
     bl(repo.path())

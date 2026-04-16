@@ -11,9 +11,9 @@ use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 use std::fs;
 
-pub fn cmd_init(stealth: bool) -> Result<()> {
+pub fn cmd_init(stealth: bool, tasks_dir: Option<String>) -> Result<()> {
     let cwd = env::current_dir()?;
-    let store = Store::init(&cwd, stealth)?;
+    let store = Store::init(&cwd, stealth, tasks_dir)?;
     if store.stealth {
         println!("Initialized balls (stealth) in {}", store.root.display());
         println!("Tasks stored at: {}", store.tasks_dir().display());
