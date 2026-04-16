@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T20:07:41.829578734Z",
+  "delivered_in": null,
+  "depends_on": ["bl-c784"],
+  "description": "For tasks of type=epic, compute completion ratio from closed_children (archived) + live children with parent pointing at the epic. Render a small bar inline.\n\nExample in bl list / bl show:\n  ● ○ open          bl-a3f8   Migrate auth layer  [epic]  ██████░░░░ 6/10  60%\n\nBar width: fixed 10 cells. Characters: █ (done) ░ (todo). ASCII fallback: # and -.\n\nOnly shown for type=epic; other types don't get a bar.\n\nDo not double-count: a closed child is either in closed_children (archived) OR still a live task with status=closed. Union them.\n\n--json: add 'progress': { closed: 6, total: 10 } on epics.",
+  "external": {},
+  "id": "bl-8dcf",
+  "links": [],
+  "parent": "bl-a847",
+  "priority": 4,
+  "status": "open",
+  "tags": ["display"],
+  "title": "Epic progress bars (beyond beads)",
+  "type": "task",
+  "updated_at": "2026-04-16T20:07:41.829578734Z"
+}
