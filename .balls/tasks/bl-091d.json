@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T19:29:04.406543478Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Today TaskType is a fixed enum: Epic, Task, Bug (plus Unknown for forward-compat). Beads ships feature/chore/spike/question/discussion/retro etc. In balls, type is purely a label ('not a behavior switch' per SKILL.md) so widening the vocabulary is design, not code.\n\nDirection: make type an open-ended string. Optionally register allowed types in .balls/config.json; anything outside the declared set emits a warning but is still accepted (forward-compat). No declared set means all strings go.\n\nImplementation sketch:\n- Replace TaskType enum with a newtype around String, with a parse() that enforces [a-z][a-z0-9_-]* or similar filesystem/git-safe rules.\n- Keep TaskType::Unknown semantics via the wrapper: an unknown type is just a string that isn't in the declared set; still round-trips.\n- Config.toml-or-json gains an optional task_types array. If present, bl create validates against it and warns on mismatch.\n- bl create -t accepts any string that passes the regex. Help text lists the common set (task, bug, epic, feature, chore, spike, question, discussion, retro) as suggestions, not constraints.\n- Existing TaskType::Epic etc. map to the string 'epic', 'task', 'bug'. On-disk format unchanged — it already serializes as a string.\n\nForward-compat:\n- Older bl reading a newer file with a novel type string lands it in TaskType::Unknown(s) via the existing passthrough and round-trips it unchanged. Already works today if we replace the enum carefully.\n- Newer bl reading older files: identical, types are strings.\n\nOpen questions:\n- Do we want a 'strict' flag in config that rejects unknown types instead of warning?\n- Where does the suggested-vocabulary list live? Hardcoded in help, or loaded from config for discoverability?\n\nNot in scope:\n- Type-specific behavior (e.g. 'epic auto-gates children'). Types remain pure labels.\n- Migration of existing repos — types are already strings on disk.",
+  "external": {},
+  "id": "bl-091d",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["types","forward-compat"],
+  "title": "Open-ended task types with optional per-repo declared vocabulary",
+  "type": "task",
+  "updated_at": "2026-04-16T19:29:04.406543478Z"
+}
