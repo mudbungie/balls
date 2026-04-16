@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-16T20:07:41.758670599Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Foundation for the CLI display overhaul. All human-facing commands route through this module; JSON paths bypass.\n\nSurface:\n  fn use_color() -> bool        // NO_COLOR, CLICOLOR, isatty, --plain\n  fn use_unicode() -> bool      // same detection, separate toggle\n  fn prio_dot(p: u8) -> StyledString\n  fn status_glyph(s: &Status) -> &'static str\n  fn status_word(s: &Status) -> ColoredStr       // colored label\n  fn claimed_badge(t: &Task, me: &str) -> &str\n  fn deps_badge(t: &Task, all: &[Task]) -> &str\n  fn gates_badge(t: &Task, all: &[Task]) -> &str\n  fn tree_prefix(depth: usize, is_last: bool, ancestors: &[bool]) -> String\n\nPick one of owo-colors or anstream. Document the choice in the module.\n\nAdd a --plain global flag (on Cli) that forces disable. Threads through via a Display struct or OnceLock.\n\nTests:\n- Glyph/word mapping round-trips for every Status variant including Unknown.\n- NO_COLOR and CLICOLOR=0 disable color.\n- Pipe-to-file disables color (assert_cmd + pty or env-override).\n- --plain disables both color and unicode.",
+  "external": {},
+  "id": "bl-c784",
+  "links": [],
+  "parent": "bl-a847",
+  "priority": 2,
+  "status": "open",
+  "tags": ["display"],
+  "title": "display.rs module: color detection, glyphs, tree primitives",
+  "type": "task",
+  "updated_at": "2026-04-16T20:07:41.758670599Z"
+}
