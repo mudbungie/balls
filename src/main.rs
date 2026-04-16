@@ -100,6 +100,7 @@ fn handle_completions(shell: Option<ShellArg>, install: bool, uninstall: bool) -
 
 fn main() {
     let cli = Cli::parse();
+    balls::display::init(cli.plain);
     let result = match cli.command {
         Command::Init { stealth, tasks_dir } => commands::cmd_init(stealth, tasks_dir),
         Command::Create {

@@ -20,6 +20,7 @@
 pub mod commit_msg;
 pub mod config;
 pub mod delivery;
+pub mod display;
 pub mod error;
 pub mod git;
 pub mod git_state;
