@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5](https://github.com/mudbungie/balls/compare/v0.3.4...v0.3.5) - 2026-04-16
+
+### Changes
+
+- No-git mode: bl works without a git repo [bl-e0f8]
+
 ## [0.3.4](https://github.com/mudbungie/balls/compare/v0.3.3...v0.3.4) - 2026-04-16
 
 ### Changes
