@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2](https://github.com/mudbungie/balls/compare/v0.3.1...v0.3.2) - 2026-04-16
+
+### Changes
+
+- Record per-plugin synced_at on tasks [bl-5c42]
+- Add plugin diagnostics channel on FD 3 [bl-4758]
+- Pass --config to auth-check and auth-setup [bl-e5d1]
+- Pin uppercase-hex acceptance in validate_id [bl-9fd2]
+- Wire up Config.version as a schema-version gate [bl-2da0]
+- Consolidate priority validation into task::parse_priority [bl-8313]
+- Forward-compat passthrough on Task and Note structs [bl-f9db]
+- Lenient TaskType deserialization for forward compat [bl-fe19]
+- Lenient Status deserialization for forward compat [bl-23c8]
+
 ## [0.3.1](https://github.com/mudbungie/balls/compare/v0.3.0...v0.3.1) - 2026-04-14
 
 ### Changes
