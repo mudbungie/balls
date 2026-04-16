@@ -45,6 +45,20 @@ pub(crate) fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
         .ok_or_else(|| BallError::Other("could not find main repo root".to_string()))
 }
 
+/// Walk up from `from` looking for `.balls/config.json` to locate
+/// the project root when no git repo is available (no-git mode).
+pub(crate) fn find_balls_root(from: &Path) -> Result<PathBuf> {
+    let mut cur = fs::canonicalize(from).unwrap_or_else(|_| from.to_path_buf());
+    loop {
+        if cur.join(".balls/config.json").exists() {
+            return Ok(cur);
+        }
+        if !cur.pop() {
+            return Err(BallError::NotInitialized);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

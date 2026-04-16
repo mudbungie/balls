@@ -8,26 +8,38 @@ use balls::store::task_lock;
 use balls::task::{Status, Task, TaskType};
 use balls::{task_io, worktree};
 
-pub fn cmd_claim(id: String, identity: Option<String>) -> Result<()> {
+pub fn cmd_claim(id: String, identity: Option<String>, no_worktree: bool) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
-    let path = worktree::create_worktree(&store, &id, &ident)?;
-    let task = store.load_task(&id)?;
-    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
-        let _ = plugin::apply_push_response(&store, &id, &results);
-        // Plugin response committed to state branch after worktree
-        // creation — merge main into worktree to keep it current.
-        let main_branch = balls::git::git_current_branch(&store.root)?;
-        let _ = balls::git::git_merge(&path, &main_branch);
+    if store.no_git && !no_worktree {
+        return Err(BallError::Other(
+            "no git repo: use `bl claim --no-worktree` to claim without a worktree".into(),
+        ));
     }
-    println!("{}", path.display());
+    if no_worktree {
+        worktree::claim_no_worktree(&store, &id, &ident)?;
+        println!("claimed {id} (no worktree)");
+    } else {
+        let path = worktree::create_worktree(&store, &id, &ident)?;
+        let task = store.load_task(&id)?;
+        if let Ok(results) = plugin::run_plugin_push(&store, &task) {
+            let _ = plugin::apply_push_response(&store, &id, &results);
+            let main_branch = balls::git::git_current_branch(&store.root)?;
+            let _ = balls::git::git_merge(&path, &main_branch);
+        }
+        println!("{}", path.display());
+    }
     Ok(())
 }
 
 pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
     let store = discover()?;
     let ident = default_identity();
-    balls::review::review_worktree(&store, &id, message.as_deref(), &ident)?;
+    if store.no_git {
+        balls::review::review_no_git(&store, &id, message.as_deref(), &ident)?;
+    } else {
+        balls::review::review_worktree(&store, &id, message.as_deref(), &ident)?;
+    }
     let task = store.load_task(&id)?;
     if let Ok(results) = plugin::run_plugin_push(&store, &task) {
         let _ = plugin::apply_push_response(&store, &id, &results);
@@ -39,16 +51,26 @@ pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
 pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
     let store = discover()?;
     let ident = default_identity();
-    let task = balls::review::close_worktree(&store, &id, message.as_deref(), &ident)?;
+    let task = if store.no_git {
+        balls::review::close_no_git(&store, &id, message.as_deref(), &ident)?
+    } else {
+        balls::review::close_worktree(&store, &id, message.as_deref(), &ident)?
+    };
     let _ = plugin::run_plugin_push(&store, &task);
     println!("closed {id}");
-    println!("{}", store.root.display());
+    if !store.no_git {
+        println!("{}", store.root.display());
+    }
     Ok(())
 }
 
 pub fn cmd_drop(id: String, force: bool) -> Result<()> {
     let store = discover()?;
-    worktree::drop_worktree(&store, &id, force)?;
+    if store.no_git {
+        worktree::drop_no_worktree(&store, &id)?;
+    } else {
+        worktree::drop_worktree(&store, &id, force)?;
+    }
     println!("dropped {id}");
     Ok(())
 }

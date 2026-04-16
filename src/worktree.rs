@@ -137,6 +137,50 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Claim without creating a git worktree: validate, flip status, write
+/// the claim file. Used in no-git mode or when the caller explicitly
+/// passes --no-worktree.
+pub fn claim_no_worktree(store: &Store, id: &str, identity: &str) -> Result<()> {
+    if !store.task_exists(id) {
+        return Err(BallError::TaskNotFound(id.to_string()));
+    }
+    with_task_lock(store, id, || {
+        let mut task = store.load_task(id)?;
+        if task.status != Status::Open {
+            return Err(BallError::NotClaimable(format!("{} (status = {})", id, task.status.as_str())));
+        }
+        if task.claimed_by.is_some() {
+            return Err(BallError::AlreadyClaimed(id.to_string()));
+        }
+        let all = store.all_tasks()?;
+        if crate::ready::is_dep_blocked(&all, &task) {
+            return Err(BallError::DepsUnmet(id.to_string()));
+        }
+        task.status = Status::InProgress;
+        task.claimed_by = Some(identity.to_string());
+        task.touch();
+        store.save_task(&task)?;
+        store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
+        write_claim_file(store, id, identity)?;
+        Ok(())
+    })
+}
+
+pub fn drop_no_worktree(store: &Store, id: &str) -> Result<()> {
+    with_task_lock(store, id, || {
+        let mut t = store.load_task(id)?;
+        let title = t.title.clone();
+        t.status = Status::Open;
+        t.claimed_by = None;
+        t.branch = None;
+        t.touch();
+        store.save_task(&t)?;
+        store.commit_task(id, &format!("balls: drop {id} - {title}"))?;
+        let _ = fs::remove_file(claim_file_path(store, id));
+        Ok(())
+    })
+}
+
 pub fn drop_worktree(store: &Store, id: &str, force: bool) -> Result<()> {
     let wt_path = worktree_path(store, id)?;
     let task = store.load_task(id)?;

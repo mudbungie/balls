@@ -129,7 +129,7 @@ fn main() {
         } => commands::cmd_list(status, priority, normalize_opt(parent), tag, all, json),
         Command::Show { id, json } => commands::cmd_show(normalize_id(id), json),
         Command::Ready { json, no_fetch } => commands::cmd_ready(json, no_fetch),
-        Command::Claim { id, identity } => commands::cmd_claim(normalize_id(id), identity),
+        Command::Claim { id, identity, no_worktree } => commands::cmd_claim(normalize_id(id), identity, no_worktree),
         Command::Review { id, message } => commands::cmd_review(normalize_id(id), message),
         Command::Close { id, message } => commands::cmd_close(normalize_id(id), message),
         Command::Drop { id, force } => commands::cmd_drop(normalize_id(id), force),

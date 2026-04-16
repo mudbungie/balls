@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 pub fn cmd_sync(remote: String, task_filter: Option<String>) -> Result<()> {
     let store = discover()?;
-    if git::git_has_remote(&store.root, &remote) {
+    if !store.no_git && git::git_has_remote(&store.root, &remote) {
         sync_with_remote(&store, &remote)?;
     }
     match plugin::run_plugin_sync(&store, task_filter.as_deref()) {
@@ -217,7 +217,7 @@ pub fn cmd_repair(fix: bool) -> Result<()> {
             println!("BAD: {} - {}", p.display(), e);
         }
     }
-    if fix {
+    if fix && !store.no_git {
         let (rc, rw) = worktree::cleanup_orphans(&store)?;
         for id in &rc {
             println!("removed orphan claim: {id}");
