@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-17T17:43:11.021247793Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Rework SKILL.md so the default flow is one agent claim→work→review→close→done; demote the separate-reviewer pattern to an opt-in section. Add a matching stance paragraph to README. Update lifecycle.rs review output to point at 'bl close' as the next step rather than implying a handoff. Principle: 'task is in review' as a stopping point (without a configured reviewer) is a footgun that makes agents stop short of finishing.",
+  "external": {},
+  "id": "bl-bf10",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "SKILL/README: default is single-agent, review handoff opt-in",
+  "type": "task",
+  "updated_at": "2026-04-17T17:43:11.021247793Z"
+}
