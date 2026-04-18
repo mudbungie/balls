@@ -9,13 +9,15 @@ pub mod completions;
 pub mod dep_link;
 mod id_gen;
 pub mod lifecycle;
+pub mod ready_cmd;
 pub mod sync;
 mod sync_report;
 
-pub use basic::{cmd_create, cmd_init, cmd_list, cmd_ready, cmd_show};
+pub use basic::{cmd_create, cmd_init, cmd_list, cmd_show};
 pub use completions::{install_completions, uninstall_completions};
 pub use dep_link::{cmd_dep, cmd_link};
 pub use lifecycle::{cmd_claim, cmd_close, cmd_drop, cmd_review, cmd_update};
+pub use ready_cmd::cmd_ready;
 pub use sync::{cmd_prime, cmd_repair, cmd_resolve, cmd_sync};
 
 pub(crate) fn discover() -> Result<Store> {
