@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-750c",
+  "claimed_by": "opus",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-18T00:11:30.513077390Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["display"],
   "title": "bl show: render external remote locations",
   "type": "task",
-  "updated_at": "2026-04-18T00:11:30.513077390Z"
+  "updated_at": "2026-04-18T00:11:33.444861109Z"
 }
