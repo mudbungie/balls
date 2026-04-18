@@ -3,17 +3,19 @@
 
 use super::discover;
 use crate::cli::{DepCmd, LinkCmd};
+use balls::display;
 use balls::error::{BallError, Result};
 use balls::ready;
 use balls::store::{task_lock, Store};
-use balls::task::{Link, LinkType, Status};
+use balls::task::{Link, LinkType};
+use balls::tree;
 
 pub fn cmd_dep(sub: DepCmd) -> Result<()> {
     let store = discover()?;
     match sub {
         DepCmd::Add { task, depends_on } => dep_add(&store, task, depends_on),
         DepCmd::Rm { task, depends_on } => dep_rm(&store, task, depends_on),
-        DepCmd::Tree { id } => dep_tree(&store, id),
+        DepCmd::Tree { id, json } => dep_tree(&store, id, json),
     }
 }
 
@@ -63,42 +65,21 @@ fn dep_rm(store: &Store, task: String, depends_on: String) -> Result<()> {
     Ok(())
 }
 
-fn dep_tree(store: &Store, id: Option<String>) -> Result<()> {
+fn dep_tree(store: &Store, id: Option<String>, json: bool) -> Result<()> {
     let tasks = store.all_tasks()?;
-    if let Some(id) = id {
-        print_tree(&ready::dep_tree(&tasks, &id)?, 0);
+    let roots = if let Some(id) = id {
+        let n = tree::rooted(&tasks, &id).ok_or(BallError::TaskNotFound(id))?;
+        vec![n]
     } else {
-        use std::collections::HashSet;
-        let mut has_dependent: HashSet<String> = HashSet::new();
-        for t in &tasks {
-            for d in &t.depends_on {
-                has_dependent.insert(d.clone());
-            }
-        }
-        for t in &tasks {
-            if !has_dependent.contains(&t.id) {
-                print_tree(&ready::dep_tree(&tasks, &t.id)?, 0);
-            }
-        }
+        tree::forest(&tasks)
+    };
+    if json {
+        let payload: Vec<tree::JsonNode> = roots.iter().map(tree::JsonNode::from_node).collect();
+        println!("{}", serde_json::to_string_pretty(&payload)?);
+    } else {
+        print!("{}", tree::render_forest(&roots, &tasks, display::global()));
     }
     Ok(())
-}
-
-fn print_tree(node: &ready::TreeNode, depth: usize) {
-    let indent = "  ".repeat(depth);
-    // Closed tasks are archived out of the tree; catchall covers Open
-    // (the only remaining variant) and is the defensive fallback.
-    let marker = match node.task.status {
-        Status::InProgress => "[~]",
-        Status::Review => "[r]",
-        Status::Blocked => "[!]",
-        Status::Deferred => "[-]",
-        _ => "[ ]",
-    };
-    println!("{}{} {} {}", indent, marker, node.task.id, node.task.title);
-    for d in &node.deps {
-        print_tree(d, depth + 1);
-    }
 }
 
 pub fn cmd_link(sub: LinkCmd) -> Result<()> {
