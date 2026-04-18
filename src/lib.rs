@@ -29,6 +29,8 @@ pub mod plugin;
 pub mod ready;
 pub mod render_list;
 pub mod render_ready;
+pub mod render_show;
+pub mod render_show_text;
 pub mod resolve;
 pub mod review;
 pub mod store;

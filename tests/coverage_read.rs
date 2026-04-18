@@ -56,15 +56,17 @@ fn show_renders_all_optional_sections() {
     assert!(s.contains("children:"));
     assert!(s.contains("completion:"));
 
-    let out = bl(repo.path()).args(["show", &id]).output().unwrap();
+    let out = bl_as(repo.path(), "alice").args(["show", &id]).output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(s.contains("parent:"));
     assert!(s.contains("deps:"));
     assert!(s.contains("tags:"));
-    assert!(s.contains("claimed:"));
+    // Header carries `claimed by alice` instead of a labeled `claimed:` row.
+    assert!(s.contains("claimed by alice"));
     assert!(s.contains("branch:"));
     assert!(s.contains("My feature"));
-    assert!(s.contains("notes:"));
+    // New format uses `notes (N)` for the section header.
+    assert!(s.contains("notes ("));
 }
 
 #[test]

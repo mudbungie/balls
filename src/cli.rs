@@ -75,6 +75,9 @@ pub enum Command {
         id: String,
         #[arg(long)]
         json: bool,
+        /// Append absolute ISO timestamps next to the relative ones.
+        #[arg(long)]
+        verbose: bool,
     },
 
     /// Show tasks ready to be claimed.
