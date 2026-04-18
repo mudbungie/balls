@@ -1,0 +1,1 @@
+{"ts":"2026-04-18T19:38:36.502639409Z","author":"mark","text":"ready: status column + parent hint line\n\nAligns bl ready with the new bl list flat format. Adds a dim\n`↑ bl-xxxx (title)` hint whenever the task has a parent so agents\ndon't lose the surrounding epic. Splits cmd_ready into its own\nmodule to keep basic.rs under the line cap. --json unchanged."}
