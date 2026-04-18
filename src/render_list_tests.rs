@@ -194,6 +194,21 @@ fn grouped_covers_all_five_statuses() {
 }
 
 #[test]
+fn epic_rows_carry_progress_bar_and_epic_marker() {
+    let mut parent = mk("bl-e", "epic row", Status::Open, 3);
+    parent.task_type = crate::task::TaskType::Epic;
+    let mut child = mk("bl-c", "child", Status::Closed, 3);
+    child.parent = Some("bl-e".into());
+    let tasks = vec![parent, child];
+    let out = render(&tasks, true, &ctx("nobody", 200, &tasks));
+    assert!(out.contains("[epic]"));
+    // 1/1 closed => bar fully filled in ascii.
+    assert!(out.contains("##########"));
+    assert!(out.contains("1/1"));
+    assert!(out.contains("100%"));
+}
+
+#[test]
 fn sorted_by_priority_then_created_at() {
     let mut a = mk("bl-1", "a", Status::Open, 2);
     let b = mk("bl-2", "b", Status::Open, 2);
