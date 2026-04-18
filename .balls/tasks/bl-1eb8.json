@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-1eb8",
+  "claimed_by": "claude-opus",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-16T20:08:02.056077974Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-a847",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["display","docs"],
   "title": "Docs update for CLI display overhaul: README, SKILL.md, help strings",
   "type": "task",
-  "updated_at": "2026-04-16T20:08:02.056077974Z"
+  "updated_at": "2026-04-18T19:56:45.641163791Z"
 }
