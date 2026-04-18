@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-04-16T20:21:27.262094703Z","id":"bl-c784","title":"display.rs module: color detection, glyphs, tree primitives"},{"closed_at":"2026-04-18T19:23:35.665535563Z","id":"bl-577d","title":"bl dep tree: actual tree rendering with box-drawing"}],
+  "closed_children": [{"closed_at":"2026-04-16T20:21:27.262094703Z","id":"bl-c784","title":"display.rs module: color detection, glyphs, tree primitives"},{"closed_at":"2026-04-18T19:23:35.665535563Z","id":"bl-577d","title":"bl dep tree: actual tree rendering with box-drawing"},{"closed_at":"2026-04-18T19:32:46.852785139Z","id":"bl-25db","title":"bl list redesign: status column, grouping, nesting under parents"}],
   "created_at": "2026-04-16T20:07:41.737825788Z",
   "delivered_in": null,
   "depends_on": [],
@@ -16,5 +16,5 @@
   "tags": ["display","polish"],
   "title": "CLI display overhaul: colors, glyphs, real trees, polished output",
   "type": "epic",
-  "updated_at": "2026-04-18T19:23:36.103983588Z"
+  "updated_at": "2026-04-18T19:32:47.304941525Z"
 }
