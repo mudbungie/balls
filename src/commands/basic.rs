@@ -142,7 +142,7 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     if json {
         let blocked = ready::is_dep_blocked(&all, &task);
         let children: Vec<&Task> = ready::children_of(&all, &id);
-        let pretty = serde_json::json!({
+        let mut pretty = serde_json::json!({
             "task": task,
             "dep_blocked": blocked,
             "children": children.iter().map(|t| &t.id).collect::<Vec<_>>(),
@@ -151,6 +151,11 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
             "delivered_in_resolved": delivery.sha,
             "delivered_in_hint_stale": delivery.hint_stale,
         });
+        if matches!(task.task_type, TaskType::Epic) {
+            let (closed, total) = balls::progress::counts(&all, &id);
+            pretty["progress"] =
+                serde_json::json!({ "closed": closed, "total": total });
+        }
         println!("{}", serde_json::to_string_pretty(&pretty)?);
         return Ok(());
     }

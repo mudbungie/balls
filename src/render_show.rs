@@ -9,6 +9,7 @@
 
 use crate::delivery::{self, Delivery};
 use crate::display::Display;
+use crate::progress;
 use crate::ready;
 use crate::render_show_text::{format_time, wrap};
 use crate::task::{LinkType, Task, TaskType};
@@ -35,10 +36,19 @@ pub fn render(
     write_header(&mut out, task, ctx);
     write_meta_row(&mut out, task, ctx);
     write_tags(&mut out, task);
+    write_progress(&mut out, task, all, ctx);
     write_relations(&mut out, task, all, delivery, repo_root, ctx);
     write_description(&mut out, task, ctx.columns);
     write_notes(&mut out, task, ctx);
     out
+}
+
+fn write_progress(out: &mut String, t: &Task, all: &[Task], ctx: &Ctx<'_>) {
+    if !matches!(t.task_type, TaskType::Epic) {
+        return;
+    }
+    let (closed, total) = progress::counts(all, &t.id);
+    let _ = writeln!(out, "  progress: {}", progress::summary(closed, total, ctx.d));
 }
 
 fn write_header(out: &mut String, t: &Task, ctx: &Ctx<'_>) {
