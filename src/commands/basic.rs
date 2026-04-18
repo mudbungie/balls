@@ -4,14 +4,12 @@ use super::discover;
 use super::id_gen::generate_unique_id;
 use balls::display;
 use balls::error::{BallError, Result};
-use balls::git;
 use balls::plugin;
 use balls::ready;
 use balls::render_list;
 use balls::store::{task_lock, Store};
 use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
-use std::fs;
 
 pub fn cmd_init(stealth: bool, tasks_dir: Option<String>) -> Result<()> {
     let cwd = env::current_dir()?;
@@ -258,41 +256,3 @@ fn render_external(task: &Task) {
     }
 }
 
-pub fn cmd_ready(json: bool, no_fetch: bool) -> Result<()> {
-    let store = discover()?;
-    let cfg = store.load_config()?;
-
-    if cfg.auto_fetch_on_ready && !no_fetch {
-        maybe_auto_fetch(&store, cfg.stale_threshold_seconds);
-    }
-
-    let tasks = store.all_tasks()?;
-    let ready = ready::ready_queue(&tasks);
-    if json {
-        let v: Vec<&Task> = ready;
-        println!("{}", serde_json::to_string_pretty(&v)?);
-    } else if ready.is_empty() {
-        println!("No tasks ready.");
-    } else {
-        for t in &ready {
-            println!("[P{}] {} {}", t.priority, t.id, t.title);
-        }
-    }
-    Ok(())
-}
-
-fn maybe_auto_fetch(store: &Store, stale_threshold_seconds: u64) {
-    if store.no_git { return; }
-    let last_fetch = store.local_dir().join("last_fetch");
-    let stale = match fs::metadata(&last_fetch).and_then(|m| m.modified()) {
-        Ok(t) => std::time::SystemTime::now()
-            .duration_since(t)
-            .map(|d| d.as_secs() > stale_threshold_seconds)
-            .unwrap_or(true),
-        Err(_) => true,
-    };
-    if stale && git::git_has_remote(&store.root, "origin") {
-        let _ = git::git_fetch(&store.root, "origin");
-        let _ = fs::write(&last_fetch, "");
-    }
-}
