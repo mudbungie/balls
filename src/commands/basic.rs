@@ -173,6 +173,7 @@ fn render_text(
             println!("    {} {}", l.link_type.as_str(), l.target);
         }
     }
+    render_external(task);
     if !task.tags.is_empty() {
         println!("  tags:     {}", task.tags.join(", "));
     }
@@ -214,6 +215,35 @@ fn render_text(
         for n in &task.notes {
             println!("  [{}] {}: {}", n.ts.to_rfc3339(), n.author, n.text);
         }
+    }
+}
+
+/// Surface plugin-provided remote pointers (ticket id, issue URL) so
+/// agents don't have to dig through `--json`. Convention per README:
+/// plugins put `remote_key` and/or `remote_url` in `task.external.<plugin>`.
+/// Plugins whose blob has neither aren't worth rendering here — we don't
+/// want to dump arbitrary plugin internals into the human view.
+fn render_external(task: &Task) {
+    let rows: Vec<(String, Option<&str>, Option<&str>)> = task
+        .external
+        .iter()
+        .filter_map(|(name, value)| {
+            let obj = value.as_object()?;
+            let key = obj.get("remote_key").and_then(|v| v.as_str());
+            let url = obj.get("remote_url").and_then(|v| v.as_str());
+            if key.is_none() && url.is_none() {
+                return None;
+            }
+            Some((name.clone(), key, url))
+        })
+        .collect();
+    if rows.is_empty() {
+        return;
+    }
+    println!("  remote:");
+    for (name, key, url) in rows {
+        let parts: Vec<&str> = [key, url].into_iter().flatten().collect();
+        println!("    {name}: {}", parts.join(" "));
     }
 }
 
