@@ -2,10 +2,12 @@
 
 use super::discover;
 use super::id_gen::generate_unique_id;
+use balls::display;
 use balls::error::{BallError, Result};
 use balls::git;
 use balls::plugin;
 use balls::ready;
+use balls::render_list;
 use balls::store::{task_lock, Store};
 use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
@@ -111,17 +113,26 @@ pub fn cmd_list(
     if json {
         println!("{}", serde_json::to_string_pretty(&tasks)?);
     } else {
-        for t in &tasks {
-            println!(
-                "[P{}] {} {:<12} {}",
-                t.priority,
-                t.id,
-                t.status.as_str(),
-                t.title
-            );
-        }
+        let flat = status.is_some();
+        let me = super::default_identity();
+        let cols = terminal_columns();
+        let all = store.all_tasks()?;
+        let ctx = render_list::Ctx {
+            d: display::global(),
+            me: &me,
+            columns: cols,
+            all: &all,
+        };
+        print!("{}", render_list::render(&tasks, flat, &ctx));
     }
     Ok(())
+}
+
+fn terminal_columns() -> usize {
+    env::var("COLUMNS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100)
 }
 
 pub fn cmd_show(id: String, json: bool) -> Result<()> {
