@@ -133,7 +133,7 @@ fn terminal_columns() -> usize {
         .unwrap_or(100)
 }
 
-pub fn cmd_show(id: String, json: bool) -> Result<()> {
+pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     let store = discover()?;
     let task = store.load_task(&id)?;
     let all = store.all_tasks()?;
@@ -155,104 +155,18 @@ pub fn cmd_show(id: String, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    render_text(&task, &all, &id, &delivery, &store.root);
+    let me = super::default_identity();
+    let ctx = balls::render_show::Ctx {
+        d: display::global(),
+        me: &me,
+        columns: terminal_columns(),
+        verbose,
+        now: chrono::Utc::now(),
+    };
+    print!(
+        "{}",
+        balls::render_show::render(&task, &all, &delivery, &store.root, &ctx),
+    );
     Ok(())
-}
-
-fn render_text(
-    task: &Task,
-    all: &[Task],
-    id: &str,
-    delivery: &balls::delivery::Delivery,
-    repo_root: &std::path::Path,
-) {
-    println!("{} - {}", task.id, task.title);
-    println!("  type:     {:?}", task.task_type);
-    println!("  priority: {}", task.priority);
-    println!("  status:   {}", task.status.as_str());
-    if let Some(p) = &task.parent {
-        println!("  parent:   {p}");
-    }
-    if !task.depends_on.is_empty() {
-        println!("  deps:     {}", task.depends_on.join(", "));
-    }
-    if !task.links.is_empty() {
-        println!("  links:");
-        for l in &task.links {
-            println!("    {} {}", l.link_type.as_str(), l.target);
-        }
-    }
-    render_external(task);
-    if !task.tags.is_empty() {
-        println!("  tags:     {}", task.tags.join(", "));
-    }
-    if let Some(c) = &task.claimed_by {
-        println!("  claimed:  {c}");
-    }
-    if let Some(b) = &task.branch {
-        println!("  branch:   {b}");
-    }
-    if let Some(sha) = &delivery.sha {
-        let label = if delivery.hint_stale { " (hint stale)" } else { "" };
-        println!(
-            "  delivered: {}{}",
-            balls::delivery::describe(repo_root, sha),
-            label
-        );
-    }
-    if ready::is_dep_blocked(all, task) {
-        println!("  dep_blocked: yes");
-    }
-    let kids = ready::children_of(all, id);
-    if !kids.is_empty() || !task.closed_children.is_empty() {
-        println!("  children:");
-        for k in &kids {
-            println!("    {} [{}] {}", k.id, k.status.as_str(), k.title);
-        }
-        for a in &task.closed_children {
-            println!("    {} [archived] {}", a.id, a.title);
-        }
-        println!("  completion: {:.0}%", ready::completion(all, id) * 100.0);
-    }
-    if !task.description.is_empty() {
-        println!();
-        println!("{}", task.description);
-    }
-    if !task.notes.is_empty() {
-        println!();
-        println!("notes:");
-        for n in &task.notes {
-            println!("  [{}] {}: {}", n.ts.to_rfc3339(), n.author, n.text);
-        }
-    }
-}
-
-/// Surface plugin-provided remote pointers (ticket id, issue URL) so
-/// agents don't have to dig through `--json`. Convention per README:
-/// plugins put `remote_key` and/or `remote_url` in `task.external.<plugin>`.
-/// Plugins whose blob has neither aren't worth rendering here — we don't
-/// want to dump arbitrary plugin internals into the human view.
-fn render_external(task: &Task) {
-    let rows: Vec<(String, Option<&str>, Option<&str>)> = task
-        .external
-        .iter()
-        .filter_map(|(name, value)| {
-            let obj = value.as_object()?;
-            let key = obj.get("remote_key").and_then(|v| v.as_str());
-            let url = obj.get("remote_url").and_then(|v| v.as_str());
-            if key.is_none() && url.is_none() {
-                return None;
-            }
-            Some((name.clone(), key, url))
-        })
-        .collect();
-    if rows.is_empty() {
-        return;
-    }
-    println!("  remote:");
-    for (name, key, url) in rows {
-        let parts: Vec<&str> = [key, url].into_iter().flatten().collect();
-        println!("    {name}: {}", parts.join(" "));
-    }
 }
 
