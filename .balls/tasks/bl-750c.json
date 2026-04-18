@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-18T00:11:30.513077390Z",
-  "delivered_in": null,
+  "delivered_in": "76d8edbd415087abadff65eb78001304ed8d9545",
   "depends_on": [],
   "description": "Today, when a plugin populates task.external with remote_key/remote_url (e.g. Jira ticket + URL), the values are only in bl show --json. The human render in src/commands/basic.rs::render_text omits the external map, so agents have to dig through JSON to find a remote ticket ID or URL.\n\nFix: in render_text, iterate task.external and print a compact 'remote:' block per plugin showing remote_key and remote_url when present. Match the style of the existing 'links:' block. Skip plugins whose object has neither field — don't dump arbitrary internals.\n\nAdd a unit/integration test covering the render path: a task with external.jira = {remote_key: PROJ-1, remote_url: ...} should surface both strings in bl show's plain output.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["display"],
   "title": "bl show: render external remote locations",
   "type": "task",
-  "updated_at": "2026-04-18T00:11:33.444861109Z"
+  "updated_at": "2026-04-18T00:19:01.598479223Z"
 }
