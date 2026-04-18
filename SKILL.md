@@ -43,7 +43,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl prime --as ID` [`--json`] | Sync, show ready + your claimed tasks. Run at session start. |
 | `bl ready` [`--json`] | List open tasks ready to claim. |
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
-| `bl show TASK_ID` [`--json`] | Task details, including `delivered_in` sha after review. |
+| `bl show TASK_ID` [`--json`] [`--verbose`] | Task details, including `delivered_in` sha after review. |
 | `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
 | `bl claim TASK_ID` [`--no-worktree`] | Start work: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). |
 | `bl review TASK_ID -m "msg"` | Squash to main, set status=review. Worktree stays. In no-git mode, status flip only. |
@@ -51,7 +51,9 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl update TASK_ID status=in_progress --note "..."` | Multi-agent reject path: bounces a submitted task back to in_progress. |
 | `bl update TASK_ID --note "text"` | Add a note. |
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
-| `bl dep tree` | Show dependency graph. |
+| `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
+
+> **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
 
 ## Task Lifecycle
 

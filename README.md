@@ -433,6 +433,28 @@ When two workers edit the same field of the same task, `bl sync` invokes the res
 
 ## CLI Commands
 
+### CLI look and feel
+
+Read commands (`bl list`, `bl ready`, `bl show`, `bl dep tree`) share a visual language so you only learn it once.
+
+- **Glyphs are anchors, not vocabulary.** Every glyph is paired with its word at the call site (`» in_progress`, `○ open`, `✓ closed`). You never have to memorize an icon.
+- **Colors are additive, not load-bearing.** A run with color disabled — `--plain`, `NO_COLOR`, `CLICOLOR=0`, or output piped to a non-tty — renders the exact same words and structure with no information lost.
+- **Priority dot.** Leading `●` (`*` in ASCII) colored red/yellow/blue/dim for priorities 1–4.
+- **Status glyphs.** `○` open, `»` in_progress, `?` review, `⌀` blocked, `✓` closed, `~` deferred. ASCII fallbacks: `[ ]`, `[>]`, `[?]`, `[!]`, `[x]`, `[-]`.
+- **Badges.** `★` claimed by you (`*` in ASCII), `◆` unmet deps (`D`), `⛓` open `gates` link (`G`).
+- **Epic progress bar.** A 10-cell `██████░░░░ 6/10  60%` (`######---- 6/10  60%` in ASCII) appended to epic rows in `bl list` and shown as a `progress:` line in `bl show`.
+
+#### Color and Unicode detection
+
+Detection runs in this order:
+
+1. `--plain` (any command) — force unstyled output: no color, no Unicode glyphs.
+2. `NO_COLOR` env var present — disables color *and* Unicode glyphs (matches the [no-color.org](https://no-color.org) convention; users opting out of color usually also want stable ASCII).
+3. `CLICOLOR=0` env var — disables color only; Unicode glyphs still render.
+4. stdout `isatty()` — required for either color or Unicode. A piped `bl list | less` always renders ASCII.
+
+**Machine contract.** `--json` output (`bl list --json`, `bl show --json`, `bl ready --json`, `bl dep tree --json`) is byte-identical to before the visual redesign. Scrapers and agents should always prefer `--json`.
+
 ### bl init [--stealth] [--tasks-dir PATH]
 
 One-time setup per clone. `bl init` is idempotent and self-healing — running it on an already-initialized repo verifies and repairs. Specifically:
@@ -478,7 +500,21 @@ bl list --tag auth         # by tag
 bl list --all              # including closed
 ```
 
-Reads task files, filters, sorts by priority then `created_at`.
+Without a status filter, `bl list` groups tasks by status under one-line headers and nests in-group children under their parent. With `--status X`, output is flat but the status column stays so the visual language matches.
+
+Sample output (in a real terminal: priority dot is colored, status word is colored, glyphs render as Unicode):
+
+```
+[>] in_progress
+● [>] in_progress  bl-25db   Swap auth middleware                          api, auth
+
+[ ] open
+● [ ] open         bl-a847 G CLI display overhaul  [epic]  ██████░░░░ 6/10  60%
+● [ ] open           bl-21a5 ★ ready redesign                              display
+● [ ] open           bl-adaf D show redesign                               display
+```
+
+Each row is `prio_dot status_glyph status_word  id badges title  tags`. Badges: `★` claimed by you, `D` (`◆` in Unicode) unmet deps, `G` (`⛓`) open `gates` link. Epic rows append a 10-cell progress bar and percentage. Children indent under the parent within the same status group; if a child's parent is in a different group, the child renders as a root in its own group.
 
 **By hand:** `for f in .balls/tasks/bl-*.json; do jq '.' "$f"; done | jq -s 'sort_by(.priority, .created_at)'`
 
@@ -491,6 +527,8 @@ bl ready --json            # machine-readable
 
 Computes the ready queue. Auto-fetches if local state is older than `stale_threshold_seconds` from config (default 60s). `--no-fetch` to skip.
 
+Output format mirrors `bl list`'s flat mode (priority dot + status column + id + badges + title + tags) and appends a dim `↑ bl-xxxx (parent title)` hint whenever the task has a parent, so an agent picking work doesn't lose the surrounding epic.
+
 **By hand:** List open tasks, filter to those with all deps closed and no `claimed_by`, sort by priority.
 
 ### bl show ID
@@ -498,9 +536,12 @@ Computes the ready queue. Auto-fetches if local state is older than `stale_thres
 ```
 bl show bl-a1b2
 bl show bl-a1b2 --json
+bl show bl-a1b2 --verbose
 ```
 
-Displays one task with computed fields — blocked status, children if parent, dependency chain — and the resolved delivery link if the task has been delivered. The delivery line looks like `delivered: e69193f Add bl completions... [bl-1a34]`; if the cached `delivered_in` SHA is stale, the tag scan on main still finds the commit and the display is annotated `(hint stale)`. `--json` exposes `delivered_in_resolved` and `delivered_in_hint_stale` alongside the task.
+Lays out a styled header (priority dot + status glyph + id + title + claimed badge), a metadata row (`type`, `created`, `updated` — relative timestamps; `--verbose` appends absolute ISO), an optional `tags:` line, an optional `progress:` row for epics, a relations block (deps with inline statuses, gates, parent + parent title, children, delivered, branch, remote, dep_blocked when relevant), a wrapped description, and an oldest-first notes log.
+
+The delivery line looks like `delivered: e69193f Add bl completions... [bl-1a34]`; if the cached `delivered_in` SHA is stale, the tag scan on main still finds the commit and the display is annotated `(hint stale)`. `--json` exposes `delivered_in_resolved`, `delivered_in_hint_stale`, and (for `type=epic` tasks) a `progress: { closed, total }` object alongside the task.
 
 If a plugin has populated `task.external.<plugin>` with `remote_key` and/or `remote_url` (the Plugin Protocol convention — see below), `bl show` surfaces them as a `remote:` block so agents don't have to parse `--json` to find a Jira key or issue URL. Plugins whose blob has neither field are skipped — the human view doesn't dump arbitrary plugin internals.
 
@@ -576,7 +617,17 @@ Removes from `depends_on`. Commits.
 
 ### bl dep tree [ID]
 
-Walks `depends_on` and `parent` relationships. Prints indented tree with status indicators. Without ID, shows full project graph.
+Walks the parent/child hierarchy and prints it as a real tree using box-drawing characters (Unicode `├─ │  └─`, ASCII `|- |  ` `` `- `` fallback). Dep edges and gates are shown as inline annotations on each row, never as nesting. Without ID, every parentless task renders as its own top-level tree. `--json` emits a nested `{id, title, status, children}` shape.
+
+```
+bl-a3f8  Migrate auth layer  [epic]  ○ open
+├── bl-1234  Extract token store                     ✓ closed
+├── bl-5678  Swap middleware                         » in_progress
+│   └── bl-9abc  Audit rollback plan                 ⛓ gates parent
+└── bl-def0  Cut over prod switch                    ⌀ blocked by bl-5678
+```
+
+Cycles in parent edges (which shouldn't happen in healthy data) are detected and marked with `↺ cycle` so the renderer doesn't loop.
 
 ### bl link add TASK TYPE TARGET
 
