@@ -2,13 +2,13 @@
 
 You are using **balls** (`bl`), a git-native task tracker. Tasks are JSON files in the repo. Worktrees isolate your work. Git provides sync.
 
-## Roles and the one hard rule
+## The default flow: finish your own task
 
-You may be acting as a **worker** (claim → work → submit), a **reviewer** (inspect → approve or reject), or both — sometimes in the same session. There's only one inviolable rule:
+**One agent takes the task all the way through: claim → work → review → close → done.** That's the default. The `review` status is a checkpoint, not a stopping point. If nobody else is lined up to review your work, *you* do the close step yourself and the task is finished. Do not leave tasks sitting in `review` waiting for a reviewer who does not exist.
 
-**Never run `bl close` while you're standing inside the worktree it would delete.** `cd` back to the repo root first. The binary will refuse otherwise with `cannot close from within the worktree`.
+There is one inviolable rule: **never run `bl close` while you're standing inside the worktree it would delete.** `cd` back to the repo root first. The binary will refuse otherwise with `cannot close from within the worktree`.
 
-Everything else is flow, not rule. A solo agent that claims a task, works it, runs `bl review`, hops back to the repo root, and runs `bl close` on its own work is doing things correctly. A multi-agent setup where one agent submits and another approves is also correct. Pick whichever the user's situation calls for.
+Splitting the work across two agents — one submits, a different one approves — is an opt-in pattern, covered at the end of this guide. Don't reach for it unless the user has actually set up a reviewer. An agent that submits and then stops is an agent that didn't finish its job.
 
 ## Session Start
 
@@ -22,7 +22,7 @@ It syncs with the remote and returns:
 - **claimed**: tasks you already own — resume in their worktrees.
 - **ready**: open tasks available to claim, sorted by priority.
 
-Reviewers also want `bl list --status review` to see what's waiting on a decision.
+If you resume and find one of your own tasks sitting in `review`, that's not a wait state — it means you stopped short last time. Run `bl close` from the repo root and finish it.
 
 ### First-time setup in a repo
 
@@ -45,12 +45,12 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
 | `bl show TASK_ID` [`--json`] | Task details, including `delivered_in` sha after review. |
 | `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
-| `bl claim TASK_ID` [`--no-worktree`] | Worker: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). |
-| `bl review TASK_ID -m "msg"` | Worker: squash to main, set status=review. Worktree stays. In no-git mode, status flip only. |
-| `bl close TASK_ID -m "msg"` | Reviewer: approve. Archive task, remove worktree + branch. **Repo root only.** In no-git mode, archives file directly. |
-| `bl update TASK_ID status=in_progress --note "..."` | Reviewer: reject. Bounces task back to the worker. |
-| `bl update TASK_ID --note "text"` | Add a note (any role). |
-| `bl drop TASK_ID` | Release a claim, remove worktree (worker self-recovery). |
+| `bl claim TASK_ID` [`--no-worktree`] | Start work: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). |
+| `bl review TASK_ID -m "msg"` | Squash to main, set status=review. Worktree stays. In no-git mode, status flip only. |
+| `bl close TASK_ID -m "msg"` | Finish: archive task, remove worktree + branch. **Repo root only.** In no-git mode, archives file directly. |
+| `bl update TASK_ID status=in_progress --note "..."` | Multi-agent reject path: bounces a submitted task back to in_progress. |
+| `bl update TASK_ID --note "text"` | Add a note. |
+| `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` | Show dependency graph. |
 
 ## Task Lifecycle
@@ -62,30 +62,36 @@ open ──claim──> in_progress ──review──> review ──close──
 ```
 
 - **open**: available to claim.
-- **in_progress**: claimed; the worker owns it.
-- **review**: worker submitted; waiting on a reviewer. Worktree still exists.
+- **in_progress**: claimed; whoever holds it owns it.
+- **review**: work has been squashed to main; the task is one `bl close` away from done. In the default solo flow, this is a transient state — you flip through it as you finish. Only in a multi-agent setup does it mean "waiting on someone else."
 - **closed/archived**: task file deleted from the state branch's HEAD (not main). The work itself lives in main's git history.
 
-A reject sets status back to `in_progress`. The worker resumes in their existing worktree; their next `bl review` re-merges main automatically.
+If a reviewer does exist and rejects, they set status back to `in_progress`. You resume in your existing worktree; your next `bl review` re-merges main automatically.
 
 A `bl close` is additionally blocked if the task has any open `gates` links — see the link-types table below.
 
-## Worker Workflow
+## Workflow
+
+The whole path, start to finish, done by one agent:
 
 ```
 bl prime --as YOUR_ID
-bl claim TASK_ID            # prints worktree path
-cd <worktree path>          # work happens HERE, never in the main repo
+bl claim TASK_ID             # prints worktree path
+cd <worktree path>           # work happens HERE, never in the main repo
 # ... edit, commit ...
-bl review TASK_ID -m "msg"  # submit; worktree stays for rework
+bl review TASK_ID -m "msg"   # squash to main, flip status to review
+cd <repo root>               # required for close
+bl close  TASK_ID -m "msg"   # archive task, remove worktree
 ```
+
+`bl review` is the penultimate step, not the finish line. If you're not in a multi-agent setup with a configured reviewer, keep going and run `bl close` yourself.
 
 Worktrees live at `.balls-worktrees/bl-xxxx`, on branch `work/TASK_ID`, with `.balls/local` symlinked for shared lock state.
 
 Important:
 - **Commit your work** before `bl review`. Review will `git add -A` anything left behind, but explicit commits give better history.
 - **Don't modify files in the main repo** while working on a claimed task. Use the worktree.
-- **Don't `bl update TASK_ID status=closed`** on a claimed task — it's rejected. Use `bl review` (which is what flips it to `review`), then close from the reviewer side.
+- **Don't `bl update TASK_ID status=closed`** on a claimed task — it's rejected. Use `bl review` (which flips it to `review`), then `bl close` from the repo root.
 - **Don't delete `.balls/` files manually.** Use `bl drop` to release a claim, `bl repair --fix` to clean up orphans.
 
 ### What `bl review` does
@@ -116,9 +122,11 @@ EOF
 
 A single-line `-m "fix foo"` becomes `fix foo [bl-abcd]` with no body. Don't stuff a multi-sentence summary into a single line; that produces an unreadable `git log --oneline`.
 
-## Reviewer Workflow
+## Multi-agent: split submitter and reviewer (opt-in)
 
-A task in `review` status is waiting on an approve-or-reject decision. The work has already squashed to main; the reviewer's job is to accept it or send it back.
+Only use this pattern if the user has actually asked for it or set up a separate reviewer agent. Otherwise the submitter should close their own task per the default flow above.
+
+When the roles *are* split, the reviewer's job is to accept or send back work that's already squashed to main:
 
 ```
 bl list --status review                       # find tasks awaiting review
@@ -134,9 +142,9 @@ bl update TASK_ID status=in_progress --note "what to fix" --as reviewer
 ```
 
 Important:
-- **Reviewing someone else? Don't edit files inside their worktree** to fix things — reject with notes and let them iterate. (Reviewing your own work in a solo flow is fine; the same person did both halves.)
-- **Approval is durable.** Close archives the task file from the state branch HEAD and removes the worker's worktree + `work/TASK_ID` branch. The squash commit on main carries the work.
-- **Rejection keeps the worktree.** The worker resumes in place; their next `bl review` re-merges main automatically.
+- **Don't edit files inside the submitter's worktree** to fix things — reject with notes and let them iterate.
+- **Approval is durable.** Close archives the task file from the state branch HEAD and removes the submitter's worktree + `work/TASK_ID` branch. The squash commit on main carries the work.
+- **Rejection keeps the worktree.** The submitter resumes in place; their next `bl review` re-merges main automatically.
 - If accepted work needs to be undone, that's a `git revert` of the delivered sha on main, not a `bl close` thing — close still archives the task.
 
 ## Creating Tasks

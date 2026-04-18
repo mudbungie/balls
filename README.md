@@ -4,6 +4,12 @@
 
 The CLI is `bl`. Every `bl` operation is expressible as file edits and git commands. The system is designed for a single developer running many agents, multiple developers each running many agents, and anything in between. It works offline. It degrades gracefully.
 
+### Default workflow
+
+One agent takes a task all the way through: `bl claim → work → bl review → bl close → done`. The `review` status is a transient checkpoint on the way to `closed`, not a handoff point. Balls does not assume a separate reviewer; if you want one, wire it up explicitly — otherwise the agent that submits also closes. This keeps agents from stopping short of finishing, which is the single most expensive failure mode in an agent-driven workflow.
+
+Splitting submit and approve across two agents is supported (see SKILL.md → "Multi-agent: split submitter and reviewer") but is opt-in, not the default.
+
 ---
 
 ## Installation
@@ -141,8 +147,8 @@ cargo publish
 | **state worktree** | A second git worktree at `.balls/worktree/` with the state branch checked out. Where task files physically live. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a git worktree under `.balls-worktrees/<id>/` for the work. |
-| **review** | Submitting work: squash-merges the worker's branch into main as a single feature commit tagged `[bl-xxxx]`, and flips the task to `review` on the state branch. |
-| **close** | Approving completed work. Archives the task on the state branch and removes the bl worktree. |
+| **review** | Squash-merges the work branch into main as a single feature commit tagged `[bl-xxxx]` and flips the task to `review` on the state branch. A checkpoint state; the default flow is to follow it with `bl close`. |
+| **close** | Finishes the task: archives it on the state branch and removes the bl worktree. Run from the repo root by whichever agent is finishing the task — the same one that submitted, or a separate reviewer if one is configured. |
 | **drop** | Releasing a claim. Destroys the bl worktree and resets the task to `open`. |
 | **sync** | Fetch + merge + push both main and the state branch against the git remote. |
 | **delivery tag** | The `[bl-xxxx]` token embedded in a review's main-branch commit subject. Ground truth for which commit delivered a task. |
