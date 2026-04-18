@@ -502,6 +502,8 @@ bl show bl-a1b2 --json
 
 Displays one task with computed fields — blocked status, children if parent, dependency chain — and the resolved delivery link if the task has been delivered. The delivery line looks like `delivered: e69193f Add bl completions... [bl-1a34]`; if the cached `delivered_in` SHA is stale, the tag scan on main still finds the commit and the display is annotated `(hint stale)`. `--json` exposes `delivered_in_resolved` and `delivered_in_hint_stale` alongside the task.
 
+If a plugin has populated `task.external.<plugin>` with `remote_key` and/or `remote_url` (the Plugin Protocol convention — see below), `bl show` surfaces them as a `remote:` block so agents don't have to parse `--json` to find a Jira key or issue URL. Plugins whose blob has neither field are skipped — the human view doesn't dump arbitrary plugin internals.
+
 **By hand:** `cat .balls/tasks/bl-a1b2.json | jq .` — the symlink transparently reads from the state worktree.
 
 ### bl claim ID [--as IDENTITY] [--no-worktree]
