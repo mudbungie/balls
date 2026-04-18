@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6](https://github.com/mudbungie/balls/compare/v0.3.5...v0.3.6) - 2026-04-18
+
+### Changes
+
+- render external remote_key/remote_url [bl-750c]
+- Default bl flow is single-agent; review handoff is opt-in [bl-bf10]
+- foundation module for CLI overhaul [bl-c784]
+
 ## [0.3.5](https://github.com/mudbungie/balls/compare/v0.3.4...v0.3.5) - 2026-04-16
 
 ### Changes
