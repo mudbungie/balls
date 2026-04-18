@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-adaf",
+  "claimed_by": "claude-opus",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-16T20:07:41.798827715Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-a847",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["display"],
   "title": "bl show redesign: header, relations block, notes, wrapping",
   "type": "task",
-  "updated_at": "2026-04-16T20:07:41.798827715Z"
+  "updated_at": "2026-04-18T19:38:40.798103597Z"
 }
