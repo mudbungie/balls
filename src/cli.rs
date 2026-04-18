@@ -194,8 +194,15 @@ pub enum DepCmd {
     Add { task: String, depends_on: String },
     /// Remove a dependency.
     Rm { task: String, depends_on: String },
-    /// Print dependency tree. Without ID, prints full graph.
-    Tree { id: Option<String> },
+    /// Print parent/child tree with box-drawing. Deps and gates show
+    /// as inline annotations, never as nesting. Without ID, prints
+    /// every parentless task as its own root.
+    Tree {
+        id: Option<String>,
+        /// Emit a nested JSON tree instead of the box-drawn text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]

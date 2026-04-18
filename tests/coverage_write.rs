@@ -120,11 +120,48 @@ fn dep_tree_status_markers() {
         .success();
     let out = bl(repo.path()).args(["dep", "tree"]).output().unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
+    // ASCII fallback engages when stdout is not a tty (the test
+    // harness captures output). Each status flows through
+    // `Display::status_glyph`'s ASCII branch.
     assert!(s.contains("[ ]"));
-    assert!(s.contains("[~]"));
-    assert!(s.contains("[r]"));
+    assert!(s.contains("[>]"));
+    assert!(s.contains("[?]"));
     assert!(s.contains("[!]"));
     assert!(s.contains("[-]"));
+}
+
+#[test]
+fn dep_tree_json_emits_nested_structure() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "parent");
+    let out = bl(repo.path())
+        .args(["create", "child", "--parent", &parent])
+        .output()
+        .unwrap();
+    let child = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let out = bl(repo.path())
+        .args(["dep", "tree", "--json"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    let v: serde_json::Value = serde_json::from_str(&s).unwrap();
+    let arr = v.as_array().unwrap();
+    // Root is `parent`; its children array holds `child`.
+    let root = arr.iter().find(|r| r["id"] == parent).unwrap();
+    assert_eq!(root["children"][0]["id"], child);
+    assert_eq!(root["status"], "open");
+}
+
+#[test]
+fn dep_tree_unknown_id_errors() {
+    let repo = new_repo();
+    init_in(repo.path());
+    bl(repo.path())
+        .args(["dep", "tree", "bl-ghost"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("bl-ghost"));
 }
 
 #[test]
