@@ -190,6 +190,31 @@ fn story_15_show_json() {
     let v: serde_json::Value = serde_json::from_str(&s).unwrap();
     assert_eq!(v["task"]["title"], "jsontask");
     assert_eq!(v["dep_blocked"], false);
+    // Non-epic tasks do not carry a `progress` object.
+    assert!(v.get("progress").is_none());
+}
+
+#[test]
+fn show_json_on_epic_emits_progress_object() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let epic = bl(repo.path())
+        .args(["create", "myepic", "-t", "epic"])
+        .output()
+        .unwrap();
+    let epic = String::from_utf8_lossy(&epic.stdout).trim().to_string();
+    bl(repo.path())
+        .args(["create", "kid", "--parent", &epic])
+        .assert()
+        .success();
+    let out = bl(repo.path())
+        .args(["show", &epic, "--json"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout).to_string();
+    let v: serde_json::Value = serde_json::from_str(&s).unwrap();
+    assert_eq!(v["progress"]["closed"], 0);
+    assert_eq!(v["progress"]["total"], 1);
 }
 
 #[test]

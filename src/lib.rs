@@ -26,6 +26,7 @@ pub mod git;
 pub mod git_state;
 pub mod link;
 pub mod plugin;
+pub mod progress;
 pub mod ready;
 pub mod render_list;
 pub mod render_ready;

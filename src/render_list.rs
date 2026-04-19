@@ -12,7 +12,8 @@
 //! can chop the title without corrupting the colored prefix.
 
 use crate::display::Display;
-use crate::task::{Status, Task};
+use crate::progress;
+use crate::task::{Status, Task, TaskType};
 use std::collections::HashSet;
 use std::fmt::Write;
 
@@ -134,7 +135,19 @@ fn format_row(t: &Task, depth: usize, ctx: &Ctx<'_>) -> String {
     } else {
         t.tags.join(", ")
     };
-    fit(&prefix_styled, &t.title, &tags, ctx.columns)
+    let title = epic_title(t, ctx);
+    fit(&prefix_styled, &title, &tags, ctx.columns)
+}
+
+/// Titles of `type=epic` tasks carry an `[epic]` marker and a 10-cell
+/// progress bar so the epic row scans as a container at a glance.
+/// Other types render bare titles.
+fn epic_title(t: &Task, ctx: &Ctx<'_>) -> String {
+    if !matches!(t.task_type, TaskType::Epic) {
+        return t.title.clone();
+    }
+    let (closed, total) = progress::counts(ctx.all, &t.id);
+    format!("{}  [epic]  {}", t.title, progress::summary(closed, total, ctx.d))
 }
 
 fn fit(prefix_styled: &str, title: &str, tags: &str, columns: usize) -> String {
