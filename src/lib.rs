@@ -35,6 +35,7 @@ mod store_paths;
 pub mod task;
 pub mod task_io;
 pub mod task_type;
+pub mod tree;
 pub mod worktree;
 
 pub use config::Config;

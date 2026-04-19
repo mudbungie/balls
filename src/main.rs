@@ -34,8 +34,9 @@ fn normalize_dep(sub: DepCmd) -> DepCmd {
             task: normalize_id(task),
             depends_on: normalize_id(depends_on),
         },
-        DepCmd::Tree { id } => DepCmd::Tree {
+        DepCmd::Tree { id, json } => DepCmd::Tree {
             id: normalize_opt(id),
+            json,
         },
     }
 }
@@ -224,17 +225,23 @@ mod tests {
 
     #[test]
     fn normalize_dep_tree_some_and_none() {
-        let DepCmd::Tree { id } = normalize_dep(DepCmd::Tree {
+        let DepCmd::Tree { id, json } = normalize_dep(DepCmd::Tree {
             id: Some("534c".into()),
+            json: true,
         }) else {
             panic!("wrong variant");
         };
         assert_eq!(id, Some("bl-534c".into()));
+        assert!(json);
 
-        let DepCmd::Tree { id } = normalize_dep(DepCmd::Tree { id: None }) else {
+        let DepCmd::Tree { id, json } = normalize_dep(DepCmd::Tree {
+            id: None,
+            json: false,
+        }) else {
             panic!("wrong variant");
         };
         assert_eq!(id, None);
+        assert!(!json);
     }
 
     #[test]
