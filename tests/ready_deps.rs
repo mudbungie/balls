@@ -152,6 +152,7 @@ fn ready_json_output() {
     assert_eq!(v.as_array().unwrap().len(), 1);
 }
 
+
 #[test]
 fn link_add_and_show() {
     let repo = new_repo();
