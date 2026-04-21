@@ -86,6 +86,11 @@ pub enum Command {
         json: bool,
         #[arg(long)]
         no_fetch: bool,
+        /// Cap the number of entries shown. Text mode appends a
+        /// `... and N more` footer when the queue is longer; JSON
+        /// returns an array of at most this length. Must be >= 1.
+        #[arg(long)]
+        limit: Option<usize>,
     },
 
     /// Claim a task: update the task file and create a worktree.
