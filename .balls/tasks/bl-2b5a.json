@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-21T16:51:50.736171838Z",
-  "delivered_in": null,
+  "delivered_in": "d2361198adb3c0c0c6b6545ea1fe461fa7ec69b6",
   "depends_on": [],
   "description": "Agents routinely try 'bl ready --limit 20' (carrying the habit over from other tools) and get a parser error. Today 'bl ready' accepts only --json and --no-fetch, so when the ready queue is long they either dump the whole thing or try to hand-pipe the JSON through jq.\n\nGoal: add an optional --limit N (perhaps also -n N) that truncates the ready queue to N entries, for both text and --json output. When the queue is longer than N, surface that fact:\n- Text: footer line like '... and 12 more. Use --limit to see more.' (or similar — pick wording that doesn't imply the 12 are hidden due to a bug).\n- JSON: still emit just the N entries; consider emitting a sibling 'truncated: true' / 'total: N' field, but keep backward compat with callers that expect the current top-level array. Simplest path: keep stdout as the truncated array and document the cap in the flag help.\n\nNot in scope:\n- Server-side pagination, cursors, or offset. --limit is a display cap, not a cursor.\n- Changing the ready-queue ordering (priority + creation time today).\n\nAcceptance:\n- 'bl ready --limit 5' shows at most 5 entries.\n- 'bl ready --limit 5 --json' returns an array of length <= 5.\n- --limit 0 and negative values are rejected with a clear error (or --limit 0 means 'no cap', TBD but document it).\n- A test covers truncation in both text and JSON modes.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["cli","ready"],
   "title": "bl ready --limit N to cap the ready queue",
   "type": "task",
-  "updated_at": "2026-04-21T16:52:12.387807043Z"
+  "updated_at": "2026-04-21T16:57:15.347417301Z"
 }
