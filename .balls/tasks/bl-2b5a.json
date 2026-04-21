@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2b5a",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-21T16:51:50.736171838Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["cli","ready"],
   "title": "bl ready --limit N to cap the ready queue",
   "type": "task",
-  "updated_at": "2026-04-21T16:51:50.736171838Z"
+  "updated_at": "2026-04-21T16:52:12.387807043Z"
 }
