@@ -49,6 +49,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl review TASK_ID -m "msg"` | Squash to main, set status=review. Worktree stays. In no-git mode, status flip only. |
 | `bl close TASK_ID -m "msg"` | Finish: archive task, remove worktree + branch. **Repo root only.** In no-git mode, archives file directly. |
 | `bl update TASK_ID status=in_progress --note "..."` | Multi-agent reject path: bounces a submitted task back to in_progress. |
+| `bl update TASK_ID status=closed --note "..."` | Archive an unclaimed task (dupes, stale, decided-against). Archival not deletion — see **Removing unwanted or duplicate tasks**. |
 | `bl update TASK_ID --note "text"` | Add a note. |
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
@@ -66,11 +67,35 @@ open ──claim──> in_progress ──review──> review ──close──
 - **open**: available to claim.
 - **in_progress**: claimed; whoever holds it owns it.
 - **review**: work has been squashed to main; the task is one `bl close` away from done. In the default solo flow, this is a transient state — you flip through it as you finish. Only in a multi-agent setup does it mean "waiting on someone else."
-- **closed/archived**: task file deleted from the state branch's HEAD (not main). The work itself lives in main's git history.
+- **deferred**: explicitly set aside with intent to revisit. Narrow meaning — see **Deferred vs closed** below. Not a trash can.
+- **closed/archived**: task file archived from the state branch's HEAD (not main). The work itself, or the decision not to do the work, lives in main's git history.
 
 If a reviewer does exist and rejects, they set status back to `in_progress`. You resume in your existing worktree; your next `bl review` re-merges main automatically.
 
 A `bl close` is additionally blocked if the task has any open `gates` links — see the link-types table below.
+
+### Removing unwanted or duplicate tasks
+
+If a task shouldn't exist — a duplicate of another open ball, a stale idea from a past exploration, something you decided against — **close it. Don't defer it, don't leave it in the queue.** Closing archives the task file from the state branch's HEAD; it is *archival, not destruction* (the state-branch history still has it, so closed tasks are recoverable via git). There is no separate `bl delete` and you don't need one.
+
+For an unclaimed task, one command does the job:
+
+```
+bl update bl-xxxx status=closed --note "dup of bl-yyyy"
+```
+
+Duplicates also get a link so the relationship is discoverable in the archive:
+
+```
+bl link add bl-xxxx duplicates bl-yyyy
+bl update bl-xxxx status=closed --note "dup of bl-yyyy"
+```
+
+For a task you already claimed and now regret: `bl drop` releases the claim, then `bl update ... status=closed` archives it.
+
+### Deferred vs closed
+
+Use `deferred` only for work you've decided not to do *now* with an intent to revisit later — waiting on an upstream, needs data you don't have yet, blocked on a decision outside the repo. If you aren't going to revisit it, close it. `deferred` is not a synonym for "I don't want to touch this" or "I'm not sure if this is real" — that's what `closed` is for. A growing `deferred` pile is a smell: those should be either promoted back to `open` or closed out.
 
 ## Workflow
 
@@ -93,8 +118,8 @@ Worktrees live at `.balls-worktrees/bl-xxxx`, on branch `work/TASK_ID`, with `.b
 Important:
 - **Commit your work** before `bl review`. Review will `git add -A` anything left behind, but explicit commits give better history.
 - **Don't modify files in the main repo** while working on a claimed task. Use the worktree.
-- **Don't `bl update TASK_ID status=closed`** on a claimed task — it's rejected. Use `bl review` (which flips it to `review`), then `bl close` from the repo root.
-- **Don't delete `.balls/` files manually.** Use `bl drop` to release a claim, `bl repair --fix` to clean up orphans.
+- **Don't `bl update TASK_ID status=closed`** on a *claimed* task — it's rejected. Use `bl review` (which flips it to `review`), then `bl close` from the repo root. (For *unclaimed* tasks you want to remove — duplicates, stale ideas — `bl update status=closed` is the correct command; see **Removing unwanted or duplicate tasks** above.)
+- **Don't hand-edit or rm files under `.balls/`** — that's the on-disk store, and direct edits corrupt the state branch. To release a claim use `bl drop`; to clean up orphans use `bl repair --fix`; to remove an unwanted task close it (see above). The restriction is about the store format, not the task lifecycle.
 
 ### What `bl review` does
 
