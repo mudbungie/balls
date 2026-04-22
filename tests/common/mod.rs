@@ -65,9 +65,7 @@ pub fn git_ok(cwd: &Path, args: &[&str]) -> bool {
     for var in GIT_ENV_VARS {
         cmd.env_remove(var);
     }
-    cmd.output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    cmd.output().is_ok_and(|o| o.status.success())
 }
 
 /// Initialize a fresh git repo at a temp path with a configured user and
@@ -106,10 +104,7 @@ pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
     for var in GIT_ENV_VARS {
         check.env_remove(var);
     }
-    let has_main = check
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
+    let has_main = check.output().is_ok_and(|o| o.status.success());
 
     if has_main {
         let mut clone_cmd = StdCommand::new("git");

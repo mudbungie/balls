@@ -36,7 +36,7 @@ pub fn resolve_conflict(ours: &Task, theirs: &Task) -> Task {
             merged_notes.push(n.clone());
         }
     }
-    merged_notes.sort_by(|a, b| a.ts.cmp(&b.ts));
+    merged_notes.sort_by_key(|n| n.ts);
     result.notes = merged_notes;
 
     // claimed_by handling
