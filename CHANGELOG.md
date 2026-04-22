@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8](https://github.com/mudbungie/balls/compare/v0.3.7...v0.3.8) - 2026-04-22
+
+### Changes
+
+- silence rustc 1.95 lints across 7 files [bl-0e99]
+- use is_ok_and for CLICOLOR=0 check [bl-1040]
+- rename backronym 'Branched' -> 'Branching' [bl-2284]
+- empty squash yields delivered_in=None, skip half-push warning [bl-6729]
+- add Branched Agent Labor and Logistics System backronym [bl-0512]
+
 ## [0.3.7](https://github.com/mudbungie/balls/compare/v0.3.6...v0.3.7) - 2026-04-22
 
 ### Changes
