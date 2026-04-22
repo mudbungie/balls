@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-6729",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-22T16:51:35.763390169Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "review: empty squash leaves bogus delivered_in; half-push false-positives",
   "type": "bug",
-  "updated_at": "2026-04-22T16:51:35.763390169Z"
+  "updated_at": "2026-04-22T16:53:21.622323809Z"
 }
