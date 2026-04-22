@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-22T17:34:01.062107423Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "rustc 1.95 surfaces four more lints that CI denies with -D warnings: clippy::manual_checked_ops at progress.rs:37 and :55; clippy::unnecessary_sort_by at resolve.rs:39; clippy::map_unwrap_or at store.rs:193. Fix by converting the patterns to their suggested idiomatic forms.",
+  "external": {},
+  "id": "bl-0e99",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": [],
+  "title": "clippy: fix remaining rustc 1.95 lints (progress, resolve, store)",
+  "type": "bug",
+  "updated_at": "2026-04-22T17:34:01.062107423Z"
+}
