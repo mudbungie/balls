@@ -100,7 +100,7 @@ impl Display {
         }
         match p {
             1 => dot.red().to_string(),
-            2 => dot.yellow().to_string(),
+            2 => dot.bright_yellow().to_string(),
             3 => dot.blue().to_string(),
             _ => dot.bright_black().to_string(),
         }
