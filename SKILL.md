@@ -41,7 +41,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | Command | What it does |
 |---------|-------------|
 | `bl prime --as ID` [`--json`] | Sync, show ready + your claimed tasks. Run at session start. |
-| `bl ready` [`--json`] | List open tasks ready to claim. |
+| `bl ready` [`--json`] [`--limit N`] | List open tasks ready to claim. `--limit N` caps output; text mode adds a `... and K more` footer when truncated. |
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
 | `bl show TASK_ID` [`--json`] [`--verbose`] | Task details, including `delivered_in` sha after review. |
 | `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
