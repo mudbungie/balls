@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-22T17:30:06.193327099Z",
-  "delivered_in": null,
+  "delivered_in": "ec4f60a7853442670776b8faab1827480234278f",
   "depends_on": [],
   "description": "CI on main fails with clippy::map_unwrap_or at src/display.rs:79 under rustc 1.95 (passes on 1.94 locally). Blocking release-plz. Fix: replace .map(|v| v == \"0\").unwrap_or(false) with .is_ok_and(|v| v == \"0\").",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "clippy: fix map_unwrap_or in display.rs (CI fail on rustc 1.95)",
   "type": "bug",
-  "updated_at": "2026-04-22T17:30:08.497615302Z"
+  "updated_at": "2026-04-22T17:31:55.456475267Z"
 }

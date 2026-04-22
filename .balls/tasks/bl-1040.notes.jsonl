@@ -1,0 +1,1 @@
+{"ts":"2026-04-22T17:31:55.456635234Z","author":"mark","text":"clippy: use is_ok_and for CLICOLOR=0 check\n\nrustc 1.95's clippy denies map_unwrap_or; was blocking CI on main."}
