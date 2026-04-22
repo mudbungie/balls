@@ -34,11 +34,7 @@ pub fn counts(tasks: &[Task], parent_id: &str) -> (usize, usize) {
 /// A 0/0 bar renders entirely as "todo" cells rather than empty —
 /// it's still a 10-cell visual anchor so the column aligns.
 pub fn bar(closed: usize, total: usize, d: Display) -> String {
-    let filled = if total == 0 {
-        0
-    } else {
-        (closed * BAR_WIDTH) / total
-    };
+    let filled = (closed * BAR_WIDTH).checked_div(total).unwrap_or(0);
     let (done, todo) = if d.use_unicode() { ("█", "░") } else { ("#", "-") };
     let mut s = String::with_capacity(BAR_WIDTH * 3);
     for _ in 0..filled {
@@ -52,11 +48,7 @@ pub fn bar(closed: usize, total: usize, d: Display) -> String {
 
 /// Full "██████░░░░ 6/10  60%" rendering for inline display.
 pub fn summary(closed: usize, total: usize, d: Display) -> String {
-    let pct = if total == 0 {
-        0
-    } else {
-        (closed * 100) / total
-    };
+    let pct = (closed * 100).checked_div(total).unwrap_or(0);
     format!("{} {closed}/{total}  {pct}%", bar(closed, total, d))
 }
 
