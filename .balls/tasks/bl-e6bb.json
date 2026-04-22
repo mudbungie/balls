@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-22T05:41:19.383765011Z",
-  "delivered_in": null,
+  "delivered_in": "703944d04c5dd037a15adf9ad138df00b1a92f0c",
   "depends_on": [],
   "description": "P2 dot uses .yellow() which terminals render as brown/olive. Switch to .bright_yellow() so it's visually distinct from P4's dimmed marker.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "Brighten P2 priority dot to actual yellow",
   "type": "task",
-  "updated_at": "2026-04-22T05:43:07.507903169Z"
+  "updated_at": "2026-04-22T05:44:45.010864882Z"
 }
