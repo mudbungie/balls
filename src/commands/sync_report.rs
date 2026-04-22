@@ -12,10 +12,7 @@ use chrono::Utc;
 use serde_json::Value;
 
 pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) {
-    let id_length = store
-        .load_config()
-        .map(|c| c.id_length)
-        .unwrap_or(4);
+    let id_length = store.load_config().map_or(4, |c| c.id_length);
     for item in &report.created {
         warn_on_err("create", apply_created(store, plugin_name, item, id_length));
     }

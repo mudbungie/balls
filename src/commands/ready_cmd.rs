@@ -53,8 +53,7 @@ fn maybe_auto_fetch(store: &Store, stale_threshold_seconds: u64) {
     let stale = match fs::metadata(&last_fetch).and_then(|m| m.modified()) {
         Ok(t) => std::time::SystemTime::now()
             .duration_since(t)
-            .map(|d| d.as_secs() > stale_threshold_seconds)
-            .unwrap_or(true),
+            .map_or(true, |d| d.as_secs() > stale_threshold_seconds),
         Err(_) => true,
     };
     if stale && git::git_has_remote(&store.root, "origin") {

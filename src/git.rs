@@ -111,14 +111,12 @@ pub fn is_merging(dir: &Path) -> bool {
     // admin dir (`.git/worktrees/<name>/`), not in the shared common
     // dir. `git rev-parse --git-dir` returns the per-worktree admin
     // dir, so MERGE_HEAD next to it is the right place to look.
-    run_git_ok(dir, &["rev-parse", "--git-dir"])
-        .map(|s| {
-            let raw = s.trim();
-            let gd = PathBuf::from(raw);
-            let abs = if gd.is_absolute() { gd } else { dir.join(gd) };
-            abs.join("MERGE_HEAD").exists()
-        })
-        .unwrap_or(false)
+    run_git_ok(dir, &["rev-parse", "--git-dir"]).is_ok_and(|s| {
+        let raw = s.trim();
+        let gd = PathBuf::from(raw);
+        let abs = if gd.is_absolute() { gd } else { dir.join(gd) };
+        abs.join("MERGE_HEAD").exists()
+    })
 }
 
 pub fn has_staged_changes(dir: &Path) -> Result<bool> {
