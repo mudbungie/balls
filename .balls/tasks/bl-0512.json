@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-22T07:00:41.725181488Z",
-  "delivered_in": null,
+  "delivered_in": "8cefd6c33aa0b799650aca9f91eae746ff25c1e8",
   "depends_on": [],
   "description": "The project name 'balls' is a backronym for 'Branched Agent Labor and Logistics System'. Document this in the README.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "docs: add Branched Agent Labor and Logistics System backronym",
   "type": "task",
-  "updated_at": "2026-04-22T07:00:43.778066054Z"
+  "updated_at": "2026-04-22T07:02:45.403523093Z"
 }
