@@ -1,1 +1,0 @@
-{"ts":"2026-04-22T05:44:45.011390743Z","author":"mark","text":"display: brighten P2 priority dot\n\nP2 used .yellow() which terminals render as olive/brown, blurring it\nagainst P4's dimmed marker. Switch to .bright_yellow() so P2 reads\nas actual yellow."}
