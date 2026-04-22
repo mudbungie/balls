@@ -177,6 +177,43 @@ fn review_status_parse_and_display() {
 }
 
 #[test]
+fn review_of_empty_worktree_leaves_delivered_in_null() {
+    // No-op review: agent claims, edits nothing, reviews. No commit
+    // should land on main, delivered_in must be null (not the current
+    // HEAD), and the state-branch subject carries `no-code`.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "gate check");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+
+    let head_before = git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
+    bl(repo.path())
+        .args(["review", &id, "-m", "nothing to deliver"])
+        .assert()
+        .success();
+    let head_after = git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
+
+    assert_eq!(head_before, head_after, "empty squash must not commit on main");
+    let j = read_task_json(repo.path(), &id);
+    assert_eq!(j["status"], "review");
+    assert!(j["delivered_in"].is_null(), "delivered_in must be null: {j}");
+
+    // State branch subject ends with "no-code".
+    let state_log = git(
+        repo.path(),
+        &["log", "--format=%s", "balls/tasks"],
+    );
+    let line = state_log
+        .lines()
+        .find(|l| l.starts_with(&format!("state: review {id}")))
+        .expect("review subject missing");
+    assert!(line.ends_with(" no-code"), "expected no-code marker: {line}");
+}
+
+#[test]
 fn review_creates_squash_commit_with_title() {
     let repo = new_repo();
     init_in(repo.path());
