@@ -74,6 +74,48 @@ fn sync_warns_when_main_is_behind_state_close() {
     );
 }
 
+/// No-op reviews (empty squash — gate tasks, doc work already in main)
+/// must NOT be flagged as half-pushes. They legitimately produce no
+/// main commit; the `no-code` marker on the review subject signals
+/// this.
+#[test]
+fn no_code_review_then_close_is_not_a_half_push() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "gate check");
+
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    // No file writes in the worktree — review will be an empty squash.
+    bl(repo.path())
+        .args(["review", &id, "-m", "nothing to audit"])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["close", &id, "-m", "ok"])
+        .assert()
+        .success();
+
+    let remote = new_bare_remote();
+    git(
+        repo.path(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            remote.path().to_str().unwrap(),
+        ],
+    );
+    let out = bl(repo.path()).arg("sync").output().unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    assert!(
+        !stderr.contains(&format!("state branch records close for {id}")),
+        "no-code review must not trigger half-push warning: {stderr}"
+    );
+}
+
 /// Tasks closed via `bl update status=closed` without ever being
 /// reviewed must NOT be flagged: those legitimately have no main
 /// commit.

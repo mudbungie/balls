@@ -69,12 +69,15 @@ fn sync_branch(dir: &Path, remote: &str, branch: &str) -> Result<()> {
 /// the state branch landed but the feature commit never did. Tasks
 /// closed via `bl update status=closed` without ever being reviewed
 /// are excluded — they legitimately never produce a main commit.
+/// `state: review bl-xxxx no-code` subjects are similarly excluded:
+/// they mark checkpoint reviews (gate tasks, empty squashes) that
+/// produced no main commit by design.
 pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
     let state_dir = store.state_worktree_dir();
     let state_subjects = git_state::log_subjects(&state_dir, "balls/tasks")?;
     let reviewed: std::collections::HashSet<String> = state_subjects
         .iter()
-        .filter_map(|s| extract_state_id(s, "state: review "))
+        .filter_map(|s| delivered_review_id(s))
         .collect();
     let main_branch = git::git_current_branch(&store.root)?;
     let main_subjects = git_state::log_subjects(&store.root, &main_branch)?;
@@ -94,6 +97,20 @@ fn extract_state_id(subject: &str, prefix: &str) -> Option<String> {
     let rest = subject.strip_prefix(prefix)?;
     let id = rest.split_whitespace().next()?;
     id.starts_with("bl-").then(|| id.to_string())
+}
+
+/// Extract the task id from a `state: review bl-xxxx` subject iff the
+/// review actually produced a main commit. A trailing `no-code` marker
+/// means the review was a checkpoint (empty squash) — it should not
+/// count as "reviewed" for half-push purposes.
+fn delivered_review_id(subject: &str) -> Option<String> {
+    let rest = subject.strip_prefix("state: review ")?;
+    let mut parts = rest.split_whitespace();
+    let id = parts.next()?;
+    if !id.starts_with("bl-") || parts.next() == Some("no-code") {
+        return None;
+    }
+    Some(id.to_string())
 }
 
 /// Fetch from `remote` in `dir`, merge `remote_branch` into whatever HEAD
@@ -231,7 +248,7 @@ pub fn cmd_repair(fix: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_state_id;
+    use super::{delivered_review_id, extract_state_id};
 
     #[test]
     fn extract_state_id_handles_matching_prefix() {
@@ -260,5 +277,18 @@ mod tests {
     #[test]
     fn extract_state_id_rejects_empty_tail() {
         assert!(extract_state_id("state: close ", "state: close ").is_none());
+    }
+
+    #[test]
+    fn delivered_review_id_classifies_review_subjects() {
+        assert_eq!(
+            delivered_review_id("state: review bl-1234"),
+            Some("bl-1234".into())
+        );
+        assert!(delivered_review_id("state: review bl-1234 no-code").is_none());
+        assert!(delivered_review_id("state: close bl-1234").is_none());
+        assert!(delivered_review_id("unrelated").is_none());
+        assert!(delivered_review_id("state: review custom").is_none());
+        assert!(delivered_review_id("state: review ").is_none());
     }
 }

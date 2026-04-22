@@ -101,24 +101,43 @@ pub fn review_worktree(
         // readable. Merge-in above already reconciled main into the
         // worktree, so this squash cannot itself produce fresh
         // conflicts.
+        //
+        // An empty squash (nothing staged on main after merge --squash)
+        // means the worker delivered no code — e.g. a gate task or a
+        // bugfix that became a no-op once main moved forward. We skip
+        // the commit entirely rather than stamping delivered_in with
+        // the unrelated current HEAD, and the state-branch subject gets
+        // a `no-code` marker so half-push detection can tell this
+        // apart from an actual half-push.
         let squash_msg = crate::commit_msg::format_squash(message, &task.title, id);
         git::git_merge_squash(&store.root, &branch)?;
-        git::git_commit(&store.root, &squash_msg)?;
-        let delivered_sha = git::git_resolve_sha(&store.root, "HEAD")?;
+        let delivered_sha = if git::has_staged_changes(&store.root)? {
+            git::git_commit(&store.root, &squash_msg)?;
+            Some(git::git_resolve_sha(&store.root, "HEAD")?)
+        } else {
+            eprintln!("no code delivered — checkpoint review for {id}");
+            None
+        };
 
         // Flip the task to review on the state branch, embedding the
         // delivery hint in the same commit so the state-branch history
         // stays at one-commit-per-transition.
+        let had_delivery = delivered_sha.is_some();
         let task_path = store.task_path(id)?;
         let mut t = Task::load(&task_path)?;
         t.status = Status::Review;
-        t.delivered_in = Some(delivered_sha);
+        t.delivered_in = delivered_sha;
         t.touch();
         t.save(&task_path)?;
         if let Some(msg) = message {
             task_io::append_note_to(&task_path, identity, msg)?;
         }
-        store.commit_task(id, &format!("state: review {id}"))?;
+        let state_msg = if had_delivery {
+            format!("state: review {id}")
+        } else {
+            format!("state: review {id} no-code")
+        };
+        store.commit_task(id, &state_msg)?;
 
         // Sync main back into worktree so re-review after rejection only
         // picks up new changes (squash merge doesn't record branch ancestry).
