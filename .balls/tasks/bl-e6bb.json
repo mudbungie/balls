@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-e6bb",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-22T05:41:19.383765011Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Brighten P2 priority dot to actual yellow",
   "type": "task",
-  "updated_at": "2026-04-22T05:41:19.383765011Z"
+  "updated_at": "2026-04-22T05:41:21.706998145Z"
 }
