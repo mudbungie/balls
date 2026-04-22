@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7](https://github.com/mudbungie/balls/compare/v0.3.6...v0.3.7) - 2026-04-22
+
+### Changes
+
+- brighten P2 priority dot [bl-e6bb]
+- name the remove-task path, narrow 'deferred' [bl-ad36]
+- add --limit N to cap the queue [bl-2b5a]
+- reflect CLI overhaul in README and SKILL.md [bl-1eb8]
+- epic bars in list/show and progress object in --json [bl-8dcf]
+- header + relations + wrapped notes layout [bl-adaf]
+- status column + parent hint line [bl-21a5]
+- status-grouped, parent-nested layout [bl-25db]
+- dep tree: parent/child rendering with box-drawing [bl-577d]
+
 ## [0.3.6](https://github.com/mudbungie/balls/compare/v0.3.5...v0.3.6) - 2026-04-18
 
 ### Changes
