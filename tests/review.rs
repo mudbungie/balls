@@ -88,6 +88,57 @@ fn close_rejects_from_inside_worktree() {
 }
 
 #[test]
+fn review_as_attributes_note_to_override_identity() {
+    // `bl review --as <id>` overrides BALLS_IDENTITY for note attribution.
+    // Mirrors prime/claim/update so review is not a special case.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "feature");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".balls-worktrees").join(&id);
+    std::fs::write(wt.join("a.txt"), "x").unwrap();
+
+    bl_as(repo.path(), "ignored-by-as-flag")
+        .args(["review", &id, "--as", "lernie", "-m", "via override"])
+        .assert()
+        .success();
+
+    let notes = read_task_notes(repo.path(), &id);
+    assert!(
+        notes.iter().any(|n| n["author"] == "lernie"),
+        "expected a note authored by 'lernie', got: {notes:?}"
+    );
+}
+
+#[test]
+fn close_as_overrides_identity() {
+    // Same as the review case for the close path. The close commit
+    // doesn't currently surface the identity, so we just assert the
+    // command accepts the flag and succeeds — the plumbing is what
+    // matters; future close-time attribution will use the same value.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "feature");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".balls-worktrees").join(&id);
+    std::fs::write(wt.join("a.txt"), "x").unwrap();
+    bl(repo.path())
+        .args(["review", &id])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["close", &id, "--as", "lernie", "-m", "approved by lernie"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn review_reject_back_to_in_progress() {
     let repo = new_repo();
     init_in(repo.path());
