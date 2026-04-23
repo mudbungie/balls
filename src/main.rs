@@ -132,8 +132,12 @@ fn main() {
         Command::Show { id, json, verbose } => commands::cmd_show(normalize_id(id), json, verbose),
         Command::Ready { json, no_fetch, limit } => commands::cmd_ready(json, no_fetch, limit),
         Command::Claim { id, identity, no_worktree } => commands::cmd_claim(normalize_id(id), identity, no_worktree),
-        Command::Review { id, message } => commands::cmd_review(normalize_id(id), message),
-        Command::Close { id, message } => commands::cmd_close(normalize_id(id), message),
+        Command::Review { id, message, identity } => {
+            commands::cmd_review(normalize_id(id), message, identity)
+        }
+        Command::Close { id, message, identity } => {
+            commands::cmd_close(normalize_id(id), message, identity)
+        }
         Command::Drop { id, force } => commands::cmd_drop(normalize_id(id), force),
         Command::Update {
             id,
