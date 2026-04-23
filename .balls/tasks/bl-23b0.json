@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-23T04:58:37.079225330Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "From the lernie postmortem (2026-04-22): an agent worked for hours on a stale base. Main advanced with a new workspace member during the claim, surfaced as a noisy cargo-workspace error rather than a bl-level signal. A 'main +N commits since claim' indicator at session start would have changed the entire shape of that task.\n\nSurface the count in 'bl prime' output (both human text and --json). Compute via 'git rev-list --count merge-base(main, work/<id>)..main' for each claimed task. No need to add a stored field — the worktree branch's merge-base with main IS the claim point. Threshold-free: any non-zero count is shown.",
+  "external": {},
+  "id": "bl-23b0",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": [],
+  "title": "warn at prime when main has advanced since claim",
+  "type": "task",
+  "updated_at": "2026-04-23T04:58:37.079225330Z"
+}
