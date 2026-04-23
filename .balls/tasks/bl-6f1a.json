@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-6f1a",
+  "claimed_by": "opus",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-23T04:58:37.141113742Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "accept --as on review/close/drop for identity consistency",
   "type": "task",
-  "updated_at": "2026-04-23T04:58:37.141113742Z"
+  "updated_at": "2026-04-23T05:13:34.699703310Z"
 }
