@@ -17,7 +17,7 @@ pub(crate) const GIT_ENV_VARS: &[&str] = &[
     "GIT_PREFIX",
 ];
 
-pub(crate) fn clean_git_command(dir: &Path) -> Command {
+pub fn clean_git_command(dir: &Path) -> Command {
     let mut cmd = Command::new("git");
     cmd.current_dir(dir);
     for var in GIT_ENV_VARS {
