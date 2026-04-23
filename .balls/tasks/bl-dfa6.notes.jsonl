@@ -1,0 +1,1 @@
+{"ts":"2026-04-23T02:14:02.823833693Z","author":"mark","text":"SKILL.md: guide agents on when to claim gate targets\n\nAdds a subsection after the gates paragraph explaining that a gate\ntarget should not be claimed until the source parent is at status\nreview or later. Otherwise the audit runs against an artifact that\ndoesn't exist yet and the work is wasted."}
