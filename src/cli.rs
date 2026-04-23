@@ -31,7 +31,9 @@ pub enum Command {
         /// Priority: 1 (highest) to 4 (lowest)
         #[arg(short = 'p', long, default_value_t = 3)]
         priority: u8,
-        /// Task type: epic, task, bug
+        /// Task type label. Free-form identifier; common values:
+        /// task, bug, epic, feature, chore, spike, question,
+        /// discussion, retro. Only `epic` has special rendering.
         #[arg(short = 't', long, default_value = "task")]
         task_type: String,
         /// Parent task ID

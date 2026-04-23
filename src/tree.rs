@@ -7,7 +7,7 @@
 //! a corrupt repo doesn't loop the renderer.
 
 use crate::display::Display;
-use crate::task::{LinkType, Status, Task, TaskType};
+use crate::task::{LinkType, Status, Task};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -163,7 +163,7 @@ fn format_line(node: &Node, all: &[Task], d: Display) -> String {
     } else {
         format!("{} {}  {}", t.id, node.hier_path, t.title)
     };
-    if matches!(t.task_type, TaskType::Epic) {
+    if t.task_type.is_epic() {
         out.push_str("  [epic]");
     }
     out.push_str("  ");
