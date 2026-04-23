@@ -217,6 +217,14 @@ Link types:
 
 `gates` is the thing to reach for when "this task is done but I still need someone to audit it" is a hard requirement, not a convention. A parent with an open gate link will refuse `bl close` until the gate child is itself closed. Use `bl link rm PARENT gates CHILD` if you need to drop a gate explicitly (it leaves a commit trail). `dep` blocks claim of the child; `gates` blocks close of the parent — they are intentionally different primitives. See the README "Gates: post-review blockers" section for the full pitch and worked example.
 
+### When to claim a gate target
+
+If a task is the target of a `gates` link — i.e. some other task has `gates <this>` pointing at it — **do not claim it until that source parent is at status `review` or later.** Gate targets are audits of a near-final artifact. If you start the audit while the parent is still `open` or `in_progress`, you are reviewing code that does not exist yet; the work gets thrown away and redone once the parent actually lands on main.
+
+Before claiming anything from `bl ready`, run `bl show <id>` and look at the `links` list. If another task has `gates` pointing at this one, also `bl show` the source parent: claim only when its status is `review`, `closed`, or otherwise past construction. `bl ready` does not filter these out for you — the rule is yours to apply.
+
+(Exception: occasionally a user asks you to audit a design or spec *before* implementation. That's the user routing you explicitly — not something to infer from the queue.)
+
 ## Scripting with bl
 
 When driving `bl` from a script or another agent, treat the following as the machine contract. Everything else in this doc is for humans reading task state — the contract below is what a loop can rely on.
