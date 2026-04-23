@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changes
 
 - `bl repair --forget-half-push <id>` and `--forget-all-half-pushes` retract stale half-push warnings via a `state: forget-half-push <id>` marker commit on the state branch [bl-e446]
+- `bl dep tree` annotates non-root rows with a dotted sibling path (`.1`, `.1.2`, …) next to the id so parent chains read off at a glance without changing task ids; `--json` adds `hier_path` (omitted on roots) [bl-368a]
 
 ## [0.3.8](https://github.com/mudbungie/balls/compare/v0.3.7...v0.3.8) - 2026-04-22
 
