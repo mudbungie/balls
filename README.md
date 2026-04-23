@@ -255,7 +255,7 @@ Notes live in a sibling file `<id>.notes.jsonl` rather than in the task.json. Th
 |---|---|---|
 | `id` | string | Format `bl-XXXX` (4 hex chars by default). Generated from sha1 of title + timestamp, truncated. |
 | `title` | string | Human-readable summary. |
-| `type` | enum | `epic`, `task`, `bug`. |
+| `type` | string | Free-form identifier label. Common values: `task`, `bug`, `epic`, `feature`, `chore`, `spike`, `question`, `discussion`, `retro`. Only `epic` has behavioral meaning (progress bar, `[epic]` marker). `bl create -t` accepts any `[a-z][a-z0-9_-]*`. |
 | `priority` | int | 1 (highest) to 4 (lowest). |
 | `status` | enum | `open`, `in_progress`, `review`, `blocked`, `closed`, `deferred`. |
 | `parent` | string? | ID of parent epic/task, or null. |
@@ -870,7 +870,7 @@ All three arrays are optional. Empty arrays or omitted arrays mean nothing chang
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `title` | yes | — | Task title |
-| `type` | no | `"task"` | One of: `epic`, `task`, `bug` |
+| `type` | no | `"task"` | Free-form identifier; e.g. `task`, `bug`, `epic`, `feature`, `spike` |
 | `priority` | no | `3` | 1 (highest) to 4 (lowest) |
 | `status` | no | `"open"` | One of: `open`, `in_progress`, `blocked`, `closed`, `deferred` |
 | `description` | no | `""` | Full description |

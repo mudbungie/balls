@@ -4,7 +4,7 @@ use super::*;
 use crate::delivery::Delivery;
 use crate::display::Display;
 use crate::link::{Link, LinkType};
-use crate::task::{ArchivedChild, NewTaskOpts, Note, Status, Task, TaskType};
+use crate::task::{ArchivedChild, NewTaskOpts, Note, Status, Task};
 use chrono::{Duration, TimeZone, Utc};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -76,15 +76,12 @@ fn meta_row_includes_relative_timestamps() {
 }
 
 #[test]
-fn meta_row_type_label_for_each_variant() {
-    for (variant, label) in [
-        (TaskType::Epic, "epic"),
-        (TaskType::Task, "task"),
-        (TaskType::Bug, "bug"),
-        (TaskType::Unknown("spike".into()), "spike"),
-    ] {
+fn meta_row_type_label_renders_any_string() {
+    // Including values `parse` rejects — the render path reads
+    // whatever made it onto disk so forward-compat is covered.
+    for label in ["epic", "task", "bug", "spike", "Spike With Space"] {
         let mut t = mk("bl-x", "t");
-        t.task_type = variant;
+        t.task_type = serde_json::from_value(serde_json::json!(label)).unwrap();
         let out = render(&t, std::slice::from_ref(&t), &empty_delivery(), Path::new("."), &ctx_for());
         assert!(out.contains(&format!("type: {label}")), "missing {label}");
     }
