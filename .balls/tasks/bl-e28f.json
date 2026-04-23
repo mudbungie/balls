@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-e28f",
+  "claimed_by": "claude",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-14T03:22:43.469604511Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Installer symlinks 'balls' to bd",
   "type": "task",
-  "updated_at": "2026-04-14T03:22:55.224565683Z"
+  "updated_at": "2026-04-23T02:05:10.950122395Z"
 }
