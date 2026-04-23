@@ -9,7 +9,7 @@ fn make_task(id: &str) -> Task {
     Task {
         id: id.into(),
         title: id.into(),
-        task_type: TaskType::Task,
+        task_type: TaskType::task(),
         priority: 3,
         status: Status::Open,
         parent: None,

@@ -42,7 +42,7 @@ fn apply_created(
     item: &balls::plugin::SyncCreate,
     id_length: usize,
 ) -> Result<()> {
-    let task_type = TaskType::parse(&item.task_type).unwrap_or(TaskType::Task);
+    let task_type = TaskType::parse(&item.task_type).unwrap_or_else(|_| TaskType::task());
     let priority = item.priority.clamp(1, 4);
     let status = Status::parse(&item.status).unwrap_or(Status::Open);
     let opts = NewTaskOpts {

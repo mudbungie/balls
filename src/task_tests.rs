@@ -33,14 +33,6 @@ fn roundtrip_serialization() {
 }
 
 #[test]
-fn task_type_parse_all() {
-    assert_eq!(TaskType::parse("epic").unwrap(), TaskType::Epic);
-    assert_eq!(TaskType::parse("task").unwrap(), TaskType::Task);
-    assert_eq!(TaskType::parse("bug").unwrap(), TaskType::Bug);
-    assert!(TaskType::parse("nope").is_err());
-}
-
-#[test]
 fn validate_priority_accepts_in_range() {
     for p in PRIORITY_MIN..=PRIORITY_MAX {
         validate_priority(p).unwrap();
@@ -70,41 +62,6 @@ fn parse_priority_rejects_non_integer() {
 fn parse_priority_rejects_out_of_range_string() {
     let err = parse_priority("5").unwrap_err();
     assert!(matches!(err, BallError::InvalidTask(ref s) if s.contains("1..=4")));
-}
-
-#[test]
-fn task_type_deserialize_unknown_preserves_string() {
-    // Forward-compat: older binary reading a future variant preserves
-    // it verbatim instead of erroring on the whole task file.
-    let back: TaskType = serde_json::from_str("\"spike\"").unwrap();
-    assert_eq!(back, TaskType::Unknown("spike".to_string()));
-    let s = serde_json::to_string(&back).unwrap();
-    assert_eq!(s, "\"spike\"");
-}
-
-#[test]
-fn task_type_parse_rejects_unknown_cli_input() {
-    // parse() stays strict at the CLI layer so `bl create -t spike`
-    // cannot silently fabricate an Unknown variant. Only deserialize
-    // produces Unknown.
-    assert!(TaskType::parse("spike").is_err());
-    assert!(TaskType::parse("").is_err());
-}
-
-#[test]
-fn task_type_known_round_trip_preserves_variant() {
-    for tt in [TaskType::Epic, TaskType::Task, TaskType::Bug] {
-        let j = serde_json::to_string(&tt).unwrap();
-        let back: TaskType = serde_json::from_str(&j).unwrap();
-        assert_eq!(back, tt);
-    }
-}
-
-#[test]
-fn task_type_as_str_and_display_unknown() {
-    let u = TaskType::Unknown("spike".to_string());
-    assert_eq!(u.as_str(), "spike");
-    assert_eq!(format!("{u}"), "spike");
 }
 
 #[test]
@@ -239,14 +196,14 @@ fn append_note_adds_entry() {
 fn default_new_task_opts() {
     let o = NewTaskOpts::default();
     assert_eq!(o.priority, 3);
-    assert!(matches!(o.task_type, TaskType::Task));
+    assert_eq!(o.task_type.as_str(), "task");
 }
 
 #[test]
 fn display_impls() {
-    assert_eq!(format!("{}", TaskType::Epic), "epic");
-    assert_eq!(format!("{}", TaskType::Task), "task");
-    assert_eq!(format!("{}", TaskType::Bug), "bug");
+    assert_eq!(format!("{}", TaskType::epic()), "epic");
+    assert_eq!(format!("{}", TaskType::task()), "task");
+    assert_eq!(format!("{}", TaskType::bug()), "bug");
     assert_eq!(format!("{}", Status::Open), "open");
     assert_eq!(format!("{}", Status::InProgress), "in_progress");
 }

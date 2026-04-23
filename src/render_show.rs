@@ -12,7 +12,7 @@ use crate::display::Display;
 use crate::progress;
 use crate::ready;
 use crate::render_show_text::{format_time, wrap};
-use crate::task::{LinkType, Task, TaskType};
+use crate::task::{LinkType, Task};
 use chrono::{DateTime, Utc};
 use std::fmt::Write as _;
 use std::path::Path;
@@ -44,7 +44,7 @@ pub fn render(
 }
 
 fn write_progress(out: &mut String, t: &Task, all: &[Task], ctx: &Ctx<'_>) {
-    if !matches!(t.task_type, TaskType::Epic) {
+    if !t.task_type.is_epic() {
         return;
     }
     let (closed, total) = progress::counts(all, &t.id);
@@ -73,15 +73,10 @@ fn write_header(out: &mut String, t: &Task, ctx: &Ctx<'_>) {
 fn write_meta_row(out: &mut String, t: &Task, ctx: &Ctx<'_>) {
     let created = format_time(t.created_at, ctx);
     let updated = format_time(t.updated_at, ctx);
-    let type_name = match &t.task_type {
-        TaskType::Epic => "epic",
-        TaskType::Task => "task",
-        TaskType::Bug => "bug",
-        TaskType::Unknown(s) => s.as_str(),
-    };
     let _ = writeln!(
         out,
         "  type: {type_name}      created: {created}       updated: {updated}",
+        type_name = t.task_type.as_str(),
     );
 }
 

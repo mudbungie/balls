@@ -160,11 +160,19 @@ fn create_bad_priority_rejected() {
 }
 
 #[test]
-fn create_bad_type_rejected() {
+fn create_accepts_any_identifier_rejects_non_identifiers() {
+    // Types are now free-form labels: any identifier-safe string is
+    // accepted at create time, only non-identifiers (uppercase,
+    // whitespace, leading digits, etc.) are rejected so we don't
+    // write garbage onto disk.
     let repo = new_repo();
     init_in(repo.path());
     bl(repo.path())
-        .args(["create", "x", "-t", "bogus"])
+        .args(["create", "ok", "-t", "spike"])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["create", "nope", "-t", "Bad Type"])
         .assert()
         .failure();
 }

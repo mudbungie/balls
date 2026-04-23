@@ -137,7 +137,7 @@ fn render_tree_pads_under_last_child_for_grandchildren() {
 
 #[test]
 fn format_line_marks_epic_type() {
-    let tasks = vec![mk_full("bl-e", None, &[], Status::Open, TaskType::Epic)];
+    let tasks = vec![mk_full("bl-e", None, &[], Status::Open, TaskType::epic())];
     let n = forest(&tasks).pop().unwrap();
     let line = format_line(&n, &tasks, Display::plain());
     assert!(line.contains("[epic]"));
@@ -145,7 +145,7 @@ fn format_line_marks_epic_type() {
 
 #[test]
 fn format_line_no_type_label_for_task() {
-    let tasks = vec![mk_full("bl-t", None, &[], Status::Open, TaskType::Task)];
+    let tasks = vec![mk_full("bl-t", None, &[], Status::Open, TaskType::task())];
     let n = forest(&tasks).pop().unwrap();
     let line = format_line(&n, &tasks, Display::plain());
     assert!(!line.contains("[epic]"));
@@ -154,8 +154,8 @@ fn format_line_no_type_label_for_task() {
 #[test]
 fn format_line_blocked_annotation_unicode() {
     let tasks = vec![
-        mk_full("a", None, &[], Status::Open, TaskType::Task),
-        mk_full("b", None, &["a"], Status::Open, TaskType::Task),
+        mk_full("a", None, &[], Status::Open, TaskType::task()),
+        mk_full("b", None, &["a"], Status::Open, TaskType::task()),
     ];
     let n = rooted(&tasks, "b").unwrap();
     let line = format_line(&n, &tasks, Display::styled());
@@ -165,8 +165,8 @@ fn format_line_blocked_annotation_unicode() {
 #[test]
 fn format_line_blocked_annotation_ascii_when_plain() {
     let tasks = vec![
-        mk_full("a", None, &[], Status::Open, TaskType::Task),
-        mk_full("b", None, &["a"], Status::Open, TaskType::Task),
+        mk_full("a", None, &[], Status::Open, TaskType::task()),
+        mk_full("b", None, &["a"], Status::Open, TaskType::task()),
     ];
     let n = rooted(&tasks, "b").unwrap();
     let line = format_line(&n, &tasks, Display::plain());
@@ -176,8 +176,8 @@ fn format_line_blocked_annotation_ascii_when_plain() {
 #[test]
 fn format_line_no_blocker_when_dep_is_closed() {
     let tasks = vec![
-        mk_full("a", None, &[], Status::Closed, TaskType::Task),
-        mk_full("b", None, &["a"], Status::Open, TaskType::Task),
+        mk_full("a", None, &[], Status::Closed, TaskType::task()),
+        mk_full("b", None, &["a"], Status::Open, TaskType::task()),
     ];
     let n = rooted(&tasks, "b").unwrap();
     let line = format_line(&n, &tasks, Display::plain());
@@ -187,7 +187,7 @@ fn format_line_no_blocker_when_dep_is_closed() {
 #[test]
 fn format_line_no_blocker_for_missing_dep() {
     // Missing dep => archived/closed. No blocker annotation.
-    let tasks = vec![mk_full("b", None, &["ghost"], Status::Open, TaskType::Task)];
+    let tasks = vec![mk_full("b", None, &["ghost"], Status::Open, TaskType::task())];
     let n = rooted(&tasks, "b").unwrap();
     let line = format_line(&n, &tasks, Display::plain());
     assert!(!line.contains("blocked by"));
@@ -195,7 +195,7 @@ fn format_line_no_blocker_for_missing_dep() {
 
 #[test]
 fn format_line_gates_parent_unicode() {
-    let mut parent = mk_full("p", None, &[], Status::Open, TaskType::Task);
+    let mut parent = mk_full("p", None, &[], Status::Open, TaskType::task());
     parent.links.push(Link {
         link_type: LinkType::Gates,
         target: "c".into(),
@@ -209,7 +209,7 @@ fn format_line_gates_parent_unicode() {
 
 #[test]
 fn format_line_gates_parent_ascii_when_plain() {
-    let mut parent = mk_full("p", None, &[], Status::Open, TaskType::Task);
+    let mut parent = mk_full("p", None, &[], Status::Open, TaskType::task());
     parent.links.push(Link {
         link_type: LinkType::Gates,
         target: "c".into(),
@@ -240,7 +240,7 @@ fn format_line_no_gates_annotation_when_parent_missing() {
 
 #[test]
 fn format_line_no_gates_annotation_when_parent_link_targets_other() {
-    let mut parent = mk_full("p", None, &[], Status::Open, TaskType::Task);
+    let mut parent = mk_full("p", None, &[], Status::Open, TaskType::task());
     parent.links.push(Link {
         link_type: LinkType::Gates,
         target: "other".into(),

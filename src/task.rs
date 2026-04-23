@@ -181,7 +181,7 @@ impl Default for NewTaskOpts {
     fn default() -> Self {
         NewTaskOpts {
             title: String::new(),
-            task_type: TaskType::Task,
+            task_type: TaskType::task(),
             priority: 3,
             parent: None,
             depends_on: Vec::new(),

@@ -13,7 +13,7 @@
 
 use crate::display::Display;
 use crate::progress;
-use crate::task::{Status, Task, TaskType};
+use crate::task::{Status, Task};
 use std::collections::HashSet;
 use std::fmt::Write;
 
@@ -143,7 +143,7 @@ fn format_row(t: &Task, depth: usize, ctx: &Ctx<'_>) -> String {
 /// progress bar so the epic row scans as a container at a glance.
 /// Other types render bare titles.
 fn epic_title(t: &Task, ctx: &Ctx<'_>) -> String {
-    if !matches!(t.task_type, TaskType::Epic) {
+    if !t.task_type.is_epic() {
         return t.title.clone();
     }
     let (closed, total) = progress::counts(ctx.all, &t.id);
