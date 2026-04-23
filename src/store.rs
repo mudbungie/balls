@@ -190,7 +190,7 @@ impl Store {
     }
 
     pub fn task_exists(&self, id: &str) -> bool {
-        self.task_path(id).map(|p| p.exists()).unwrap_or(false)
+        self.task_path(id).is_ok_and(|p| p.exists())
     }
 
     pub fn load_task(&self, id: &str) -> Result<Task> {
