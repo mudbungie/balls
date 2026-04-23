@@ -76,9 +76,7 @@ impl Display {
     /// Detect from the live environment and stdout TTY state.
     pub fn detect(plain: bool) -> Self {
         let no_color = std::env::var_os("NO_COLOR").is_some();
-        let clicolor_zero = std::env::var("CLICOLOR")
-            .map(|v| v == "0")
-            .unwrap_or(false);
+        let clicolor_zero = std::env::var("CLICOLOR").is_ok_and(|v| v == "0");
         let is_tty = std::io::stdout().is_terminal();
         Self::resolve(plain, no_color, clicolor_zero, is_tty)
     }
