@@ -265,4 +265,5 @@ Set `BALLS_IDENTITY` in your environment or use `--as` on commands that accept i
 | Task claimed by someone else | Pick another from `bl ready` |
 | Worktree in bad state | `bl drop TASK_ID --force` (loses uncommitted work) |
 | Orphaned claims/worktrees | `bl repair --fix` |
+| Stale `state branch records close for bl-xxxx...` warnings on `bl sync` (pre-0.3.8 gate closes, or abandoned deliveries) | `bl repair --forget-half-push <id>` per id, or `bl repair --forget-all-half-pushes` to retract every current one |
 | Lost context mid-task | `bl prime` shows your claimed tasks |

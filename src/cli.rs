@@ -171,6 +171,18 @@ pub enum Command {
     Repair {
         #[arg(long)]
         fix: bool,
+        /// Retract a stale half-push warning for ID. Writes a
+        /// `state: forget-half-push <id>` commit on the state branch
+        /// so the detector stops flagging it. ID must currently be
+        /// flagged. Repeatable.
+        #[arg(long = "forget-half-push", value_name = "ID")]
+        forget_half_push: Vec<String>,
+        /// Retract every half-push warning currently detected.
+        #[arg(
+            long = "forget-all-half-pushes",
+            conflicts_with = "forget_half_push"
+        )]
+        forget_all_half_pushes: bool,
     },
 
     /// Print the agent skill guide (SKILL.md).
