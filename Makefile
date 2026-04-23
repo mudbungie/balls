@@ -17,11 +17,12 @@ check: test
 install: build
 	install -d $(BIN_DIR)
 	install -m 0755 target/release/bl $(BIN_DIR)/bl
+	ln -sf bl $(BIN_DIR)/balls
 	$(BIN_DIR)/bl completions --install
 
 uninstall:
 	-$(BIN_DIR)/bl completions --uninstall
-	rm -f $(BIN_DIR)/bl
+	rm -f $(BIN_DIR)/bl $(BIN_DIR)/balls
 
 # Install the repo-local pre-commit hook (line-length + clippy + tests
 # + 100% coverage). Run once per clone; not part of `make install`
