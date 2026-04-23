@@ -130,27 +130,46 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
         .filter(|t| t.status == Status::InProgress)
         .collect();
 
+    // `.ok()` collapses both no-git and ref-missing into None — main_ahead_for
+    // treats None as "skip the indicator" so we never need to special-case here.
+    let main_branch = git::git_current_branch(&store.root).ok();
+    let claimed_status: Vec<serde_json::Value> = claimed
+        .iter()
+        .map(|t| {
+            let main_ahead = main_ahead_for(&store, t, main_branch.as_deref());
+            serde_json::json!({"id": t.id, "main_ahead": main_ahead})
+        })
+        .collect();
+
     if json {
         let obj = serde_json::json!({
             "identity": ident,
             "claimed": claimed,
             "ready": ready_tasks,
+            "claimed_status": claimed_status,
         });
         println!("{}", serde_json::to_string_pretty(&obj)?);
         return Ok(());
     }
 
     println!("=== balls prime: {ident} ===");
-    for t in &claimed {
+    for (t, status) in claimed.iter().zip(claimed_status.iter()) {
         let wt_dir = store
             .worktrees_root()
             .map(|r| r.join(&t.id))
             .unwrap_or_default();
+        let main_ahead = status["main_ahead"].as_u64().unwrap_or(0);
+        let suffix = if main_ahead > 0 {
+            format!(" — main +{main_ahead} since claim")
+        } else {
+            String::new()
+        };
         println!(
-            "Claimed (resume): {} \"{}\" @ {}",
+            "Claimed (resume): {} \"{}\" @ {}{}",
             t.id,
             t.title,
-            wt_dir.display()
+            wt_dir.display(),
+            suffix,
         );
     }
     println!("Ready:");
@@ -159,6 +178,25 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
     }
     println!("===");
     Ok(())
+}
+
+/// Count main-branch commits added since the task's work branch was
+/// forked. Returns 0 when unknowable (no main branch, no work branch,
+/// rev-list failure) — silent fallback so the indicator just doesn't
+/// render rather than failing prime. `git rev-list --count base..head`
+/// counts commits reachable from head but not from base, which is
+/// exactly the "main moved this far past your fork point" metric.
+fn main_ahead_for(store: &Store, task: &Task, main_branch: Option<&str>) -> usize {
+    let Some(main) = main_branch else { return 0 };
+    let Some(branch) = task.branch.as_deref() else { return 0 };
+    let range = format!("{branch}..{main}");
+    git::clean_git_command(&store.root)
+        .args(["rev-list", "--count", &range])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse().ok())
+        .unwrap_or(0)
 }
 
 pub fn cmd_repair(
