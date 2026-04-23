@@ -10,6 +10,7 @@ pub mod dep_link;
 mod half_push;
 mod id_gen;
 pub mod lifecycle;
+mod prime_status;
 pub mod ready_cmd;
 pub mod sync;
 mod sync_report;
