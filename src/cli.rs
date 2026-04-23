@@ -110,6 +110,8 @@ pub enum Command {
         id: String,
         #[arg(short = 'm', long)]
         message: Option<String>,
+        #[arg(long = "as")]
+        identity: Option<String>,
     },
 
     /// Close a reviewed task: archive and remove worktree. Must run from repo root.
@@ -117,6 +119,8 @@ pub enum Command {
         id: String,
         #[arg(short = 'm', long)]
         message: Option<String>,
+        #[arg(long = "as")]
+        identity: Option<String>,
     },
 
     /// Drop a claim: reset task and remove worktree.

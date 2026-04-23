@@ -32,9 +32,9 @@ pub fn cmd_claim(id: String, identity: Option<String>, no_worktree: bool) -> Res
     Ok(())
 }
 
-pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
+pub fn cmd_review(id: String, message: Option<String>, identity: Option<String>) -> Result<()> {
     let store = discover()?;
-    let ident = default_identity();
+    let ident = identity.unwrap_or_else(default_identity);
     if store.no_git {
         balls::review::review_no_git(&store, &id, message.as_deref(), &ident)?;
     } else {
@@ -48,9 +48,9 @@ pub fn cmd_review(id: String, message: Option<String>) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_close(id: String, message: Option<String>) -> Result<()> {
+pub fn cmd_close(id: String, message: Option<String>, identity: Option<String>) -> Result<()> {
     let store = discover()?;
-    let ident = default_identity();
+    let ident = identity.unwrap_or_else(default_identity);
     let task = if store.no_git {
         balls::review::close_no_git(&store, &id, message.as_deref(), &ident)?
     } else {
