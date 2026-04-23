@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-23T04:58:37.141113742Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "prime/claim/update accept '--as IDENTITY'. review/close/drop don't, even though review/close write notes attributed to an author and drop releases a claim. Postmortem papercut: agent had to consult the skill guide to remember the BALLS_IDENTITY env-var form.\n\nAdd the flag to all three. Plumb through to default_identity fallback in commands/lifecycle.rs. Drop currently doesn't take identity at all — give it one for the release-attribution note.",
+  "external": {},
+  "id": "bl-6f1a",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "accept --as on review/close/drop for identity consistency",
+  "type": "task",
+  "updated_at": "2026-04-23T04:58:37.141113742Z"
+}
