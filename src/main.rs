@@ -146,7 +146,11 @@ fn main() {
         Command::Sync { remote, task } => commands::cmd_sync(remote, task),
         Command::Resolve { file } => commands::cmd_resolve(file),
         Command::Prime { identity, json } => commands::cmd_prime(identity, json),
-        Command::Repair { fix } => commands::cmd_repair(fix),
+        Command::Repair {
+            fix,
+            forget_half_push,
+            forget_all_half_pushes,
+        } => commands::cmd_repair(fix, forget_half_push, forget_all_half_pushes),
         Command::Skill => {
             print!("{}", include_str!("../SKILL.md"));
             Ok(())

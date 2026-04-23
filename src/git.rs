@@ -106,6 +106,11 @@ pub fn git_commit(dir: &Path, message: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn git_commit_empty(dir: &Path, msg: &str) -> Result<()> {
+    run_git_ok(dir, &["commit", "--allow-empty", "-m", msg, "--no-verify"])?;
+    Ok(())
+}
+
 pub fn is_merging(dir: &Path) -> bool {
     // In a linked worktree, MERGE_HEAD lives in that worktree's private
     // admin dir (`.git/worktrees/<name>/`), not in the shared common

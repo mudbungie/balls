@@ -140,12 +140,13 @@ Pushing a delivery touches two refs: `balls/tasks` (state transition to closed) 
 
 ### 7.4 Half-push recovery
 
-A half-push is: state branch says `closed`, but no commit reachable from `main` carries the `[bl-xxxx]` delivery tag. `bl sync` detects this on read and takes one of two actions:
+A half-push is: state branch says `closed`, but no commit reachable from `main` carries the `[bl-xxxx]` delivery tag. `bl sync` detects this on read and takes one of three actions:
 
 - **If the local worktree still has the squash commit ready to push**: retry the main push.
 - **If the local state is lost** (e.g. a different machine): roll the state branch back by committing a new state transition that restores `status: review` with a `sync_note` explaining the rollback. Never force-push.
+- **If the close is legitimately code-free but the state branch did not record a `no-code` marker** (e.g. pre-0.3.8 gate/audit closes, or out-of-band recovery where the feature commit never lands and isn't coming): commit a `state: forget-half-push bl-xxxx` marker on the state branch via `bl repair --forget-half-push <id>` or `bl repair --forget-all-half-pushes`. Subsequent detectors subtract any id carrying such a marker.
 
-Either action produces a durable, git-visible record of the recovery. No silent mutation of history.
+Every action produces a durable, git-visible record of the recovery. No silent mutation of history.
 
 ### 7.5 Concurrent claim
 
