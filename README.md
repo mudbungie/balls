@@ -617,14 +617,16 @@ Removes from `depends_on`. Commits.
 
 ### bl dep tree [ID]
 
-Walks the parent/child hierarchy and prints it as a real tree using box-drawing characters (Unicode `├─ │  └─`, ASCII `|- |  ` `` `- `` fallback). Dep edges and gates are shown as inline annotations on each row, never as nesting. Without ID, every parentless task renders as its own top-level tree. `--json` emits a nested `{id, title, status, children}` shape.
+Walks the parent/child hierarchy and prints it as a real tree using box-drawing characters (Unicode `├─ │  └─`, ASCII `|- |  ` `` `- `` fallback). Dep edges and gates are shown as inline annotations on each row, never as nesting. Without ID, every parentless task renders as its own top-level tree. `--json` emits a nested `{id, title, status, hier_path, children}` shape (`hier_path` omitted for roots).
+
+Each non-root row carries a dotted sibling-position annotation next to its id (`.1`, `.1.2`, …) so a reader can see the parent chain without cross-referencing `parent`. The annotation is pure display — ids themselves are still the flat `bl-<hex>` form used everywhere else.
 
 ```
 bl-a3f8  Migrate auth layer  [epic]  ○ open
-├── bl-1234  Extract token store                     ✓ closed
-├── bl-5678  Swap middleware                         » in_progress
-│   └── bl-9abc  Audit rollback plan                 ⛓ gates parent
-└── bl-def0  Cut over prod switch                    ⌀ blocked by bl-5678
+├── bl-1234 .1  Extract token store                  ✓ closed
+├── bl-5678 .2  Swap middleware                      » in_progress
+│   └── bl-9abc .2.1  Audit rollback plan            ⛓ gates parent
+└── bl-def0 .3  Cut over prod switch                 ⌀ blocked by bl-5678
 ```
 
 Cycles in parent edges (which shouldn't happen in healthy data) are detected and marked with `↺ cycle` so the renderer doesn't loop.

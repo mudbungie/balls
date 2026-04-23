@@ -20,6 +20,11 @@ pub struct Node<'a> {
     /// True when this id was already on the ancestor stack — descent
     /// stops so the renderer can mark the row and move on.
     pub cycle: bool,
+    /// Dotted sibling-position annotation used by the renderer to
+    /// implicitly show the parent chain (`".1"`, `".1.2"`, …). Empty
+    /// for roots. Derived during tree build from 1-based sibling
+    /// index; never persisted and never part of the task id.
+    pub hier_path: String,
 }
 
 /// Stable JSON shape: nested children rather than the flat task list
@@ -29,6 +34,13 @@ pub struct JsonNode<'a> {
     pub id: &'a str,
     pub title: &'a str,
     pub status: &'a str,
+    /// Display-only hierarchy annotation, mirroring `Node::hier_path`.
+    /// Owned rather than borrowed because it lives on `Node`, not on
+    /// `Task` — cloning avoids entangling JsonNode with the Node's own
+    /// lifetime. Omitted on the wire when empty so root nodes stay
+    /// compact and existing consumers ignoring the field see no change.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub hier_path: String,
     pub children: Vec<JsonNode<'a>>,
 }
 
@@ -38,6 +50,7 @@ impl<'a> JsonNode<'a> {
             id: &n.task.id,
             title: &n.task.title,
             status: n.task.status.as_str(),
+            hier_path: n.hier_path.clone(),
             children: n.children.iter().map(JsonNode::from_node).collect(),
         }
     }
@@ -51,16 +64,18 @@ pub fn forest(tasks: &[Task]) -> Vec<Node<'_>> {
     let by_parent = build_index(tasks);
     roots
         .into_iter()
-        .map(|r| build(&by_parent, r, &mut Vec::new()))
+        .map(|r| build(&by_parent, r, &mut Vec::new(), String::new()))
         .collect()
 }
 
 /// Build a single subtree rooted at `root_id`. Returns `None` if the
-/// id isn't in the task set.
+/// id isn't in the task set. The subtree root always carries an empty
+/// hierarchy path: paths are rendered relative to whatever root the
+/// caller asked for, not to the overall forest.
 pub fn rooted<'a>(tasks: &'a [Task], root_id: &str) -> Option<Node<'a>> {
     let root = tasks.iter().find(|t| t.id == root_id)?;
     let by_parent = build_index(tasks);
-    Some(build(&by_parent, root, &mut Vec::new()))
+    Some(build(&by_parent, root, &mut Vec::new(), String::new()))
 }
 
 fn build_index(tasks: &[Task]) -> HashMap<&str, Vec<&Task>> {
@@ -80,18 +95,23 @@ fn build<'a>(
     by_parent: &HashMap<&str, Vec<&'a Task>>,
     node: &'a Task,
     ancestors: &mut Vec<String>,
+    hier_path: String,
 ) -> Node<'a> {
     if ancestors.iter().any(|a| a == &node.id) {
-        return Node { task: node, children: Vec::new(), cycle: true };
+        return Node { task: node, children: Vec::new(), cycle: true, hier_path };
     }
     ancestors.push(node.id.clone());
     let kids = by_parent.get(node.id.as_str()).cloned().unwrap_or_default();
     let children: Vec<Node<'a>> = kids
         .into_iter()
-        .map(|c| build(by_parent, c, ancestors))
+        .enumerate()
+        .map(|(i, c)| {
+            let child_path = format!("{hier_path}.{}", i + 1);
+            build(by_parent, c, ancestors, child_path)
+        })
         .collect();
     ancestors.pop();
-    Node { task: node, children, cycle: false }
+    Node { task: node, children, cycle: false, hier_path }
 }
 
 /// Render a forest to a string. Roots print sequentially with a
@@ -135,7 +155,14 @@ fn render_tree(
 
 fn format_line(node: &Node, all: &[Task], d: Display) -> String {
     let t = node.task;
-    let mut out = format!("{}  {}", t.id, t.title);
+    // `hier_path` is a spaced-off token next to the id, never fused
+    // into it: readers see `bl-5c2d .1` so the path is obviously a
+    // sibling-position annotation, not part of the addressable id.
+    let mut out = if node.hier_path.is_empty() {
+        format!("{}  {}", t.id, t.title)
+    } else {
+        format!("{} {}  {}", t.id, node.hier_path, t.title)
+    };
     if matches!(t.task_type, TaskType::Epic) {
         out.push_str("  [epic]");
     }
@@ -184,3 +211,7 @@ fn gates_parent(t: &Task, all: &[Task]) -> bool {
 #[cfg(test)]
 #[path = "tree_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tree_hier_tests.rs"]
+mod hier_tests;
