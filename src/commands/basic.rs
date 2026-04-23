@@ -151,7 +151,7 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
             "delivered_in_resolved": delivery.sha,
             "delivered_in_hint_stale": delivery.hint_stale,
         });
-        if matches!(task.task_type, TaskType::Epic) {
+        if task.task_type.is_epic() {
             let (closed, total) = balls::progress::counts(&all, &id);
             pretty["progress"] =
                 serde_json::json!({ "closed": closed, "total": total });
