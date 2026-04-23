@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-23T01:29:07.644526434Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Pre-0.3.8 review paths didn't emit the `no-code` marker on gate/empty-squash reviews, so downstream repos (e.g. lernie, ~/dev/lernie) have state-branch history like:\n\n  state: review bl-xxxx\n  state: close bl-xxxx - Gate: ...\n\nwhich `detect_half_push` (src/commands/sync.rs) flags forever — there's no retroactive way to mark those reviews as no-code. `bl repair --fix` today only cleans orphan claims/worktrees, not stale half-push warnings.\n\n=== What to build ===\n\nNew state-branch subject: `state: forget-half-push bl-xxxx`. An empty commit on balls/tasks that acknowledges a close whose delivery never landed on main. `detect_half_push` subtracts any id with a matching forget commit before emitting warnings.\n\nNew repair surface: `bl repair --forget-half-push <ID>` (repeatable) and `bl repair --forget-half-push-all`. The first retracts a single id; the second retracts every id currently flagged. Both write empty state-branch commits and then return clean.\n\nRationale for the state-branch-commit design (vs a config file list):\n- Matches §7.4's \"durable, git-visible record of the recovery. No silent mutation of history.\"\n- Syncs across machines via the state branch without a new transport.\n- Auditable: `git log balls/tasks` shows when and why the warning was retracted.\n- Symmetric with `no-code` — both are metadata-only markers on the state branch.\n\n=== Testing ===\n\nAdd tests under tests/sync_half_push.rs (or a new tests/repair_forget.rs):\n- forget-half-push for a known half-pushed id removes the warning\n- forget-half-push --all retracts every current warning\n- forget-half-push for a non-flagged id is a no-op (doesn't create a commit, or creates one that's harmless — pick one)\n- warning stays away after a subsequent `bl sync`\n- the unit test in sync.rs covers the subject-parsing helper\n\ncargo test + existing CI checks green.\n\n=== Docs ===\n\n- docs/SPEC-orphan-branch-state.md §7.4: add the forget-half-push action as a third recovery option, alongside retry and rollback.\n- SKILL.md: one-line mention under the repair command entry.\n\n=== Out of scope ===\n\n- Rewriting or amending old `state: review bl-xxxx` commits to add `no-code` retroactively (history rewrite on a shared branch is a non-starter per SPEC §7.4).\n- Any change to how new reviews are marked — 0.3.8 already emits `no-code` correctly.\n- A corresponding \"forget\" command for other warning classes — this is half-push-specific.",
+  "external": {},
+  "id": "bl-e446",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "repair: retract stale half-push warnings",
+  "type": "task",
+  "updated_at": "2026-04-23T01:29:07.644526434Z"
+}
