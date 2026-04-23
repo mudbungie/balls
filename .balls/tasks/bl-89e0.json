@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-23T04:58:37.190870333Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Composes with the 'main moved' warning. At prime time (and again at review pre-flight), compute the file overlap between (merge-base..main) and (merge-base..work/<id>). Non-empty intersection means another delivered task touched files you also touched — high-probability merge conflict or, worse, an antipattern landing in your diff.\n\nSurface in prime output as 'overlap: N files' with the file list available via --json or --verbose. Doesn't need to know which delivery tag landed each file — just that they overlap.",
+  "external": {},
+  "id": "bl-89e0",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": [],
+  "title": "warn when sibling deliveries touched your file footprint",
+  "type": "task",
+  "updated_at": "2026-04-23T04:58:37.190870333Z"
+}
