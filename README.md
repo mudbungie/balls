@@ -1,6 +1,6 @@
 # balls
 
-**balls** is a git-native task tracker for parallel agent workflows. Tasks are JSON files committed to your repo. Worktrees provide isolation. Git provides sync, history, and collaboration. There is no database, no daemon, no external service.
+**balls** — **B**ranched **A**gent **L**abor and **L**ogistics **S**ystem — is a git-native task tracker for parallel agent workflows. Tasks are JSON files committed to your repo. Worktrees provide isolation. Git provides sync, history, and collaboration. There is no database, no daemon, no external service.
 
 The CLI is `bl`. Every `bl` operation is expressible as file edits and git commands. The system is designed for a single developer running many agents, multiple developers each running many agents, and anything in between. It works offline. It degrades gracefully.
 
