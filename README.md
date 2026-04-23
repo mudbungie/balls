@@ -34,7 +34,7 @@ make install
 make hooks     # one-time: install the repo-local pre-commit hook
 ```
 
-`make install` builds a release binary, installs `bl` to `~/.local/bin/`, and installs shell completions to `~/.local/share/`. Make sure `~/.local/bin` is on your `PATH`.
+`make install` builds a release binary, installs `bl` to `~/.local/bin/` (plus a `balls` symlink so both names work on the command line), and installs shell completions to `~/.local/share/`. Make sure `~/.local/bin` is on your `PATH`.
 
 `make hooks` wires up the repo-local pre-commit hook (clippy, line-length cap, tests, 100% coverage). Run it once per clone; it's not part of `make install` because a user installing the binary shouldn't have hooks attached to whatever repo they happen to be in. The coverage check requires `cargo install cargo-tarpaulin`.
 
