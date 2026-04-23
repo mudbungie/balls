@@ -1,11 +1,12 @@
 //! sync, resolve, prime, repair — remote reconciliation and agent bootstrap.
 
-use super::{default_identity, discover};
+use super::half_push::{detect_half_push, write_forget_half_push};
 use super::sync_report::apply_sync_report;
+use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::store::Store;
 use balls::task::{Status, Task};
-use balls::{git, git_state, plugin, ready, resolve, worktree};
+use balls::{git, plugin, ready, resolve, worktree};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -60,57 +61,6 @@ fn sync_branch(dir: &Path, remote: &str, branch: &str) -> Result<()> {
         git::git_push(dir, remote, branch)?;
     }
     Ok(())
-}
-
-/// Scan the state branch for tasks that went through review (a
-/// `state: review bl-xxxx` commit exists) and are now closed
-/// (`state: close bl-xxxx`), but whose corresponding `[bl-xxxx]`
-/// delivery tag is not reachable from main. Each hit is a half-push:
-/// the state branch landed but the feature commit never did. Tasks
-/// closed via `bl update status=closed` without ever being reviewed
-/// are excluded — they legitimately never produce a main commit.
-/// `state: review bl-xxxx no-code` subjects are similarly excluded:
-/// they mark checkpoint reviews (gate tasks, empty squashes) that
-/// produced no main commit by design.
-pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
-    let state_dir = store.state_worktree_dir();
-    let state_subjects = git_state::log_subjects(&state_dir, "balls/tasks")?;
-    let reviewed: std::collections::HashSet<String> = state_subjects
-        .iter()
-        .filter_map(|s| delivered_review_id(s))
-        .collect();
-    let main_branch = git::git_current_branch(&store.root)?;
-    let main_subjects = git_state::log_subjects(&store.root, &main_branch)?;
-    let mut missing = Vec::new();
-    for subj in &state_subjects {
-        let Some(id) = extract_state_id(subj, "state: close ") else { continue };
-        if !reviewed.contains(&id) { continue; }
-        let tag = format!("[{id}]");
-        if !main_subjects.iter().any(|s| s.contains(&tag)) && !missing.contains(&id) {
-            missing.push(id);
-        }
-    }
-    Ok(missing)
-}
-
-fn extract_state_id(subject: &str, prefix: &str) -> Option<String> {
-    let rest = subject.strip_prefix(prefix)?;
-    let id = rest.split_whitespace().next()?;
-    id.starts_with("bl-").then(|| id.to_string())
-}
-
-/// Extract the task id from a `state: review bl-xxxx` subject iff the
-/// review actually produced a main commit. A trailing `no-code` marker
-/// means the review was a checkpoint (empty squash) — it should not
-/// count as "reviewed" for half-push purposes.
-fn delivered_review_id(subject: &str) -> Option<String> {
-    let rest = subject.strip_prefix("state: review ")?;
-    let mut parts = rest.split_whitespace();
-    let id = parts.next()?;
-    if !id.starts_with("bl-") || parts.next() == Some("no-code") {
-        return None;
-    }
-    Some(id.to_string())
 }
 
 /// Fetch from `remote` in `dir`, merge `remote_branch` into whatever HEAD
@@ -211,8 +161,46 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_repair(fix: bool) -> Result<()> {
+pub fn cmd_repair(
+    fix: bool,
+    forget_half_push: Vec<String>,
+    forget_all_half_pushes: bool,
+) -> Result<()> {
     let store = discover()?;
+
+    // Forget actions run first: they're surgical and only touch the
+    // state branch. They don't depend on, or interact with, the
+    // task-file scan or orphan-cleanup paths below.
+    if !forget_half_push.is_empty() || forget_all_half_pushes {
+        if store.no_git || store.stealth {
+            return Err(BallError::Other(
+                "--forget-half-push requires a non-stealth git-backed repo".into(),
+            ));
+        }
+        let flagged = detect_half_push(&store)?;
+        let targets: Vec<String> = if forget_all_half_pushes {
+            flagged.clone()
+        } else {
+            for id in &forget_half_push {
+                if !flagged.contains(id) {
+                    return Err(BallError::Other(format!(
+                        "{id} is not a currently-flagged half-push; nothing to forget"
+                    )));
+                }
+            }
+            forget_half_push.clone()
+        };
+        if targets.is_empty() {
+            println!("No half-push warnings to forget.");
+        } else {
+            write_forget_half_push(&store, &targets)?;
+            for id in &targets {
+                println!("forgot half-push: {id}");
+            }
+        }
+        return Ok(());
+    }
+
     let dir = store.tasks_dir();
     let mut bad = Vec::new();
     if dir.exists() {
@@ -246,49 +234,3 @@ pub fn cmd_repair(fix: bool) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{delivered_review_id, extract_state_id};
-
-    #[test]
-    fn extract_state_id_handles_matching_prefix() {
-        assert_eq!(
-            extract_state_id("state: close bl-abcd - title", "state: close "),
-            Some("bl-abcd".into())
-        );
-        assert_eq!(
-            extract_state_id("state: review bl-1234", "state: review "),
-            Some("bl-1234".into())
-        );
-    }
-
-    #[test]
-    fn extract_state_id_rejects_wrong_prefix() {
-        assert!(extract_state_id("unrelated commit", "state: close ").is_none());
-    }
-
-    #[test]
-    fn extract_state_id_rejects_non_task_id() {
-        // A subject with the right prefix but an id that doesn't start
-        // with `bl-` must not be mistaken for a task reference.
-        assert!(extract_state_id("state: close custom foo", "state: close ").is_none());
-    }
-
-    #[test]
-    fn extract_state_id_rejects_empty_tail() {
-        assert!(extract_state_id("state: close ", "state: close ").is_none());
-    }
-
-    #[test]
-    fn delivered_review_id_classifies_review_subjects() {
-        assert_eq!(
-            delivered_review_id("state: review bl-1234"),
-            Some("bl-1234".into())
-        );
-        assert!(delivered_review_id("state: review bl-1234 no-code").is_none());
-        assert!(delivered_review_id("state: close bl-1234").is_none());
-        assert!(delivered_review_id("unrelated").is_none());
-        assert!(delivered_review_id("state: review custom").is_none());
-        assert!(delivered_review_id("state: review ").is_none());
-    }
-}

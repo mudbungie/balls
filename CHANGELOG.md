@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changes
+
+- `bl repair --forget-half-push <id>` and `--forget-all-half-pushes` retract stale half-push warnings via a `state: forget-half-push <id>` marker commit on the state branch [bl-e446]
+
 ## [0.3.8](https://github.com/mudbungie/balls/compare/v0.3.7...v0.3.8) - 2026-04-22
 
 ### Changes
