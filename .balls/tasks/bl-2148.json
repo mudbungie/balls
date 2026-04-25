@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2148",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T06:26:40.805920360Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["multi-agent","sync"],
   "title": "Optional remote-sync on claim for global claim ordering",
   "type": "task",
-  "updated_at": "2026-04-25T06:26:40.805920360Z"
+  "updated_at": "2026-04-25T06:29:57.880890391Z"
 }
