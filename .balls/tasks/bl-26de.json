@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:09:50.791204944Z",
-  "delivered_in": null,
+  "delivered_in": "8fc974f3d7cdfbf78f7115e022293f79b43f230f",
   "depends_on": [],
   "description": "Produce docs/SPEC-lifecycle-sync-participants.md as the normative reference for the rest of bl-b7fb. Foundational: implementation children cite this SPEC and rely on it to settle the contract before code lands.\n\n## Required sections\n\n- The participant model: what a participant is, what it declares (event subscriptions, field projection, merge function, failure policy), and why git-remote sync and external-tracker plugins are instances of the same abstraction.\n- The negotiation primitive: propose -> detect-conflict -> merge -> retry, parameterized over wire protocol. Specify the conflict-detection contract (non-FF for git, plugin-emitted conflict for trackers) and the retry budget.\n- Field projection model: how a participant declares which Task fields it owns authoritatively versus reads, and how merge composes projections so non-overlapping ontologies (closed-in-git vs open-in-Jira) merge without operator intervention.\n- Failure policy: required (operation aborts), best-effort (warn and continue), gating (stage for human approval). Per-event, layered via config inheritance.\n- Config inheritance reused from bl-2148: state-branch -> local repo -> per-invocation flag. Document the precedence rules and how legacy sync_on_change maps in.\n- Backward-compat shim semantics: how legacy push/sync plugins map onto the participant interface. Defaults must reproduce today's observable behavior exactly.\n- Migration plan: ordering of the implementation children, what observable behavior changes when, and the version at which the unified path becomes the default.\n\n## Non-goals\n\n- New plugin discovery mechanisms (still balls-plugin-{name} on PATH).\n- Server-side enforcement (the bl-2148 stance applies: soft policy, hard primitives).\n- Custom Status enum extensions (canonical state stays the five-variant enum; remote-side state lives in projections).\n\n## Reference precedent\n\ndocs/SPEC-orphan-branch-state.md is the format/tone reference. Match its level of normativity.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["spec","plugins"],
   "title": "SPEC: lifecycle-sync participant model",
   "type": "task",
-  "updated_at": "2026-04-25T22:22:36.479797103Z"
+  "updated_at": "2026-04-25T22:28:01.866281780Z"
 }
