@@ -23,7 +23,7 @@ pub fn cmd_sync(remote: String, task_filter: Option<String>) -> Result<()> {
         }
         Err(e) => eprintln!("warning: plugin sync failed: {e}"),
     }
-    println!("sync complete");
+    eprintln!("sync complete");
     Ok(())
 }
 
