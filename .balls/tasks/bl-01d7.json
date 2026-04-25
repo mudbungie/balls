@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T06:00:34.143085758Z",
-  "delivered_in": null,
+  "delivered_in": "5766ffe8d105f5ea3929a5fcfc5acf4e484d01d0",
   "depends_on": [],
   "description": "## Problem\n\nAn agent reading the `bl skill` output naturally lands on the Commands table:\n\n> bl review TASK_ID -m \"msg\" — Squash to main, set status=review. Worktree stays.\n\nNothing in that row says the task id is auto-appended to the commit subject. The auto-append fact lives further down under \"Commit messages: 50/72 shape\" (\"The delivery tag `[bl-xxxx]` is appended to the title automatically\"), which a skimming agent will miss.\n\nMeanwhile every squash on main shows `[bl-xxxx]` in the subject, so the natural inference is \"that's the convention, mirror it in -m\". An agent that does this gets duplicated tags in the squash subject (e.g. `…title [bl-fdb9] [bl-fdb9]`).\n\n## Reproduction\n\nReal incident: agent ran `bl review bl-fdb9 -m \"...§11/§12 [bl-fdb9]\"`. Resulting main squash subject carried two `[bl-fdb9]` suffixes.\n\n## Fix (preferred: doc-only)\n\nAdd the auto-append warning to the `bl review` row of the Commands table in the skill template, e.g.:\n\n> bl review TASK_ID -m \"msg\" — Squash to main, set status=review. Worktree stays. The task id is auto-appended to the subject; do NOT include [bl-xxxx] in your message.\n\nRationale for doc-only over a DWIM behavior change: the auto-append guarantee is good (every squash carries the id even if the human forgets); fixing the doc is cheaper and the gap is one row, not the underlying behavior.\n\n## Out of scope\n\nBehavior change (detect-and-skip on duplicate trailing tag) is the alternative. Possible follow-up if the doc fix proves insufficient, but not part of this task.\n\n## Acceptance\n\n- The `bl review` row in the skill Commands table mentions the auto-append and warns against including [bl-xxxx] in -m.\n- `bl skill` output reflects it.\n- A test exists that asserts the warning is present in the rendered skill output (so this can't regress silently).",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "Skill doc: warn that bl review auto-appends [bl-xxxx]",
   "type": "bug",
-  "updated_at": "2026-04-25T06:04:00.621145821Z"
+  "updated_at": "2026-04-25T06:09:42.336047420Z"
 }
