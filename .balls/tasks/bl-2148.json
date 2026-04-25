@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-25T06:26:40.805920360Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Close the claim-race window between offline agents by optionally pushing the state-branch claim commit to the remote as part of `bl claim`. When enabled, a claim only \"counts\" once it lands on the remote ref; collisions are resolved at push time via git's native CAS (non-fast-forward rejection) plus the existing resolve_conflict() field-level merge.\n\n## Mechanism\n\nOn claim with sync enabled:\n1. Write claim locally (current behavior).\n2. Push state branch to remote.\n3. On reject (non-FF): fetch, run resolve_conflict() to merge task state, check whether `claimed_by` still points at us.\n   - If yes: retry push.\n   - If no: fail the claim with \"agent-X got there first\" — local state already correct because resolve_conflict prefers earlier updated_at.\n4. On unreachable remote: hard fail with a clear message. Do NOT silently fall back to local-only — that re-opens the gap the flag was set to close.\n\nThe CAS loop is mechanical because resolve_conflict is already deterministic and tested.\n\n## Config layering (standard inheritance, off by default)\n\n- State-branch config (`.balls/config.json` on `balls/tasks`) — repo-level default. Maintainers of multi-swarm projects flip it on; the policy ships with the repo.\n- Local repo config — per-clone override (e.g. dev offline on a plane).\n- Per-invocation flag (`--sync` / `--no-sync`) — final override.\n\nDefault off. Solo and offline workflows are the common case; \"graceful degradation\" cuts toward not requiring network for a core operation.\n\n## No protocol enforcement\n\nThis is config inheritance, not a lock. A dev who sets `--no-sync` on a repo that requests synced claims can still break the bargain locally, and that is fine — tools shouldn't fight their users (they'd just set a fake remote anyway). 95% of the value comes from agents following the policy by default; if real abuse appears later, that's when to consider enforcement.\n\n## UX affordance for new clones\n\nFirst time a clone sees a remote-set policy, surface it once — e.g. `bl prime` prints a line like \"this repo requests synced claims (remote default; override with --no-sync or local config)\". Mitigates the \"surprise: my claims are hitting the network\" risk for new devs onboarding to a project. Inspectable, overrideable.\n\n## Out of scope\n\n- File-overlap mutual exclusion between different tasks. That's git's job (merge conflicts at review time); `prime_status.rs` already surfaces overlap_files advisory warnings. Remote-on-claim is task mutual exclusion only.\n- Protocol-level enforcement (server-side hooks, mandatory client validation).\n\n## Natural follow-up (separate task)\n\nThe same race exists on `bl review` and `bl close` transitions. If this lands and proves out, add a parallel `balls.transitions.require_remote` so the front and back doors close together. File as a follow-up once the claim-side design has settled.\n\n## Implementation notes\n\n- Most plumbing exists: state-branch worktree (`src/git_state.rs`), sync logic, resolve_conflict (`src/resolve.rs`). New surface area is mostly the config flag, the push-retry-resolve loop in the claim path, and the one-time UX line.\n- Tests should cover: happy-path push, push reject + resolve + retry, push reject + lost claim (other agent won), unreachable remote with sync required.",
+  "external": {},
+  "id": "bl-2148",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": ["multi-agent","sync"],
+  "title": "Optional remote-sync on claim for global claim ordering",
+  "type": "task",
+  "updated_at": "2026-04-25T06:26:40.805920360Z"
+}
