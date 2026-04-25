@@ -176,6 +176,29 @@ fn bl_skill_dumps_skill_doc() {
 }
 
 #[test]
+fn skill_warns_about_review_auto_append() {
+    // The `bl review` row of the Commands table must warn that the task id
+    // is auto-appended, so agents skimming only the table do not duplicate
+    // the [bl-xxxx] tag in their -m message.
+    let repo = new_repo();
+    let out = bl(repo.path()).arg("skill").output().unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    let review_row = s
+        .lines()
+        .find(|l| l.contains("`bl review TASK_ID -m \"msg\"`"))
+        .expect("bl review row missing from skill Commands table");
+    assert!(
+        review_row.contains("auto-appended"),
+        "bl review row must say the task id is auto-appended: {review_row}"
+    );
+    assert!(
+        review_row.contains("[bl-xxxx]"),
+        "bl review row must warn against including [bl-xxxx] in -m: {review_row}"
+    );
+}
+
+#[test]
 fn init_with_existing_gitignore_no_trailing_newline() {
     let dir = tmp();
     git(dir.path(), &["init", "-q", "-b", "main"]);
