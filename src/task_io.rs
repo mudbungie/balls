@@ -147,3 +147,7 @@ pub(crate) fn serialize_mergeable(task: &Task) -> Result<String> {
 #[cfg(test)]
 #[path = "task_io_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "task_io_compat_tests.rs"]
+mod compat_tests;

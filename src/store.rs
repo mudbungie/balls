@@ -244,6 +244,7 @@ impl Store {
                     id: task.id.clone(),
                     title: task.title.clone(),
                     closed_at: task.closed_at.unwrap_or_else(chrono::Utc::now),
+                    extra: std::collections::BTreeMap::new(),
                 });
                 parent.touch();
                 self.save_task(&parent)?;

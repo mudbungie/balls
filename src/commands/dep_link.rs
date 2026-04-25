@@ -99,7 +99,7 @@ fn link_add(store: &Store, task: String, link_type: String, target: String) -> R
     let lt_str = lt.as_str().to_string();
     let _g = task_lock(store, &task)?;
     let mut t = store.load_task(&task)?;
-    let link = Link { link_type: lt, target: target.clone() };
+    let link = Link { link_type: lt, target: target.clone(), extra: std::collections::BTreeMap::new() };
     if !t.links.contains(&link) {
         t.links.push(link);
         t.touch();
@@ -118,7 +118,7 @@ fn link_rm(store: &Store, task: String, link_type: String, target: String) -> Re
     let lt_str = lt.as_str().to_string();
     let _g = task_lock(store, &task)?;
     let mut t = store.load_task(&task)?;
-    let link = Link { link_type: lt, target: target.clone() };
+    let link = Link { link_type: lt, target: target.clone(), extra: std::collections::BTreeMap::new() };
     let before = t.links.len();
     t.links.retain(|l| l != &link);
     if t.links.len() != before {

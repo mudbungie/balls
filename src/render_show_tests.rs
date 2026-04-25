@@ -120,10 +120,12 @@ fn gates_section_renders_known_and_unknown() {
     t.links.push(Link {
         link_type: LinkType::Gates,
         target: "bl-g".into(),
+        extra: std::collections::BTreeMap::new(),
     });
     t.links.push(Link {
         link_type: LinkType::Gates,
         target: "bl-x".into(),
+        extra: std::collections::BTreeMap::new(),
     });
     let all = vec![t.clone(), target];
     let out = render(&t, &all, &empty_delivery(), Path::new("."), &ctx_for());
@@ -160,6 +162,7 @@ fn children_section_lists_live_and_archived_with_completion() {
         id: "bl-c2".into(),
         title: "ancient".into(),
         closed_at: now_fixed(),
+        extra: std::collections::BTreeMap::new(),
     });
     let all = vec![parent2.clone(), child_open];
     let out = render(&parent2, &all, &empty_delivery(), Path::new("."), &ctx_for());
