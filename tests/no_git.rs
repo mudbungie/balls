@@ -143,7 +143,7 @@ fn sync_in_no_git_mode_succeeds() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("sync complete"));
+        .stderr(predicate::str::contains("sync complete"));
 }
 
 #[test]
