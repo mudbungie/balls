@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-01d7",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T06:00:34.143085758Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Skill doc: warn that bl review auto-appends [bl-xxxx]",
   "type": "bug",
-  "updated_at": "2026-04-25T06:00:34.143085758Z"
+  "updated_at": "2026-04-25T06:04:00.621145821Z"
 }
