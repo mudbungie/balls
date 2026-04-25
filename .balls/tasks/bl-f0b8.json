@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T02:03:04.346285530Z",
-  "delivered_in": null,
+  "delivered_in": "f28d8cb1f6ffce85ab89618e932b2ce0a65e18a8",
   "depends_on": [],
   "description": "`bl prime --json` prints the literal string `sync complete` to stdout before the JSON document, breaking naive `bl prime --json | jq` / `python3 -c 'json.load(...)'` pipelines.\n\nSource: src/commands/sync.rs:26 — `println!(\"sync complete\")` in cmd_sync. cmd_prime calls cmd_sync unconditionally, so the line lands on stdout regardless of --json.\n\nSkill currently promises (in \"Scripting with bl\"): \"These commands accept --json and print a single JSON document to stdout (stderr is diagnostics only)\". This bug violates that contract.\n\nbl ready --json and bl list --json are clean — bug is specific to prime because of the embedded sync call.\n\nFix: switch to eprintln!, or suppress the line when cmd_sync is invoked from cmd_prime with json=true. Test: `bl prime --json | python3 -c 'import sys,json; json.load(sys.stdin)'` should succeed.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [{"link_type":"relates_to","target":"bl-59fd"}],
   "parent": null,
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "prime --json: 'sync complete' leaks to stdout",
   "type": "bug",
-  "updated_at": "2026-04-25T02:05:28.310750304Z"
+  "updated_at": "2026-04-25T02:09:22.824889440Z"
 }
