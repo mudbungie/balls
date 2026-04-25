@@ -4,11 +4,18 @@
 use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::plugin;
-use balls::store::task_lock;
+use balls::policy::{self, ClaimPolicy, LocalConfig, SyncOverride};
+use balls::store::{task_lock, Store};
 use balls::task::{Status, Task, TaskType};
 use balls::{task_io, worktree};
 
-pub fn cmd_claim(id: String, identity: Option<String>, no_worktree: bool) -> Result<()> {
+pub fn cmd_claim(
+    id: String,
+    identity: Option<String>,
+    no_worktree: bool,
+    sync: bool,
+    no_sync: bool,
+) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     if store.no_git && !no_worktree {
@@ -16,11 +23,12 @@ pub fn cmd_claim(id: String, identity: Option<String>, no_worktree: bool) -> Res
             "no git repo: use `bl claim --no-worktree` to claim without a worktree".into(),
         ));
     }
+    let claim_policy = resolve_claim_policy(&store, sync, no_sync)?;
     if no_worktree {
-        worktree::claim_no_worktree(&store, &id, &ident)?;
+        worktree::claim_no_worktree(&store, &id, &ident, claim_policy)?;
         println!("claimed {id} (no worktree)");
     } else {
-        let path = worktree::create_worktree(&store, &id, &ident)?;
+        let path = worktree::create_worktree(&store, &id, &ident, claim_policy)?;
         let task = store.load_task(&id)?;
         if let Ok(results) = plugin::run_plugin_push(&store, &task) {
             let _ = plugin::apply_push_response(&store, &id, &results);
@@ -30,6 +38,20 @@ pub fn cmd_claim(id: String, identity: Option<String>, no_worktree: bool) -> Res
         println!("{}", path.display());
     }
     Ok(())
+}
+
+fn resolve_claim_policy(store: &Store, sync: bool, no_sync: bool) -> Result<ClaimPolicy> {
+    let cli = match (sync, no_sync) {
+        (true, false) => SyncOverride::Sync,
+        (false, true) => SyncOverride::NoSync,
+        _ => SyncOverride::Unset,
+    };
+    let repo_default = store
+        .load_config()
+        .map(|c| c.require_remote_on_claim)
+        .unwrap_or(false);
+    let local = LocalConfig::load(store)?;
+    Ok(policy::resolve(repo_default, local.as_ref(), cli))
 }
 
 pub fn cmd_review(id: String, message: Option<String>, identity: Option<String>) -> Result<()> {

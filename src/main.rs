@@ -131,7 +131,9 @@ fn main() {
         } => commands::cmd_list(status, priority, normalize_opt(parent), tag, all, json),
         Command::Show { id, json, verbose } => commands::cmd_show(normalize_id(id), json, verbose),
         Command::Ready { json, no_fetch, limit } => commands::cmd_ready(json, no_fetch, limit),
-        Command::Claim { id, identity, no_worktree } => commands::cmd_claim(normalize_id(id), identity, no_worktree),
+        Command::Claim { id, identity, no_worktree, sync, no_sync } => {
+            commands::cmd_claim(normalize_id(id), identity, no_worktree, sync, no_sync)
+        }
         Command::Review { id, message, identity } => {
             commands::cmd_review(normalize_id(id), message, identity)
         }
