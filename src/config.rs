@@ -23,6 +23,15 @@ pub struct Config {
     pub worktree_dir: String,
     #[serde(default)]
     pub protected_main: bool,
+    /// When true, `bl claim` must round-trip the claim commit through
+    /// `origin/balls/tasks` before the worktree is created. Closes the
+    /// claim-race window between offline agents at the cost of requiring
+    /// network during claim. Off by default; flipped on at the repo
+    /// level by maintainers of multi-swarm projects. Per-clone override
+    /// via `.balls/local/config.json`; per-invocation override via
+    /// `--sync` / `--no-sync`.
+    #[serde(default)]
+    pub require_remote_on_claim: bool,
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
 }
@@ -40,6 +49,7 @@ impl Default for Config {
             auto_fetch_on_ready: true,
             worktree_dir: ".balls-worktrees".to_string(),
             protected_main: false,
+            require_remote_on_claim: false,
             plugins: BTreeMap::new(),
         }
     }

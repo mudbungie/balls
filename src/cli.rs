@@ -103,6 +103,16 @@ pub enum Command {
         /// Claim without creating a git worktree (status flip only).
         #[arg(long)]
         no_worktree: bool,
+        /// Force a remote round-trip on this claim. Overrides repo
+        /// and per-clone config. Closes the offline-agent claim race
+        /// at the cost of requiring network.
+        #[arg(long, conflicts_with = "no_sync")]
+        sync: bool,
+        /// Skip any configured remote round-trip on this claim. Lets
+        /// you claim offline against a repo whose maintainer set
+        /// `require_remote_on_claim`.
+        #[arg(long, conflicts_with = "sync")]
+        no_sync: bool,
     },
 
     /// Submit work for review: merge to main, keep worktree for rework.

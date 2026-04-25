@@ -45,7 +45,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
 | `bl show TASK_ID` [`--json`] [`--verbose`] | Task details, including `delivered_in` sha after review. |
 | `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
-| `bl claim TASK_ID` [`--no-worktree`] | Start work: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). |
+| `bl claim TASK_ID` [`--no-worktree`] [`--sync`/`--no-sync`] | Start work: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). `--sync` forces a remote round-trip on this claim (closes the offline-agent claim-race window); `--no-sync` skips one even if the repo's `require_remote_on_claim` is on. |
 | `bl review TASK_ID -m "msg"` | Squash to main, set status=review. Worktree stays. The task id is auto-appended to the subject — do **not** include `[bl-xxxx]` in your `-m`. In no-git mode, status flip only. |
 | `bl close TASK_ID -m "msg"` | Finish: archive task, remove worktree + branch. **Repo root only.** In no-git mode, archives file directly. |
 | `bl update TASK_ID status=in_progress --note "..."` | Multi-agent reject path: bounces a submitted task back to in_progress. |

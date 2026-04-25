@@ -745,6 +745,7 @@ Committed to main, shared across the team.
   "id_length": 4,
   "stale_threshold_seconds": 60,
   "auto_fetch_on_ready": true,
+  "require_remote_on_claim": false,
   "worktree_dir": ".balls-worktrees",
   "tasks_dir": null,
   "plugins": {
@@ -762,6 +763,7 @@ Committed to main, shared across the team.
 | `id_length` | Hex chars in generated task IDs. Clamped to `[4, 32]` on load; out-of-range values produce a warning and fall back to 4. |
 | `stale_threshold_seconds` | `bl ready` auto-fetches if the last fetch is older than this. |
 | `auto_fetch_on_ready` | Whether `bl ready` auto-fetches at all. |
+| `require_remote_on_claim` | When true, `bl claim` round-trips the claim commit through `origin/balls/tasks` before creating the worktree. Closes the offline-agent claim race; off by default. Per-clone override: `.balls/local/config.json` (gitignored) with `{"require_remote_on_claim": false}`. Per-invocation override: `bl claim --sync` / `--no-sync`. The remote is reachability-probed up front; if unreachable, the claim fails loudly rather than silently falling back to local-only. |
 | `worktree_dir` | Where `bl claim` creates worktrees. Must be a relative path under the repo; values containing `..` or starting with `/` are rejected on load. |
 | `tasks_dir` | *(removed in 0.3.4)* Stealth-mode task storage is controlled via `bl init --stealth [--tasks-dir PATH]` and persisted in `.balls/local/tasks_dir`, not in the committed config. Older configs that carry this field are unaffected — it was never read. |
 | `plugins` | Per-plugin enable/sync flags and config file paths. |

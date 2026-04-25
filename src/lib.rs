@@ -17,6 +17,7 @@
 //! }
 //! ```
 
+pub mod claim_sync;
 pub mod commit_msg;
 pub mod config;
 pub mod delivery;
@@ -26,6 +27,7 @@ pub mod git;
 pub mod git_state;
 pub mod link;
 pub mod plugin;
+pub mod policy;
 pub mod progress;
 pub mod ready;
 pub mod render_list;
@@ -37,6 +39,7 @@ pub mod review;
 pub mod store;
 mod store_init;
 mod store_paths;
+pub mod sync_resolve;
 pub mod task;
 pub mod task_io;
 pub mod task_type;
