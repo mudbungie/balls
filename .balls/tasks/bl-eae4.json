@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-25T22:10:03.668405686Z",
+  "delivered_in": null,
+  "depends_on": ["bl-26de"],
+  "description": "bl-2148 implemented the propose -> push -> detect-non-FF -> fetch -> resolve_conflict -> retry loop inline in the claim path. Extract that loop into a reusable Negotiation<P: Protocol> primitive parameterized over the wire protocol.\n\n## Goals\n\n- Same observable behavior for git-remote claim sync. This is a refactor, not a feature.\n- The primitive is the artifact future participants instantiate.\n- The git-remote Protocol implementation is the canonical reference and must remain the production code path post-refactor (no parallel old/new branches).\n\n## Shape (to be settled by bl-26de SPEC, sketched here)\n\n- Protocol trait: propose, detect_conflict, fetch_remote_view, retry budget.\n- resolve_conflict() generalizes from Task<->Task to Task<->RemoteView via a projection supplied by the protocol.\n- Failure policy is a parameter, not a hardcode: required (Err on exhaustion), best-effort (Ok(Skipped)), gating (Ok(Staged)).\n\n## Tests\n\nThe existing claim-side sync tests must continue to pass unchanged. Add primitive-level tests that exercise the loop directly with a synthetic Protocol impl: happy path, conflict + merge + retry success, conflict + merge + retry exhaustion, unreachable remote.",
+  "external": {},
+  "id": "bl-eae4",
+  "links": [],
+  "parent": "bl-b7fb",
+  "priority": 2,
+  "status": "open",
+  "tags": ["refactor","sync","lifecycle"],
+  "title": "Extract lifecycle-sync negotiation primitive",
+  "type": "task",
+  "updated_at": "2026-04-25T22:10:03.668405686Z"
+}
