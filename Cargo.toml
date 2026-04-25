@@ -1,6 +1,6 @@
 [package]
 name = "balls"
-version = "0.3.8"
+version = "0.3.9"
 edition = "2021"
 description = "Git-native task tracker for parallel agent workflows"
 license = "MIT"
