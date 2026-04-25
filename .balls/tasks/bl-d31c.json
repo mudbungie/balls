@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:09:50.814682578Z",
-  "delivered_in": null,
+  "delivered_in": "96085ab30029699fd21c46f175e40d3f7403d0c0",
   "depends_on": [],
   "description": "Add a #[serde(flatten)] extra: BTreeMap<String, Value> catch-all to the Task struct (and any sibling types serialized to the state branch) so mixed-version bl clients reading state-branch commits round-trip unknown fields rather than silently dropping them.\n\n## Why now (independent of bl-b7fb)\n\nbl-2148 just shipped: state-branch commits are now actively pushed to remotes and consumed by other machines. Until this lands, any future field added by a newer bl is at risk of being silently dropped on the next save by an older client. That's data loss, and it is no longer hypothetical.\n\nThis is filed under bl-b7fb because every subsequent child of that epic adds new fields somewhere in the schema (config-side mostly, but the safety net should be in place first). It is also independently useful and should not block on the SPEC.\n\n## Scope\n\n- Task struct (src/task.rs) gains an `extra` catch-all.\n- Audit other state-branch-serialized types (links, deps, claim records) for the same exposure; add catch-alls where the type can grow.\n- Tests: round-trip a Task with synthetic future-version unknown fields; write-then-read across a simulated version mismatch (older serializer must preserve fields written by newer); ensure existing equality / display logic is unaffected by the presence of extra entries.\n\n## Out of scope\n\n- New fields themselves. This is purely the safety net.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["compat","sync"],
   "title": "Forward-compat Task deserializer with extra-field catch-all",
   "type": "task",
-  "updated_at": "2026-04-25T22:33:36.858438728Z"
+  "updated_at": "2026-04-25T22:49:06.253078456Z"
 }
