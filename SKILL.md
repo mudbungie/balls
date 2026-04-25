@@ -229,7 +229,17 @@ Before claiming anything from `bl ready`, run `bl show <id>` and look at the `li
 
 When driving `bl` from a script or another agent, treat the following as the machine contract. Everything else in this doc is for humans reading task state — the contract below is what a loop can rely on.
 
-**Machine-parseable stdout.** These commands accept `--json` and print a single JSON document to stdout (stderr is diagnostics only): `bl prime`, `bl ready`, `bl list`, `bl show`. Prefer `--json` over parsing the table output.
+**Machine-parseable stdout.** These commands accept `--json` and print a single JSON document to stdout (stderr is diagnostics only). Prefer `--json` over parsing the table output. Shapes differ by command:
+
+| Command | Top-level shape |
+|---|---|
+| `bl prime --json` | object: `{identity, claimed, claimed_status, ready}` — `claimed` and `ready` are arrays of task objects |
+| `bl ready --json` | bare array of task objects |
+| `bl list --json` | bare array of task objects |
+| `bl show ID --json` | object: `{task, children, closed_children, completion, dep_blocked, delivered_in_resolved, delivered_in_hint_stale}` — the task itself is under `task` |
+| `bl dep tree --json` | bare array of root nodes, each with nested `children` |
+
+Don't assume a `ready` key on `bl ready --json` just because `bl prime --json` has one — `bl ready` is a bare array. Iterate the top level directly.
 
 **Commands that print a single token on success.** Capture stdout directly:
 
