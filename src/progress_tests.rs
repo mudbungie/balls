@@ -36,6 +36,7 @@ fn counts_unions_archived_and_closed_live_children() {
         id: "a1".into(),
         title: "archived".into(),
         closed_at: Utc::now(),
+        extra: std::collections::BTreeMap::new(),
     });
     let c_closed = mk("cc", Status::Closed, Some("p"));
     let c_open = mk("co", Status::Open, Some("p"));

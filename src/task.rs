@@ -6,9 +6,10 @@ use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use std::fmt;
 
-// `LinkType`/`Link` and `TaskType` live in their own modules to keep
-// this file under the 300-line cap. Re-exported here for call sites
-// that import from `balls::task`.
+// `LinkType`/`Link`, `TaskType`, and `ArchivedChild` live in their
+// own modules to keep this file under the 300-line cap. Re-exported
+// here for call sites that import from `balls::task`.
+pub use crate::archived_child::ArchivedChild;
 pub use crate::link::{Link, LinkType};
 pub use crate::task_type::TaskType;
 
@@ -107,13 +108,6 @@ pub struct Note {
     /// the `Task::extra` doc for the full rationale.
     #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: BTreeMap<String, Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ArchivedChild {
-    pub id: String,
-    pub title: String,
-    pub closed_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

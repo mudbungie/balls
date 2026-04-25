@@ -5,6 +5,8 @@
 
 use crate::error::{BallError, Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// Typed relationship kinds between tasks.
@@ -79,11 +81,31 @@ impl<'de> Deserialize<'de> for LinkType {
 }
 
 /// Typed relationship between two tasks.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+///
+/// Equality and `Vec::contains` deliberately consider only `link_type`
+/// and `target`: two link records pointing at the same target with the
+/// same type are "the same relationship" regardless of metadata a
+/// future `bl` may attach via `extra`. This keeps `link_add` /
+/// `link_rm` semantics stable when an older client edits a task whose
+/// links carry forward-compat fields it doesn't recognize.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Link {
     pub link_type: LinkType,
     pub target: String,
+    /// Forward-compat passthrough. See `Task::extra` for the rationale.
+    /// Kept out of `PartialEq` so unknown fields never split a link
+    /// into "same target, different metadata" duplicates.
+    #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: BTreeMap<String, Value>,
 }
+
+impl PartialEq for Link {
+    fn eq(&self, other: &Self) -> bool {
+        self.link_type == other.link_type && self.target == other.target
+    }
+}
+
+impl Eq for Link {}
 
 #[cfg(test)]
 mod tests {
@@ -158,21 +180,63 @@ mod tests {
         assert_eq!(s, "\"from_the_future\"");
     }
 
+    fn mk(lt: LinkType, target: &str) -> Link {
+        Link { link_type: lt, target: target.into(), extra: BTreeMap::new() }
+    }
+
     #[test]
     fn link_equality() {
-        let a = Link { link_type: LinkType::RelatesTo, target: "bl-x".into() };
-        let b = Link { link_type: LinkType::RelatesTo, target: "bl-x".into() };
-        let c = Link { link_type: LinkType::Duplicates, target: "bl-x".into() };
+        let a = mk(LinkType::RelatesTo, "bl-x");
+        let b = mk(LinkType::RelatesTo, "bl-x");
+        let c = mk(LinkType::Duplicates, "bl-x");
         assert_eq!(a, b);
         assert_ne!(a, c);
     }
 
     #[test]
+    fn link_equality_ignores_extra() {
+        // A future bl may attach metadata to a link via the
+        // forward-compat `extra` map. `link_add` / `link_rm` and the
+        // `Vec::contains` check that drives them must continue to treat
+        // two links with the same type+target as the same link, or an
+        // older client editing the task would silently duplicate them.
+        let mut a = mk(LinkType::Gates, "bl-y");
+        let b = mk(LinkType::Gates, "bl-y");
+        a.extra.insert("added_by".into(), serde_json::json!("alice"));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn link_unknown_field_round_trips() {
+        // Forward-compat: a Link JSON written by a future bl with an
+        // unknown sibling field must deserialize into `extra` and
+        // re-serialize unchanged.
+        let raw = r#"{"link_type":"gates","target":"bl-z","added_by":"alice"}"#;
+        let l: Link = serde_json::from_str(raw).unwrap();
+        assert_eq!(l.link_type, LinkType::Gates);
+        assert_eq!(l.target, "bl-z");
+        assert_eq!(
+            l.extra.get("added_by").and_then(|v| v.as_str()),
+            Some("alice"),
+        );
+        let s = serde_json::to_string(&l).unwrap();
+        assert!(s.contains("\"added_by\":\"alice\""));
+    }
+
+    #[test]
+    fn link_empty_extra_is_omitted_on_save() {
+        // Round-trip safety: a link with no extras must serialize to
+        // exactly the same shape as before this field existed, so older
+        // tasks on disk see no diff churn just from a load+save cycle.
+        let l = mk(LinkType::RelatesTo, "bl-w");
+        let s = serde_json::to_string(&l).unwrap();
+        assert!(!s.contains("extra"));
+        assert_eq!(s, r#"{"link_type":"relates_to","target":"bl-w"}"#);
+    }
+
+    #[test]
     fn gates_link_serializes_as_plain_string() {
-        let link = Link {
-            link_type: LinkType::Gates,
-            target: "bl-child".into(),
-        };
+        let link = mk(LinkType::Gates, "bl-child");
         let s = serde_json::to_string(&link).unwrap();
         assert!(s.contains("\"gates\""));
         assert!(s.contains("\"bl-child\""));
