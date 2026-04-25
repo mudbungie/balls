@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.9](https://github.com/mudbungie/balls/compare/v0.3.8...v0.3.9) - 2026-04-25
+
+### Changes
+
+- prime --json: route 'sync complete' to stderr [bl-f0b8]
+- document JSON shape per --json command [bl-59fd]
+- warn when sibling deliveries overlap your file footprint [bl-89e0]
+- accept --as for identity override [bl-6f1a]
+- surface main-ahead count for each claimed task [bl-23b0]
+- task types: free-form identifier labels [bl-091d]
+- dep tree: dotted sibling annotation on non-root rows [bl-368a]
+- guide agents on when to claim gate targets [bl-dfa6]
+- install `balls` symlink alongside `bl` [bl-e28f]
+- --forget-half-push retracts stale half-push warnings [bl-e446]
+
 ### Changes
 
 - `bl repair --forget-half-push <id>` and `--forget-all-half-pushes` retract stale half-push warnings via a `state: forget-half-push <id>` marker commit on the state branch [bl-e446]
