@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-25T22:10:14.895494238Z",
+  "delivered_in": null,
+  "depends_on": ["bl-eae4"],
+  "description": "Define the Participant trait and land git-remote sync as its canonical implementation, exercising the bl-eae4 negotiation primitive.\n\n## Trait surface (per bl-26de SPEC)\n\nA Participant declares:\n- Event subscriptions: which lifecycle events it participates in (claim, review, close, sync, on-update).\n- Field projection: which Task fields it owns authoritatively, which it reads, the merge semantics over the overlap.\n- Failure policy: required / best-effort / gating, per event, defaultable.\n- Protocol implementation: the wire layer the negotiation primitive drives.\n\n## Reference implementation: git-remote\n\nThe state-branch sync (bl-2148) becomes the canonical Participant. After this ball lands, the claim-side sync code path goes through Participant -> Negotiation rather than the inlined loop bl-2148 introduced.\n\n## Out of scope for this ball\n\n- Existing balls-plugin-{name} subprocess plugins are NOT yet rewired. They keep firing through the legacy dispatcher in commands/lifecycle.rs. The shim that bridges them onto Participants is a separate ball (next).\n- Review/close lifecycle hooks are a separate ball.\n- New plugin protocol features (declarative projection, conflict reporting) are a separate ball.\n\n## Tests\n\nEnd-to-end claim sync tests continue to pass. New tests cover the trait surface with a fake Participant: subscription dispatch, projection-restricted merge, failure-policy branching.",
+  "external": {},
+  "id": "bl-1ea6",
+  "links": [],
+  "parent": "bl-b7fb",
+  "priority": 2,
+  "status": "open",
+  "tags": ["plugins","lifecycle"],
+  "title": "Participant contract and git-remote reference implementation",
+  "type": "task",
+  "updated_at": "2026-04-25T22:10:14.895494238Z"
+}
