@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-25T02:03:13.906311029Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "The skill's \"Scripting with bl\" section says bl prime/ready/list/show all accept --json and print \"a single JSON document to stdout\", but does not document what *shape* each one returns. Shapes are inconsistent:\n\n- bl prime --json  → object: {identity, claimed, claimed_status, ready}\n- bl ready --json  → bare array\n- bl list  --json  → bare array\n- bl show ID --json → object (per-task)\n\nThis caused at least one agent to write `data['ready']` against `bl ready --json` output (a bare list), having seen the `ready` key inside `bl prime --json`. TypeError, traceback, dead loop iteration.\n\nFix: add a small table or per-command lines to the \"Scripting with bl\" section in src/skill.md showing top-level JSON shape (object with which keys, vs. bare array of task objects) for each --json command. Should be terse — a couple of lines per command, in line with the existing \"single token on success\" table.\n\nRelated but separate: bl-f0b8 fixes the prime --json stdout leak. This task is the doc-only side and is independently useful even after that fix lands.",
+  "external": {},
+  "id": "bl-59fd",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": [],
+  "title": "skill: document JSON shape per --json command",
+  "type": "task",
+  "updated_at": "2026-04-25T02:03:13.906311029Z"
+}
