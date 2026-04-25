@@ -96,6 +96,7 @@ fn gates_badge_non_gates_link_empty() {
     t.links = vec![Link {
         link_type: LinkType::RelatesTo,
         target: "bl-x".into(),
+        extra: std::collections::BTreeMap::new(),
     }];
     assert_eq!(Display::styled().gates_badge(&t, &[]), "");
 }
@@ -106,6 +107,7 @@ fn gates_badge_closed_target_empty() {
     t.links = vec![Link {
         link_type: LinkType::Gates,
         target: "bl-g".into(),
+        extra: std::collections::BTreeMap::new(),
     }];
     let mut g = make_task("bl-g");
     g.status = Status::Closed;
@@ -118,6 +120,7 @@ fn gates_badge_open_target_renders_both_flavors() {
     t.links = vec![Link {
         link_type: LinkType::Gates,
         target: "bl-g".into(),
+        extra: std::collections::BTreeMap::new(),
     }];
     let all = vec![make_task("bl-g")]; // Open
     assert_eq!(Display::plain().gates_badge(&t, &all), "G");
