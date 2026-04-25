@@ -31,8 +31,9 @@ fn prime_json_shape() {
         .output()
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    let json_start = s.find('{').unwrap();
-    let v: serde_json::Value = serde_json::from_str(&s[json_start..]).unwrap();
+    // Stdout must be a single JSON document so `bl prime --json | jq` works.
+    let v: serde_json::Value =
+        serde_json::from_str(s.trim()).expect("stdout must be pure JSON");
     assert_eq!(v["identity"], "agent");
     assert!(v["ready"].is_array());
     assert!(v["claimed"].is_array());
@@ -87,6 +88,27 @@ fn prime_warns_when_main_advanced_since_claim() {
 }
 
 #[test]
+fn prime_json_stdout_has_no_leakage() {
+    // Regression: cmd_sync used to println!("sync complete"), corrupting
+    // stdout for `bl prime --json | jq` consumers. The line belongs on
+    // stderr.
+    let repo = new_repo();
+    init_in(repo.path());
+    create_task(repo.path(), "one");
+    let out = bl_as(repo.path(), "agent")
+        .args(["prime", "--json"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        !stdout.contains("sync complete"),
+        "'sync complete' must not appear on stdout:\n{stdout}"
+    );
+    serde_json::from_str::<serde_json::Value>(stdout.trim())
+        .expect("stdout must be pure JSON");
+}
+
+#[test]
 fn prime_json_includes_claimed_status() {
     let repo = new_repo();
     init_in(repo.path());
@@ -105,8 +127,7 @@ fn prime_json_includes_claimed_status() {
         .output()
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    let json_start = s.find('{').unwrap();
-    let v: serde_json::Value = serde_json::from_str(&s[json_start..]).unwrap();
+    let v: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
     let status = v["claimed_status"].as_array().expect("claimed_status array");
     assert_eq!(status.len(), 1);
     assert_eq!(status[0]["id"], id);
@@ -135,8 +156,7 @@ fn prime_skips_indicators_for_no_worktree_claim() {
         .output()
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
-    let json_start = s.find('{').unwrap();
-    let v: serde_json::Value = serde_json::from_str(&s[json_start..]).unwrap();
+    let v: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
     let status = &v["claimed_status"][0];
     assert_eq!(status["main_ahead"], 0);
     assert_eq!(status["overlap_files"].as_array().unwrap().len(), 0);
@@ -176,8 +196,7 @@ fn prime_warns_when_main_overlaps_work_files() {
         .output()
         .unwrap();
     let j = String::from_utf8_lossy(&out.stdout).to_string();
-    let json_start = j.find('{').unwrap();
-    let v: serde_json::Value = serde_json::from_str(&j[json_start..]).unwrap();
+    let v: serde_json::Value = serde_json::from_str(j.trim()).unwrap();
     let files = v["claimed_status"][0]["overlap_files"]
         .as_array()
         .expect("overlap_files array");
