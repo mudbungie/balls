@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-59fd",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T02:03:13.906311029Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "skill: document JSON shape per --json command",
   "type": "task",
-  "updated_at": "2026-04-25T02:03:13.906311029Z"
+  "updated_at": "2026-04-25T02:06:23.864476116Z"
 }
