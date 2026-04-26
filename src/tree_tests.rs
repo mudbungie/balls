@@ -199,6 +199,7 @@ fn format_line_gates_parent_unicode() {
     parent.links.push(Link {
         link_type: LinkType::Gates,
         target: "c".into(),
+        extra: std::collections::BTreeMap::new(),
     });
     let child = mk("c", Some("p"));
     let tasks = vec![parent, child];
@@ -213,6 +214,7 @@ fn format_line_gates_parent_ascii_when_plain() {
     parent.links.push(Link {
         link_type: LinkType::Gates,
         target: "c".into(),
+        extra: std::collections::BTreeMap::new(),
     });
     let child = mk("c", Some("p"));
     let tasks = vec![parent, child];
@@ -244,6 +246,7 @@ fn format_line_no_gates_annotation_when_parent_link_targets_other() {
     parent.links.push(Link {
         link_type: LinkType::Gates,
         target: "other".into(),
+        extra: std::collections::BTreeMap::new(),
     });
     let child = mk("c", Some("p"));
     let tasks = vec![parent, child];

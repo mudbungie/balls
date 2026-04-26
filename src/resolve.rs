@@ -260,10 +260,10 @@ mod tests {
     fn links_union() {
         use crate::task::{Link, LinkType};
         let mut ours = base("a");
-        ours.links = vec![Link { link_type: LinkType::RelatesTo, target: "x".into() }];
+        ours.links = vec![Link { link_type: LinkType::RelatesTo, target: "x".into(), extra: std::collections::BTreeMap::new() }];
         ours.updated_at = Utc::now();
         let mut theirs = base("a");
-        theirs.links = vec![Link { link_type: LinkType::Duplicates, target: "y".into() }];
+        theirs.links = vec![Link { link_type: LinkType::Duplicates, target: "y".into(), extra: std::collections::BTreeMap::new() }];
         theirs.updated_at = Utc::now() - Duration::hours(1);
         let merged = resolve_conflict(&ours, &theirs);
         assert_eq!(merged.links.len(), 2);
