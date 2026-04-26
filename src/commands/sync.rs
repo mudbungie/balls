@@ -6,7 +6,7 @@ use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::store::Store;
 use balls::task::{Status, Task};
-use balls::{git, plugin, ready, resolve, worktree};
+use balls::{git, plugin, policy, ready, resolve, sync_resolve, worktree};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -70,37 +70,8 @@ fn fetch_merge_resolve_at(dir: &Path, remote: &str, remote_branch: &str) -> Resu
     let _ = git::git_fetch(dir, remote);
     // Remote branch may not exist yet (first push); ignore that error.
     if let Ok(git::MergeResult::Conflict) = git::git_merge(dir, remote_branch) {
-        auto_resolve_conflicts_at(dir)?;
+        sync_resolve::auto_resolve_task_conflicts(dir)?;
         git::git_commit(dir, "state: auto-resolve sync conflicts")?;
-    }
-    Ok(())
-}
-
-fn auto_resolve_conflicts_at(dir: &Path) -> Result<()> {
-    for path in git::git_list_conflicted_files(dir)? {
-        let rel = path.strip_prefix(dir).unwrap_or(&path);
-        let rel_str = rel.to_string_lossy();
-        let rel_p = Path::new(&*rel_str).to_path_buf();
-        let is_task = rel_str.starts_with(".balls/tasks/") && rel_str.ends_with(".json");
-        let is_notes = rel_str.ends_with(".notes.jsonl");
-        if !is_task && !is_notes {
-            return Err(BallError::Conflict(format!(
-                "unhandled conflict in {}",
-                path.display()
-            )));
-        }
-        if is_notes {
-            // merge=union handles modify/modify; only delete/modify
-            // reaches here, with the surviving side's content already
-            // in the working tree. Stage as-is.
-            git::git_add(dir, &[rel_p.as_path()])?;
-            continue;
-        }
-        let content = fs::read_to_string(&path)?;
-        let (ours, theirs) = resolve::parse_conflict_markers(&content)?;
-        let merged = resolve::resolve_conflict(&ours, &theirs);
-        merged.save(&path)?;
-        git::git_add(dir, &[rel_p.as_path()])?;
     }
     Ok(())
 }
@@ -121,6 +92,8 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
 
     // Try to sync; ignore failure
     let _ = cmd_sync("origin".to_string(), None);
+
+    notify_claim_policy(&store);
 
     let tasks = store.all_tasks()?;
     let ready_tasks = ready::ready_queue(&tasks);
@@ -183,6 +156,21 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
     }
     println!("===");
     Ok(())
+}
+
+/// One-time hint when a new clone first sees a remote-set
+/// `require_remote_on_claim`. Uses the resolved policy with no CLI
+/// override (prime isn't a claim — it's just the bootstrap moment to
+/// show the policy).
+fn notify_claim_policy(store: &Store) {
+    let Ok(cfg) = store.load_config() else { return };
+    let local = policy::LocalConfig::load(store).ok().flatten();
+    let resolved = policy::resolve(
+        cfg.require_remote_on_claim,
+        local.as_ref(),
+        policy::SyncOverride::Unset,
+    );
+    policy::notify_repo_default_once(store, resolved);
 }
 
 pub fn cmd_repair(

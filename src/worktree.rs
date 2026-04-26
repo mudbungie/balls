@@ -3,9 +3,10 @@
 //! files under the 300-line cap.
 
 use crate::error::{BallError, Result};
+use crate::policy::ClaimPolicy;
 use crate::store::{task_lock, Store};
 use crate::task::{self, Status};
-use crate::git;
+use crate::{claim_sync, git};
 use std::{fs, path::PathBuf};
 
 pub(crate) fn with_task_lock<T>(
@@ -38,7 +39,12 @@ pub(crate) fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
     Ok(store.worktrees_root()?.join(id))
 }
 
-pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBuf> {
+pub fn create_worktree(
+    store: &Store,
+    id: &str,
+    identity: &str,
+    policy: ClaimPolicy,
+) -> Result<PathBuf> {
     // Quick existence check (no lock needed).
     if !store.task_exists(id) {
         return Err(BallError::TaskNotFound(id.to_string()));
@@ -81,6 +87,10 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
         store.save_task(&task)?;
         store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
 
+        if policy.require_remote && !store.stealth {
+            sync_or_rollback(store, id, identity)?;
+        }
+
         if let Some(parent) = wt_path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -92,6 +102,25 @@ pub fn create_worktree(store: &Store, id: &str, identity: &str) -> Result<PathBu
         write_claim_file(store, id, identity)?;
         Ok(wt_path.clone())
     })
+}
+
+/// Push the freshly-committed claim through `origin/balls/tasks`. On
+/// any failure — push rejected with our claim losing the merge,
+/// remote unreachable, or other git error — roll the local claim back
+/// so the task returns to `open` and surface a clear error.
+fn sync_or_rollback(store: &Store, id: &str, identity: &str) -> Result<()> {
+    match claim_sync::push_claim(store, id, identity) {
+        Ok(claim_sync::SyncedClaimResult::Pushed) => Ok(()),
+        Ok(claim_sync::SyncedClaimResult::Lost { winner }) => {
+            // The merge already landed the winner's claim on disk; do
+            // NOT rollback (that would clobber their state). Just fail.
+            Err(BallError::AlreadyClaimed(format!("{id} (won by {winner})")))
+        }
+        Err(e) => {
+            let _ = rollback_claim(store, id);
+            Err(e)
+        }
+    }
 }
 
 fn link_shared_state(store: &Store, wt_path: &std::path::Path) -> Result<()> {
@@ -140,7 +169,12 @@ fn rollback_claim(store: &Store, id: &str) -> Result<()> {
 /// Claim without creating a git worktree: validate, flip status, write
 /// the claim file. Used in no-git mode or when the caller explicitly
 /// passes --no-worktree.
-pub fn claim_no_worktree(store: &Store, id: &str, identity: &str) -> Result<()> {
+pub fn claim_no_worktree(
+    store: &Store,
+    id: &str,
+    identity: &str,
+    policy: ClaimPolicy,
+) -> Result<()> {
     if !store.task_exists(id) {
         return Err(BallError::TaskNotFound(id.to_string()));
     }
@@ -161,6 +195,9 @@ pub fn claim_no_worktree(store: &Store, id: &str, identity: &str) -> Result<()> 
         task.touch();
         store.save_task(&task)?;
         store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
+        if policy.require_remote && !store.stealth {
+            sync_or_rollback(store, id, identity)?;
+        }
         write_claim_file(store, id, identity)?;
         Ok(())
     })
@@ -242,56 +279,5 @@ pub fn cleanup_orphans(store: &Store) -> Result<(Vec<String>, Vec<String>)> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn link_state_path_creates_symlink_in_empty_dir() {
-        let td = tempdir().unwrap();
-        let dst = td.path().join("local");
-        link_state_path(PathBuf::from("/source/dir"), &dst).unwrap();
-        assert!(dst.is_symlink());
-        assert_eq!(fs::read_link(&dst).unwrap(), PathBuf::from("/source/dir"));
-    }
-
-    #[test]
-    fn link_state_path_idempotent_on_existing_symlink() {
-        let td = tempdir().unwrap();
-        let dst = td.path().join("local");
-        std::os::unix::fs::symlink(PathBuf::from("/already/there"), &dst).unwrap();
-        link_state_path(PathBuf::from("/something/else"), &dst).unwrap();
-        assert_eq!(fs::read_link(&dst).unwrap(), PathBuf::from("/already/there"));
-    }
-
-    #[test]
-    fn link_state_path_rejects_pre_existing_regular_file() {
-        let td = tempdir().unwrap();
-        let dst = td.path().join("local");
-        fs::write(&dst, "hostile").unwrap();
-        let err = link_state_path(PathBuf::from("/x"), &dst).unwrap_err();
-        assert!(matches!(err, BallError::Other(ref s) if s.contains("non-symlink")));
-        assert!(!dst.is_symlink());
-    }
-
-    #[test]
-    fn link_state_path_rejects_pre_existing_directory() {
-        let td = tempdir().unwrap();
-        let dst = td.path().join("local");
-        fs::create_dir(&dst).unwrap();
-        let err = link_state_path(PathBuf::from("/x"), &dst).unwrap_err();
-        assert!(matches!(err, BallError::Other(_)));
-    }
-
-    #[test]
-    fn link_state_path_idempotent_on_dangling_symlink() {
-        // A dangling symlink is still a symlink; we accept it as
-        // idempotent rather than overwriting, matching the strict
-        // is_symlink-first semantics of ensure_tasks_symlink.
-        let td = tempdir().unwrap();
-        let dst = td.path().join("local");
-        std::os::unix::fs::symlink(PathBuf::from("/does/not/exist"), &dst).unwrap();
-        link_state_path(PathBuf::from("/replacement"), &dst).unwrap();
-        assert_eq!(fs::read_link(&dst).unwrap(), PathBuf::from("/does/not/exist"));
-    }
-}
+#[path = "worktree_tests.rs"]
+mod tests;
