@@ -27,6 +27,7 @@ pub mod error;
 pub mod git;
 pub mod git_state;
 pub mod link;
+pub mod negotiation;
 pub mod plugin;
 pub mod policy;
 pub mod progress;

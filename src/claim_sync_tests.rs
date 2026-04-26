@@ -1,7 +1,14 @@
+//! Wire-classification tests for the git-remote `Protocol` impl.
+//! The retry-loop state machine is covered in `negotiation_tests.rs`
+//! against a synthetic Protocol, so this file only exercises the
+//! git-stderr classifier and the `is_unreachable` marker set.
+
 use super::*;
-use std::cell::RefCell;
+use crate::negotiation::Protocol;
+use crate::task::{NewTaskOpts, Task};
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
+use tempfile::tempdir;
 
 fn out(success: bool, stderr: &str) -> Output {
     Output {
@@ -13,27 +20,27 @@ fn out(success: bool, stderr: &str) -> Output {
 
 #[test]
 fn classify_success() {
-    assert_eq!(classify_push_output(&out(true, "")), PushClass::Ok);
+    assert_eq!(classify_push_output(&out(true, "")), AttemptClass::Ok);
 }
 
 #[test]
 fn classify_non_ff_rejected() {
     let s = "! [rejected] balls/tasks -> balls/tasks (non-fast-forward)";
-    assert_eq!(classify_push_output(&out(false, s)), PushClass::Rejected);
+    assert_eq!(classify_push_output(&out(false, s)), AttemptClass::Conflict);
 }
 
 #[test]
 fn classify_fetch_first_rejected() {
     let s = "! [rejected] (fetch first)";
-    assert_eq!(classify_push_output(&out(false, s)), PushClass::Rejected);
+    assert_eq!(classify_push_output(&out(false, s)), AttemptClass::Conflict);
 }
 
 #[test]
 fn classify_bracket_rejected_alone() {
-    // Hit the third arm of the OR: stderr has "rejected" + "[rejected]"
+    // Hits the third arm of the OR: stderr has "rejected" + "[rejected]"
     // but neither "non-fast-forward" nor "fetch first".
     let s = "warning: failed; rejected with [rejected] tag";
-    assert_eq!(classify_push_output(&out(false, s)), PushClass::Rejected);
+    assert_eq!(classify_push_output(&out(false, s)), AttemptClass::Conflict);
 }
 
 #[test]
@@ -41,7 +48,7 @@ fn classify_unreachable_dns() {
     let s = "fatal: Could not resolve hostname github.com";
     assert!(matches!(
         classify_push_output(&out(false, s)),
-        PushClass::Unreachable(_)
+        AttemptClass::Unreachable(_)
     ));
 }
 
@@ -50,7 +57,7 @@ fn classify_unreachable_repo_not_found() {
     let s = "ERROR: Repository not found.";
     assert!(matches!(
         classify_push_output(&out(false, s)),
-        PushClass::Unreachable(_)
+        AttemptClass::Unreachable(_)
     ));
 }
 
@@ -59,7 +66,7 @@ fn classify_other_falls_through() {
     let s = "fatal: weird unexpected error from git";
     assert!(matches!(
         classify_push_output(&out(false, s)),
-        PushClass::Other(_)
+        AttemptClass::Other(_)
     ));
 }
 
@@ -71,146 +78,42 @@ fn is_unreachable_recognises_common_markers() {
     assert!(!is_unreachable("totally fine"));
 }
 
-// ---- run_push_loop state-machine coverage ----
-
-#[allow(clippy::unnecessary_wraps)]
-fn ok_merge() -> Result<()> { Ok(()) }
-
-#[test]
-fn loop_first_push_ok_returns_pushed() {
-    let r = run_push_loop(
-        "alice",
-        3,
-        || Ok(PushClass::Ok),
-        ok_merge,
-        || Ok(Some("alice".into())),
+/// Stand up a stealth, no-git Store with a single task whose
+/// `claimed_by` is `claimer`. Stealth+no-git skips the state-branch
+/// machinery so `post_merge` can be exercised without a real remote.
+fn stealth_store_with_task(claimer: &str) -> (tempfile::TempDir, Store, String) {
+    let td = tempdir().unwrap();
+    let tasks_dir = td.path().join("tasks");
+    let store = Store::init(
+        td.path(),
+        true,
+        Some(tasks_dir.to_string_lossy().into_owned()),
     )
     .unwrap();
-    assert_eq!(r, SyncedClaimResult::Pushed);
+    let mut task = Task::new(NewTaskOpts { title: "t".into(), ..Default::default() }, "bl-7e57".into());
+    task.claimed_by = Some(claimer.into());
+    store.save_task(&task).unwrap();
+    (td, store, "bl-7e57".into())
 }
 
 #[test]
-fn loop_rejected_then_ok_retries() {
-    let calls = RefCell::new(0usize);
-    let push = || {
-        let mut c = calls.borrow_mut();
-        *c += 1;
-        if *c == 1 { Ok(PushClass::Rejected) } else { Ok(PushClass::Ok) }
-    };
-    let r = run_push_loop(
-        "alice",
-        5,
-        push,
-        ok_merge,
-        || Ok(Some("alice".into())),
-    )
-    .unwrap();
-    assert_eq!(r, SyncedClaimResult::Pushed);
-    assert_eq!(*calls.borrow(), 2);
+fn post_merge_returns_none_when_we_still_own_claim() {
+    let (_td, store, id) = stealth_store_with_task("alice");
+    let mut p = GitRemoteClaimProtocol::new(&store, &id, "alice");
+    assert!(p.post_merge().unwrap().is_none());
 }
 
 #[test]
-fn loop_lost_when_merge_replaces_claimer() {
-    let calls = RefCell::new(0usize);
-    let push = || {
-        *calls.borrow_mut() += 1;
-        Ok(PushClass::Rejected)
-    };
-    let r = run_push_loop(
-        "alice",
-        5,
-        push,
-        ok_merge,
-        || Ok(Some("bob".into())),
-    )
-    .unwrap();
-    assert_eq!(r, SyncedClaimResult::Lost { winner: "bob".into() });
-    // One rejected push, then a best-effort post-merge push.
-    assert_eq!(*calls.borrow(), 2);
-}
-
-#[test]
-fn loop_lost_with_no_claimer_uses_unknown() {
-    let r = run_push_loop(
-        "alice",
-        5,
-        || Ok(PushClass::Rejected),
-        ok_merge,
-        || Ok(None),
-    )
-    .unwrap();
-    assert_eq!(r, SyncedClaimResult::Lost { winner: "(unknown)".into() });
-}
-
-#[test]
-fn loop_unreachable_mid_flight_errors() {
-    let err = run_push_loop(
-        "alice",
-        3,
-        || Ok(PushClass::Unreachable("net down".into())),
-        ok_merge,
-        || Ok(Some("alice".into())),
-    )
-    .unwrap_err();
-    let msg = format!("{err}");
-    assert!(msg.contains("net down"), "msg: {msg}");
-}
-
-#[test]
-fn loop_other_push_failure_errors() {
-    let err = run_push_loop(
-        "alice",
-        3,
-        || Ok(PushClass::Other("weird".into())),
-        ok_merge,
-        || Ok(Some("alice".into())),
-    )
-    .unwrap_err();
-    let msg = format!("{err}");
-    assert!(msg.contains("weird"), "msg: {msg}");
-}
-
-#[test]
-fn loop_max_retries_exhausted() {
-    let calls = RefCell::new(0usize);
-    let push = || {
-        *calls.borrow_mut() += 1;
-        Ok(PushClass::Rejected)
-    };
-    let err = run_push_loop(
-        "alice",
-        3,
-        push,
-        ok_merge,
-        || Ok(Some("alice".into())),
-    )
-    .unwrap_err();
-    assert!(format!("{err}").contains("gave up"));
-    assert_eq!(*calls.borrow(), 3);
-}
-
-#[test]
-fn loop_propagates_push_error() {
-    let err = run_push_loop(
-        "alice",
-        3,
-        || Err(BallError::Other("spawn failed".into())),
-        ok_merge,
-        || Ok(Some("alice".into())),
-    )
-    .unwrap_err();
-    assert!(format!("{err}").contains("spawn"));
-}
-
-#[test]
-fn loop_propagates_merge_error() {
-    let err = run_push_loop(
-        "alice",
-        3,
-        || Ok(PushClass::Rejected),
-        || Err(BallError::Conflict("unresolvable".into())),
-        || Ok(Some("alice".into())),
-    )
-    .unwrap_err();
-    assert!(format!("{err}").contains("unresolvable"));
+fn post_merge_returns_lost_with_unknown_winner_when_claim_cleared() {
+    // Claimer field empty (someone else's merge cleared it) -> Lost
+    // with the "(unknown)" placeholder. Push attempted best-effort;
+    // it'll fail in this no-git fixture, which is the path we want
+    // to exercise.
+    let (_td, store, id) = stealth_store_with_task("");
+    let mut task = store.load_task(&id).unwrap();
+    task.claimed_by = None;
+    store.save_task(&task).unwrap();
+    let mut p = GitRemoteClaimProtocol::new(&store, &id, "alice");
+    let outcome = p.post_merge().unwrap().unwrap();
+    assert_eq!(outcome, SyncedClaimResult::Lost { winner: "(unknown)".into() });
 }
