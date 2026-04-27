@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-04-27T20:19:36.790794954Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Document a portable recipe for assigning a unique per-session identity (e.g. shuf from /usr/share/dict/words) via the agent harness. LLMs picking names themselves collapse to the same handful (we've seen three Junipers); claim collisions and confusing logs follow. Add a short tip near the BALLS_IDENTITY entry pointing at the SessionStart-hook pattern (Claude Code as one example, but the recipe is portable to any harness that can inject env vars or context at session start).",
+  "external": {},
+  "id": "bl-90a1",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": [],
+  "title": "README: recommend SessionStart-style hook for unique BALLS_IDENTITY",
+  "type": "task",
+  "updated_at": "2026-04-27T20:19:36.790794954Z"
+}
