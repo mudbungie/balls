@@ -17,9 +17,8 @@
 
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::negotiation::{
-    AttemptClass, FailurePolicy, Negotiation, Protocol,
-};
+use crate::negotiation::{AttemptClass, FailurePolicy, Protocol};
+use crate::participant::{self, Event, EventCtx, Participant, Projection};
 use crate::store::Store;
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -142,9 +141,83 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
     }
 }
 
+/// The git origin remote as a SPEC §5 `Participant`. Carries no wire
+/// state itself — the per-event `Protocol` (today: claim only) owns
+/// state for one negotiation. Subscriptions reflect what's wired in
+/// this ball; review/close arrive with bl-2bf7, sync with the
+/// rerouting of the standalone sync command.
+pub struct GitRemoteParticipant {
+    projection: Projection,
+    subscriptions: Vec<Event>,
+}
+
+impl GitRemoteParticipant {
+    /// The git-remote subscribes to `claim` whenever the caller
+    /// dispatches it; the caller's policy resolution (require-remote
+    /// and non-stealth) decides whether to dispatch. Failure on claim
+    /// is `Required` — the rollback semantics in `worktree.rs` depend
+    /// on the negotiation surfacing the failure as `Err`.
+    pub fn for_claim() -> Self {
+        Self {
+            projection: Projection::full(),
+            subscriptions: vec![Event::Claim],
+        }
+    }
+}
+
+impl Default for GitRemoteParticipant {
+    fn default() -> Self {
+        Self::for_claim()
+    }
+}
+
+impl Participant for GitRemoteParticipant {
+    type Outcome = SyncedClaimResult;
+    type Protocol<'a>
+        = GitRemoteClaimProtocol<'a>
+    where
+        Self: 'a;
+
+    fn name(&self) -> &'static str {
+        "git-remote"
+    }
+
+    fn subscriptions(&self) -> &[Event] {
+        &self.subscriptions
+    }
+
+    fn projection(&self) -> &Projection {
+        &self.projection
+    }
+
+    fn failure_policy(&self, event: Event) -> FailurePolicy {
+        match event {
+            Event::Claim => FailurePolicy::Required,
+            _ => FailurePolicy::BestEffort,
+        }
+    }
+
+    fn protocol<'a>(
+        &'a self,
+        event: Event,
+        ctx: EventCtx<'a>,
+    ) -> Option<Self::Protocol<'a>> {
+        match event {
+            Event::Claim => Some(GitRemoteClaimProtocol::new(
+                ctx.store,
+                ctx.task_id,
+                ctx.identity,
+            )),
+            _ => None,
+        }
+    }
+}
+
 /// Push the freshly-committed claim through `origin/balls/tasks`.
 /// Caller has already (a) committed the claim locally on the state
-/// branch and (b) released no locks that the merge step needs.
+/// branch and (b) released no locks that the merge step needs. The
+/// negotiation runs through the SPEC §5 `Participant` surface so the
+/// claim path shares one set of semantics with future participants.
 pub fn push_claim(
     store: &Store,
     task_id: &str,
@@ -156,9 +229,9 @@ pub fn push_claim(
             "claim --sync: cannot reach remote `{REMOTE}` (fetch failed)"
         )));
     }
-    let protocol = GitRemoteClaimProtocol::new(store, task_id, identity);
-    Negotiation::new(protocol, FailurePolicy::Required)
-        .run_strict()
+    let participant = GitRemoteParticipant::for_claim();
+    let ctx = EventCtx { event: Event::Claim, store, task_id, identity };
+    participant::run_strict(&participant, Event::Claim, ctx)
         .map_err(|e| BallError::Other(format!("claim --sync: {e}")))
 }
 

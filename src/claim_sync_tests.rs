@@ -117,3 +117,56 @@ fn post_merge_returns_lost_with_unknown_winner_when_claim_cleared() {
     let outcome = p.post_merge().unwrap().unwrap();
     assert_eq!(outcome, SyncedClaimResult::Lost { winner: "(unknown)".into() });
 }
+
+// --- GitRemoteParticipant trait surface -------------------------------
+//
+// End-to-end claim-side wiring is exercised by `tests/claim_sync.rs`
+// against a real remote. Here we cover the participant metadata and
+// the per-event branches that a Claim-only integration test cannot
+// reach (events the participant explicitly does not yet wire).
+
+use crate::participant::{Event, Participant, Projection};
+
+#[test]
+fn participant_advertises_git_remote_name_and_full_projection() {
+    let p = GitRemoteParticipant::for_claim();
+    assert_eq!(p.name(), "git-remote");
+    assert_eq!(p.subscriptions(), &[Event::Claim]);
+    assert_eq!(*p.projection(), Projection::full());
+}
+
+#[test]
+fn participant_default_matches_for_claim() {
+    let a = GitRemoteParticipant::default();
+    let b = GitRemoteParticipant::for_claim();
+    assert_eq!(a.subscriptions(), b.subscriptions());
+    assert_eq!(*a.projection(), *b.projection());
+}
+
+#[test]
+fn participant_failure_policy_is_required_only_on_claim() {
+    let p = GitRemoteParticipant::for_claim();
+    assert_eq!(p.failure_policy(Event::Claim), FailurePolicy::Required);
+    // Non-claim events fall through to BestEffort. bl-2bf7 wires
+    // review/close per-event policy from config; until then the
+    // participant just declares the safe default.
+    for e in [Event::Review, Event::Close, Event::Update, Event::Sync] {
+        assert_eq!(p.failure_policy(e), FailurePolicy::BestEffort);
+    }
+}
+
+#[test]
+fn participant_protocol_is_some_only_for_claim() {
+    let (_td, store, id) = stealth_store_with_task("alice");
+    let p = GitRemoteParticipant::for_claim();
+    let mk = |event| crate::participant::EventCtx {
+        event,
+        store: &store,
+        task_id: &id,
+        identity: "alice",
+    };
+    assert!(p.protocol(Event::Claim, mk(Event::Claim)).is_some());
+    for e in [Event::Review, Event::Close, Event::Update, Event::Sync] {
+        assert!(p.protocol(e, mk(e)).is_none());
+    }
+}
