@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-90a1",
+  "claimed_by": "Invalidity",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-27T20:19:36.790794954Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "README: recommend SessionStart-style hook for unique BALLS_IDENTITY",
   "type": "task",
-  "updated_at": "2026-04-27T20:19:36.790794954Z"
+  "updated_at": "2026-04-27T20:19:39.825154104Z"
 }
