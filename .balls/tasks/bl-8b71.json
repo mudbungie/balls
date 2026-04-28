@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:11:10.386796259Z",
-  "delivered_in": null,
+  "delivered_in": "1df8d9556319862741b262e23c4cda06fc264004",
   "depends_on": ["bl-b1dd","bl-50c5"],
   "description": "New plugin subcommands that let a plugin declare its field projection and merge function rather than fire-and-forget push/sync. Plugins implementing the native protocol get full participation in the negotiation primitive: conflict reporting, retry, required-failure semantics, projection-restricted merge.\n\n## Subcommand sketch (settled by bl-26de SPEC)\n\n- describe: returns the plugin's field projection (owned vs read fields) and event subscriptions. Replaces the implicit \"everything in task.external.{name}\" projection of the legacy shim.\n- propose: given a Task, returns the plugin's authoritative remote view for negotiation. The negotiation primitive composes this with the local Task via projection-restricted merge.\n- merge (optional): plugin-side three-way merge for conflicts the core's resolve_conflict can't settle. Defaults to core merge over the projection if absent.\n- conflict: returned when the plugin sees a remote-side change that conflicts with the local proposal; the negotiation primitive retries.\n\n## Coexistence with legacy plugins\n\nA plugin that ships native subcommands opts into the new protocol. A plugin that ships only push/sync continues working through the bl-b1dd shim. The two are mutually exclusive at the plugin level; bl detects which contract a plugin implements (e.g. via describe presence).\n\n## Why this is opt-in, not a migration\n\nLegacy plugins are a fine model for one-way sync (PushResponse into task.external is enough for \"mirror state somewhere else\"). The native protocol is for plugins that need bidirectional sync with conflict semantics. Operators choose per-plugin which model fits their tracker.\n\n## Tests\n\n- A native plugin participates in a successful negotiation, contributing a remote view; merged Task has both sides' contributions per the projection.\n- A native plugin reports a conflict; negotiation primitive retries; second attempt converges.\n- Mixed config: one legacy plugin and one native plugin, both subscribed to the same event, dispatch in stable order with independent failure policies.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["plugins"],
   "title": "Native participant protocol: declarative projection and merge",
   "type": "task",
-  "updated_at": "2026-04-28T04:02:44.802288733Z"
+  "updated_at": "2026-04-28T04:49:13.979383023Z"
 }
