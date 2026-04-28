@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.10](https://github.com/mudbungie/balls/compare/v0.3.9...v0.3.10) - 2026-04-28
+
+### Changes
+
+- native participant protocol [bl-8b71] [bl-8b71]
+- stage plugin sync reports for review [bl-a46d]
+- state-branch sync on review and close [bl-2bf7]
+- commit policy on negotiation outcome [bl-4e7d]
+- per-event participant policy with layered resolution [bl-50c5]
+- shim legacy push/sync onto participant contract [bl-b1dd]
+- trait + git-remote reference impl [bl-1ea6]
+- tip on unique BALLS_IDENTITY per session [bl-90a1]
+- frame worktree as the unit of work [bl-4c99]
+- extract propose-merge-retry primitive [bl-eae4]
+- forward-compat catch-all on Link and ArchivedChild [bl-d31c]
+- lifecycle-sync participant model [bl-26de]
+- optional remote-sync for global ordering [bl-2148]
+- warn that bl review auto-appends task id [bl-01d7]
+
 ### Changes
 
 - `bl claim` learns optional remote-sync: with `require_remote_on_claim` set in `.balls/config.json` (or per-clone `.balls/local/config.json`, or per-invocation `--sync`/`--no-sync`), the claim commit must round-trip through `origin/balls/tasks` before the worktree is created. Closes the offline-agent claim race; off by default. Push rejects auto-resolve via the existing field-level merge — earliest-`updated_at` wins, lost claims fail loudly. `bl prime` shows a one-time hint when a clone first sees a remote-set policy. [bl-2148]
