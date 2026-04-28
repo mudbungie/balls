@@ -185,6 +185,22 @@ pub enum Command {
         /// Sync a single task by local ID or remote key.
         #[arg(long)]
         task: Option<String>,
+        /// Stage every plugin sync report for human review under
+        /// `.balls/local/pending-sync/sync/` instead of applying it.
+        /// Use `--apply <id>` or `--discard <id>` to act on a staged
+        /// entry afterward.
+        #[arg(long, conflicts_with_all = ["apply", "discard", "list_staged"])]
+        review: bool,
+        /// Apply a previously staged sync report by id and remove the
+        /// staged file.
+        #[arg(long, value_name = "ID", conflicts_with_all = ["discard", "list_staged"])]
+        apply: Option<String>,
+        /// Drop a staged sync report without applying it.
+        #[arg(long, value_name = "ID", conflicts_with = "list_staged")]
+        discard: Option<String>,
+        /// List staged sync reports awaiting review.
+        #[arg(long)]
+        list_staged: bool,
     },
 
     /// Merge a task file with git conflict markers using balls' field-level rules. Rarely needed — `bl sync` runs this automatically.

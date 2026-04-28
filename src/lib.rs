@@ -27,6 +27,7 @@ pub mod display;
 pub mod error;
 pub mod git;
 pub mod git_state;
+pub mod human_gate;
 pub mod link;
 pub mod negotiation;
 pub mod participant;

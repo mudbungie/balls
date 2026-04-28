@@ -2,6 +2,7 @@
 
 use super::half_push::{detect_half_push, write_forget_half_push};
 use super::sync_report::apply_sync_report;
+use super::sync_review;
 use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::store::Store;
@@ -10,13 +11,41 @@ use balls::{git, plugin, policy, ready, resolve, sync_resolve, worktree};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub fn cmd_sync(remote: String, task_filter: Option<String>) -> Result<()> {
+/// Arguments for `bl sync` and its staged-review variants. The struct
+/// keeps the signature flat while letting `main.rs` thread CLI flags
+/// through one bundle.
+pub struct SyncArgs {
+    pub remote: String,
+    pub task: Option<String>,
+    pub review: bool,
+    pub apply: Option<String>,
+    pub discard: Option<String>,
+    pub list_staged: bool,
+}
+
+pub fn cmd_sync(args: SyncArgs) -> Result<()> {
+    if let Some(id) = args.apply {
+        return sync_review::apply_staged(&id);
+    }
+    if let Some(id) = args.discard {
+        return sync_review::discard_staged(&id);
+    }
+    if args.list_staged {
+        return sync_review::list_staged();
+    }
+    if args.review {
+        return sync_review::stage_sync_event(&args.remote, args.task.as_deref());
+    }
+    cmd_sync_run(&args.remote, args.task.as_deref())
+}
+
+fn cmd_sync_run(remote: &str, task_filter: Option<&str>) -> Result<()> {
     let store = discover()?;
-    if !store.no_git && git::git_has_remote(&store.root, &remote) {
-        sync_with_remote(&store, &remote)?;
+    if !store.no_git && git::git_has_remote(&store.root, remote) {
+        sync_with_remote(&store, remote)?;
     }
     let ident = default_identity();
-    match plugin::dispatch_sync(&store, task_filter.as_deref(), &ident) {
+    match plugin::dispatch_sync(&store, task_filter, &ident) {
         Ok(reports) => {
             for (plugin_name, report) in reports {
                 apply_sync_report(&store, &plugin_name, &report);
@@ -92,7 +121,14 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
     let ident = identity.unwrap_or_else(default_identity);
 
     // Try to sync; ignore failure
-    let _ = cmd_sync("origin".to_string(), None);
+    let _ = cmd_sync(SyncArgs {
+        remote: "origin".to_string(),
+        task: None,
+        review: false,
+        apply: None,
+        discard: None,
+        list_staged: false,
+    });
 
     notify_claim_policy(&store);
 

@@ -726,6 +726,19 @@ Push ordering matters: state branch goes first so that if the sync is interrupte
 
 **By hand:** see SPEC §11. The shell sequence is two `git -C .balls/worktree push origin balls/tasks` plus a `git push origin main`, with `git fetch` and `git merge` between as needed.
 
+#### Human-gate review (`--review`, `--apply`, `--discard`)
+
+Plugin sync reports normally apply immediately; that is fine when the operator trusts the plugin to do the right thing on every push. When you want a chance to look first, run `bl sync --review`: each plugin's `SyncReport` is written to `.balls/local/pending-sync/sync/<id>.json` instead of being applied. State-branch sync is suppressed in this mode — the gate is a pre-apply hold, not a remote round-trip.
+
+```
+bl sync --review                 # stage; nothing committed
+bl sync --list-staged            # one line per pending entry
+bl sync --apply <id>             # replay the staged report through the normal path
+bl sync --discard <id>           # drop the staged file, no commit
+```
+
+Staged files are local-only and gitignored under `.balls/local/`. They survive across invocations until you apply or discard them. Applying re-uses the same `apply_sync_report` path as live sync, so per-item warnings (unknown task ids, malformed updates) behave identically.
+
 ### bl prime [--as IDENTITY]
 
 Session bootstrap for agents. Runs `bl sync`, then outputs:
