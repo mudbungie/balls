@@ -4,6 +4,7 @@ use super::discover;
 use super::id_gen::generate_unique_id;
 use balls::display;
 use balls::error::{BallError, Result};
+use balls::participant::Event;
 use balls::plugin;
 use balls::ready;
 use balls::render_list;
@@ -68,9 +69,7 @@ pub fn cmd_create(
         store.commit_task(&id, &format!("balls: create {id} - {title}"))?;
     }
 
-    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
-        let _ = plugin::apply_push_response(&store, &id, &results);
-    }
+    let _ = plugin::dispatch_push(&store, &task, Event::Update, &super::default_identity());
 
     println!("{id}");
     Ok(())

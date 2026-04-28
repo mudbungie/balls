@@ -15,7 +15,8 @@ pub fn cmd_sync(remote: String, task_filter: Option<String>) -> Result<()> {
     if !store.no_git && git::git_has_remote(&store.root, &remote) {
         sync_with_remote(&store, &remote)?;
     }
-    match plugin::run_plugin_sync(&store, task_filter.as_deref()) {
+    let ident = default_identity();
+    match plugin::dispatch_sync(&store, task_filter.as_deref(), &ident) {
         Ok(reports) => {
             for (plugin_name, report) in reports {
                 apply_sync_report(&store, &plugin_name, &report);
