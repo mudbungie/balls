@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8b71",
+  "claimed_by": "Sarapes",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:11:10.386796259Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["plugins"],
   "title": "Native participant protocol: declarative projection and merge",
   "type": "task",
-  "updated_at": "2026-04-25T22:11:10.386796259Z"
+  "updated_at": "2026-04-28T04:02:44.802288733Z"
 }
