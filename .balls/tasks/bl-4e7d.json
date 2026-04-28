@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-4e7d",
+  "claimed_by": "Hardheaded",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:20:12.130792446Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["plugins","sync"],
   "title": "Plugin-controlled commit policy on negotiation outcome",
   "type": "task",
-  "updated_at": "2026-04-25T22:20:12.130792446Z"
+  "updated_at": "2026-04-28T02:14:40.365325770Z"
 }
