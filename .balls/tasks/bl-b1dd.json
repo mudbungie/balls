@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:10:53.164221627Z",
-  "delivered_in": null,
+  "delivered_in": "ffc29b092c3a3e851be999d6a2ddad6017ce435f",
   "depends_on": ["bl-1ea6"],
   "description": "Wrap existing balls-plugin-{name} push/sync subprocess plugins in an adapter that exposes them as Participants. Existing plugins must keep working unchanged after this ball lands; the lifecycle command paths in src/commands/lifecycle.rs route through the participant dispatcher rather than the ad-hoc plugin/mod.rs fan-out.\n\n## Adapter mapping (preserves today's observable behavior exactly)\n\n- Subscriptions: derived from sync_on_change. true => {claim, review, close, on-update, sync}; false => {sync} only. Matches today.\n- Projection: full task.external.{plugin_name} blob; opaque to the core, last-write-wins on the plugin's own slot.\n- Merge: trivial last-writer-wins on the plugin's external slot (no conflicting fields by construction).\n- Failure policy: best-effort for everything (matches today's swallow-and-warn). Diagnostics on FD 3 still flow.\n- Push semantics: PushResponse return value populates task.external.{name}; same commit message, same per-op commit cadence.\n\n## Removal of the old dispatcher\n\nsrc/plugin/mod.rs run_plugin_push and run_plugin_sync are removed; lifecycle.rs no longer calls them. All paths flow through Participants. There must be no parallel old/new dispatch.\n\n## Tests\n\nExisting plugin integration tests (push fires on claim/review/close/update, sync applies SyncReport) pass unchanged. Add a regression test confirming the legacy plugin is dispatched through the participant path (assert via instrumentation, not by reading internals).",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["plugins","compat"],
   "title": "Shim legacy push/sync plugins onto the participant contract",
   "type": "task",
-  "updated_at": "2026-04-28T01:29:20.301739753Z"
+  "updated_at": "2026-04-28T01:53:28.723831316Z"
 }
