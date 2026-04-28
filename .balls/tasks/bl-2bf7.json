@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:10:53.202300506Z",
-  "delivered_in": null,
+  "delivered_in": "6b2edfb97a1079db5f781c1d5c07def00a653839",
   "depends_on": ["bl-1ea6"],
   "description": "bl-2148 noted the same claim-time race exists on review and close, and flagged the parallel as a follow-up. With the participant primitive (bl-eae4) and trait (bl-1ea6) in place, generalize the bl-2148 lifecycle-sync semantics to those two transitions.\n\n## Scope\n\n- review and close go through the participant dispatcher and respect each subscribed participant's failure policy.\n- A required participant whose negotiation fails aborts the transition with a clear message (matching bl-2148's hard-fail-on-unreachable stance).\n- Best-effort participants warn and continue, preserving today's behavior for legacy plugins under the shim.\n\n## UX\n\nWhen a transition is aborted by a required participant's failure, the error message states which participant failed and why, and how to override (--no-sync per-invocation, or local config).\n\n## Tests\n\n- Happy path: review and close succeed when all subscribed participants succeed.\n- Required-fail: a required participant rejecting causes the transition to abort; state remains pre-transition.\n- Best-effort fail: a best-effort participant rejecting yields a warning; transition completes.\n- Concurrency: review against a remote that's been updated mid-flight retries via the negotiation primitive.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["lifecycle","sync"],
   "title": "Apply participant negotiation to review and close transitions",
   "type": "task",
-  "updated_at": "2026-04-28T02:13:31.998392744Z"
+  "updated_at": "2026-04-28T03:02:37.141099133Z"
 }
