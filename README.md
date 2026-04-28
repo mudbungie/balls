@@ -752,6 +752,8 @@ Committed to main, shared across the team.
   "stale_threshold_seconds": 60,
   "auto_fetch_on_ready": true,
   "require_remote_on_claim": false,
+  "require_remote_on_review": false,
+  "require_remote_on_close": false,
   "worktree_dir": ".balls-worktrees",
   "tasks_dir": null,
   "plugins": {
@@ -770,6 +772,8 @@ Committed to main, shared across the team.
 | `stale_threshold_seconds` | `bl ready` auto-fetches if the last fetch is older than this. |
 | `auto_fetch_on_ready` | Whether `bl ready` auto-fetches at all. |
 | `require_remote_on_claim` | When true, `bl claim` round-trips the claim commit through `origin/balls/tasks` before creating the worktree. Closes the offline-agent claim race; off by default. Per-clone override: `.balls/local/config.json` (gitignored) with `{"require_remote_on_claim": false}`. Per-invocation override: `bl claim --sync` / `--no-sync`. The remote is reachability-probed up front; if unreachable, the claim fails loudly rather than silently falling back to local-only. |
+| `require_remote_on_review` | When true, `bl review` pushes the state-branch review commit to `origin/balls/tasks` before the transition is considered complete. A required-policy failure rolls back the squash on main and the state-branch commit so the task stays observably in `in_progress`. Same precedence chain as `require_remote_on_claim`; per-invocation override `bl review --sync` / `--no-sync`. |
+| `require_remote_on_close` | When true, `bl close` pushes the state-branch archive commit to `origin/balls/tasks` before the worktree is torn down. A required-policy failure leaves the worktree, claim file, and task file in place for retry. Same precedence chain as the others; per-invocation override `bl close --sync` / `--no-sync`. |
 | `worktree_dir` | Where `bl claim` creates worktrees. Must be a relative path under the repo; values containing `..` or starting with `/` are rejected on load. |
 | `tasks_dir` | *(removed in 0.3.4)* Stealth-mode task storage is controlled via `bl init --stealth [--tasks-dir PATH]` and persisted in `.balls/local/tasks_dir`, not in the committed config. Older configs that carry this field are unaffected — it was never read. |
 | `plugins` | Per-plugin enable/sync flags and config file paths. |

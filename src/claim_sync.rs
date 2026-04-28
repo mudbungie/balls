@@ -1,19 +1,17 @@
-//! Git-remote `Protocol` impl for the claim path. Closes the
-//! claim-race window between offline agents by requiring the local
-//! claim commit on `balls/tasks` to land on the remote before the
-//! worktree is created. Race resolution: git's native CAS
-//! (non-fast-forward push rejection) drives a fetch +
-//! `resolve_conflict()` merge; whichever agent's `claimed_by`
-//! survives the field-level merge wins.
+//! Git-remote `Protocol` impl for state-branch lifecycle pushes.
 //!
-//! Wired in only when `ClaimPolicy::require_remote` is true. With it
-//! off, claims stay local-only — preserving the offline-and-solo
-//! workflow.
+//! bl-2148 introduced this wire for the claim path: local claim
+//! commit on `balls/tasks` must land on origin before the worktree
+//! is created, with non-fast-forward rejections driving a
+//! fetch + field-level merge + retry. bl-2bf7 generalizes it to
+//! review and close — same wire, same retry-merge loop, only
+//! `post_merge`'s claim-vs-lost ownership check is event-specific.
 //!
-//! The propose-merge-retry loop itself lives in
-//! `crate::negotiation`; this module supplies the wire-specific
-//! hooks and a thin `push_claim` wrapper that the worktree path
-//! calls.
+//! Wired in per event only when the corresponding
+//! `require_remote_on_<event>` policy is true; otherwise the event
+//! stays local-only. The propose-merge-retry primitive itself lives
+//! in `crate::negotiation`; this module supplies the wire hooks and
+//! `push_claim` / `push_state_for` wrappers.
 
 use crate::error::{BallError, Result};
 use crate::git;
@@ -85,10 +83,12 @@ pub enum SyncedClaimResult {
     Lost { winner: String },
 }
 
-/// `Protocol` implementation for the git-remote state-branch claim
-/// push. Owns the state-branch worktree path, the task id, and the
-/// caller's identity; the negotiation primitive sequences the hooks.
+/// `Protocol` implementation for the git-remote state-branch lifecycle
+/// push. One concrete struct serves every event because the wire is
+/// the same `git push origin balls/tasks` either way; the only
+/// branching is `post_merge`'s claim-only ownership check.
 pub struct GitRemoteClaimProtocol<'a> {
+    event: Event,
     store: &'a Store,
     task_id: &'a str,
     identity: &'a str,
@@ -96,9 +96,9 @@ pub struct GitRemoteClaimProtocol<'a> {
 }
 
 impl<'a> GitRemoteClaimProtocol<'a> {
-    pub fn new(store: &'a Store, task_id: &'a str, identity: &'a str) -> Self {
+    pub fn new(event: Event, store: &'a Store, task_id: &'a str, identity: &'a str) -> Self {
         let state_dir = store.state_worktree_dir();
-        Self { store, task_id, identity, state_dir }
+        Self { event, store, task_id, identity, state_dir }
     }
 }
 
@@ -114,12 +114,19 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
         let merge = git::git_merge(&self.state_dir, &format!("{REMOTE}/{STATE_BRANCH}"))?;
         if matches!(merge, git::MergeResult::Conflict) {
             crate::sync_resolve::auto_resolve_task_conflicts(&self.state_dir)?;
-            git::git_commit(&self.state_dir, "state: auto-resolve claim conflicts")?;
+            git::git_commit(&self.state_dir, "state: auto-resolve lifecycle conflicts")?;
         }
         Ok(())
     }
 
     fn post_merge(&mut self) -> Result<Option<SyncedClaimResult>> {
+        // Only the claim event has a "lost" semantics — the
+        // claim-race resolution turns the merge into a definitive
+        // win/lose outcome. Review and close just retry the push
+        // after the field-level merge resolves any divergence.
+        if self.event != Event::Claim {
+            return Ok(None);
+        }
         let claimer = self.store.load_task(self.task_id)?.claimed_by;
         if claimer.as_deref() == Some(self.identity) {
             return Ok(None);
@@ -142,25 +149,35 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
 }
 
 /// The git origin remote as a SPEC §5 `Participant`. Carries no wire
-/// state itself — the per-event `Protocol` (today: claim only) owns
-/// state for one negotiation. Subscriptions reflect what's wired in
-/// this ball; review/close arrive with bl-2bf7, sync with the
-/// rerouting of the standalone sync command.
+/// state itself — the per-event `Protocol` owns state for one
+/// negotiation. Subscriptions are caller-controlled: `for_claim()` is
+/// the bl-2148 shape (claim only); `for_lifecycle(events)` is the
+/// bl-2bf7 generalization for review and close. The caller's policy
+/// resolution (per-event `require_remote_on_*` plus non-stealth) is
+/// what decides whether to subscribe at all.
 pub struct GitRemoteParticipant {
     projection: Projection,
     subscriptions: Vec<Event>,
 }
 
 impl GitRemoteParticipant {
-    /// The git-remote subscribes to `claim` whenever the caller
-    /// dispatches it; the caller's policy resolution (require-remote
-    /// and non-stealth) decides whether to dispatch. Failure on claim
-    /// is `Required` — the rollback semantics in `worktree.rs` depend
-    /// on the negotiation surfacing the failure as `Err`.
+    /// Subscribe only to `claim`. Equivalent to
+    /// `for_lifecycle(&[Event::Claim])`; kept as a named constructor
+    /// because the bl-2148 call sites read more clearly that way.
     pub fn for_claim() -> Self {
+        Self::for_lifecycle(&[Event::Claim])
+    }
+
+    /// Subscribe to the supplied lifecycle events. Failure on any
+    /// subscribed event is `Required` — the rollback semantics in
+    /// the lifecycle paths depend on the negotiation surfacing the
+    /// failure as `Err`. Callers that want best-effort behavior
+    /// should not subscribe at all (i.e. don't construct the
+    /// participant for that event).
+    pub fn for_lifecycle(events: &[Event]) -> Self {
         Self {
             projection: Projection::full(),
-            subscriptions: vec![Event::Claim],
+            subscriptions: events.to_vec(),
         }
     }
 }
@@ -191,9 +208,16 @@ impl Participant for GitRemoteParticipant {
     }
 
     fn failure_policy(&self, event: Event) -> FailurePolicy {
-        match event {
-            Event::Claim => FailurePolicy::Required,
-            _ => FailurePolicy::BestEffort,
+        // Subscribed events are always Required: the call site only
+        // wires the participant when policy says the remote must
+        // succeed for this transition. Unsubscribed events never
+        // reach this method through `participant::run` (the
+        // subscription gate short-circuits first), so the fallback
+        // is just a safe answer.
+        if self.subscriptions.contains(&event) {
+            FailurePolicy::Required
+        } else {
+            FailurePolicy::BestEffort
         }
     }
 
@@ -203,11 +227,9 @@ impl Participant for GitRemoteParticipant {
         ctx: EventCtx<'a>,
     ) -> Option<Self::Protocol<'a>> {
         match event {
-            Event::Claim => Some(GitRemoteClaimProtocol::new(
-                ctx.store,
-                ctx.task_id,
-                ctx.identity,
-            )),
+            Event::Claim | Event::Review | Event::Close => Some(
+                GitRemoteClaimProtocol::new(event, ctx.store, ctx.task_id, ctx.identity),
+            ),
             _ => None,
         }
     }
@@ -223,16 +245,32 @@ pub fn push_claim(
     task_id: &str,
     identity: &str,
 ) -> Result<SyncedClaimResult> {
+    push_state_for(store, task_id, identity, Event::Claim, "claim --sync")
+}
+
+/// Push the freshly-committed state-branch transition for `event`
+/// through `origin/balls/tasks`. Required-policy generalization of
+/// `push_claim` for review and close: same wire, same retry-merge
+/// loop, same unreachable-aborts-loud stance. The `error_prefix`
+/// is folded into the `Err` message so callers don't all wrap the
+/// same way.
+pub fn push_state_for(
+    store: &Store,
+    task_id: &str,
+    identity: &str,
+    event: Event,
+    error_prefix: &str,
+) -> Result<SyncedClaimResult> {
     let state_dir = store.state_worktree_dir();
     if !git::git_fetch(&state_dir, REMOTE)? {
         return Err(BallError::Other(format!(
-            "claim --sync: cannot reach remote `{REMOTE}` (fetch failed)"
+            "{error_prefix}: cannot reach remote `{REMOTE}` (fetch failed)"
         )));
     }
-    let participant = GitRemoteParticipant::for_claim();
-    let ctx = EventCtx { event: Event::Claim, store, task_id, identity };
-    participant::run_strict(&participant, Event::Claim, ctx)
-        .map_err(|e| BallError::Other(format!("claim --sync: {e}")))
+    let participant = GitRemoteParticipant::for_lifecycle(&[event]);
+    let ctx = EventCtx { event, store, task_id, identity };
+    participant::run_strict(&participant, event, ctx)
+        .map_err(|e| BallError::Other(format!("{error_prefix}: {e}")))
 }
 
 #[cfg(test)]
