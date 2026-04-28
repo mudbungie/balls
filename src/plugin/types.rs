@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -8,7 +8,9 @@ use std::collections::BTreeMap;
 pub struct PushResponse(pub serde_json::Map<String, Value>);
 
 /// Full sync report returned by the plugin on stdout after `sync`.
-#[derive(Debug, Clone, Deserialize)]
+/// `Serialize` so the human-gate participant can stage a report under
+/// `.balls/local/pending-sync/` for later replay (bl-a46d).
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SyncReport {
     #[serde(default)]
     pub created: Vec<SyncCreate>,
@@ -19,7 +21,7 @@ pub struct SyncReport {
 }
 
 /// A new task to create locally, reported by plugin sync.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SyncCreate {
     pub title: String,
     #[serde(rename = "type", default = "default_task_type")]
@@ -37,7 +39,7 @@ pub struct SyncCreate {
 }
 
 /// Fields to update on an existing local task.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SyncUpdate {
     pub task_id: String,
     #[serde(default)]
@@ -48,7 +50,7 @@ pub struct SyncUpdate {
 }
 
 /// A local task to mark as deferred.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SyncDelete {
     pub task_id: String,
     #[serde(default)]
