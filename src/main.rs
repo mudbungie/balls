@@ -134,11 +134,11 @@ fn main() {
         Command::Claim { id, identity, no_worktree, sync, no_sync } => {
             commands::cmd_claim(normalize_id(id), identity, no_worktree, sync, no_sync)
         }
-        Command::Review { id, message, identity } => {
-            commands::cmd_review(normalize_id(id), message, identity)
+        Command::Review { id, message, identity, sync, no_sync } => {
+            commands::cmd_review(normalize_id(id), message, identity, sync, no_sync)
         }
-        Command::Close { id, message, identity } => {
-            commands::cmd_close(normalize_id(id), message, identity)
+        Command::Close { id, message, identity, sync, no_sync } => {
+            commands::cmd_close(normalize_id(id), message, identity, sync, no_sync)
         }
         Command::Drop { id, force } => commands::cmd_drop(normalize_id(id), force),
         Command::Update {

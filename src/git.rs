@@ -2,11 +2,9 @@ use crate::error::{BallError, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Env vars git reads to locate its repo/index. Balls always uses
-/// `current_dir` to say which repo to operate on, so any inherited
-/// values of these would bypass our intent (e.g., when bl runs
-/// inside a git hook, or when cargo test runs inside `git commit`'s
-/// pre-commit hook). Scrub them from every git child we spawn.
+/// Env vars git reads to locate its repo/index. We always pass the
+/// repo via `current_dir`, so inherited values of these would bypass
+/// our intent (e.g. inside a git hook). Scrub them on every spawn.
 pub(crate) const GIT_ENV_VARS: &[&str] = &[
     "GIT_DIR",
     "GIT_INDEX_FILE",
@@ -97,8 +95,8 @@ pub fn git_add_all(dir: &Path) -> Result<()> {
 }
 
 pub fn git_commit(dir: &Path, message: &str) -> Result<()> {
-    // Always commit during a merge (MERGE_HEAD exists), even if the index
-    // matches HEAD — we need the merge commit to record both parents.
+    // Always commit mid-merge — we need both parents recorded even
+    // when the index matches HEAD.
     if !has_staged_changes(dir)? && !is_merging(dir) {
         return Ok(());
     }
@@ -112,13 +110,11 @@ pub fn git_commit_empty(dir: &Path, msg: &str) -> Result<()> {
 }
 
 pub fn is_merging(dir: &Path) -> bool {
-    // In a linked worktree, MERGE_HEAD lives in that worktree's private
-    // admin dir (`.git/worktrees/<name>/`), not in the shared common
-    // dir. `git rev-parse --git-dir` returns the per-worktree admin
-    // dir, so MERGE_HEAD next to it is the right place to look.
+    // Linked worktrees keep MERGE_HEAD in the per-worktree admin dir
+    // (`.git/worktrees/<name>/`), not the shared common dir.
+    // `--git-dir` returns the per-worktree path.
     run_git_ok(dir, &["rev-parse", "--git-dir"]).is_ok_and(|s| {
-        let raw = s.trim();
-        let gd = PathBuf::from(raw);
+        let gd = PathBuf::from(s.trim());
         let abs = if gd.is_absolute() { gd } else { dir.join(gd) };
         abs.join("MERGE_HEAD").exists()
     })
@@ -182,8 +178,15 @@ pub fn git_push(dir: &Path, remote: &str, branch: &str) -> Result<()> {
     Ok(())
 }
 
-/// Resolve a ref to its full SHA. Used by the delivery-link path to
-/// capture the new main-branch HEAD right after a squash merge commit.
+/// `git reset --hard <revspec>` — used by lifecycle rollback paths
+/// to undo a transition's local commits when a required participant
+/// rejected the negotiation.
+pub fn git_reset_hard(dir: &Path, revspec: &str) -> Result<()> {
+    run_git_ok(dir, &["reset", "--hard", revspec])?;
+    Ok(())
+}
+
+/// Resolve a ref to its full SHA.
 pub fn git_resolve_sha(dir: &Path, refname: &str) -> Result<String> {
     Ok(run_git_ok(dir, &["rev-parse", refname])?.trim().to_string())
 }
@@ -197,7 +200,6 @@ pub fn git_commit_subject(dir: &Path, sha: &str) -> Option<String> {
 }
 
 /// True if `sha` is an ancestor of `branch` (reachable from its tip).
-/// `git merge-base --is-ancestor` exits 0 on yes, 1 on no.
 pub fn git_is_ancestor(dir: &Path, sha: &str, branch: &str) -> bool {
     let out = clean_git_command(dir)
         .args(["merge-base", "--is-ancestor", sha, branch])
@@ -266,7 +268,6 @@ pub fn git_has_any_commits(dir: &Path) -> bool {
 }
 
 pub fn git_init_commit(dir: &Path) -> Result<()> {
-    // Ensures there's at least one commit
     if git_has_any_commits(dir) {
         return Ok(());
     }
@@ -285,7 +286,6 @@ pub fn git_list_conflicted_files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 pub(crate) fn git_ensure_user(dir: &Path) -> Result<()> {
-    // In test environments we may need a user.email/user.name configured
     let email = run_git_ok(dir, &["config", "user.email"]).unwrap_or_default();
     if email.trim().is_empty() {
         run_git_ok(dir, &["config", "user.email", "balls@example.local"])?;

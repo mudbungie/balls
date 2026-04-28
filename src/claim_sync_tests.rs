@@ -99,7 +99,7 @@ fn stealth_store_with_task(claimer: &str) -> (tempfile::TempDir, Store, String) 
 #[test]
 fn post_merge_returns_none_when_we_still_own_claim() {
     let (_td, store, id) = stealth_store_with_task("alice");
-    let mut p = GitRemoteClaimProtocol::new(&store, &id, "alice");
+    let mut p = GitRemoteClaimProtocol::new(Event::Claim, &store, &id, "alice");
     assert!(p.post_merge().unwrap().is_none());
 }
 
@@ -113,9 +113,28 @@ fn post_merge_returns_lost_with_unknown_winner_when_claim_cleared() {
     let mut task = store.load_task(&id).unwrap();
     task.claimed_by = None;
     store.save_task(&task).unwrap();
-    let mut p = GitRemoteClaimProtocol::new(&store, &id, "alice");
+    let mut p = GitRemoteClaimProtocol::new(Event::Claim, &store, &id, "alice");
     let outcome = p.post_merge().unwrap().unwrap();
     assert_eq!(outcome, SyncedClaimResult::Lost { winner: "(unknown)".into() });
+}
+
+#[test]
+fn post_merge_skips_ownership_check_for_review_and_close() {
+    // bl-2bf7: review/close don't carry a "lost" outcome — once the
+    // field-level merge resolves any divergence, the loop just
+    // retries the push. `post_merge` must return None even when the
+    // local task no longer carries our identity in `claimed_by`.
+    let (_td, store, id) = stealth_store_with_task("");
+    let mut task = store.load_task(&id).unwrap();
+    task.claimed_by = None;
+    store.save_task(&task).unwrap();
+    for ev in [Event::Review, Event::Close] {
+        let mut p = GitRemoteClaimProtocol::new(ev, &store, &id, "alice");
+        assert!(
+            p.post_merge().unwrap().is_none(),
+            "{ev:?} post_merge should never short-circuit"
+        );
+    }
 }
 
 // --- GitRemoteParticipant trait surface -------------------------------
@@ -144,20 +163,27 @@ fn participant_default_matches_for_claim() {
 }
 
 #[test]
-fn participant_failure_policy_is_required_only_on_claim() {
+fn participant_failure_policy_required_for_subscribed_events() {
+    // The for_claim() shape stays Required-on-claim only.
     let p = GitRemoteParticipant::for_claim();
     assert_eq!(p.failure_policy(Event::Claim), FailurePolicy::Required);
-    // Non-claim events fall through to BestEffort. bl-2bf7 wires
-    // review/close per-event policy from config; until then the
-    // participant just declares the safe default.
     for e in [Event::Review, Event::Close, Event::Update, Event::Sync] {
         assert_eq!(p.failure_policy(e), FailurePolicy::BestEffort);
     }
+    // Lifecycle subscriptions get Required on every event in the
+    // declared set — the call site only constructs the participant
+    // when policy says the remote must succeed for that transition.
+    let p = GitRemoteParticipant::for_lifecycle(&[Event::Review, Event::Close]);
+    assert_eq!(p.failure_policy(Event::Review), FailurePolicy::Required);
+    assert_eq!(p.failure_policy(Event::Close), FailurePolicy::Required);
+    assert_eq!(p.failure_policy(Event::Claim), FailurePolicy::BestEffort);
 }
 
 #[test]
-fn participant_protocol_is_some_only_for_claim() {
+fn participant_protocol_is_some_for_lifecycle_events() {
     let (_td, store, id) = stealth_store_with_task("alice");
+    // for_claim() answers Some only on Claim — the bl-2148 surface
+    // is unchanged for callers that opted into claim-only.
     let p = GitRemoteParticipant::for_claim();
     let mk = |event| crate::participant::EventCtx {
         event,
@@ -166,7 +192,15 @@ fn participant_protocol_is_some_only_for_claim() {
         identity: "alice",
     };
     assert!(p.protocol(Event::Claim, mk(Event::Claim)).is_some());
-    for e in [Event::Review, Event::Close, Event::Update, Event::Sync] {
-        assert!(p.protocol(e, mk(e)).is_none());
+    // The protocol method itself answers Some for any state-branch
+    // lifecycle event regardless of subscription — `participant::run`
+    // gates on `subscriptions()` first, so this is never reached for
+    // events the participant didn't opt into. Update/Sync stay None
+    // because the wire (state-branch push) doesn't apply.
+    for e in [Event::Review, Event::Close] {
+        assert!(p.protocol(e, mk(e)).is_some(), "{e:?}");
+    }
+    for e in [Event::Update, Event::Sync] {
+        assert!(p.protocol(e, mk(e)).is_none(), "{e:?}");
     }
 }

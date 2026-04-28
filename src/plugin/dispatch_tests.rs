@@ -31,6 +31,8 @@ fn write_config(store: &Store, plugins: BTreeMap<String, PluginEntry>) {
         worktree_dir: ".balls-worktrees".into(),
         protected_main: false,
         require_remote_on_claim: false,
+        require_remote_on_review: false,
+        require_remote_on_close: false,
         plugins,
     };
     cfg.save(&store.config_path()).unwrap();
