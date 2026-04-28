@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2bf7",
+  "claimed_by": "Yokes",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:10:53.202300506Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["lifecycle","sync"],
   "title": "Apply participant negotiation to review and close transitions",
   "type": "task",
-  "updated_at": "2026-04-25T22:10:53.202300506Z"
+  "updated_at": "2026-04-28T02:13:31.998392744Z"
 }
