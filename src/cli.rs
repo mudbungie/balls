@@ -122,6 +122,14 @@ pub enum Command {
         message: Option<String>,
         #[arg(long = "as")]
         identity: Option<String>,
+        /// Force a remote round-trip on this review. Mirrors
+        /// `bl claim --sync`; flips the per-event sync policy on for
+        /// just this invocation.
+        #[arg(long, conflicts_with = "no_sync")]
+        sync: bool,
+        /// Skip any configured remote round-trip on this review.
+        #[arg(long, conflicts_with = "sync")]
+        no_sync: bool,
     },
 
     /// Close a reviewed task: archive and remove worktree. Must run from repo root.
@@ -131,6 +139,13 @@ pub enum Command {
         message: Option<String>,
         #[arg(long = "as")]
         identity: Option<String>,
+        /// Force a remote round-trip on this close. Mirrors
+        /// `bl claim --sync`.
+        #[arg(long, conflicts_with = "no_sync")]
+        sync: bool,
+        /// Skip any configured remote round-trip on this close.
+        #[arg(long, conflicts_with = "sync")]
+        no_sync: bool,
     },
 
     /// Drop a claim: reset task and remove worktree.
