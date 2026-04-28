@@ -54,13 +54,22 @@ fn resolve_claim_policy(store: &Store, sync: bool, no_sync: bool) -> Result<Clai
     Ok(policy::resolve(repo_default, local.as_ref(), cli))
 }
 
-pub fn cmd_review(id: String, message: Option<String>, identity: Option<String>) -> Result<()> {
+pub fn cmd_review(
+    id: String,
+    message: Option<String>,
+    identity: Option<String>,
+    sync: bool,
+    no_sync: bool,
+) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     if store.no_git {
         balls::review::review_no_git(&store, &id, message.as_deref(), &ident)?;
     } else {
-        balls::review::review_worktree(&store, &id, message.as_deref(), &ident)?;
+        let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
+        let repo = cfg.as_ref().is_some_and(|c| c.require_remote_on_review);
+        let policy = policy::resolve_review(repo, local.as_ref(), cli);
+        balls::review::review_worktree(&store, &id, message.as_deref(), &ident, policy)?;
     }
     let task = store.load_task(&id)?;
     let _ = plugin::dispatch_push(&store, &task, Event::Review, &ident);
@@ -68,13 +77,22 @@ pub fn cmd_review(id: String, message: Option<String>, identity: Option<String>)
     Ok(())
 }
 
-pub fn cmd_close(id: String, message: Option<String>, identity: Option<String>) -> Result<()> {
+pub fn cmd_close(
+    id: String,
+    message: Option<String>,
+    identity: Option<String>,
+    sync: bool,
+    no_sync: bool,
+) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     let task = if store.no_git {
         balls::review::close_no_git(&store, &id, message.as_deref(), &ident)?
     } else {
-        balls::review::close_worktree(&store, &id, message.as_deref(), &ident)?
+        let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
+        let repo = cfg.as_ref().is_some_and(|c| c.require_remote_on_close);
+        let policy = policy::resolve_close(repo, local.as_ref(), cli);
+        balls::review::close_worktree(&store, &id, message.as_deref(), &ident, policy)?
     };
     let _ = plugin::dispatch_push(&store, &task, Event::Close, &ident);
     println!("closed {id}");
@@ -82,6 +100,21 @@ pub fn cmd_close(id: String, message: Option<String>, identity: Option<String>) 
         println!("{}", store.root.display());
     }
     Ok(())
+}
+
+fn sync_inputs(
+    store: &Store,
+    sync: bool,
+    no_sync: bool,
+) -> Result<(SyncOverride, Option<balls::config::Config>, Option<LocalConfig>)> {
+    let cli = match (sync, no_sync) {
+        (true, false) => SyncOverride::Sync,
+        (false, true) => SyncOverride::NoSync,
+        _ => SyncOverride::Unset,
+    };
+    let cfg = store.load_config().ok();
+    let local = LocalConfig::load(store)?;
+    Ok((cli, cfg, local))
 }
 
 pub fn cmd_drop(id: String, force: bool) -> Result<()> {

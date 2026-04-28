@@ -19,6 +19,7 @@ pub struct PluginEntry {
     pub participant: Option<ParticipantConfig>,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub version: u32,
@@ -29,15 +30,18 @@ pub struct Config {
     pub worktree_dir: String,
     #[serde(default)]
     pub protected_main: bool,
-    /// When true, `bl claim` must round-trip the claim commit through
-    /// `origin/balls/tasks` before the worktree is created. Closes the
-    /// claim-race window between offline agents at the cost of requiring
-    /// network during claim. Off by default; flipped on at the repo
-    /// level by maintainers of multi-swarm projects. Per-clone override
+    /// When true, `bl claim` round-trips the claim commit through
+    /// `origin/balls/tasks` before creating the worktree. Closes the
+    /// offline-agent claim race; off by default. Per-clone override
     /// via `.balls/local/config.json`; per-invocation override via
-    /// `--sync` / `--no-sync`.
+    /// `bl claim --sync` / `--no-sync`. Same precedence chain for
+    /// the review/close variants below.
     #[serde(default)]
     pub require_remote_on_claim: bool,
+    #[serde(default)]
+    pub require_remote_on_review: bool,
+    #[serde(default)]
+    pub require_remote_on_close: bool,
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
 }
@@ -56,6 +60,8 @@ impl Default for Config {
             worktree_dir: ".balls-worktrees".to_string(),
             protected_main: false,
             require_remote_on_claim: false,
+            require_remote_on_review: false,
+            require_remote_on_close: false,
             plugins: BTreeMap::new(),
         }
     }

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changes
 
 - `bl claim` learns optional remote-sync: with `require_remote_on_claim` set in `.balls/config.json` (or per-clone `.balls/local/config.json`, or per-invocation `--sync`/`--no-sync`), the claim commit must round-trip through `origin/balls/tasks` before the worktree is created. Closes the offline-agent claim race; off by default. Push rejects auto-resolve via the existing field-level merge — earliest-`updated_at` wins, lost claims fail loudly. `bl prime` shows a one-time hint when a clone first sees a remote-set policy. [bl-2148]
+- `bl review` and `bl close` learn the same optional remote-sync as claim: `require_remote_on_review` / `require_remote_on_close` config fields, matching `--sync` / `--no-sync` per-invocation flags, and the same precedence chain (CLI > local > repo default). Required-policy failure aborts the transition and rolls back the local commits so the task stays in its pre-transition state; close sequences the push before the worktree teardown so a rolled-back close keeps the worktree intact for retry. The git-remote participant shares the bl-eae4 negotiation primitive with claim, so a state-branch advance mid-flight (another agent's claim, etc.) auto-retries via fetch+merge. [bl-2bf7]
 
 ## [0.3.9](https://github.com/mudbungie/balls/compare/v0.3.8...v0.3.9) - 2026-04-25
 

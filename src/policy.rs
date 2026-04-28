@@ -27,6 +27,10 @@ use std::path::PathBuf;
 pub struct LocalConfig {
     #[serde(default)]
     pub require_remote_on_claim: Option<bool>,
+    #[serde(default)]
+    pub require_remote_on_review: Option<bool>,
+    #[serde(default)]
+    pub require_remote_on_close: Option<bool>,
     /// SPEC §11 — per-plugin participant policy overrides. Only
     /// plugins the clone actually wants to override appear here.
     #[serde(default)]
@@ -81,7 +85,46 @@ pub fn resolve(
     local: Option<&LocalConfig>,
     cli: SyncOverride,
 ) -> ClaimPolicy {
-    let local_value = local.and_then(|l| l.require_remote_on_claim);
+    resolve_inner(
+        repo_default,
+        local.and_then(|l| l.require_remote_on_claim),
+        cli,
+    )
+}
+
+/// Compute the effective review-time sync policy. Mirrors `resolve`
+/// but reads the review-specific fields. The struct shape is shared
+/// so callers can treat all three lifecycle policies uniformly.
+pub fn resolve_review(
+    repo_default: bool,
+    local: Option<&LocalConfig>,
+    cli: SyncOverride,
+) -> ClaimPolicy {
+    resolve_inner(
+        repo_default,
+        local.and_then(|l| l.require_remote_on_review),
+        cli,
+    )
+}
+
+/// Compute the effective close-time sync policy. See `resolve_review`.
+pub fn resolve_close(
+    repo_default: bool,
+    local: Option<&LocalConfig>,
+    cli: SyncOverride,
+) -> ClaimPolicy {
+    resolve_inner(
+        repo_default,
+        local.and_then(|l| l.require_remote_on_close),
+        cli,
+    )
+}
+
+fn resolve_inner(
+    repo_default: bool,
+    local_value: Option<bool>,
+    cli: SyncOverride,
+) -> ClaimPolicy {
     let after_local = local_value.unwrap_or(repo_default);
     let from_repo_default = local_value.is_none() && repo_default;
     let require_remote = match cli {
@@ -176,5 +219,32 @@ mod tests {
         let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::Unset);
         assert!(p.require_remote);
         assert!(!p.from_repo_default);
+    }
+
+    #[test]
+    fn review_resolver_reads_review_field() {
+        // Repo default off, local override on: review picks up the
+        // review-specific field, not claim's.
+        let local = LocalConfig {
+            require_remote_on_claim: None,
+            require_remote_on_review: Some(true),
+            require_remote_on_close: None,
+            ..Default::default()
+        };
+        let p = resolve_review(false, Some(&local), SyncOverride::Unset);
+        assert!(p.require_remote);
+        // Claim resolver reading the same local config sees nothing.
+        let p = resolve(false, Some(&local), SyncOverride::Unset);
+        assert!(!p.require_remote);
+    }
+
+    #[test]
+    fn close_resolver_cli_overrides_repo_and_local() {
+        let local = LocalConfig {
+            require_remote_on_close: Some(true),
+            ..Default::default()
+        };
+        let p = resolve_close(true, Some(&local), SyncOverride::NoSync);
+        assert!(!p.require_remote);
     }
 }
