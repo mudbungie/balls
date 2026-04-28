@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b7fb",
+  "claimed_by": "Inertly",
   "closed_at": null,
   "closed_children": [{"closed_at":"2026-04-25T22:28:08.364761728Z","id":"bl-26de","title":"SPEC: lifecycle-sync participant model"},{"closed_at":"2026-04-25T22:49:09.374747420Z","id":"bl-d31c","title":"Forward-compat Task deserializer with extra-field catch-all"},{"closed_at":"2026-04-26T23:03:35.365335321Z","id":"bl-eae4","title":"Extract lifecycle-sync negotiation primitive"},{"closed_at":"2026-04-27T20:35:01.050535778Z","id":"bl-1ea6","title":"Participant contract and git-remote reference implementation"},{"closed_at":"2026-04-28T01:54:05.620560713Z","id":"bl-b1dd","title":"Shim legacy push/sync plugins onto the participant contract"},{"closed_at":"2026-04-28T02:33:35.505587755Z","id":"bl-50c5","title":"Config inheritance: per-event participant policy"},{"closed_at":"2026-04-28T03:00:10.810591662Z","id":"bl-4e7d","title":"Plugin-controlled commit policy on negotiation outcome"},{"closed_at":"2026-04-28T03:03:48.620800095Z","id":"bl-2bf7","title":"Apply participant negotiation to review and close transitions"},{"closed_at":"2026-04-28T04:36:41.320584705Z","id":"bl-a46d","title":"Human-gate participant: bl sync --review staged apply"},{"closed_at":"2026-04-28T04:49:24.148356761Z","id":"bl-8b71","title":"Native participant protocol: declarative projection and merge"}],
   "created_at": "2026-04-25T22:09:23.880119095Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["plugins","sync","lifecycle"],
   "title": "Unify lifecycle sync: plugins as participants",
   "type": "epic",
-  "updated_at": "2026-04-28T04:49:24.649252642Z"
+  "updated_at": "2026-04-28T07:11:09.104643958Z"
 }
