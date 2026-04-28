@@ -26,8 +26,12 @@ use crate::config::PluginEntry;
 use crate::error::Result;
 use crate::negotiation::{AttemptClass, FailurePolicy, Protocol};
 use crate::participant::{Event, EventCtx, Participant, Projection};
+use crate::participant_config::{
+    effective_subscriptions, InvocationOverrides, LocalPluginEntry,
+};
 use crate::store::Store;
 use crate::task::Task;
+use std::collections::BTreeMap;
 
 /// One legacy plugin wrapped as a Participant. Owns its resolved
 /// `Plugin` (paths and executable name); the per-event protocol
@@ -37,37 +41,49 @@ pub struct LegacyPluginParticipant {
     plugin: Plugin,
     projection: Projection,
     subscriptions: Vec<Event>,
+    failure_policies: BTreeMap<Event, FailurePolicy>,
     sync_filter: Option<String>,
 }
 
 impl LegacyPluginParticipant {
     /// Build the participant for an enabled plugin entry. `sync_filter`
     /// is the optional `--task` argument from `bl sync`; ignored for
-    /// non-sync events.
+    /// non-sync events. Subscriptions and per-event failure policies
+    /// are resolved through SPEC §11 layering — see
+    /// [`effective_subscriptions`]. Pass `LocalPluginEntry`/
+    /// `InvocationOverrides` defaults when the dispatcher hasn't
+    /// loaded them yet (legacy parity).
     pub fn from_entry(
         store: &Store,
         name: String,
         entry: &PluginEntry,
         sync_filter: Option<String>,
     ) -> Self {
+        Self::resolved(store, name, entry, None, &InvocationOverrides::default(), sync_filter)
+    }
+
+    /// Build the participant honoring the full SPEC §11 layering:
+    /// state-branch entry, optional per-clone override, optional
+    /// per-invocation overrides. The dispatcher (bl-2bf7) calls this
+    /// once it has the local config and CLI flags in hand.
+    pub fn resolved(
+        store: &Store,
+        name: String,
+        entry: &PluginEntry,
+        local: Option<&LocalPluginEntry>,
+        invocation: &InvocationOverrides,
+        sync_filter: Option<String>,
+    ) -> Self {
         let plugin = Plugin::resolve(store, &name, entry);
-        let subscriptions = if entry.sync_on_change {
-            vec![
-                Event::Claim,
-                Event::Review,
-                Event::Close,
-                Event::Update,
-                Event::Sync,
-            ]
-        } else {
-            vec![Event::Sync]
-        };
+        let failure_policies = effective_subscriptions(&name, entry, local, invocation);
+        let subscriptions = failure_policies.keys().copied().collect();
         let projection = Projection::external_only(name.clone());
         Self {
             name,
             plugin,
             projection,
             subscriptions,
+            failure_policies,
             sync_filter,
         }
     }
@@ -172,11 +188,15 @@ impl Participant for LegacyPluginParticipant {
         &self.projection
     }
 
-    fn failure_policy(&self, _event: Event) -> FailurePolicy {
-        // SPEC §12: legacy plugins are best-effort across the board.
-        // Today's behavior is "swallow and warn"; BestEffort preserves
-        // it via NegotiationResult::Skipped.
-        FailurePolicy::BestEffort
+    fn failure_policy(&self, event: Event) -> FailurePolicy {
+        // SPEC §11: per-event policy resolved from layered config; the
+        // legacy mapping fills in BestEffort for any event missing
+        // from the resolved set, preserving today's swallow-and-warn
+        // behavior for unmodified configs.
+        self.failure_policies
+            .get(&event)
+            .copied()
+            .unwrap_or(FailurePolicy::BestEffort)
     }
 
     fn protocol<'a>(
@@ -184,25 +204,21 @@ impl Participant for LegacyPluginParticipant {
         event: Event,
         ctx: EventCtx<'a>,
     ) -> Option<Self::Protocol<'a>> {
-        match event {
-            Event::Claim | Event::Review | Event::Close | Event::Update => {
-                let task = ctx.store.load_task(ctx.task_id).ok()?;
-                Some(LegacyProtocol::Push {
-                    plugin: &self.plugin,
-                    task: Box::new(task),
-                    response: None,
-                })
-            }
-            Event::Sync => {
-                let tasks = ctx.store.all_tasks().ok()?;
-                Some(LegacyProtocol::Sync {
-                    plugin: &self.plugin,
-                    tasks,
-                    filter: self.sync_filter.as_deref(),
-                    report: None,
-                })
-            }
+        if matches!(event, Event::Sync) {
+            let tasks = ctx.store.all_tasks().ok()?;
+            return Some(LegacyProtocol::Sync {
+                plugin: &self.plugin,
+                tasks,
+                filter: self.sync_filter.as_deref(),
+                report: None,
+            });
         }
+        let task = ctx.store.load_task(ctx.task_id).ok()?;
+        Some(LegacyProtocol::Push {
+            plugin: &self.plugin,
+            task: Box::new(task),
+            response: None,
+        })
     }
 }
 

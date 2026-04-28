@@ -1,4 +1,5 @@
 use crate::error::{BallError, Result};
+use crate::participant_config::ParticipantConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -11,6 +12,11 @@ pub struct PluginEntry {
     #[serde(default)]
     pub sync_on_change: bool,
     pub config_file: String,
+    /// SPEC §11 — optional per-event participant policy. Absent on
+    /// legacy configs; the resolver falls through to the
+    /// `sync_on_change` mapping when this is `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub participant: Option<ParticipantConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -274,6 +280,7 @@ mod tests {
                 enabled: true,
                 sync_on_change: true,
                 config_file: ".balls/plugins/jira.json".into(),
+                participant: None,
             },
         );
         let s = serde_json::to_string(&cfg).unwrap();
