@@ -12,19 +12,25 @@
 //! social.
 
 use crate::error::Result;
+use crate::participant_config::LocalPluginEntry;
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
 /// Per-clone override of the repo-default `Config`. Stored at
-/// `.balls/local/config.json`. All fields optional — `None` means
-/// "inherit the repo-default".
+/// `.balls/local/config.json`. All fields optional — `None` (or an
+/// empty map) means "inherit the repo-default".
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct LocalConfig {
     #[serde(default)]
     pub require_remote_on_claim: Option<bool>,
+    /// SPEC §11 — per-plugin participant policy overrides. Only
+    /// plugins the clone actually wants to override appear here.
+    #[serde(default)]
+    pub plugins: BTreeMap<String, LocalPluginEntry>,
 }
 
 impl LocalConfig {
@@ -132,20 +138,20 @@ mod tests {
 
     #[test]
     fn cli_no_sync_overrides_repo_and_local() {
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true) }), SyncOverride::NoSync);
+        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::NoSync);
         assert!(!p.require_remote);
     }
 
     #[test]
     fn local_override_beats_repo_default() {
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(false) }), SyncOverride::Unset);
+        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(false), ..Default::default() }), SyncOverride::Unset);
         assert!(!p.require_remote);
         assert!(!p.from_repo_default);
     }
 
     #[test]
     fn unset_local_falls_through_to_repo_default() {
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: None }), SyncOverride::Unset);
+        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: None, ..Default::default() }), SyncOverride::Unset);
         assert!(p.require_remote);
         assert!(p.from_repo_default);
     }
@@ -167,7 +173,7 @@ mod tests {
     #[test]
     fn from_repo_default_false_when_local_explicitly_matches() {
         // Local explicitly says true; not "inherited from repo".
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true) }), SyncOverride::Unset);
+        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::Unset);
         assert!(p.require_remote);
         assert!(!p.from_repo_default);
     }
