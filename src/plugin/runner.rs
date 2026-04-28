@@ -1,8 +1,10 @@
 use super::diag::prepare_diag_pipe;
 use super::limits::{self, run_with_limits, PluginOutcome};
+use super::native_types::{DescribeResponse, ProposeResponse};
 use super::types::{PluginDiagnostic, PushResponse, SyncReport};
 use crate::config::PluginEntry;
 use crate::error::Result;
+use crate::participant::Event;
 use crate::store::Store;
 use crate::task::Task;
 use std::os::unix::process::CommandExt;
@@ -39,7 +41,7 @@ impl Plugin {
         if !self.is_available() {
             return false;
         }
-        let Ok(outcome) = self.spawn_and_run("auth-check", None, &[]) else {
+        let Ok(outcome) = self.spawn_and_run("auth-check", &[], &[]) else {
             return false;
         };
         self.render_diagnostics("auth-check", &outcome.diagnostics);
@@ -62,7 +64,8 @@ impl Plugin {
     /// timed out, or exceeded the output cap.
     pub fn push(&self, task: &Task) -> Result<Option<PushResponse>> {
         let json = serde_json::to_string(task)?;
-        let outcome = self.spawn_and_run("push", Some(&task.id), json.as_bytes())?;
+        let outcome =
+            self.spawn_and_run("push", &[("--task", &task.id)], json.as_bytes())?;
         Ok(self.parse_outcome::<PushResponse>("push", outcome))
     }
 
@@ -73,8 +76,40 @@ impl Plugin {
         filter: Option<&str>,
     ) -> Result<Option<SyncReport>> {
         let json = serde_json::to_string(tasks)?;
-        let outcome = self.spawn_and_run("sync", filter, json.as_bytes())?;
+        let extra: &[(&str, &str)] = match filter {
+            Some(id) => &[("--task", id)],
+            None => &[],
+        };
+        let outcome = self.spawn_and_run("sync", extra, json.as_bytes())?;
         Ok(self.parse_outcome::<SyncReport>("sync", outcome))
+    }
+
+    /// Native protocol §5.2 (bl-8b71): plugin self-describes its
+    /// projection and event subscriptions. Returns `None` when the
+    /// plugin doesn't ship the subcommand (silent fall-through to the
+    /// legacy shim per SPEC §12) or when its output is unparseable.
+    pub fn describe(&self) -> Result<Option<DescribeResponse>> {
+        if !self.is_available() {
+            return Ok(None);
+        }
+        let outcome = self.spawn_and_run("describe", &[], &[])?;
+        Ok(self.parse_outcome::<DescribeResponse>("describe", outcome))
+    }
+
+    /// Native protocol §5.3: plugin proposes its post-event projection
+    /// for one task. Returns `None` for any wire failure — the caller
+    /// converts that into `AttemptClass::Other`. A successful
+    /// `ProposeResponse` may carry either an `ok` or `conflict`
+    /// branch; both are handed back unchanged.
+    pub fn propose(&self, event: Event, task: &Task) -> Result<Option<ProposeResponse>> {
+        let json = serde_json::to_string(task)?;
+        let event_name = event_subcommand_arg(event);
+        let outcome = self.spawn_and_run(
+            "propose",
+            &[("--event", event_name)],
+            json.as_bytes(),
+        )?;
+        Ok(self.parse_outcome::<ProposeResponse>("propose", outcome))
     }
 
     /// Spawn the plugin with stdin/stdout/stderr piped and a
@@ -86,10 +121,10 @@ impl Plugin {
     fn spawn_and_run(
         &self,
         subcmd: &str,
-        task_filter: Option<&str>,
+        extra_flags: &[(&str, &str)],
         stdin_bytes: &[u8],
     ) -> Result<PluginOutcome> {
-        let mut cmd = self.command(subcmd, task_filter);
+        let mut cmd = self.command(subcmd, extra_flags);
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -139,11 +174,11 @@ impl Plugin {
     /// Build a `Command` for a plugin subcommand. Puts the child in
     /// its own process group so the timeout path can kill the whole
     /// subtree.
-    fn command(&self, subcmd: &str, task_filter: Option<&str>) -> Command {
+    fn command(&self, subcmd: &str, extra_flags: &[(&str, &str)]) -> Command {
         let mut cmd = Command::new(&self.executable);
         cmd.arg(subcmd);
-        if let Some(id) = task_filter {
-            cmd.arg("--task").arg(id);
+        for (flag, value) in extra_flags {
+            cmd.arg(flag).arg(value);
         }
         cmd.arg("--config")
             .arg(&self.config_path)
@@ -190,6 +225,19 @@ impl Plugin {
     }
 }
 
+/// Map an `Event` to the lowercase wire name a native plugin
+/// receives via `--event`. Stable identifier — same as the serde
+/// rename used on the JSON-side `Event` enum.
+fn event_subcommand_arg(event: Event) -> &'static str {
+    match event {
+        Event::Claim => "claim",
+        Event::Review => "review",
+        Event::Close => "close",
+        Event::Update => "update",
+        Event::Sync => "sync",
+    }
+}
+
 fn which(name: &str) -> Option<PathBuf> {
     let paths = std::env::var_os("PATH")?;
     for p in std::env::split_paths(&paths) {
@@ -199,4 +247,20 @@ fn which(name: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_subcommand_arg_covers_every_event() {
+        // Pin the wire name for every Event variant so a rename
+        // changes both this test and the JSON serde rename together.
+        assert_eq!(event_subcommand_arg(Event::Claim), "claim");
+        assert_eq!(event_subcommand_arg(Event::Review), "review");
+        assert_eq!(event_subcommand_arg(Event::Close), "close");
+        assert_eq!(event_subcommand_arg(Event::Update), "update");
+        assert_eq!(event_subcommand_arg(Event::Sync), "sync");
+    }
 }
