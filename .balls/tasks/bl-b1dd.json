@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b1dd",
+  "claimed_by": "Hampering",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:10:53.164221627Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["plugins","compat"],
   "title": "Shim legacy push/sync plugins onto the participant contract",
   "type": "task",
-  "updated_at": "2026-04-25T22:10:53.164221627Z"
+  "updated_at": "2026-04-28T01:29:20.301739753Z"
 }
