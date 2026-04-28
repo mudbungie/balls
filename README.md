@@ -77,6 +77,12 @@ Balls is MIT licensed. See `LICENSE`.
 |---|---|---|
 | `BALLS_IDENTITY` | Worker identity for claim/close/prime operations | `$USER`, then `"unknown"` |
 
+#### Tip: unique identities for agent sessions
+
+If you're running balls under an LLM-driven agent, don't ask the model to invent its own identity — language models are not RNGs and collapse to the same handful of names across sessions (you will end up with three Junipers stepping on each other's claims). Source the randomness outside the model: have the agent harness pick a name at session start and inject it as `BALLS_IDENTITY`. A portable recipe is `shuf -n1 /usr/share/dict/words` (or `petname` if you want adjective-noun pairs).
+
+In Claude Code, this is a `SessionStart` hook in `~/.claude/settings.json` that prints a JSON payload with `hookSpecificOutput.additionalContext` setting the name; other harnesses typically expose an equivalent pre-session shell hook that can `export` the variable directly.
+
 ### Library usage
 
 Ball is also available as a Rust library crate for programmatic integration:
