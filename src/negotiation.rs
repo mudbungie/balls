@@ -48,13 +48,53 @@ pub enum FailurePolicy {
     Gating,
 }
 
+/// SPEC §10 — how a successful participant outcome should be
+/// committed to the state branch. Returned from
+/// `Protocol::commit_policy`; composed across participants by the
+/// apply-time helper in `crate::commit_policy`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommitPolicy {
+    /// Write a commit on the state branch, optionally with a
+    /// participant-supplied message body. `None` means "use the
+    /// caller's default end-of-event commit message"; this is the
+    /// default behavior and reproduces today's per-op commit shape.
+    Commit { message: Option<String> },
+    /// Accumulate the participant's state changes within the current
+    /// event dispatch and commit once at the end of the event.
+    /// Multiple participants returning `Batch` with the same `tag`
+    /// coalesce into a single commit referencing every batched
+    /// participant.
+    Batch { tag: String },
+    /// Apply state to the working tree but do not write a commit on
+    /// behalf of this participant. The next `Commit` outcome — or the
+    /// caller's fallback end-of-event commit — picks up the change.
+    /// Disallowed for `FailurePolicy::Required` participants; the
+    /// apply-time helper rejects it before any state lands.
+    Suppress,
+}
+
+impl Default for CommitPolicy {
+    fn default() -> Self {
+        CommitPolicy::Commit { message: None }
+    }
+}
+
+/// A successful negotiation outcome plus the participant's chosen
+/// commit policy. The `Protocol` returns these together; the dispatch
+/// layer routes `commit_policy` through the apply-time composer.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Accepted<O> {
+    pub outcome: O,
+    pub commit_policy: CommitPolicy,
+}
+
 /// Result of a completed negotiation, parameterized over the
 /// protocol-specific success outcome.
 #[derive(Debug, PartialEq, Eq)]
 pub enum NegotiationResult<O> {
     /// Wire accepted (possibly after merges) or `post_merge`
     /// short-circuited with a definitive outcome.
-    Ok(O),
+    Ok(Accepted<O>),
     /// Wire failure absorbed by `FailurePolicy::BestEffort`.
     Skipped(String),
     /// Wire failure absorbed by `FailurePolicy::Gating`.
@@ -87,6 +127,15 @@ pub trait Protocol {
 
     /// Maximum propose attempts before the loop gives up.
     fn retry_budget(&self) -> usize;
+
+    /// The commit policy to attach to a successful outcome. Default is
+    /// `CommitPolicy::Commit { message: None }` — i.e. fold this
+    /// participant's state change into the caller's default
+    /// end-of-event commit. Native plugins (bl-8b71) override to
+    /// supply custom messages, batch tags, or suppression. SPEC §10.
+    fn commit_policy(&self) -> CommitPolicy {
+        CommitPolicy::default()
+    }
 }
 
 /// The negotiation loop. Construct with a protocol and a failure
@@ -107,7 +156,8 @@ impl<P: Protocol> Negotiation<P> {
         for _ in 0..budget {
             let class = self.protocol.propose()?;
             if class == AttemptClass::Ok {
-                return Ok(NegotiationResult::Ok(self.protocol.pushed()));
+                let outcome = self.protocol.pushed();
+                return Ok(NegotiationResult::Ok(self.accept(outcome)));
             }
             if let AttemptClass::Unreachable(s) | AttemptClass::Other(s) = class {
                 return self.classify_failure(s);
@@ -116,7 +166,7 @@ impl<P: Protocol> Negotiation<P> {
             // proposal still stands.
             self.protocol.fetch_remote_view()?;
             if let Some(outcome) = self.protocol.post_merge()? {
-                return Ok(NegotiationResult::Ok(outcome));
+                return Ok(NegotiationResult::Ok(self.accept(outcome)));
             }
         }
         self.classify_failure(format!("gave up after {budget} attempts; remote keeps advancing"))
@@ -124,13 +174,23 @@ impl<P: Protocol> Negotiation<P> {
 
     /// Run and unwrap the `Ok` variant; absorb-policy variants are
     /// surfaced as `Err`. Convenience for `Required`-policy callers
-    /// that structurally cannot produce `Skipped`/`Staged`.
+    /// that structurally cannot produce `Skipped`/`Staged`. The
+    /// participant's `CommitPolicy` is dropped here — strict callers
+    /// (today: claim path) commit before they call into the
+    /// negotiation, so the policy has nothing to schedule.
     pub fn run_strict(self) -> Result<P::Outcome> {
         match self.run()? {
-            NegotiationResult::Ok(o) => Ok(o),
+            NegotiationResult::Ok(Accepted { outcome, .. }) => Ok(outcome),
             NegotiationResult::Skipped(s) | NegotiationResult::Staged(s) => {
                 Err(BallError::Other(s))
             }
+        }
+    }
+
+    fn accept(&self, outcome: P::Outcome) -> Accepted<P::Outcome> {
+        Accepted {
+            outcome,
+            commit_policy: self.protocol.commit_policy(),
         }
     }
 

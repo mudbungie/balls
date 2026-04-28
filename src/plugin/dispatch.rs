@@ -12,19 +12,21 @@
 
 use super::participant::{LegacyOutcome, LegacyPluginParticipant};
 use super::types::SyncReport;
+use super::LegacyPushContribution;
 use crate::error::Result;
-use crate::negotiation::NegotiationResult;
+use crate::negotiation::{Accepted, NegotiationResult};
 use crate::participant::{self, Event, EventCtx, Participant};
 use crate::store::Store;
 use crate::task::Task;
-use std::collections::BTreeMap;
 
 /// Fire all subscribed legacy plugins for a push-shaped event
-/// (claim/review/close/update). Aggregates `PushResponse`s and applies
-/// them to `task.external` in one commit. Returns `Err` only if the
-/// repo config can't be loaded — the same surface today's
-/// `run_plugin_push` exposed, so callers that key off `is_ok()` keep
-/// their current branching.
+/// (claim/review/close/update). Collects each participant's outcome
+/// plus the `CommitPolicy` it returned, then routes through the
+/// apply-time planner so Required+Suppress is rejected, Batch
+/// coalesces, and custom messages get the `plugin: <name>: ` prefix.
+/// Today's legacy plugins all return the default policy, so the
+/// observable behavior — one save plus one default commit per event
+/// — is byte-identical to the pre-CommitPolicy dispatcher.
 pub fn dispatch_push(
     store: &Store,
     task: &Task,
@@ -36,26 +38,34 @@ pub fn dispatch_push(
         Event::Claim | Event::Review | Event::Close | Event::Update
     ));
     let cfg = store.load_config()?;
-    let mut results = BTreeMap::new();
+    let mut contributions = Vec::new();
     for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
         let participant =
             LegacyPluginParticipant::from_entry(store, name.clone(), entry, None);
         if !participant.subscriptions().contains(&event) {
             continue;
         }
+        let failure_policy = participant.failure_policy(event);
         let ctx = EventCtx {
             event,
             store,
             task_id: &task.id,
             identity,
         };
-        if let NegotiationResult::Ok(LegacyOutcome::Push(Some(r))) =
-            participant::run(&participant, event, ctx)?
+        if let NegotiationResult::Ok(Accepted {
+            outcome: LegacyOutcome::Push(Some(r)),
+            commit_policy,
+        }) = participant::run(&participant, event, ctx)?
         {
-            results.insert(name.clone(), r);
+            contributions.push(LegacyPushContribution {
+                name: name.clone(),
+                response: r,
+                failure_policy,
+                commit_policy,
+            });
         }
     }
-    super::apply_push_response(store, &task.id, &results)?;
+    super::apply_push_contributions(store, &task.id, &contributions)?;
     Ok(())
 }
 
@@ -86,8 +96,10 @@ pub fn dispatch_sync(
             task_id: filter.unwrap_or(""),
             identity,
         };
-        if let Ok(NegotiationResult::Ok(LegacyOutcome::Sync(Some(r)))) =
-            participant::run(&participant, Event::Sync, ctx)
+        if let Ok(NegotiationResult::Ok(Accepted {
+            outcome: LegacyOutcome::Sync(Some(r)),
+            ..
+        })) = participant::run(&participant, Event::Sync, ctx)
         {
             reports.push((name.clone(), r));
         }

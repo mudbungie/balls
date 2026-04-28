@@ -130,7 +130,11 @@ fn run_dispatches_when_event_in_subscriptions() {
     let (_td, store) = stealth_store();
     let p = FakeParticipant::new("fake").with_subs(vec![Event::Claim]);
     let r = run(&p, Event::Claim, ctx(&store)).unwrap();
-    assert_eq!(r, NegotiationResult::Ok("ok"));
+    let accepted = match r {
+        NegotiationResult::Ok(a) => a,
+        other => panic!("expected Ok, got {other:?}"),
+    };
+    assert_eq!(accepted.outcome, "ok");
 }
 
 #[test]
@@ -147,7 +151,11 @@ fn run_drives_conflict_then_ok_through_fetch_remote_view() {
         if *c == 1 { Ok(AttemptClass::Conflict) } else { Ok(AttemptClass::Ok) }
     }));
     let r = run(&p, Event::Claim, ctx(&store)).unwrap();
-    assert_eq!(r, NegotiationResult::Ok("ok"));
+    let accepted = match r {
+        NegotiationResult::Ok(a) => a,
+        other => panic!("expected Ok, got {other:?}"),
+    };
+    assert_eq!(accepted.outcome, "ok");
 }
 
 // --- Strict dispatcher ------------------------------------------------

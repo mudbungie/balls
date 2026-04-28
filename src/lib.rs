@@ -20,6 +20,7 @@
 pub mod archived_child;
 pub mod claim_sync;
 pub mod commit_msg;
+pub mod commit_policy;
 pub mod config;
 pub mod delivery;
 pub mod display;
