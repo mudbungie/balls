@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-50c5",
+  "claimed_by": "Jetties",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:10:53.184306986Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["config","plugins"],
   "title": "Config inheritance: per-event participant policy",
   "type": "task",
-  "updated_at": "2026-04-25T22:10:53.184306986Z"
+  "updated_at": "2026-04-28T02:12:53.296350693Z"
 }
