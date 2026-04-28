@@ -21,7 +21,7 @@
 //! participants (bl-2bf7). Those are intentionally out of scope.
 
 use crate::error::{BallError, Result};
-use crate::negotiation::{FailurePolicy, Negotiation, NegotiationResult, Protocol};
+use crate::negotiation::{Accepted, FailurePolicy, Negotiation, NegotiationResult, Protocol};
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -227,7 +227,7 @@ pub fn run_strict<P: Participant>(
     ctx: EventCtx<'_>,
 ) -> Result<P::Outcome> {
     match run(participant, event, ctx)? {
-        NegotiationResult::Ok(o) => Ok(o),
+        NegotiationResult::Ok(Accepted { outcome, .. }) => Ok(outcome),
         NegotiationResult::Skipped(s) | NegotiationResult::Staged(s) => {
             Err(BallError::Other(s))
         }
