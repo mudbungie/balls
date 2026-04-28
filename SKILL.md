@@ -10,6 +10,14 @@ There is one inviolable rule: **never run `bl close` while you're standing insid
 
 Splitting the work across two agents — one submits, a different one approves — is an opt-in pattern, covered at the end of this guide. Don't reach for it unless the user has actually set up a reviewer. An agent that submits and then stops is an agent that didn't finish its job.
 
+## The worktree is the unit of work
+
+`bl` doesn't just track tasks — it tracks the code change a task delivers. Claim creates a worktree. Review squashes that worktree's branch back to main. Close tears the worktree down. The worktree isn't a convenience layer wrapped around your real workflow; while a task is claimed, it *is* your workflow.
+
+So the rule reads as a consequence: while you hold a claim, edits go in the worktree, not on the operating branch. Editing main directly bypasses the lifecycle — the worktree never sees the change, `bl review`'s squash captures the wrong diff, and the delivery commit on main no longer reflects what the task shipped. The task can close perfectly cleanly while leaving drift behind it.
+
+This binds the balls workflow, not your repo. Outside a claimed task, your tree is yours. But once `bl claim` has printed a path, that path is where the work goes.
+
 ## Session Start
 
 Run `bl prime` at the start of every session:
@@ -104,7 +112,7 @@ The whole path, start to finish, done by one agent:
 ```
 bl prime --as YOUR_ID
 bl claim TASK_ID             # prints worktree path
-cd <worktree path>           # work happens HERE, never in the main repo
+cd <worktree path>           # all edits go here (see "The worktree is the unit of work")
 # ... edit, commit ...
 bl review TASK_ID -m "msg"   # squash to main, flip status to review
 cd <repo root>               # required for close
@@ -117,7 +125,7 @@ Worktrees live at `.balls-worktrees/bl-xxxx`, on branch `work/TASK_ID`, with `.b
 
 Important:
 - **Commit your work** before `bl review`. Review will `git add -A` anything left behind, but explicit commits give better history.
-- **Don't modify files in the main repo** while working on a claimed task. Use the worktree.
+- **Edits live in the worktree** — see "The worktree is the unit of work" above for why this is load-bearing, not a convention.
 - **Don't `bl update TASK_ID status=closed`** on a *claimed* task — it's rejected. Use `bl review` (which flips it to `review`), then `bl close` from the repo root. (For *unclaimed* tasks you want to remove — duplicates, stale ideas — `bl update status=closed` is the correct command; see **Removing unwanted or duplicate tasks** above.)
 - **Don't hand-edit or rm files under `.balls/`** — that's the on-disk store, and direct edits corrupt the state branch. To release a claim use `bl drop`; to clean up orphans use `bl repair --fix`; to remove an unwanted task close it (see above). The restriction is about the store format, not the task lifecycle.
 
