@@ -14,6 +14,7 @@ struct ClosureProtocol<'a> {
     fetch: FetchFn<'a>,
     post_merge: PostMergeFn<'a>,
     budget: usize,
+    policy: CommitPolicy,
 }
 
 impl<'a> ClosureProtocol<'a> {
@@ -23,6 +24,7 @@ impl<'a> ClosureProtocol<'a> {
             fetch: Box::new(|| Ok(())),
             post_merge: Box::new(|| Ok(None)),
             budget,
+            policy: CommitPolicy::default(),
         }
     }
     fn with_fetch(mut self, f: FetchFn<'a>) -> Self {
@@ -31,6 +33,10 @@ impl<'a> ClosureProtocol<'a> {
     }
     fn with_post_merge(mut self, f: PostMergeFn<'a>) -> Self {
         self.post_merge = f;
+        self
+    }
+    fn with_policy(mut self, p: CommitPolicy) -> Self {
+        self.policy = p;
         self
     }
 }
@@ -52,17 +58,27 @@ impl Protocol for ClosureProtocol<'_> {
     fn retry_budget(&self) -> usize {
         self.budget
     }
+    fn commit_policy(&self) -> CommitPolicy {
+        self.policy.clone()
+    }
 }
 
 fn always_ok<'a>() -> PropFn<'a> {
     Box::new(|| Ok(AttemptClass::Ok))
 }
 
+fn ok_default<O>(outcome: O) -> NegotiationResult<O> {
+    NegotiationResult::Ok(Accepted {
+        outcome,
+        commit_policy: CommitPolicy::default(),
+    })
+}
+
 #[test]
 fn ok_first_attempt_returns_outcome() {
     let p = ClosureProtocol::new(always_ok(), 3);
     let r = Negotiation::new(p, FailurePolicy::Required).run().unwrap();
-    assert_eq!(r, NegotiationResult::Ok("pushed"));
+    assert_eq!(r, ok_default("pushed"));
 }
 
 #[test]
@@ -75,7 +91,7 @@ fn conflict_then_ok_retries_and_succeeds() {
     });
     let p = ClosureProtocol::new(propose, 5);
     let r = Negotiation::new(p, FailurePolicy::Required).run().unwrap();
-    assert_eq!(r, NegotiationResult::Ok("pushed"));
+    assert_eq!(r, ok_default("pushed"));
     assert_eq!(*calls.borrow(), 2);
 }
 
@@ -84,7 +100,36 @@ fn post_merge_short_circuits_to_outcome() {
     let p = ClosureProtocol::new(Box::new(|| Ok(AttemptClass::Conflict)), 5)
         .with_post_merge(Box::new(|| Ok(Some("lost"))));
     let r = Negotiation::new(p, FailurePolicy::Required).run().unwrap();
-    assert_eq!(r, NegotiationResult::Ok("lost"));
+    assert_eq!(r, ok_default("lost"));
+}
+
+#[test]
+fn ok_carries_protocol_chosen_commit_policy() {
+    // ClosureProtocol's commit_policy is settable; Negotiation::run
+    // copies it into Accepted on every Ok path (clean push and
+    // post_merge short-circuit alike).
+    let p = ClosureProtocol::new(always_ok(), 1).with_policy(CommitPolicy::Suppress);
+    let r = Negotiation::new(p, FailurePolicy::Required).run().unwrap();
+    assert_eq!(
+        r,
+        NegotiationResult::Ok(Accepted {
+            outcome: "pushed",
+            commit_policy: CommitPolicy::Suppress,
+        })
+    );
+}
+
+#[test]
+fn post_merge_short_circuit_carries_commit_policy() {
+    let policy = CommitPolicy::Batch { tag: "audit".into() };
+    let p = ClosureProtocol::new(Box::new(|| Ok(AttemptClass::Conflict)), 5)
+        .with_post_merge(Box::new(|| Ok(Some("lost"))))
+        .with_policy(policy.clone());
+    let r = Negotiation::new(p, FailurePolicy::Required).run().unwrap();
+    assert_eq!(
+        r,
+        NegotiationResult::Ok(Accepted { outcome: "lost", commit_policy: policy })
+    );
 }
 
 #[test]
@@ -237,8 +282,10 @@ impl Protocol for DefaultPostMergeProtocol {
 fn protocol_default_post_merge_keeps_loop_retrying_until_ok() {
     // First propose returns Conflict; default post_merge returns None;
     // loop retries; second propose returns Ok -> pushed outcome.
-    // Exercises both default post_merge + pushed in one path.
+    // Exercises both default post_merge + pushed in one path. The
+    // default `commit_policy` (Commit { message: None }) rides along
+    // because DefaultPostMergeProtocol does not override it.
     let p = DefaultPostMergeProtocol { conflicts_first: 1, calls: 0, budget: 3 };
     let r = Negotiation::new(p, FailurePolicy::Required).run().unwrap();
-    assert_eq!(r, NegotiationResult::Ok("default-pushed"));
+    assert_eq!(r, ok_default("default-pushed"));
 }
