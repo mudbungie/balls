@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-04-25T22:10:53.184306986Z",
-  "delivered_in": null,
+  "delivered_in": "246ac7a05e546fd8fd1cfdcbb8f212fa8f5a9634",
   "depends_on": ["bl-1ea6"],
   "description": "Extend the plugin/participant config with per-event policy, layered using bl-2148's state-branch -> local -> per-invocation inheritance.\n\n## Schema sketch (settled by bl-26de SPEC)\n\nPluginEntry gains an optional events block:\n\n  events:\n    claim:  { required: false }\n    review: { required: false, gate: false }\n    close:  { required: false, gate: false }\n    sync:   { required: false }\n\nEach event's policy is independently configurable; missing entries inherit from the layer above; the top-level layer defaults reproduce today's behavior.\n\n## Legacy field handling\n\n- sync_on_change remains readable; serde alias semantics map it to a coarse default for the events block when no events block is present.\n- enabled remains the master switch.\n- Documented precedence: per-invocation flag > local repo > state-branch > legacy sync_on_change > implicit default.\n\n## Tests\n\n- Round-trip: legacy config (only enabled + sync_on_change + config_file) deserializes to the same effective policy as today.\n- Layered override: state-branch sets required=true; local layer overrides to required=false; effective policy is local.\n- Per-invocation flag (--no-sync, --sync) shadows both.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-b7fb",
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["config","plugins"],
   "title": "Config inheritance: per-event participant policy",
   "type": "task",
-  "updated_at": "2026-04-28T02:12:53.296350693Z"
+  "updated_at": "2026-04-28T02:33:30.948035872Z"
 }
