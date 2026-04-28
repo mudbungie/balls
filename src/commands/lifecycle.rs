@@ -3,6 +3,7 @@
 
 use super::{default_identity, discover};
 use balls::error::{BallError, Result};
+use balls::participant::Event;
 use balls::plugin;
 use balls::policy::{self, ClaimPolicy, LocalConfig, SyncOverride};
 use balls::store::{task_lock, Store};
@@ -30,8 +31,7 @@ pub fn cmd_claim(
     } else {
         let path = worktree::create_worktree(&store, &id, &ident, claim_policy)?;
         let task = store.load_task(&id)?;
-        if let Ok(results) = plugin::run_plugin_push(&store, &task) {
-            let _ = plugin::apply_push_response(&store, &id, &results);
+        if plugin::dispatch_push(&store, &task, Event::Claim, &ident).is_ok() {
             let main_branch = balls::git::git_current_branch(&store.root)?;
             let _ = balls::git::git_merge(&path, &main_branch);
         }
@@ -63,9 +63,7 @@ pub fn cmd_review(id: String, message: Option<String>, identity: Option<String>)
         balls::review::review_worktree(&store, &id, message.as_deref(), &ident)?;
     }
     let task = store.load_task(&id)?;
-    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
-        let _ = plugin::apply_push_response(&store, &id, &results);
-    }
+    let _ = plugin::dispatch_push(&store, &task, Event::Review, &ident);
     println!("reviewed {id} — from the repo root, run `bl close {id} -m \"...\"` to finish");
     Ok(())
 }
@@ -78,7 +76,7 @@ pub fn cmd_close(id: String, message: Option<String>, identity: Option<String>) 
     } else {
         balls::review::close_worktree(&store, &id, message.as_deref(), &ident)?
     };
-    let _ = plugin::run_plugin_push(&store, &task);
+    let _ = plugin::dispatch_push(&store, &task, Event::Close, &ident);
     println!("closed {id}");
     if !store.no_git {
         println!("{}", store.root.display());
@@ -147,9 +145,8 @@ pub fn cmd_update(
         task
     };
 
-    if let Ok(results) = plugin::run_plugin_push(&store, &task) {
-        let _ = plugin::apply_push_response(&store, &id, &results);
-    }
+    let event = if closing { Event::Close } else { Event::Update };
+    let _ = plugin::dispatch_push(&store, &task, event, &ident);
 
     if closing {
         println!("closed and archived {id}");
