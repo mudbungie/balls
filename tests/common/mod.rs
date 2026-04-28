@@ -6,6 +6,7 @@
 
 #![allow(dead_code)]
 
+pub mod human_gate;
 pub mod plugin;
 
 use assert_cmd::Command;
