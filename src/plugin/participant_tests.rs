@@ -28,6 +28,7 @@ fn entry(sync_on_change: bool) -> PluginEntry {
         enabled: true,
         sync_on_change,
         config_file: ".balls/plugins/x.json".into(),
+        participant: None,
     }
 }
 

@@ -29,6 +29,7 @@ pub mod git_state;
 pub mod link;
 pub mod negotiation;
 pub mod participant;
+pub mod participant_config;
 pub mod plugin;
 pub mod policy;
 pub mod progress;

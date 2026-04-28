@@ -23,12 +23,18 @@
 use crate::error::{BallError, Result};
 use crate::negotiation::{FailurePolicy, Negotiation, NegotiationResult, Protocol};
 use crate::store::Store;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 /// SPEC §6 — discrete state transitions `bl` runs against a task. The
 /// `Drop` event is intentionally absent (SPEC §6): drop is a local
 /// release with no durable change to negotiate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+///
+/// Serializes to lowercase strings (`"claim"`, `"review"`, ...) so it
+/// can sit as a JSON object key in `.balls/config.json` participant
+/// subscription maps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Event {
     Claim,
     Review,
