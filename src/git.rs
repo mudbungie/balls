@@ -32,7 +32,7 @@ fn run_git_in(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
     Ok(out)
 }
 
-fn run_git_ok(dir: &Path, args: &[&str]) -> Result<String> {
+pub(crate) fn run_git_ok(dir: &Path, args: &[&str]) -> Result<String> {
     let out = run_git_in(dir, args)?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).to_string();
