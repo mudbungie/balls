@@ -115,23 +115,20 @@ pub fn review_worktree(
 
         // Squash merge the worker's branch into main as the single
         // feature commit; the delivery tag [bl-XXXX] is embedded in
-        // the title so main <-> state branch stays traceable. The
-        // merge-in above already reconciled main, so this squash
-        // cannot produce fresh conflicts. An empty squash (no staged
-        // changes after `merge --squash`) means the worker delivered
+        // the title so main <-> state branch stays traceable. An
+        // empty squash (no staged changes) means the worker delivered
         // no code — e.g. a gate task or a bugfix that turned no-op
-        // once main moved forward; we skip the commit so
-        // delivered_in stays null and the state-branch subject gets
-        // a `no-code` marker for half-push detection.
+        // once main moved forward; delivered_in stays null and the
+        // state-branch subject gets a `no-code` marker for half-push
+        // detection. `bare_squash::squash_into_main` routes through an
+        // ephemeral detached worktree when `store.root` is a bare
+        // gitdir (bl-56f4).
         let squash_msg = crate::commit_msg::format_squash(message, &task.title, id);
-        git::git_merge_squash(&store.root, &branch)?;
-        let delivered_sha = if git::has_staged_changes(&store.root)? {
-            git::git_commit(&store.root, &squash_msg)?;
-            Some(git::git_resolve_sha(&store.root, "HEAD")?)
-        } else {
+        let delivered_sha =
+            crate::bare_squash::squash_into_main(store, &branch, &squash_msg)?;
+        if delivered_sha.is_none() {
             eprintln!("no code delivered — checkpoint review for {id}");
-            None
-        };
+        }
 
         // Flip the task to review on the state branch, embedding the
         // delivery hint in the same commit so the state-branch history
