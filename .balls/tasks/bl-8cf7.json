@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-11T05:20:27.096650641Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "WHY: bl review (commit 83a5f5a) added bare-repo support via detached worktree, but Store::discover wasn't updated. Result: every command that runs from a bare repo root (bl prime, bl ready, bl list, bl show, ...) fails with \"not initialized. Run \\`bl init\\`\" — even when the repo is fully initialized. Users can't get to bl review from the bare root at all; they have to cd into a worktree. This contradicts the bare-repo support work and is silently misleading.\n\nREPRO: in /home/mark/dev/balls (bare repo, .balls/config.json present, state worktree healthy):\n  $ bl prime --as x --json\n  error: not initialized. Run \\`bl init\\`\n\nROOT CAUSE: Store::discover_git → git::git_root → \\`git rev-parse --show-toplevel\\`. In a bare repo this exits 128 (\"this operation must be run in a work tree\"). git_root returns NotARepo. discover falls back to discover_no_git, which finds .balls/config.json fine but rejects at store.rs:86 because !stealth (no .balls/local/tasks_dir override). Returns NotInitialized.\n\nFIX: detect bare repos in discover_git (e.g. git rev-parse --is-bare-repository) and treat the bare gitdir's parent as main_root. The state-worktree path is already canonical (.balls/worktree/.balls/tasks), so once main_root is resolved, the rest works. Reuse the same bare-detection pattern bl review already uses (see src/bare_squash.rs).",
+  "external": {},
+  "id": "bl-8cf7",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": ["discovery","bare-repo"],
+  "title": "Store::discover doesn't handle bare repos — emits misleading 'not initialized'",
+  "type": "bug",
+  "updated_at": "2026-05-11T05:20:27.096650641Z"
+}
