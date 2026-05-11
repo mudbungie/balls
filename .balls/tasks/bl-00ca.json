@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-11T05:03:37.763325759Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Two related lifecycle extensions to support real-world git workflows beyond pure trunk-based.\n\n1. Configurable integration branch (target_branch). Today bl review squashes into \"whatever is checked out at the repo root\" (review.rs:94 reads git_current_branch(&store.root)). Make this explicit and configurable so git-flow setups can target develop, hotfix can target main, etc.\n\n2. Deferred-squash delivery mode. Today bl review lands the squash locally and immediately. Repos with external code review (GitHub PRs, GitLab MRs) need the squash to happen via the forge after approval. In deferred mode, bl review pushes work/bl-xxxx to origin and opens an auto-gate child task; close is unblocked only when the forge merges (manually or via a forge plugin closing the gate child).\n\nWHY: balls today implicitly assumes trunk-based delivery with no external gate. The default flow is right for solo agents and small teams, but most production repos sit on a forge with required reviewers and CI gates, and many use a develop/main split. Without these two extensions, balls is unusable in those setups — you'd have to bypass bl review entirely. Adding them broadens the addressable surface without changing the elegant default.\n\nBACKWARDS COMPAT STRATEGY: all new behaviors opt-in via config; default = today. New optional fields on Task are silently ignored by old bl (no deny_unknown_fields). No new Status variant — review status is reused, and the \"awaiting external merge\" hold is enforced via the existing gates primitive (auto-opened by bl review in deferred mode), which old clients already respect on bl close.\n\nACCEPTED CAVEAT (per user 2026-05-10): an old bl on a deferred-mode repo running bl review will still do the old local-squash thing, contaminating the integration branch with a premature squash. We document this and emit an advisory min_bl_version in config; we do not engineer to prevent it. Old-client bl close is correctly blocked by the auto-gate, so the more dangerous mid-review teardown is impossible.",
+  "external": {},
+  "id": "bl-00ca",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": ["delivery","forge-gated","bc-compat"],
+  "title": "Forge-gated delivery and configurable integration branch",
+  "type": "epic",
+  "updated_at": "2026-05-11T05:03:37.763325759Z"
+}
