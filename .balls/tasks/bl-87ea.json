@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-11T05:04:26.918638333Z",
+  "delivered_in": null,
+  "depends_on": ["bl-b017"],
+  "description": "Extend bl close to populate delivered_in opportunistically when it is null on the closing task. In deferred mode, bl review does not write delivered_in (no local squash happened), so by the time bl close runs after the forge merge, the field is still null. Run the existing tag-scan (delivery.rs git_log_find_subject) against the configured target_branch to find the [bl-xxxx]-tagged commit; write it into the close commit on the state branch.\n\nIf the tag-scan finds nothing (e.g., the merge SHA hasn't been fetched yet, or the operator forgot the tag in the PR title), allow close to proceed with a warning. The half-push detection in src/commands/half_push.rs already handles \"state says closed but main has no matching tag\" — we are not regressing that surface, only extending the SHA-resolution path.\n\nWHY: delivered_in is a hint, not source of truth (the README is explicit: the [bl-xxxx] tag in the commit subject is ground truth). The existing fallback in delivery.rs already resolves drifted SHAs via tag-scan. We are extending that same machinery to \"hint was never written\" — a strict generalization, no new mechanism.\n\nAlso accept a manual --delivered <sha> flag on bl close for the case where the operator wants to override the scan (e.g., the forge produced a rebase-merge with multiple commits and they want to point at a specific one).\n\nACCEPTANCE:\n- Closing a local-squash-mode task: behavior unchanged (delivered_in already set by review).\n- Closing a deferred-mode task whose [bl-xxxx]-tagged merge is reachable on target_branch: delivered_in populated automatically.\n- Closing a deferred-mode task with no matching tag on target_branch: warning emitted; close proceeds; half-push detector behaves identically.\n- bl close --delivered <sha> overrides the scan unconditionally.",
+  "external": {},
+  "id": "bl-87ea",
+  "links": [],
+  "parent": "bl-00ca",
+  "priority": 1,
+  "status": "open",
+  "tags": ["delivery","forge-gated","lifecycle"],
+  "title": "bl close: resolve delivered_in via tag-scan when null",
+  "type": "task",
+  "updated_at": "2026-05-11T05:04:26.918638333Z"
+}
