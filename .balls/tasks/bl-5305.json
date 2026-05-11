@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-11T05:05:01.377788449Z",
+  "delivered_in": null,
+  "depends_on": ["bl-b017","bl-87ea","bl-25aa"],
+  "description": "Update README.md and SKILL.md to cover the new lifecycle surface:\n\n- README.md: new top-level section \"Delivery Modes\" between \"Architecture: the state branch\" and the \"Task Schema\" sections. Cover local-squash (today's default) and deferred (forge-gated). Wire to docs/SPEC-forge-gated-delivery.md. Document the implicit \"current branch at repo root = integration target\" as the fallback when target_branch is unset, since that has lived undocumented in review.rs.\n- README.md: add target_branch to the config section.\n- README.md: add a forge-plugin row to the GitHub Issues / Jira / Linear comparison table or its own bullet — these are different plugins (issue tracker vs forge), and the docs should make that crisp so users don't try to use balls-plugin-github for issue tracking.\n- SKILL.md: new section \"Forge-gated review (opt-in)\" before \"Multi-agent: split submitter and reviewer\". Cover what changes for an agent: bl review pushes the branch instead of squashing, the auto-gate child appears, what to do with it (don't claim it), how the close eventually unblocks.\n- SKILL.md: document the BC caveat (old bl on a deferred-mode repo running bl review will still local-squash) in plain agent-facing language. Suggest checking min_bl_version.\n- Update the \"Task Lifecycle\" diagram to show the deferred-mode branch of the in_progress→review transition.\n\nWHY: existing docs implicitly assume trunk-based with no external gate. SKILL.md's \"Multi-agent\" section is about two local agents, not external reviewers via a forge — and the README's only mention of forge PRs is the release-plz section, which uses forge PRs *out of band* from balls. Users in git-flow or forge-gated repos have no way to discover today that balls can support their flow at all (and post-impl, they need to know how).\n\nACCEPTANCE:\n- README and SKILL both reference the new SPEC file.\n- Worked example in README for both delivery modes (single-agent trunk; agent + forge PR).\n- BC caveat appears in both docs.",
+  "external": {},
+  "id": "bl-5305",
+  "links": [],
+  "parent": "bl-00ca",
+  "priority": 2,
+  "status": "open",
+  "tags": ["docs","delivery"],
+  "title": "Docs: delivery modes, target_branch, and forge-gated flow",
+  "type": "task",
+  "updated_at": "2026-05-11T05:05:01.377788449Z"
+}
