@@ -567,25 +567,22 @@ With `--no-worktree`, skips worktree creation — only flips the task status and
 
 Fails if already claimed locally, deps unmet, or task not `open`.
 
-### bl review ID [-m MSG]
+### bl review ID [-m MSG]...
 
 ```
-bl review bl-a1b2 -m "$(cat <<'EOF'
-Short title under ~50 chars
-
-Body paragraph explaining the change in detail. Wrap at ~72.
-Multiple paragraphs are preserved as the commit body.
-EOF
-)"
+bl review bl-a1b2 \
+  -m "Short title under ~50 chars" \
+  -m "Body paragraph explaining the change in detail. Wrap at ~72." \
+  -m "Add another -m for another paragraph."
 ```
 
 Worker's exit point. Commits uncommitted work in the bl worktree → merges main in (surfaces conflicts there, not on main) → squash-merges to main as a single feature commit → writes the `delivered_in` hint and flips the task to `review` on the state branch in one commit. The worktree and the claim stay intact so a rejected review can be reworked in place.
 
-Commit messages use 50/72 shape: the first line of `-m` becomes the commit title with `[bl-xxxx]` appended, and everything after the first newline becomes the body. A single-line `-m "fix foo"` still works (no body). Don't stuff a multi-sentence summary into a single line — `git log --oneline` becomes unreadable.
+Commit messages use 50/72 shape. `-m` is repeatable, exactly like `git commit -m … -m …`: the first `-m` is the title (with `[bl-xxxx]` appended), each later `-m` is a body paragraph separated by a blank line. A single `-m` value may itself span multiple lines (first line = title, rest = body), so `-m "$(cat <<'EOF' … EOF)"` also works. A single-line `-m "fix foo"` still works (no body). Don't stuff a multi-sentence summary into a single line — `git log --oneline` becomes unreadable.
 
 If the reviewer rejects (`bl update bl-a1b2 status=in_progress`), the worker resumes in the existing bl worktree and calls `bl review` again; the next run merges main first, picking up the rejection.
 
-### bl close ID [-m MSG]
+### bl close ID [-m MSG]...
 
 ```
 bl close bl-a1b2 -m "approved"
@@ -593,7 +590,7 @@ bl close bl-a1b2 -m "approved"
 
 Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back.
 
-The reviewer message is embedded in the state-branch close commit's body (not appended to a notes file, which is about to be deleted). It's still in git history on `balls/tasks`.
+The reviewer message is embedded in the state-branch close commit's body (not appended to a notes file, which is about to be deleted). It's still in git history on `balls/tasks`. `-m` is repeatable here too — each value becomes its own paragraph.
 
 ### bl update ID [field=value ...] [--note TEXT]
 
