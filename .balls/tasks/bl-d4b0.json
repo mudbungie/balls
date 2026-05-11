@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-11T05:04:36.520917183Z",
+  "delivered_in": null,
+  "depends_on": ["bl-0c99"],
+  "description": "Add optional target_branch: Option<String> field to the Task struct. When set on a single task, overrides the repo-level target_branch for that task's bl review.\n\nWHY: git-flow distinguishes feature work (→ develop) from hotfixes (→ main). The same repo needs both at once. Per-task is the smallest unit that expresses this without inventing a \"branch type\" concept or a parallel \"hotfix mode\" lifecycle.\n\nBC: the field is optional. Old bl reads the task JSON via lenient serde (no deny_unknown_fields on Task — confirmed in src/task.rs:114) and silently ignores the new field; its bl review will use the repo-level default or current branch. This is the accepted caveat: a hotfix task created with per-task override pointing at main, processed by an old client with develop checked out, will land on develop. Documented in the spec; do not engineer to prevent it.\n\nACCEPTANCE:\n- bl create --target-branch main: writes target_branch field on the task.\n- bl review on a task with target_branch set: uses that branch, ignoring both the repo-level target_branch and the current-branch fallback.\n- bl show surfaces target_branch when non-null.\n- Old-client decode of a Task with target_branch set: succeeds, field silently dropped.\n\nPriority p3: nice-to-have, ship after the core deferred-squash work lands. Single-target-per-repo covers the most common case.",
+  "external": {},
+  "id": "bl-d4b0",
+  "links": [],
+  "parent": "bl-00ca",
+  "priority": 3,
+  "status": "open",
+  "tags": ["delivery","git-flow"],
+  "title": "Per-task target_branch override",
+  "type": "task",
+  "updated_at": "2026-05-11T05:04:36.520917183Z"
+}
