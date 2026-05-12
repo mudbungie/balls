@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2572",
+  "claimed_by": "customize",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-12T21:15:23.898863043Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["ux","commit-msg"],
   "title": "Repeatable -m for review/close: build multi-line messages without heredocs",
   "type": "feature",
-  "updated_at": "2026-05-12T21:15:23.898863043Z"
+  "updated_at": "2026-05-12T21:15:27.259044142Z"
 }
