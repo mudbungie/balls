@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-12T21:15:23.898863043Z",
-  "delivered_in": null,
+  "delivered_in": "7f3c2d8d5e8b03f210a287d796e48d15f399458d",
   "depends_on": [],
   "description": "Users report multi-line -m/--message is awkward because it forces shell heredoc gymnastics ($(cat <<'EOF' ...)), so they default to terse one-line commit messages and lose the 50/72 body. Adopt git's convention: make -m repeatable on bl review and bl close; the values are joined with blank lines (first = title, rest = body paragraphs). Single -m keeps working identically. Why: the friction is purely shell-quoting; matching 'git commit -m a -m b' removes it with zero new concepts and no behavior change for existing callers.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["ux","commit-msg"],
   "title": "Repeatable -m for review/close: build multi-line messages without heredocs",
   "type": "feature",
-  "updated_at": "2026-05-12T21:15:27.259044142Z"
+  "updated_at": "2026-05-12T21:28:57.961421946Z"
 }
