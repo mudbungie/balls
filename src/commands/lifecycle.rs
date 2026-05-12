@@ -56,13 +56,14 @@ fn resolve_claim_policy(store: &Store, sync: bool, no_sync: bool) -> Result<Clai
 
 pub fn cmd_review(
     id: String,
-    message: Option<String>,
+    message: Vec<String>,
     identity: Option<String>,
     sync: bool,
     no_sync: bool,
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
+    let message = balls::commit_msg::join_messages(&message);
     if store.no_git {
         balls::review::review_no_git(&store, &id, message.as_deref(), &ident)?;
     } else {
@@ -79,13 +80,14 @@ pub fn cmd_review(
 
 pub fn cmd_close(
     id: String,
-    message: Option<String>,
+    message: Vec<String>,
     identity: Option<String>,
     sync: bool,
     no_sync: bool,
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
+    let message = balls::commit_msg::join_messages(&message);
     let task = if store.no_git {
         balls::review::close_no_git(&store, &id, message.as_deref(), &ident)?
     } else {
