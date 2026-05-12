@@ -23,6 +23,22 @@ pub fn format_squash(message: Option<&str>, task_title: &str, id: &str) -> Strin
     }
 }
 
+/// Collapse repeated `-m` values into one message string.
+///
+/// Mirrors `git commit -m … -m …`: each value becomes its own
+/// paragraph, joined by a blank line. Whitespace-only values are
+/// dropped. Returns `None` when nothing usable remains, so callers
+/// fall back to the task title exactly as a missing `-m` would.
+pub fn join_messages(parts: &[String]) -> Option<String> {
+    let joined = parts
+        .iter()
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    (!joined.is_empty()).then_some(joined)
+}
+
 fn split_title_body(s: &str) -> (&str, Option<String>) {
     let s = s.trim_end_matches('\n');
     let Some(nl) = s.find('\n') else {
@@ -94,6 +110,41 @@ mod tests {
     fn trailing_newlines_stripped() {
         let out = format_squash(Some("Short title\n\n"), "ignored", "bl-1234");
         assert_eq!(out, "Short title [bl-1234]");
+    }
+
+    #[test]
+    fn join_messages_none_when_empty_or_blank() {
+        assert_eq!(join_messages(&[]), None);
+        assert_eq!(join_messages(&["   ".into(), "\n".into()]), None);
+    }
+
+    #[test]
+    fn join_messages_single_value_passes_through() {
+        assert_eq!(join_messages(&["fix foo".into()]).as_deref(), Some("fix foo"));
+    }
+
+    #[test]
+    fn join_messages_repeated_values_become_paragraphs() {
+        let parts = vec!["Short title".into(), "First para.".into(), "Second para.".into()];
+        assert_eq!(
+            join_messages(&parts).as_deref(),
+            Some("Short title\n\nFirst para.\n\nSecond para.")
+        );
+    }
+
+    #[test]
+    fn join_messages_drops_blanks_between_real_values() {
+        let parts = vec!["Title".into(), "  ".into(), "Body.".into()];
+        assert_eq!(join_messages(&parts).as_deref(), Some("Title\n\nBody."));
+    }
+
+    #[test]
+    fn repeated_m_then_format_squash_yields_50_72_shape() {
+        let msg = join_messages(&["Short title".into(), "Body paragraph.".into()]);
+        assert_eq!(
+            format_squash(msg.as_deref(), "ignored", "bl-1234"),
+            "Short title [bl-1234]\n\nBody paragraph."
+        );
     }
 
     #[test]

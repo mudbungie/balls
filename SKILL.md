@@ -140,22 +140,16 @@ If step 2 conflicts, review fails. Resolve in the worktree, then retry.
 
 ### Commit messages: 50/72 shape
 
-`bl review -m` uses the first line as the commit title and everything after the first newline as the body. The delivery tag `[bl-xxxx]` is appended to the title automatically.
-
-Pass a structured message so `git log --oneline` stays readable:
+`-m` is repeatable, exactly like `git commit -m … -m …`: the first `-m` is the commit title, each later `-m` becomes a body paragraph (blank line between). The delivery tag `[bl-xxxx]` is appended to the title automatically. No shell heredoc needed:
 
 ```
-bl review bl-abcd -m "$(cat <<'EOF'
-Short imperative title under ~50 chars
-
-Body paragraph explaining the change in detail. Wrap at ~72.
-Add more paragraphs as needed — everything after the blank line
-is preserved as the commit body.
-EOF
-)"
+bl review bl-abcd \
+  -m "Short imperative title under ~50 chars" \
+  -m "Body paragraph explaining the change in detail. Wrap at ~72." \
+  -m "Add more -m flags for more paragraphs."
 ```
 
-A single-line `-m "fix foo"` becomes `fix foo [bl-abcd]` with no body. Don't stuff a multi-sentence summary into a single line; that produces an unreadable `git log --oneline`.
+A single `-m` value may still contain newlines (first line = title, rest = body), so `-m "$(cat <<'EOF' … EOF)"` keeps working. A single-line `-m "fix foo"` becomes `fix foo [bl-abcd]` with no body. Don't stuff a multi-sentence summary into one line; that produces an unreadable `git log --oneline`.
 
 ## Multi-agent: split submitter and reviewer (opt-in)
 
