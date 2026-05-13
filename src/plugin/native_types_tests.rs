@@ -122,6 +122,52 @@ fn propose_response_neither_branch_means_neither_set() {
     let resp: ProposeResponse = serde_json::from_str("{}").unwrap();
     assert!(resp.ok.is_none());
     assert!(resp.conflict.is_none());
+    assert!(resp.extra.is_empty());
+}
+
+// SPEC §13 seam 3 / §17.17: a describe response that subscribes to an
+// event this build does not know must still parse — the unknown event
+// is dropped and the known ones survive. Pre-impl this FAILS because
+// `Vec<Event>` deserialization hard-errors on the unknown variant,
+// taking the whole describe (and the plugin's native protocol) with it.
+#[test]
+fn describe_drops_unknown_event_keeps_known() {
+    let json = r#"{
+        "subscriptions": ["claim", "frobnicate", "review", "create"],
+        "projection": { "external_prefixes": ["jira"] }
+    }"#;
+    let resp: DescribeResponse = serde_json::from_str(json).unwrap();
+    assert_eq!(resp.subscriptions, vec![Event::Claim, Event::Review]);
+}
+
+#[test]
+fn describe_all_unknown_events_yields_empty_subscriptions() {
+    let json = r#"{
+        "subscriptions": ["frobnicate", "create"],
+        "projection": { "external_prefixes": ["jira"] }
+    }"#;
+    let resp: DescribeResponse = serde_json::from_str(json).unwrap();
+    assert!(resp.subscriptions.is_empty());
+}
+
+#[test]
+fn describe_missing_subscriptions_defaults_empty() {
+    let json = r#"{ "projection": { "external_prefixes": ["jira"] } }"#;
+    let resp: DescribeResponse = serde_json::from_str(json).unwrap();
+    assert!(resp.subscriptions.is_empty());
+}
+
+// SPEC §13 seam 2 / §17.18: an unknown propose variant is captured in
+// `extra`, not silently discarded, so the degrade-to-`Other` path can
+// name it. Pre-impl this FAILS to compile (no `extra` field) / FAILS
+// the assertion (variant key not retained).
+#[test]
+fn propose_response_captures_unknown_variant_in_extra() {
+    let json = r#"{ "reject": { "reason": "ci is red" } }"#;
+    let resp: ProposeResponse = serde_json::from_str(json).unwrap();
+    assert!(resp.ok.is_none());
+    assert!(resp.conflict.is_none());
+    assert!(resp.extra.contains_key("reject"));
 }
 
 #[test]

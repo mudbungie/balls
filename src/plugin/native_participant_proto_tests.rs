@@ -97,7 +97,7 @@ fn classify_routes_each_branch_correctly() {
     let class = __test_classify(
         ProposeResponse {
             ok: Some(ProposeOk { task: json!({}), commit_policy: None }),
-            conflict: None,
+            ..Default::default()
         },
         &mut accepted,
         &mut conflict,
@@ -108,12 +108,12 @@ fn classify_routes_each_branch_correctly() {
     accepted = None;
     let class = __test_classify(
         ProposeResponse {
-            ok: None,
             conflict: Some(ProposeConflict {
                 fields: vec![],
                 remote_view: json!({}),
                 hint: None,
             }),
+            ..Default::default()
         },
         &mut accepted,
         &mut conflict,
@@ -122,7 +122,7 @@ fn classify_routes_each_branch_correctly() {
     assert!(matches!(class, AttemptClass::Conflict));
     assert!(conflict.is_some());
     let class = __test_classify(
-        ProposeResponse { ok: None, conflict: None },
+        ProposeResponse::default(),
         &mut accepted,
         &mut conflict,
         "jira",
@@ -130,4 +130,25 @@ fn classify_routes_each_branch_correctly() {
     assert!(
         matches!(&class, AttemptClass::Other(s) if s.contains("neither ok nor conflict"))
     );
+}
+
+// SPEC §13 seam 2 / §17.18: an unknown propose variant degrades to
+// `Other` and the message names the variant (here `reject`, the
+// bl-2062 addition an old `bl` will meet). Pre-impl FAILS: the message
+// is the generic "neither ok nor conflict" because the variant was
+// silently discarded before classify saw it.
+#[test]
+fn classify_unknown_variant_is_other_naming_it() {
+    let mut accepted: Option<ProposeOk> = None;
+    let mut conflict: Option<ProposeConflict> = None;
+    let resp: ProposeResponse =
+        serde_json::from_str(r#"{ "reject": { "reason": "ci red" } }"#).unwrap();
+    let class = __test_classify(resp, &mut accepted, &mut conflict, "jira");
+    let AttemptClass::Other(msg) = class else {
+        panic!("expected Other, got {class:?}");
+    };
+    assert!(msg.contains("unknown variant"), "msg: {msg}");
+    assert!(msg.contains("reject"), "msg: {msg}");
+    assert!(accepted.is_none());
+    assert!(conflict.is_none());
 }
