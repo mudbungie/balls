@@ -12,6 +12,11 @@
 //! stays local-only. The propose-merge-retry primitive itself lives
 //! in `crate::negotiation`; this module supplies the wire hooks and
 //! `push_claim` / `push_state_for` wrappers.
+//!
+//! The remote is not hardcoded: every fetch/push here resolves
+//! through `config.state_remote()` (default `origin`). This module is
+//! the participant seam bl-19aa retargets so a client repo can
+//! negotiate `balls/tasks` against a shared task hub.
 
 use crate::error::{BallError, Result};
 use crate::git;
@@ -21,16 +26,25 @@ use crate::store::Store;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-const REMOTE: &str = "origin";
 const STATE_BRANCH: &str = "balls/tasks";
 const MAX_RETRIES: usize = 5;
 
-/// Run `git push origin balls/tasks` from `dir` and classify the
-/// outcome. Spawn failures propagate as Err — they're catastrophic
-/// (no git on PATH) rather than a remote-state condition.
-pub fn push_state_classified(dir: &Path) -> Result<AttemptClass> {
+/// Resolve this repo's `state_remote` (default `origin`). This is the
+/// one seam that retargets `balls/tasks`: every fetch/push the
+/// git-remote participant runs reads it through here, so there is no
+/// second code path with `origin` baked in. Errors propagate (a
+/// required remote sync must not silently fall back to the wrong
+/// peer); the only caller contexts are `Result`-returning.
+fn state_remote(store: &Store) -> Result<String> {
+    Ok(store.load_config()?.state_remote().to_string())
+}
+
+/// Run `git push <state_remote> balls/tasks` from `dir` and classify
+/// the outcome. Spawn failures propagate as Err — they're
+/// catastrophic (no git on PATH) rather than a remote-state condition.
+pub fn push_state_classified(dir: &Path, remote: &str) -> Result<AttemptClass> {
     let out = git::clean_git_command(dir)
-        .args(["push", REMOTE, STATE_BRANCH])
+        .args(["push", remote, STATE_BRANCH])
         .output()?;
     Ok(classify_push_output(&out))
 }
@@ -85,8 +99,10 @@ pub enum SyncedClaimResult {
 
 /// `Protocol` implementation for the git-remote state-branch lifecycle
 /// push. One concrete struct serves every event because the wire is
-/// the same `git push origin balls/tasks` either way; the only
-/// branching is `post_merge`'s claim-only ownership check.
+/// the same `git push <state_remote> balls/tasks` either way; the only
+/// branching is `post_merge`'s claim-only ownership check. `remote` is
+/// resolved once at construction so every attempt in one negotiation
+/// targets a stable peer.
 pub struct GitRemoteClaimProtocol<'a> {
     event: Event,
     store: &'a Store,
@@ -106,12 +122,14 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
     type Outcome = SyncedClaimResult;
 
     fn propose(&mut self) -> Result<AttemptClass> {
-        push_state_classified(&self.state_dir)
+        let remote = state_remote(self.store)?;
+        push_state_classified(&self.state_dir, &remote)
     }
 
     fn fetch_remote_view(&mut self) -> Result<()> {
-        let _ = git::git_fetch(&self.state_dir, REMOTE);
-        let merge = git::git_merge(&self.state_dir, &format!("{REMOTE}/{STATE_BRANCH}"))?;
+        let remote = state_remote(self.store)?;
+        let _ = git::git_fetch(&self.state_dir, &remote);
+        let merge = git::git_merge(&self.state_dir, &format!("{remote}/{STATE_BRANCH}"))?;
         if matches!(merge, git::MergeResult::Conflict) {
             crate::sync_resolve::auto_resolve_task_conflicts(&self.state_dir)?;
             git::git_commit(&self.state_dir, "state: auto-resolve lifecycle conflicts")?;
@@ -135,7 +153,8 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
         // Best-effort post-merge push so the remote sees the resolved
         // state. Failure here doesn't change the outcome — we already
         // know we lost.
-        let _ = push_state_classified(&self.state_dir);
+        let remote = state_remote(self.store)?;
+        let _ = push_state_classified(&self.state_dir, &remote);
         Ok(Some(SyncedClaimResult::Lost { winner }))
     }
 
@@ -249,7 +268,7 @@ pub fn push_claim(
 }
 
 /// Push the freshly-committed state-branch transition for `event`
-/// through `origin/balls/tasks`. Required-policy generalization of
+/// through `<state_remote>/balls/tasks`. Required-policy generalization of
 /// `push_claim` for review and close: same wire, same retry-merge
 /// loop, same unreachable-aborts-loud stance. The `error_prefix`
 /// is folded into the `Err` message so callers don't all wrap the
@@ -262,9 +281,10 @@ pub fn push_state_for(
     error_prefix: &str,
 ) -> Result<SyncedClaimResult> {
     let state_dir = store.state_worktree_dir();
-    if !git::git_fetch(&state_dir, REMOTE)? {
+    let remote = state_remote(store)?;
+    if !git::git_fetch(&state_dir, &remote)? {
         return Err(BallError::Other(format!(
-            "{error_prefix}: cannot reach remote `{REMOTE}` (fetch failed)"
+            "{error_prefix}: cannot reach remote `{remote}` (fetch failed)"
         )));
     }
     let participant = GitRemoteParticipant::for_lifecycle(&[event]);
