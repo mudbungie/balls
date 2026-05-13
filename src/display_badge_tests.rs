@@ -27,6 +27,7 @@ fn make_task(id: &str) -> Task {
         external: BTreeMap::new(),
         synced_at: BTreeMap::new(),
         delivered_in: None,
+        repo: None,
         extra: BTreeMap::new(),
     }
 }

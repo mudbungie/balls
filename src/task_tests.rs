@@ -33,6 +33,24 @@ fn roundtrip_serialization() {
 }
 
 #[test]
+fn repo_field_is_omitted_when_unset_and_round_trips_when_set() {
+    // skip_serializing_if keeps single-repo task files byte-identical
+    // (no `repo` key, no churn) and defaults a legacy file to None.
+    let t = Task::new(NewTaskOpts::default(), "bl-aaaa".into());
+    let s = serde_json::to_string(&t).unwrap();
+    assert!(!s.contains("\"repo\""), "unset repo must not serialize: {s}");
+    let legacy: Task = serde_json::from_str(&s).unwrap();
+    assert_eq!(legacy.repo, None);
+
+    let mut t2 = t;
+    t2.repo = Some("git@h:proj.git".into());
+    let s2 = serde_json::to_string(&t2).unwrap();
+    assert!(s2.contains("\"repo\":\"git@h:proj.git\""));
+    let back: Task = serde_json::from_str(&s2).unwrap();
+    assert_eq!(back.repo.as_deref(), Some("git@h:proj.git"));
+}
+
+#[test]
 fn validate_priority_accepts_in_range() {
     for p in PRIORITY_MIN..=PRIORITY_MAX {
         validate_priority(p).unwrap();
