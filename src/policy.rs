@@ -11,6 +11,7 @@
 //! their honour. The policy guides default behaviour; the rest is
 //! social.
 
+use crate::config::Config;
 use crate::error::Result;
 use crate::participant_config::LocalPluginEntry;
 use crate::store::Store;
@@ -31,6 +32,13 @@ pub struct LocalConfig {
     pub require_remote_on_review: Option<bool>,
     #[serde(default)]
     pub require_remote_on_close: Option<bool>,
+    /// Per-clone override of `Config.state_remote`. `bl remaster`
+    /// writes it here by default so the project link is per-clone
+    /// (and `--detach` writes `origin` here to shadow a committed hub
+    /// and go standalone). Layered over the committed value by
+    /// `state_remote_opt`. `None` ⇒ inherit the committed config.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_remote: Option<String>,
     /// SPEC §11 — per-plugin participant policy overrides. Only
     /// plugins the clone actually wants to override appear here.
     #[serde(default)]
@@ -54,6 +62,30 @@ impl LocalConfig {
         let cfg: LocalConfig = serde_json::from_str(&s)?;
         Ok(Some(cfg))
     }
+
+    /// Persist this per-clone override to `.balls/local/config.json`,
+    /// creating the directory if needed. Used by `bl remaster` to
+    /// record the per-clone state-remote link.
+    pub fn save(&self, store: &Store) -> Result<()> {
+        let p = Self::path(store);
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&p, serde_json::to_string_pretty(self)? + "\n")?;
+        Ok(())
+    }
+}
+
+/// Layered `state_remote`, per the bl-2148 precedence (per-clone
+/// override beats committed default). `None` means neither side set
+/// it — the caller applies its own default (`origin` for lifecycle
+/// and init; the `bl sync --remote` value for the standalone sync
+/// path, preserving byte-identical behavior). This is the single
+/// place the local-over-committed precedence lives.
+pub fn state_remote_opt(cfg: &Config, local: Option<&LocalConfig>) -> Option<String> {
+    local
+        .and_then(|l| l.state_remote.clone())
+        .or_else(|| cfg.state_remote.clone())
 }
 
 /// CLI-side override: which way (if any) the user pushed the toggle.
@@ -170,81 +202,5 @@ pub fn notify_repo_default_once(store: &Store, policy: ClaimPolicy) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cli_sync_overrides_everything() {
-        let p = resolve(false, None, SyncOverride::Sync);
-        assert!(p.require_remote);
-    }
-
-    #[test]
-    fn cli_no_sync_overrides_repo_and_local() {
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::NoSync);
-        assert!(!p.require_remote);
-    }
-
-    #[test]
-    fn local_override_beats_repo_default() {
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(false), ..Default::default() }), SyncOverride::Unset);
-        assert!(!p.require_remote);
-        assert!(!p.from_repo_default);
-    }
-
-    #[test]
-    fn unset_local_falls_through_to_repo_default() {
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: None, ..Default::default() }), SyncOverride::Unset);
-        assert!(p.require_remote);
-        assert!(p.from_repo_default);
-    }
-
-    #[test]
-    fn no_local_file_falls_through_to_repo_default() {
-        let p = resolve(true, None, SyncOverride::Unset);
-        assert!(p.require_remote);
-        assert!(p.from_repo_default);
-    }
-
-    #[test]
-    fn off_by_default_when_nothing_set() {
-        let p = resolve(false, None, SyncOverride::Unset);
-        assert!(!p.require_remote);
-        assert!(!p.from_repo_default);
-    }
-
-    #[test]
-    fn from_repo_default_false_when_local_explicitly_matches() {
-        // Local explicitly says true; not "inherited from repo".
-        let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::Unset);
-        assert!(p.require_remote);
-        assert!(!p.from_repo_default);
-    }
-
-    #[test]
-    fn review_resolver_reads_review_field() {
-        // Repo default off, local override on: review picks up the
-        // review-specific field, not claim's.
-        let local = LocalConfig {
-            require_remote_on_claim: None,
-            require_remote_on_review: Some(true),
-            require_remote_on_close: None,
-            ..Default::default()
-        };
-        let p = resolve_review(false, Some(&local), SyncOverride::Unset);
-        assert!(p.require_remote);
-        // Claim resolver reading the same local config sees nothing.
-        let p = resolve(false, Some(&local), SyncOverride::Unset);
-        assert!(!p.require_remote);
-    }
-
-    #[test]
-    fn close_resolver_cli_overrides_repo_and_local() {
-        let local = LocalConfig {
-            require_remote_on_close: Some(true),
-            ..Default::default()
-        };
-        let p = resolve_close(true, Some(&local), SyncOverride::NoSync);
-        assert!(!p.require_remote);
-    }
-}
+#[path = "policy_tests.rs"]
+mod tests;

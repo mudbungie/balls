@@ -72,9 +72,9 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     // including `bl sync --remote X` — is byte-identical to before
     // this field; only an explicit hub link decouples the two.
     if !store.stealth {
-        let state_remote = store
-            .load_config()?
-            .state_remote
+        let cfg = store.load_config()?;
+        let local = policy::LocalConfig::load(store)?;
+        let state_remote = policy::state_remote_opt(&cfg, local.as_ref())
             .unwrap_or_else(|| remote.to_string());
         sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
     }

@@ -37,6 +37,7 @@ pub mod plugin;
 pub mod policy;
 pub mod progress;
 pub mod ready;
+pub mod remaster;
 pub mod render_list;
 pub mod render_ready;
 pub mod render_show;

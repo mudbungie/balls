@@ -4,6 +4,7 @@
 
 use crate::error::{BallError, Result};
 use crate::git::clean_git_command;
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Stdio;
 
@@ -100,6 +101,54 @@ pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<(
     Ok(())
 }
 
+/// Task ids present under `.balls/tasks/` at `refname` (any tree-ish).
+/// Notes sidecars and scaffolding files are filtered out.
+pub fn ls_task_ids(dir: &Path, refname: &str) -> Result<BTreeSet<String>> {
+    let out = run(dir, &["ls-tree", "--name-only", refname, ".balls/tasks/"])?;
+    Ok(out
+        .lines()
+        .filter_map(|l| {
+            let name = l.rsplit('/').next().unwrap_or(l);
+            name.strip_suffix(".json").map(str::to_string)
+        })
+        .collect())
+}
+
+/// Contents of `path` at `refname`, or `None` if it does not exist
+/// there. Used to compare a local task file against the hub's copy.
+pub fn show_file(dir: &Path, refname: &str, path: &str) -> Result<Option<String>> {
+    let out = clean_git_command(dir)
+        .args(["show", &format!("{refname}:{path}")])
+        .output()
+        .map_err(|e| BallError::Git(format!("git show spawn: {e}")))?;
+    Ok(out
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).to_string()))
+}
+
+/// Re-root `branch` (checked out in `dir`) as a fresh parentless
+/// commit carrying its current tree. The content is preserved; the
+/// shared ancestry with any hub is severed, so the repo can no longer
+/// fast-forward into — or be pushed onto — the hub. This is the
+/// history half of `bl remaster --detach` (the config half clears
+/// `state_remote`). The worktree is reset to the new commit so HEAD
+/// and the index match.
+pub fn reroot_orphan(dir: &Path, branch: &str, message: &str) -> Result<()> {
+    let tree = run(dir, &["rev-parse", &format!("{branch}^{{tree}}")])?
+        .trim()
+        .to_string();
+    let commit = run(dir, &["commit-tree", &tree, "-m", message])?
+        .trim()
+        .to_string();
+    run(
+        dir,
+        &["update-ref", &format!("refs/heads/{branch}"), &commit],
+    )?;
+    run(dir, &["reset", "--hard", branch])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,5 +162,32 @@ mod tests {
             BallError::Git(_) => {}
             other => panic!("expected Git error, got {other:?}"),
         }
+    }
+
+    fn git(dir: &Path, args: &[&str]) {
+        assert!(clean_git_command(dir).args(args).output().unwrap().status.success());
+    }
+
+    #[test]
+    fn show_file_and_ls_task_ids_against_head() {
+        let dir = TempDir::new().unwrap();
+        let p = dir.path();
+        git(p, &["init", "-q", "-b", "main"]);
+        git(p, &["config", "user.email", "t@e.x"]);
+        git(p, &["config", "user.name", "t"]);
+        std::fs::create_dir_all(p.join(".balls/tasks")).unwrap();
+        std::fs::write(p.join(".balls/tasks/bl-aaaa.json"), "JSON\n").unwrap();
+        std::fs::write(p.join(".balls/tasks/.gitkeep"), "").unwrap();
+        git(p, &["add", "-A"]);
+        git(p, &["commit", "-qm", "x", "--no-verify"]);
+
+        let got = show_file(p, "HEAD", ".balls/tasks/bl-aaaa.json").unwrap();
+        assert_eq!(got.as_deref(), Some("JSON\n"));
+        assert!(show_file(p, "HEAD", ".balls/tasks/missing.json")
+            .unwrap()
+            .is_none());
+
+        let ids = ls_task_ids(p, "HEAD").unwrap();
+        assert_eq!(ids.into_iter().collect::<Vec<_>>(), vec!["bl-aaaa"]);
     }
 }
