@@ -24,8 +24,10 @@
 //! returns Some). `dispatch::dispatch_push` decides per plugin and
 //! never double-dispatches.
 
-use super::native_types::{DescribeResponse, ProposeConflict, ProposeOk, ProposeResponse};
-use super::runner::Plugin;
+use super::native_types::{
+    DescribeResponse, EventCtxWire, ProposeConflict, ProposeOk, ProposeResponse,
+};
+use super::runner::{event_subcommand_arg, Plugin};
 use crate::config::PluginEntry;
 use crate::error::Result;
 use crate::negotiation::{AttemptClass, CommitPolicy, FailurePolicy, Protocol};
@@ -50,6 +52,9 @@ pub struct NativePluginParticipant {
     subscriptions: Vec<Event>,
     failure_policies: BTreeMap<Event, FailurePolicy>,
     retry_budget: usize,
+    /// SPEC §5.1 — the plugin asked for the EventCtx side channel in
+    /// its describe response. Off ⇒ byte-identical input to today.
+    wants_context: bool,
 }
 
 /// Default budget per SPEC §7 — same as the git-remote participant
@@ -95,6 +100,7 @@ impl NativePluginParticipant {
             subscriptions,
             failure_policies,
             retry_budget,
+            wants_context: describe.wants_context,
         })
     }
 }
@@ -124,6 +130,9 @@ pub struct NativeProtocol<'a> {
     /// merge `remote_view` into `self.task` before the loop retries.
     pending_conflict: Option<ProposeConflict>,
     retry_budget: usize,
+    /// SPEC §5.1 — deliver the EventCtx side channel; `identity` = actor.
+    wants_context: bool,
+    identity: String,
 }
 
 impl Protocol for NativeProtocol<'_> {
@@ -136,7 +145,21 @@ impl Protocol for NativeProtocol<'_> {
                 self.name
             )));
         }
-        let Some(resp) = self.plugin.propose(self.event, &self.task)? else {
+        // SPEC §5.1: describe-gated. Only a plugin that asked for it
+        // gets the side channel; everyone else is byte-identical.
+        let ctx_json = if self.wants_context {
+            Some(EventCtxWire::for_event(
+                event_subcommand_arg(self.event),
+                &self.identity,
+                self.task.repo.clone(),
+            )?)
+        } else {
+            None
+        };
+        let Some(resp) =
+            self.plugin
+                .propose(self.event, &self.task, ctx_json.as_deref())?
+        else {
             return Ok(AttemptClass::Other(format!(
                 "plugin `{}` propose returned no usable response",
                 self.name
@@ -257,6 +280,8 @@ impl Participant for NativePluginParticipant {
             accepted: None,
             pending_conflict: None,
             retry_budget: self.retry_budget,
+            wants_context: self.wants_context,
+            identity: ctx.identity.to_string(),
         })
     }
 }
