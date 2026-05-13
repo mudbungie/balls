@@ -3,8 +3,8 @@
 //! `pushed` outcome shape. These drive `__test_*` helpers exposed by
 //! `native_participant.rs` so tests do not need a real subprocess.
 
-use super::test_helpers::{entry, save_task, stealth_store};
-use super::{NativeProtocol, __test_classify};
+use super::test_helpers::{__test_classify, entry, save_task, stealth_store};
+use super::NativeProtocol;
 use crate::plugin::native_types::{CommitPolicyWire, ProposeConflict, ProposeOk, ProposeResponse};
 use crate::plugin::Plugin;
 use crate::negotiation::{AttemptClass, CommitPolicy, Protocol};
@@ -132,23 +132,43 @@ fn classify_routes_each_branch_correctly() {
     );
 }
 
-// SPEC §13 seam 2 / §17.18: an unknown propose variant degrades to
-// `Other` and the message names the variant (here `reject`, the
-// bl-2062 addition an old `bl` will meet). Pre-impl FAILS: the message
-// is the generic "neither ok nor conflict" because the variant was
-// silently discarded before classify saw it.
+// SPEC §13 seam 2 / §17.18: a genuinely-unknown propose variant
+// degrades to `Other` and the message names the variant. (`reject`
+// is first-class now, so the example unknown token is one nothing
+// recognizes.)
 #[test]
 fn classify_unknown_variant_is_other_naming_it() {
     let mut accepted: Option<ProposeOk> = None;
     let mut conflict: Option<ProposeConflict> = None;
     let resp: ProposeResponse =
-        serde_json::from_str(r#"{ "reject": { "reason": "ci red" } }"#).unwrap();
+        serde_json::from_str(r#"{ "frobnicate": { "knob": 1 } }"#).unwrap();
     let class = __test_classify(resp, &mut accepted, &mut conflict, "jira");
     let AttemptClass::Other(msg) = class else {
         panic!("expected Other, got {class:?}");
     };
     assert!(msg.contains("unknown variant"), "msg: {msg}");
-    assert!(msg.contains("reject"), "msg: {msg}");
+    assert!(msg.contains("frobnicate"), "msg: {msg}");
+    assert!(accepted.is_none());
+    assert!(conflict.is_none());
+}
+
+// SPEC §8.1 / §17.19: `reject` is its own outcome — not `Ok`, not
+// `Conflict`, not `Other`. classify returns `AttemptClass::Reject`
+// carrying the plugin name and the reason verbatim, and touches
+// neither the accept nor the conflict slot.
+#[test]
+fn classify_reject_is_distinct_outcome() {
+    let mut accepted: Option<ProposeOk> = None;
+    let mut conflict: Option<ProposeConflict> = None;
+    let resp: ProposeResponse =
+        serde_json::from_str(r#"{ "reject": { "reason": "ci is red" } }"#).unwrap();
+    let class = __test_classify(resp, &mut accepted, &mut conflict, "jira");
+    let AttemptClass::Reject(msg) = class else {
+        panic!("expected Reject, got {class:?}");
+    };
+    assert!(msg.contains("jira"), "names the plugin: {msg}");
+    assert!(msg.contains("rejected"), "{msg}");
+    assert!(msg.contains("ci is red"), "reason verbatim: {msg}");
     assert!(accepted.is_none());
     assert!(conflict.is_none());
 }
