@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changes
 
-- repeatable -m for review and close [bl-2572]
+- `-m`/`--message` on `bl review` and `bl close` is now repeatable, matching `git commit -m … -m …`: the first value is the commit title, each later value becomes a body paragraph separated by a blank line. Lets agents build a 50/72-shaped message inline without shell heredoc gymnastics; a single multi-line `-m` value still works exactly as before. [bl-2572]
 - forge-gated delivery and configurable integration branch [bl-ac91]
 - squash via detached worktree when repo root is bare [bl-56f4]
 - native participant protocol [bl-8b71] [bl-8b71]
 - stage plugin sync reports for review [bl-a46d]
-- state-branch sync on review and close [bl-2bf7]
+- `bl review` and `bl close` learn the same optional remote-sync as claim: `require_remote_on_review` / `require_remote_on_close` config fields, matching `--sync` / `--no-sync` per-invocation flags, and the same precedence chain (CLI > local > repo default). Required-policy failure aborts the transition and rolls back the local commits so the task stays in its pre-transition state; close sequences the push before the worktree teardown so a rolled-back close keeps the worktree intact for retry. The git-remote participant shares the bl-eae4 negotiation primitive with claim, so a state-branch advance mid-flight (another agent's claim, etc.) auto-retries via fetch+merge. [bl-2bf7]
 - commit policy on negotiation outcome [bl-4e7d]
 - per-event participant policy with layered resolution [bl-50c5]
 - shim legacy push/sync onto participant contract [bl-b1dd]
@@ -26,14 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - extract propose-merge-retry primitive [bl-eae4]
 - forward-compat catch-all on Link and ArchivedChild [bl-d31c]
 - lifecycle-sync participant model [bl-26de]
-- optional remote-sync for global ordering [bl-2148]
-- warn that bl review auto-appends task id [bl-01d7]
-
-### Changes
-
 - `bl claim` learns optional remote-sync: with `require_remote_on_claim` set in `.balls/config.json` (or per-clone `.balls/local/config.json`, or per-invocation `--sync`/`--no-sync`), the claim commit must round-trip through `origin/balls/tasks` before the worktree is created. Closes the offline-agent claim race; off by default. Push rejects auto-resolve via the existing field-level merge — earliest-`updated_at` wins, lost claims fail loudly. `bl prime` shows a one-time hint when a clone first sees a remote-set policy. [bl-2148]
-- `-m`/`--message` on `bl review` and `bl close` is now repeatable, matching `git commit -m … -m …`: the first value is the commit title, each later value becomes a body paragraph separated by a blank line. Lets agents build a 50/72-shaped message inline without shell heredoc gymnastics; a single multi-line `-m` value still works exactly as before. [bl-2572]
-- `bl review` and `bl close` learn the same optional remote-sync as claim: `require_remote_on_review` / `require_remote_on_close` config fields, matching `--sync` / `--no-sync` per-invocation flags, and the same precedence chain (CLI > local > repo default). Required-policy failure aborts the transition and rolls back the local commits so the task stays in its pre-transition state; close sequences the push before the worktree teardown so a rolled-back close keeps the worktree intact for retry. The git-remote participant shares the bl-eae4 negotiation primitive with claim, so a state-branch advance mid-flight (another agent's claim, etc.) auto-retries via fetch+merge. [bl-2bf7]
+- warn that bl review auto-appends task id [bl-01d7]
 
 ## [0.3.9](https://github.com/mudbungie/balls/compare/v0.3.8...v0.3.9) - 2026-04-25
 
