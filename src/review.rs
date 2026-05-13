@@ -89,7 +89,7 @@ pub fn review_worktree(
     let branch = task.branch.clone().unwrap_or_else(|| format!("work/{id}"));
 
     with_task_lock(store, id, || {
-        git::git_add_all(&wt_path)?;
+        crate::review_safety::add_user_changes(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("wip: {id}"));
         let main_branch = git::git_current_branch(&store.root)?;
         merge_or_fail(
@@ -100,12 +100,14 @@ pub fn review_worktree(
             ),
         )?;
 
-        // Snapshot the pre-review main and state-branch tips so a
-        // required-participant rejection can roll the working trees
-        // back to their pre-transition state. The state-branch
-        // snapshot must be taken before `commit_task` lands the
-        // review commit; another agent advancing the state branch
-        // concurrently would otherwise make `HEAD~1` ambiguous.
+        // Snapshot pre-review tips so any failure between the squash
+        // commit and the state-branch flip (or the require_remote
+        // push) can rewind main back to where it was. Without this
+        // rewind, `bl review` can return failure while having already
+        // mutated the integration branch — see bl-0dc3 for the repro.
+        // The state-branch snapshot must be taken before `commit_task`
+        // lands the review commit; another agent advancing the state
+        // branch concurrently would otherwise make `HEAD~1` ambiguous.
         let pre_main_sha = git::git_resolve_sha(&store.root, "HEAD")?;
         let state_dir = store.state_worktree_dir();
         let pre_state_sha =
@@ -113,59 +115,29 @@ pub fn review_worktree(
                 .then(|| git::git_resolve_sha(&state_dir, "HEAD"))
                 .transpose()?;
 
-        // Squash merge the worker's branch into main as the single
-        // feature commit; the delivery tag [bl-XXXX] is embedded in
-        // the title so main <-> state branch stays traceable. An
-        // empty squash (no staged changes) means the worker delivered
-        // no code — e.g. a gate task or a bugfix that turned no-op
-        // once main moved forward; delivered_in stays null and the
-        // state-branch subject gets a `no-code` marker for half-push
-        // detection. `bare_squash::squash_into_main` routes through an
-        // ephemeral detached worktree when `store.root` is a bare
-        // gitdir (bl-56f4).
         let squash_msg = crate::commit_msg::format_squash(message, &task.title, id);
-        let delivered_sha =
-            crate::bare_squash::squash_into_main(store, &branch, &squash_msg)?;
-        if delivered_sha.is_none() {
-            eprintln!("no code delivered — checkpoint review for {id}");
-        }
-
-        // Flip the task to review on the state branch, embedding the
-        // delivery hint in the same commit so the state-branch history
-        // stays at one-commit-per-transition.
-        let had_delivery = delivered_sha.is_some();
-        let task_path = store.task_path(id)?;
-        let mut t = Task::load(&task_path)?;
-        t.status = Status::Review;
-        t.delivered_in = delivered_sha;
-        t.touch();
-        t.save(&task_path)?;
-        if let Some(msg) = message {
-            task_io::append_note_to(&task_path, identity, msg)?;
-        }
-        let state_msg = if had_delivery {
-            format!("state: review {id}")
-        } else {
-            format!("state: review {id} no-code")
-        };
-        store.commit_task(id, &state_msg)?;
-
-        // bl-2bf7: when require_remote is on, push the state-branch
-        // review commit through the git-remote participant. A Required
-        // failure rolls main and the state worktree back to their
-        // pre-review SHAs so the transition is observably atomic.
-        if let Some(pre_state) = pre_state_sha.as_deref() {
-            if let Err(e) = claim_sync::push_state_for(
+        let transition = (|| -> Result<()> {
+            crate::review_safety::commit_squash_and_flip(
                 store,
                 id,
+                &branch,
+                &squash_msg,
+                message,
                 identity,
-                Event::Review,
-                "review --sync",
-            ) {
-                let _ = git::git_reset_hard(&state_dir, pre_state);
-                let _ = git::git_reset_hard(&store.root, &pre_main_sha);
-                return Err(e);
+                &pre_main_sha,
+                &main_branch,
+            )?;
+            if let Some(pre_state) = pre_state_sha.as_deref() {
+                claim_sync::push_state_for(store, id, identity, Event::Review, "review --sync")
+                    .inspect_err(|_| {
+                        let _ = git::git_reset_hard(&state_dir, pre_state);
+                    })?;
             }
+            Ok(())
+        })();
+        if let Err(e) = transition {
+            let _ = crate::review_safety::rewind_main(store, &main_branch, &pre_main_sha);
+            return Err(e);
         }
 
         // Sync main back into worktree so re-review after rejection only
