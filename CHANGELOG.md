@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!--
+  Don't append bullets here. release-plz owns this file: each release
+  cut auto-generates the new `[X.Y.Z]` section from commit subjects
+  (see `release-plz.toml`; commits prefixed `balls:` are skipped).
+  The rich "why" lives in commit message bodies — `bl review -m TITLE
+  -m PARA -m PARA` makes those easy, and `git show <sha>` or
+  `gh release view vX.Y.Z` reads them back. The CHANGELOG is the
+  index; commit history is the narrative. Hand-curating bullets here
+  reintroduces the dual-source drift cleaned up in bl-3751.
+-->
+
 ## [0.3.10](https://github.com/mudbungie/balls/compare/v0.3.9...v0.3.10) - 2026-05-13
 
 ### Changes
