@@ -118,8 +118,13 @@ pub enum Command {
     /// Submit work for review: merge to main, keep worktree for rework.
     Review {
         id: String,
-        #[arg(short = 'm', long)]
-        message: Option<String>,
+        /// Commit message. Repeatable, like `git commit -m … -m …`:
+        /// the first `-m` is the title (under ~50 chars), each later
+        /// `-m` becomes a body paragraph with a blank line between.
+        /// A single value may also span multiple lines. The `[bl-id]`
+        /// delivery tag is appended to the title automatically.
+        #[arg(short = 'm', long = "message")]
+        message: Vec<String>,
         #[arg(long = "as")]
         identity: Option<String>,
         /// Force a remote round-trip on this review. Mirrors
@@ -135,8 +140,11 @@ pub enum Command {
     /// Close a reviewed task: archive and remove worktree. Must run from repo root.
     Close {
         id: String,
-        #[arg(short = 'm', long)]
-        message: Option<String>,
+        /// Reviewer message, embedded in the state-branch close
+        /// commit body. Repeatable, like `git commit -m … -m …`:
+        /// each value becomes its own paragraph.
+        #[arg(short = 'm', long = "message")]
+        message: Vec<String>,
         #[arg(long = "as")]
         identity: Option<String>,
         /// Force a remote round-trip on this close. Mirrors
