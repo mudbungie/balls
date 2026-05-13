@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-3751",
+  "claimed_by": "customize",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-13T05:58:33.637436046Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["changelog"],
   "title": "CHANGELOG: collapse the 0.3.10 duplicate `### Changes` blocks",
   "type": "chore",
-  "updated_at": "2026-05-13T05:58:33.637436046Z"
+  "updated_at": "2026-05-13T05:58:36.659123266Z"
 }
