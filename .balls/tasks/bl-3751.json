@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-13T05:58:33.637436046Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "After v0.3.10 shipped, CHANGELOG has release-plz's auto-generated bullet list under [0.3.10] plus a leftover hand-written ### Changes block (the curated bl-2148 / bl-2bf7 / bl-2572 entries that had been queued in [Unreleased]). Result is two ### Changes headings under one version with overlapping content. Why: release-plz writes its own section from commit subjects, but the repo has been hand-curating [Unreleased] in parallel. Fix is to fold the curated bullets into the single [0.3.10] block, replacing the matching auto-bullets, and drop the duplicate heading. No version bump; commit subject is prefixed `balls:` so release-plz's changelog parser skips it.",
+  "external": {},
+  "id": "bl-3751",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["changelog"],
+  "title": "CHANGELOG: collapse the 0.3.10 duplicate `### Changes` blocks",
+  "type": "chore",
+  "updated_at": "2026-05-13T05:58:33.637436046Z"
+}
