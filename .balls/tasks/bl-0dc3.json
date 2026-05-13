@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-13T16:57:15.971984378Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "SUMMARY\nbl review can leave a partial squash commit on the operating branch (main/master) even when the command reports failure, and that commit can include the .balls/* runtime symlinks (.balls/local, .balls/tasks, .balls/worktree). After a partial failure, repo state can become unusable (\"not initialized. Run bl init\") until manual repair.\n\nREPRO\nIn an external repo where a claimed worktree contains the standard .balls/* runtime symlinks, run bl review after staging unrelated user changes. If the operating branch has different (untracked) .balls/* entries, git merge --squash inside the main repo fails with \"Updating ... would lose untracked files\". A retry — after adding .balls/ to .git/info/exclude — succeeds in squashing, but the resulting commit contains .balls/local, .balls/tasks, .balls/worktree alongside the intended user changes.\n\nWHY THIS MATTERS\n- An agent or user can interpret the failed bl review as a clean failure while master has already been mutated.\n- The bad commit pollutes the user's normal branch with balls runtime symlinks; if pushed, it corrupts task state.\n- Worktree-local .balls/* must be treated as internal balls state, never user changes.\n- bl review must be transactional around main-branch mutation: either main moves to the new squash, the state-branch flip lands, or main stays at its pre-review HEAD.\n\nROOT CAUSE (src/review.rs:92)\nreview_worktree calls git::git_add_all(&wt_path) (git add -A) inside the worktree. If the worktree's .gitignore does not exclude .balls/local, .balls/tasks, .balls/worktree (e.g. .gitignore predates balls or was init'd in stealth), git add -A stages the runtime symlinks onto work/<id>. The subsequent git merge --squash into main carries those paths. There's no preflight that rejects .balls/* in the candidate diff, and no rollback of the main HEAD if anything between the squash commit and the state-branch flip fails.\n\nFIX DIRECTION\n1) Hard-exclude .balls/ from staging in the worktree regardless of .gitignore. Implement git_add_user_changes that uses pathspec exclusion (e.g. git add -A -- :(exclude).balls). Backstop: after merge --squash but before commit, abort if any staged path matches .balls/.\n2) Make bl review transactional. Snapshot pre_main_sha BEFORE the squash; if the squash commit lands but any subsequent step fails (state-branch commit, required push), git reset --hard pre_main_sha on the operating branch before returning the error.\n3) Preflight check: refuse to squash if the work branch's tip touches .balls/*. Report it as a configuration problem in the user's repo (recommend bl init to refresh .gitignore) and exit without touching main.\n4) Tests: unit test for git_add_user_changes excluding .balls/*; integration test that bl review never produces a delivery commit containing .balls/*; integration test that a forced failure between squash and state-branch flip leaves main at its pre-review HEAD; integration test that .balls remains usable after such a failure.\n\nREFERENCED INCIDENT\nReported in user repo ics on task bl-df80 (Terraform formatting work for PR 2070). Recovery required git reset --hard origin/master at the repo root and bl drop/close cycle.",
+  "external": {},
+  "id": "bl-0dc3",
+  "links": [],
+  "parent": null,
+  "priority": 1,
+  "status": "open",
+  "tags": ["review","safety"],
+  "title": "bl review: never deliver .balls/* runtime paths; make main mutation transactional",
+  "type": "bug",
+  "updated_at": "2026-05-13T16:57:15.971984378Z"
+}
