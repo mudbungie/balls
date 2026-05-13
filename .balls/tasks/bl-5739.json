@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-13T06:22:32.164059882Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Cement the policy decided in conversation: release-plz owns CHANGELOG.md; bullets are auto-generated from commit subjects on each release. The 'why' lives in commit message bodies (now easy with repeatable -m), recoverable via `git show <sha>` or `gh release view vX.Y.Z`. Add a single HTML comment under [Unreleased] that documents this at the point of friction, so the next contributor (human or agent) doesn't reintroduce the dual-source drift we just cleaned up in bl-3751. Doc-only; commit prefixed `balls:` so it skips the next release's changelog.",
+  "external": {},
+  "id": "bl-5739",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["changelog","policy"],
+  "title": "CHANGELOG: mark [Unreleased] as auto-generated; stop hand-curating",
+  "type": "chore",
+  "updated_at": "2026-05-13T06:22:32.164059882Z"
+}
