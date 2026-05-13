@@ -235,7 +235,7 @@ case "$CMD" in
     auth-check) [ -f "$AUTH_DIR/token.json" ] && exit 0 || exit 1 ;;
     auth-setup) mkdir -p "$AUTH_DIR" && echo '{"token":"t"}' > "$AUTH_DIR/token.json"; exit 0 ;;
     describe)
-        echo '{"subscriptions":["claim","review","close","update"],"projection":{"owns":["title"],"external_prefixes":["jira"]}}'
+        echo '{"subscriptions":["create","claim","review","close","update"],"projection":{"owns":["title"],"external_prefixes":["jira"]}}'
         exit 0
         ;;
     propose)

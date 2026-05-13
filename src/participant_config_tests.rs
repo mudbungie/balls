@@ -249,5 +249,11 @@ fn legacy_config_without_participant_block_round_trips() {
         None,
         &InvocationOverrides::default(),
     );
-    assert_eq!(resolved.len(), 5);
+    // Legacy `sync_on_change=true` maps to create + the four
+    // push-shaped events + sync (bl-ec62 added `create` so a legacy
+    // plugin still fires on `bl create` exactly as before). `drop` is
+    // deliberately absent — it stays silent for legacy plugins.
+    assert_eq!(resolved.len(), 6);
+    assert!(resolved.contains_key(&Event::Create));
+    assert!(!resolved.contains_key(&Event::Drop));
 }

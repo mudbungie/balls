@@ -132,18 +132,23 @@ fn propose_response_neither_branch_means_neither_set() {
 // taking the whole describe (and the plugin's native protocol) with it.
 #[test]
 fn describe_drops_unknown_event_keeps_known() {
+    // `create` is first-class now (bl-ec62), so it survives; only the
+    // genuinely-unknown `frobnicate` is dropped.
     let json = r#"{
         "subscriptions": ["claim", "frobnicate", "review", "create"],
         "projection": { "external_prefixes": ["jira"] }
     }"#;
     let resp: DescribeResponse = serde_json::from_str(json).unwrap();
-    assert_eq!(resp.subscriptions, vec![Event::Claim, Event::Review]);
+    assert_eq!(
+        resp.subscriptions,
+        vec![Event::Claim, Event::Review, Event::Create]
+    );
 }
 
 #[test]
 fn describe_all_unknown_events_yields_empty_subscriptions() {
     let json = r#"{
-        "subscriptions": ["frobnicate", "create"],
+        "subscriptions": ["frobnicate", "mystery"],
         "projection": { "external_prefixes": ["jira"] }
     }"#;
     let resp: DescribeResponse = serde_json::from_str(json).unwrap();

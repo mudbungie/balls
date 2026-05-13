@@ -235,6 +235,8 @@ fn event_subcommand_arg(event: Event) -> &'static str {
         Event::Close => "close",
         Event::Update => "update",
         Event::Sync => "sync",
+        Event::Create => "create",
+        Event::Drop => "drop",
     }
 }
 
@@ -262,5 +264,7 @@ mod tests {
         assert_eq!(event_subcommand_arg(Event::Close), "close");
         assert_eq!(event_subcommand_arg(Event::Update), "update");
         assert_eq!(event_subcommand_arg(Event::Sync), "sync");
+        assert_eq!(event_subcommand_arg(Event::Create), "create");
+        assert_eq!(event_subcommand_arg(Event::Drop), "drop");
     }
 }
