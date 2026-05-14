@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.11](https://github.com/mudbungie/balls/compare/v0.3.10...v0.3.11) - 2026-05-13
+
+### Changes
+
+- never deliver .balls runtime paths; rewind main on failure [bl-0dc3]
+
 <!--
   Don't append bullets here. release-plz owns this file: each release
   cut auto-generates the new `[X.Y.Z]` section from commit subjects
