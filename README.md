@@ -271,7 +271,7 @@ Every lifecycle transition (create, claim, review, close, update, note, dep, lin
 
 ## The bare central hub (recommended deployment)
 
-The recommended production topology is a **bare** repository (`core.bare = true`) acting as a central hub. There is no working tree at the root: every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses; the *Bootstrapping a bare hub from scratch* subsection below is the canonical sequence for standing one up.
+The recommended production topology is a **bare** repository (`core.bare = true`) acting as a central hub. There is no working tree at the root: every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses; `bl init --bare <source> <hubdir>` stands one up in a single command, with the *Bootstrapping a bare hub from scratch* subsection below documenting both it and the equivalent by-hand sequence.
 
 **Why bare-ness is load-bearing, not incidental.** The rest of these docs preach a worktree-only rule — *edits go in the worktree, never directly on the operating branch*. A pre-commit hook can only *discourage* the bypass; `git commit --no-verify` slips past it. A bare repo makes the bypass a **git-level impossibility**: a bare repo has no working tree, so git itself refuses to commit or even stage on the operating branch from the root (`fatal: this operation must be run in a work tree`). The convention becomes a hard invariant that no agent or human can violate, by mistake or on purpose. That structural guarantee — not mere tidiness — is why bare is the recommended hub.
 
@@ -291,7 +291,15 @@ The recommended production topology is a **bare** repository (`core.bare = true`
 
 ### Bootstrapping a bare hub from scratch
 
-There is no `bl init --bare`. `bl init`'s work is *working-tree* wiring — the one-time `balls: initialize` commit on `main`, the `.gitignore` entries, the `.balls/tasks` symlink into main's checkout. A bare repo has no working tree by construction, so `bl init` at a bare root fails before it starts: it resolves the root via `git rev-parse --show-toplevel`, which a bare repo does not have. That is a tracked ergonomic gap (a `bl init --bare` that mechanizes the steps below), not a wontfix — see bl-9e8a. Until it lands, stand a hub up by hand. The sequence is short because the orphan-branch design means a hub is just a loose store wrapped around an already-published `balls/tasks`:
+**The one-liner: `bl init --bare`.** Once the project's `balls/tasks` orphan branch is published (step 1 below — a no-op if the project already uses balls), one command stands the hub up:
+
+```bash
+bl init --bare git@host:proj.git /srv/proj-hub
+```
+
+It bare-clones the source into `/srv/proj-hub/.git`, wires the `origin` fetch refspec, reconstructs the loose store (the `.balls/` scaffolding, the `.balls/tasks` symlink, `config.json` materialized from `main`'s tree), and attaches the state worktree. It is idempotent and non-destructive in exactly the way the working-tree `bl init` is: re-running it reuses an existing bare gitdir (and refuses to clobber a *non*-bare `.git` there), re-creates only what is missing, and never force-pushes or resets a shared branch. The source's `main` must already be balls-initialized; if it has no `.balls/config.json` the command stops with that message rather than guessing.
+
+**The by-hand sequence (still canonical).** `bl init --bare` is a convenience wrapper over standard git plumbing, not a new primitive — per the orphan-branch design principle that standard tools must suffice, the manual sequence below remains valid and is what the wrapper mechanizes (steps 2–3). Use it when you want to see exactly what the hub is, or when scripting around a constraint the wrapper doesn't cover. The sequence is short because the orphan-branch design means a hub is just a loose store wrapped around an already-published `balls/tasks`:
 
 ```bash
 # 1. ONE working-tree clone creates the balls/tasks orphan branch and
@@ -647,7 +655,7 @@ With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of 
 
 **By hand:** see `SPEC-orphan-branch-state.md` §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
 
-**Bare hub:** everything above assumes a working tree. `bl init` cannot initialize a bare repo (no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into) — standing up the recommended bare central-hub deployment is a separate, currently by-hand procedure documented in *The bare central hub → Bootstrapping a bare hub from scratch* above. Closing that tooling gap is tracked as bl-9e8a.
+**Bare hub:** everything above assumes a working tree. Plain `bl init` (no `--bare`) still cannot initialize a bare repo — there is no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into, and that working-tree wiring is correctly *skipped* at a bare root, not faked. Standing up the recommended bare central-hub deployment is the dedicated `bl init --bare <source> <hubdir>` form (equivalently the by-hand sequence), documented in *The bare central hub → Bootstrapping a bare hub from scratch* above.
 
 ### bl create TITLE [options]
 
