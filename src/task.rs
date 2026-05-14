@@ -123,6 +123,10 @@ impl Default for NewTaskOpts {
 }
 
 impl Task {
+    /// Task ids are persisted forever once minted, and id generation
+    /// must work in stealth/no-git mode. Same kept-exception rationale
+    /// as `store_paths::stealth_tasks_dir` — `git hash-object` is not a
+    /// value-compatible substitute and would not be available here.
     pub fn generate_id(title: &str, ts: DateTime<Utc>, id_length: usize) -> String {
         let mut hasher = Sha1::new();
         hasher.update(title.as_bytes());
