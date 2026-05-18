@@ -28,6 +28,11 @@ pub enum AttemptClass {
     /// Wire rejected because its view advanced past ours; recoverable
     /// via fetch + merge + retry.
     Conflict,
+    /// SPEC §8.1 — the participant deliberately vetoed this
+    /// transition with a human reason. Distinct from `Conflict` (no
+    /// merge, no retry) and `Other` (a decision, not a wire failure).
+    /// Routed straight to the failure policy, carrying the reason.
+    Reject(String),
     /// Peer is not contactable; not recoverable in this run.
     Unreachable(String),
     /// Any other wire failure not covered above.
@@ -159,7 +164,15 @@ impl<P: Protocol> Negotiation<P> {
                 let outcome = self.protocol.pushed();
                 return Ok(NegotiationResult::Ok(self.accept(outcome)));
             }
-            if let AttemptClass::Unreachable(s) | AttemptClass::Other(s) = class {
+            // Reject is a decision, not a wire fault: like
+            // Unreachable/Other it skips retry and goes straight to
+            // the failure policy, but it stays a distinct variant
+            // (SPEC §8.1) so callers never conflate a veto with a
+            // crash.
+            if let AttemptClass::Unreachable(s)
+            | AttemptClass::Other(s)
+            | AttemptClass::Reject(s) = class
+            {
                 return self.classify_failure(s);
             }
             // Conflict: fetch + merge, then re-check whether our
@@ -204,5 +217,13 @@ impl<P: Protocol> Negotiation<P> {
 }
 
 #[cfg(test)]
+#[path = "negotiation_test_support.rs"]
+mod test_support;
+
+#[cfg(test)]
 #[path = "negotiation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "negotiation_reject_tests.rs"]
+mod reject_tests;
