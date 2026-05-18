@@ -39,6 +39,7 @@ fn from_describe_propagates_projection_parse_error() {
             ..ProjectionWire::default()
         },
         retry_budget: None,
+        wants_context: false,
     };
     let Err(err) = NativePluginParticipant::from_describe(
         &store,
