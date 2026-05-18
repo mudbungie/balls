@@ -131,6 +131,14 @@ pub fn cmd_drop(id: String, force: bool) -> Result<()> {
     } else {
         worktree::drop_worktree(&store, &id, force)?;
     }
+    // SPEC §6.2: observe-only notification. Best-effort, never blocks
+    // or fails the drop. The post-drop task (claim released, back to
+    // open) is what a subscribed native plugin mirrors as a
+    // walk-away. Legacy plugins never subscribe `drop`, so this is a
+    // no-op for them — `bl drop` stays byte-identical.
+    if let Ok(task) = store.load_task(&id) {
+        let _ = plugin::dispatch_drop(&store, &task, &default_identity());
+    }
     println!("dropped {id}");
     Ok(())
 }

@@ -39,7 +39,7 @@ pub fn dispatch_push(
 ) -> Result<()> {
     debug_assert!(matches!(
         event,
-        Event::Claim | Event::Review | Event::Close | Event::Update
+        Event::Create | Event::Claim | Event::Review | Event::Close | Event::Update
     ));
     let cfg = store.load_config()?;
     let mut contributions = Vec::new();
@@ -181,6 +181,30 @@ pub fn dispatch_sync(
         }
     }
     Ok(reports)
+}
+
+/// Observe-only `Drop` notification (SPEC §6.2). Drop changes nothing
+/// a participant can negotiate, so this routes through the one
+/// dispatch primitive but **discards every outcome and never
+/// propagates an error**: a downed or rejecting observer must not
+/// fail a local claim release (§2 soft policy, hard primitive). It
+/// applies no contributions — drop is a notification, not a state
+/// change. Legacy plugins never declare `Drop` (the legacy mapping
+/// omits it) and so are silently skipped, keeping `bl drop`
+/// byte-identical to pre-bl-ec62 for them. `required`/`gating` on
+/// `drop` cannot reach here: config validation rejects them.
+pub fn dispatch_drop(store: &Store, task: &Task, identity: &str) -> Result<()> {
+    let cfg = store.load_config()?;
+    for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
+        let ctx = EventCtx {
+            event: Event::Drop,
+            store,
+            task_id: &task.id,
+            identity,
+        };
+        let _ = dispatch_one_push(store, name, entry, Event::Drop, ctx);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
