@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "TEMP verify bl-7152 fix v2 delete me",
   "type": "bug",
-  "updated_at": "2026-05-18T17:50:12.855897258Z"
+  "updated_at": "2026-05-18T17:50:12.874244065Z"
 }
