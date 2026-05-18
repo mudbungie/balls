@@ -1,6 +1,6 @@
 {
   "branch": null,
-  "claimed_by": null,
+  "claimed_by": "repro",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-18T03:55:10.530798546Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "TEMP repro bl review no-worktree ENOENT delete me",
   "type": "bug",
-  "updated_at": "2026-05-18T03:55:10.530798546Z"
+  "updated_at": "2026-05-18T03:55:10.554143815Z"
 }
