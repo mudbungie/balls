@@ -64,7 +64,12 @@ pub fn cmd_review(
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     let message = balls::commit_msg::join_messages(&message);
-    if store.no_git {
+    // A `--no-worktree` claim leaves `task.branch` unset and never
+    // creates `.balls-worktrees/<id>`. Such a task has no work branch to
+    // squash, so it takes the same metadata-only flip as no-git mode —
+    // routing it through `review_worktree` would spawn git in a worktree
+    // dir that doesn't exist and fail with ENOENT (bl-7152).
+    if store.no_git || store.load_task(&id)?.branch.is_none() {
         balls::review::review_no_git(&store, &id, message.as_deref(), &ident)?;
     } else {
         let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
