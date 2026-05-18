@@ -159,15 +159,37 @@ fn describe_missing_subscriptions_defaults_empty() {
 
 // SPEC §13 seam 2 / §17.18: an unknown propose variant is captured in
 // `extra`, not silently discarded, so the degrade-to-`Other` path can
-// name it. Pre-impl this FAILS to compile (no `extra` field) / FAILS
-// the assertion (variant key not retained).
+// name it. `reject` is now first-class (bl-2062), so the example
+// unknown token is a genuinely-unrecognized one.
 #[test]
 fn propose_response_captures_unknown_variant_in_extra() {
+    let json = r#"{ "frobnicate": { "knob": 1 } }"#;
+    let resp: ProposeResponse = serde_json::from_str(json).unwrap();
+    assert!(resp.ok.is_none());
+    assert!(resp.conflict.is_none());
+    assert!(resp.reject.is_none());
+    assert!(resp.extra.contains_key("frobnicate"));
+}
+
+// SPEC §8.1: `reject` is a first-class branch (bl-2062), parsed into
+// its own field with a reason — NOT swept into `extra`.
+#[test]
+fn propose_response_parses_reject_branch() {
     let json = r#"{ "reject": { "reason": "ci is red" } }"#;
     let resp: ProposeResponse = serde_json::from_str(json).unwrap();
     assert!(resp.ok.is_none());
     assert!(resp.conflict.is_none());
-    assert!(resp.extra.contains_key("reject"));
+    assert_eq!(resp.reject.unwrap().reason, "ci is red");
+    assert!(resp.extra.is_empty());
+}
+
+// Lenient: a terse `{"reject":{}}` still reads as a veto (empty
+// reason) rather than failing the parse.
+#[test]
+fn propose_response_reject_reason_defaults_empty() {
+    let resp: ProposeResponse =
+        serde_json::from_str(r#"{ "reject": {} }"#).unwrap();
+    assert_eq!(resp.reject.unwrap().reason, "");
 }
 
 #[test]
