@@ -65,8 +65,18 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     // main push fails after the state push lands on the remote, the
     // next sync's half-push detector (below) surfaces the orphaned
     // state commit so the main push can be retried.
+    //
+    // The state branch negotiates against `state_remote`; the code
+    // branch stays on the code remote (`remote`). An unset
+    // `state_remote` follows the code remote, so a single-repo setup —
+    // including `bl sync --remote X` — is byte-identical to before
+    // this field; only an explicit hub link decouples the two.
     if !store.stealth {
-        sync_branch(&store.state_worktree_dir(), remote, "balls/tasks")?;
+        let state_remote = store
+            .load_config()?
+            .state_remote
+            .unwrap_or_else(|| remote.to_string());
+        sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
     }
     let main_branch = git::git_current_branch(&store.root)?;
     sync_branch(&store.root, remote, &main_branch)?;
