@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:45:00.867216132Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "The architecture is already extensible: one Negotiation primitive parameterized over a wire protocol; a Participant trait carrying EventCtx plus propose/fetch_remote_view/detect_conflict (SPEC-lifecycle-sync-participants.md S5/S7). The SUBPROCESS WIRE is not. runner.rs sends only the post-image Task JSON + --event. The internal EventCtx (S5) never reaches the plugin; there is no first-class reject; task birth and drop have no event at all.\n\nGOAL: turn \"observe a transition and contribute fields\" into \"run arbitrary policy and arbitrary side-effects on ANY transition\" with no new state store, no protocol fork, and zero change to legacy plugins. This extends the bl-8b71 native-protocol surface and AMENDS SPEC-lifecycle-sync-participants.md (S5 EventCtx wire delivery, S6 event set, S8 reject-vs-conflict-vs-Other) rather than introducing a new SPEC; the amendment lands in the prereq child.\n\nTHE ONE RULE: \"unknown = round-trip, never die.\" Today this is stated only for Task fields (S13 / bl-d31c extra map). Apply it SYMMETRICALLY across three serde seams: Task fields (done), native-response variants, and the describe subscription set. Every addition rides describe-gated negotiation; every new bl->plugin input rides a describe-gated SIDE CHANNEL (the BALLS_DIAG_FD dedicated-FD precedent), NEVER the legacy stdin shape — wrapping stdin breaks conformance S17.1.\n\nHONEST BOUNDARY (the design working, not a gap): legacy non-native plugins can never receive EventCtx/Reject/create — they have no describe handshake to gate on, and their stdin is frozen by S17.1. Extensibility is native-only BY CONSTRUCTION; legacy stays frozen, consistent with S8's existing stance that legacy plugins do not get the retry-on-conflict path. The compat boundary is intentional, not leaking.\n\nWHY: every real integration is impossible on today's wire because the plugin gets the post-image with no diff, no actor, no veto, and no birth/death event — Slack \"who moved bl-1234 to review\", CI-gated close, Jira mirror-on-create, \"agent walked away\" on drop. Closing this makes bl a real integration substrate while preserving the clean default and the S2 soft-policy invariant: a required plugin can veto via Reject, but an explicit operator override still ships (soft policy, hard primitive).",
+  "external": {},
+  "id": "bl-cc24",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "status": "open",
+  "tags": ["plugins","extensibility","forward-compat"],
+  "title": "Native-protocol extensibility: arbitrary policy and side-effects on any transition",
+  "type": "epic",
+  "updated_at": "2026-05-18T17:45:00.867216132Z"
+}
