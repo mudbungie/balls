@@ -7,7 +7,7 @@ mod participant;
 mod runner;
 mod types;
 
-pub use dispatch::{dispatch_push, dispatch_sync};
+pub use dispatch::{dispatch_drop, dispatch_push, dispatch_sync};
 pub use native_participant::{NativeOutcome, NativePluginParticipant};
 pub use native_types::{
     CommitPolicyWire, DescribeResponse, ProjectionWire, ProposeConflict, ProposeOk,

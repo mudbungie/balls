@@ -18,7 +18,7 @@ use std::path::Path;
 /// JSON propose response on stdout.
 pub fn install_native_plugin(name: &str, propose_body: &str) -> tempfile::TempDir {
     let describe = format!(
-        r#"{{ "subscriptions": ["claim", "review", "close", "update"],
+        r#"{{ "subscriptions": ["create", "claim", "review", "close", "update"],
    "projection": {{ "external_prefixes": ["{name}"] }} }}"#
     );
     install_native_plugin_describe(name, &describe, propose_body)

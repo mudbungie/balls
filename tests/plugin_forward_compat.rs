@@ -18,12 +18,12 @@ use common::*;
 
 #[test]
 fn describe_with_unknown_event_still_negotiates_known_events() {
-    // `frobnicate` is an event this build does not know (it stands in
-    // for bl-ec62's future `create`). The plugin also subscribes to
-    // the events we DO know and owns `external.jira.*`.
+    // `frobnicate` is an event this build does not know. The plugin
+    // also subscribes to the events we DO know (including `create`,
+    // which `bl create` now dispatches) and owns `external.jira.*`.
     let bin = install_native_plugin_describe(
         "jira",
-        r#"{ "subscriptions": ["claim", "review", "close", "update", "frobnicate"],
+        r#"{ "subscriptions": ["create", "claim", "review", "close", "update", "frobnicate"],
    "projection": { "external_prefixes": ["jira"] } }"#,
         r#"
         cat - >/dev/null

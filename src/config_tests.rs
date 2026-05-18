@@ -191,6 +191,43 @@ fn state_remote_explicit_value_resolves_and_round_trips() {
     assert_eq!(loaded.state_remote(), "taskhub");
 }
 
+// SPEC §6.2 / §17.20: `drop` is observe-only. `required`/`gating` on
+// it must fail config validation; `best-effort` is the only legal
+// policy.
+#[test]
+fn drop_with_required_policy_is_rejected() {
+    let dir = TempDir::new().unwrap();
+    let p = write_cfg(
+        &dir,
+        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,
+            "worktree_dir":".balls-worktrees",
+            "plugins":{"jira":{"enabled":true,"sync_on_change":false,
+              "config_file":".balls/plugins/jira.json",
+              "participant":{"subscriptions":{"drop":{"policy":"required"}}}}}}"#,
+    );
+    let err = Config::load(&p).unwrap_err();
+    assert!(
+        matches!(err, BallError::Other(ref s)
+            if s.contains("observe-only") && s.contains("jira")),
+        "got {err}"
+    );
+}
+
+#[test]
+fn drop_with_best_effort_policy_is_accepted() {
+    let dir = TempDir::new().unwrap();
+    let p = write_cfg(
+        &dir,
+        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,
+            "worktree_dir":".balls-worktrees",
+            "plugins":{"jira":{"enabled":true,"sync_on_change":false,
+              "config_file":".balls/plugins/jira.json",
+              "participant":{"subscriptions":{"drop":{"policy":"best-effort"}}}}}}"#,
+    );
+    let cfg = Config::load(&p).unwrap();
+    assert!(cfg.plugins.contains_key("jira"));
+}
+
 #[test]
 fn legacy_config_without_state_remote_loads_and_defaults() {
     // A config written before this field existed has no state_remote
