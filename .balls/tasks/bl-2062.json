@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:45:00.937124242Z",
+  "delivered_in": null,
+  "depends_on": ["bl-1b07"],
+  "description": "Add a reject variant to the native propose response alongside ok/conflict. It carries a human reason string and NO Task state. The negotiation primitive maps a Reject from a participant whose failure policy is required to an aborted lifecycle event (Task rolled back to pre-event; message carries plugin name + reason); best-effort => warn-and-continue, recorded in sync_status; gating => stage for review. Reject is distinct from Other (wire failure) and Conflict (recoverable field clash).\n\nHonors S2 soft-policy: a required plugin can veto, but an explicit per-invocation operator override (--skip=NAME / the --no-sync analog) still ships, logged in the state-branch commit message per the S11 override log.\n\nWHY: today a plugin can only abort a transition by faking a crash (Other) or a fake conflict. \"Block this close because CI is red\" deserves a real outcome with a reason, not a degenerate hack. This is what makes arbitrary POLICY — not just side-effects — expressible on a transition.",
+  "external": {},
+  "id": "bl-2062",
+  "links": [],
+  "parent": "bl-cc24",
+  "priority": 2,
+  "status": "open",
+  "tags": ["extensibility"],
+  "title": "First-class Reject { reason } propose outcome, wired to failure policy",
+  "type": "task",
+  "updated_at": "2026-05-18T17:45:00.937124242Z"
+}
