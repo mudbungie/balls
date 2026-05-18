@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-7152",
+  "claimed_by": "flecked",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-18T03:55:56.913882584Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["review","no-worktree","bare-repo"],
   "title": "bl review on a --no-worktree-claimed task spawns git in a missing dir → ENOENT",
   "type": "bug",
-  "updated_at": "2026-05-18T03:55:56.913882584Z"
+  "updated_at": "2026-05-18T17:41:59.329163659Z"
 }
