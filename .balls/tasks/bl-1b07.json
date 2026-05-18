@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-1b07",
+  "claimed_by": "Bastions",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-18T17:45:00.894073135Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-cc24",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["forward-compat"],
   "title": "Forward-compat hardening: symmetric unknown=round-trip across all three serde seams",
   "type": "task",
-  "updated_at": "2026-05-18T17:45:00.894073135Z"
+  "updated_at": "2026-05-18T18:24:32.725534329Z"
 }
