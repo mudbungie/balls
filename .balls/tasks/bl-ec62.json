@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:45:00.959668970Z",
+  "delivered_in": null,
+  "depends_on": ["bl-1b07"],
+  "description": "Add create as a lifecycle event: Event enum variant + a dispatch point in the task-creation command path. Subscription is describe-gated exactly like claim/review/close/update; old plugins never declare it so are never invoked; additive per the prereq's rule. This removes the observe-death-but-not-birth asymmetry (mirror-on-create into Jira/Linear, etc.).\n\nResolve drop: SPEC-lifecycle-sync-participants.md S6/S16 currently forbids drop participation by fiat (\"nothing to negotiate\"). The \"agent walked away -> notify Jira\" case is real. Make the decision explicit in the SPEC amendment: either (a) add drop as an OBSERVE-ONLY event — no negotiation, best-effort notification only, consistent with \"drop changes no durable Task\"; or (b) keep it forbidden with the rationale written down. Prefer (a) unless it forces a negotiation where there is no durable state. Record the decision and its why in the SPEC, not in a code comment.\n\nWHY: \"any state transition\" was the bar. create and drop are the two transitions with zero extensibility today. create is unambiguously additive; drop needs an explicit, recorded decision rather than an inherited fiat.",
+  "external": {},
+  "id": "bl-ec62",
+  "links": [],
+  "parent": "bl-cc24",
+  "priority": 3,
+  "status": "open",
+  "tags": ["extensibility"],
+  "title": "create lifecycle event; resolve drop participation",
+  "type": "task",
+  "updated_at": "2026-05-18T17:45:00.959668970Z"
+}
