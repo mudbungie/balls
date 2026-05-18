@@ -16,24 +16,30 @@ pub(crate) const STATE_WORKTREE_REL: &str = ".balls/worktree";
 /// `.balls/worktree/`, has its schema scaffolding (`.gitattributes`,
 /// `.gitkeep`) seeded, and is exposed to the main checkout via a stable
 /// `.balls/tasks` symlink.
-pub(crate) fn setup_state_branch(root: &Path) -> Result<()> {
-    let has_origin = git::git_has_remote(root, "origin");
+///
+/// `remote` is the resolved `state_remote` (default `origin`). It is
+/// the only remote this function touches: tracking, fetch, and the
+/// best-effort publishes all target it, so a client repo pointed at a
+/// shared task hub adopts the hub's `balls/tasks` instead of forking
+/// an unrelated orphan. The code remote is never referenced here.
+pub(crate) fn setup_state_branch(root: &Path, remote: &str) -> Result<()> {
+    let has_remote = git::git_has_remote(root, remote);
     if !git_state::branch_exists(root, STATE_BRANCH) {
         // Prefer tracking the remote copy: two `bl init`s in separate
         // clones must not each create a fresh orphan, or their histories
         // will be unrelated and sync will refuse to merge them.
-        if has_origin {
-            let _ = git::git_fetch(root, "origin");
+        if has_remote {
+            let _ = git::git_fetch(root, remote);
         }
-        if has_origin && git_state::has_remote_branch(root, "origin", STATE_BRANCH) {
-            git_state::create_tracking_branch(root, STATE_BRANCH, "origin")?;
+        if has_remote && git_state::has_remote_branch(root, remote, STATE_BRANCH) {
+            git_state::create_tracking_branch(root, STATE_BRANCH, remote)?;
         } else {
             git_state::create_orphan_branch(root, STATE_BRANCH, "balls state")?;
             // Best-effort publish so a second clone's init discovers the
             // branch on the remote and tracks it instead of creating its
             // own unrelated orphan. Offline? Fine — first sync will push.
-            if has_origin {
-                let _ = git::git_push(root, "origin", STATE_BRANCH);
+            if has_remote {
+                let _ = git::git_push(root, remote, STATE_BRANCH);
             }
         }
     }
@@ -51,8 +57,8 @@ pub(crate) fn setup_state_branch(root: &Path) -> Result<()> {
 
     // Publish the seed commit if we made one above and the branch is
     // freshly-local. Best-effort.
-    if has_origin {
-        let _ = git::git_push(root, "origin", STATE_BRANCH);
+    if has_remote {
+        let _ = git::git_push(root, remote, STATE_BRANCH);
     }
     Ok(())
 }

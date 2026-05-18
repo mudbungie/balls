@@ -128,7 +128,11 @@ impl Store {
             fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
             (ext, true)
         } else {
-            setup_state_branch(&repo_root)?;
+            // Resolve the state remote from the just-ensured config so
+            // a clone whose committed config points at a task hub
+            // adopts the hub's branch instead of forking an orphan.
+            let cfg = Config::load(&config_path)?;
+            setup_state_branch(&repo_root, cfg.state_remote())?;
             (repo_root.join(".balls/worktree/.balls/tasks"), false)
         };
 
