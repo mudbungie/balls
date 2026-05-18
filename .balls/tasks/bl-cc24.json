@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-18T18:36:43.509150431Z","id":"bl-1b07","title":"Forward-compat hardening: symmetric unknown=round-trip across all three serde seams"},{"closed_at":"2026-05-18T18:55:12.622212968Z","id":"bl-2062","title":"First-class Reject { reason } propose outcome, wired to failure policy"}],
+  "closed_children": [{"closed_at":"2026-05-18T18:36:43.509150431Z","id":"bl-1b07","title":"Forward-compat hardening: symmetric unknown=round-trip across all three serde seams"},{"closed_at":"2026-05-18T18:55:12.622212968Z","id":"bl-2062","title":"First-class Reject { reason } propose outcome, wired to failure policy"},{"closed_at":"2026-05-18T19:08:53.409025765Z","id":"bl-ec62","title":"create lifecycle event; resolve drop participation"}],
   "created_at": "2026-05-18T17:45:00.867216132Z",
   "delivered_in": null,
   "depends_on": [],
@@ -16,5 +16,5 @@
   "tags": ["plugins","extensibility","forward-compat"],
   "title": "Native-protocol extensibility: arbitrary policy and side-effects on any transition",
   "type": "epic",
-  "updated_at": "2026-05-18T18:55:12.622240369Z"
+  "updated_at": "2026-05-18T19:08:53.409043388Z"
 }
