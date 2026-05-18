@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2057",
+  "claimed_by": "Expunge",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-18T17:39:48.428998083Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-19aa",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["multi-repo"],
   "title": "bl remaster: re-point the task state branch, with reconcile and --detach",
   "type": "task",
-  "updated_at": "2026-05-18T17:39:48.428998083Z"
+  "updated_at": "2026-05-18T18:16:27.433988657Z"
 }
