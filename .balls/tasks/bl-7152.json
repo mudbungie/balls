@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T03:55:56.913882584Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "WHY: bl review is the proper squash-delivery path, but it cannot review any task that was claimed with --no-worktree in a git repo. In the bare balls repo every confirmation/archival task must be claimed --no-worktree, so the documented squash-delivery flow is unreachable here; agents are forced into the create -> 'bl update <id> status=closed --note' archival workaround instead of squash-delivered tasks. Distinct from bl-8cf7: that is Store::discover failing at the bare root ('not initialized'); THIS reproduces even when discovery works (run from a valid cwd such as .balls/worktree).\n\nREPRO (from /home/mark/dev/balls/.balls/worktree so bl-8cf7 does not mask it):\n  $ bl create x -t bug                       # -> bl-XXXX\n  $ bl claim bl-XXXX --no-worktree --as repro\n  claimed bl-XXXX (no worktree)\n  $ bl review bl-XXXX -m repro\n  error: git error: failed to spawn git: No such file or directory (os error 2)\n\nROOT CAUSE: src/commands/lifecycle.rs cmd_review branches only on store.no_git: no_git -> review_no_git, else -> review::review_worktree. There is no branch for a task claimed --no-worktree while a git repo is present. Such a task has task.branch = None and no worktree, but it still enters review_worktree, which resolves worktree_path(store,id) (src/worktree.rs) for a worktree that was never created and then invokes git with current_dir set to that nonexistent path. std::process::Command::spawn surfaces a missing current_dir as ENOENT, producing 'failed to spawn git: No such file or directory (os error 2)'. The bare repo just makes it 100% reproducible because there is no incidental fallback working dir.\n\nFIX (decide intent first): either (a) give cmd_review a third path for --no-worktree-claimed git tasks that performs a metadata-only review transition mirroring review_no_git while still committing on the state branch (no squash, since there is no work branch to squash), or (b) if --no-worktree tasks are deliberately not squash-deliverable, fail fast with a clear message ('task bl-XXXX was claimed --no-worktree; nothing to squash - close via bl update <id> status=closed') instead of leaking an ENOENT. Reuse the bare-detection pattern already in src/bare_squash.rs. Relate to bl-8cf7 (same bare-repo blast radius; together they block the proper delivery path from this repo root).",
+  "external": {},
+  "id": "bl-7152",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "tags": ["review","no-worktree","bare-repo"],
+  "title": "bl review on a --no-worktree-claimed task spawns git in a missing dir → ENOENT",
+  "type": "bug",
+  "updated_at": "2026-05-18T03:55:56.913882584Z"
+}
