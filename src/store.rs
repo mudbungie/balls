@@ -132,7 +132,7 @@ impl Store {
             // a clone whose committed config points at a task hub
             // adopts the hub's branch instead of forking an orphan.
             let cfg = Config::load(&config_path)?;
-            setup_state_branch(&repo_root, cfg.state_remote())?;
+            setup_state_branch(&repo_root, cfg.state_remote(), cfg.state_remote.is_some())?;
             (repo_root.join(".balls/worktree/.balls/tasks"), false)
         };
 
