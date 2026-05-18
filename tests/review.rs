@@ -229,6 +229,41 @@ fn review_of_empty_worktree_leaves_delivered_in_null() {
 }
 
 #[test]
+fn review_no_worktree_claim_flips_status_without_squash() {
+    // A task claimed `--no-worktree` in a git repo has no work branch
+    // and no `.balls-worktrees/<id>`. `bl review` must do a metadata-only
+    // flip (like no-git mode), not route into the worktree squash path —
+    // which previously spawned git in the missing worktree dir and failed
+    // with `failed to spawn git: No such file or directory` (bl-7152).
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "archival ball");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id, "--no-worktree"])
+        .assert()
+        .success();
+
+    let head_before = git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
+    bl(repo.path())
+        .args(["review", &id, "-m", "nothing to deliver"])
+        .assert()
+        .success();
+    let head_after = git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
+
+    assert_eq!(head_before, head_after, "no-worktree review must not touch main");
+    let j = read_task_json(repo.path(), &id);
+    assert_eq!(j["status"], "review");
+
+    // The rest of the lifecycle still completes: close archives the task
+    // and no-ops the absent worktree.
+    bl(repo.path())
+        .args(["close", &id, "-m", "archived"])
+        .assert()
+        .success();
+    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
+}
+
+#[test]
 fn review_creates_squash_commit_with_title() {
     let repo = new_repo();
     init_in(repo.path());
