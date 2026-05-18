@@ -17,6 +17,23 @@ use std::path::Path;
 /// Task JSON) in scope. The body is responsible for printing the
 /// JSON propose response on stdout.
 pub fn install_native_plugin(name: &str, propose_body: &str) -> tempfile::TempDir {
+    let describe = format!(
+        r#"{{ "subscriptions": ["claim", "review", "close", "update"],
+   "projection": {{ "external_prefixes": ["{name}"] }} }}"#
+    );
+    install_native_plugin_describe(name, &describe, propose_body)
+}
+
+/// Like `install_native_plugin` but with a caller-supplied `describe`
+/// payload. Used by forward-compat conformance (a describe that
+/// subscribes to an event this build does not know) and by siblings
+/// that need to declare new describe fields. `describe_json` is the
+/// exact JSON the `describe` subcommand prints.
+pub fn install_native_plugin_describe(
+    name: &str,
+    describe_json: &str,
+    propose_body: &str,
+) -> tempfile::TempDir {
     let bin_dir = tempfile::Builder::new()
         .prefix(&format!("balls-native-{name}-"))
         .tempdir()
@@ -41,8 +58,7 @@ case "$CMD" in
         ;;
     describe)
         cat <<'JSON'
-{{ "subscriptions": ["claim", "review", "close", "update"],
-   "projection": {{ "external_prefixes": ["{name}"] }} }}
+{describe_json}
 JSON
         exit 0
         ;;
