@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-ec62",
+  "claimed_by": "Bastions",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-18T17:45:00.959668970Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-cc24",
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["extensibility"],
   "title": "create lifecycle event; resolve drop participation",
   "type": "task",
-  "updated_at": "2026-05-18T17:45:00.959668970Z"
+  "updated_at": "2026-05-18T18:56:01.055663767Z"
 }
