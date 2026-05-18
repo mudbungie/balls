@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:45:00.894073135Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Apply the bl-d31c \"unknown = round-trip, never die\" rule to the two serde seams it does not yet cover. (a) Native propose-response deserializer (plugin/native_types.rs): an unknown response variant degrades to the existing Other class — never panics, never hard-errors. (b) Describe subscription set: an old bl encountering an event name it does not know in a plugin's DescribeResponse drops that one subscription and continues — it does not fail the handshake.\n\nAmend SPEC-lifecycle-sync-participants.md: state the rule ONCE and generally (S13 currently scopes it to Task fields only); add the EventCtx wire-delivery contract to S5; record the create/drop event-set change under S6; clarify reject vs conflict vs Other under S8.\n\nConformance (mirrors the S17 discipline — tests land and fail for the right reason BEFORE any impl): (1) old bl + native plugin emitting an unknown propose variant => treated as Other, event follows its failure policy, no panic. (2) old bl + plugin describing a subscription to an unknown event => that subscription dropped, known ones still negotiated, handshake succeeds. (3) legacy plugin byte-identical — re-assert S17.1 against the new code paths. (4) Task extra round-trip still holds — S17.13 regression guard.\n\nWHY: this is the bl-d31c analog for this epic. Every sibling adds a wire variant or an event name; the degrade-not-die rule must exist and be tested first, or mixed-version shared hubs silently corrupt negotiation outcomes. Hard prerequisite for every other child.",
+  "external": {},
+  "id": "bl-1b07",
+  "links": [],
+  "parent": "bl-cc24",
+  "priority": 2,
+  "status": "open",
+  "tags": ["forward-compat"],
+  "title": "Forward-compat hardening: symmetric unknown=round-trip across all three serde seams",
+  "type": "task",
+  "updated_at": "2026-05-18T17:45:00.894073135Z"
+}
