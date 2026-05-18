@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:39:48.452681841Z",
+  "delivered_in": null,
+  "depends_on": ["bl-c0c6"],
+  "description": "When bl init runs in a repo whose committed .balls/config.json already declares state_remote (a fresh clone of an already-onboarded client), init adopts it: fetch and track <state_remote>/balls/tasks instead of creating a fresh local orphan. With no state_remote configured, init keeps today's behavior exactly: create-or-track the local balls/tasks (store_init.rs already tracks origin/balls/tasks if present rather than clobbering; preserve that). An unaware bl init in a not-yet-linked client stays safe: it creates an isolated local store (today's behavior), and bl remaster (sibling task) is the documented path to fold those tasks into the project later. Init must never reset, force-push, or overwrite a non-empty balls/tasks it discovers.\n\nWHY: the user's stability bar is \"stable if someone runs bl init in the client without knowing there's a main.\" The answer: unaware init is safe-but-unlinked, and joining is an explicit reconcilable step, never a destructive surprise in either direction.",
+  "external": {},
+  "id": "bl-8e8f",
+  "links": [],
+  "parent": "bl-19aa",
+  "priority": 2,
+  "status": "open",
+  "tags": ["multi-repo"],
+  "title": "bl init safety: adopt a configured state_remote; never clobber a shared branch",
+  "type": "task",
+  "updated_at": "2026-05-18T17:39:48.452681841Z"
+}
