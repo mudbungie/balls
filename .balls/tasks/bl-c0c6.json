@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:39:48.407744266Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Add state_remote: Option<String> to Config (config.rs), default None == \"origin\". Thread it through state-branch setup (store_init.rs: track <state_remote>/balls/tasks instead of hardcoded origin) and the git-remote Participant push/fetch (claim_sync.rs / negotiation) so every balls/tasks round-trip targets state_remote. The code remote is untouched: only the orphan-ref negotiation retargets. Conformance: with state_remote unset or = \"origin\", every git invocation is byte-identical to today (recorded-fixture test, mirrors SPEC-lifecycle S17.1).\n\nWHY: this is the feature's hard primitive; everything else (remaster, init-safety) is policy on top. Keep the retarget at exactly one seam, the git-remote Participant's remote resolution, so there is no second code path that knows about state_remote.",
+  "external": {},
+  "id": "bl-c0c6",
+  "links": [],
+  "parent": "bl-19aa",
+  "priority": 2,
+  "status": "open",
+  "tags": ["multi-repo"],
+  "title": "state_remote config field + state-branch sync/discovery plumbing",
+  "type": "task",
+  "updated_at": "2026-05-18T17:39:48.407744266Z"
+}
