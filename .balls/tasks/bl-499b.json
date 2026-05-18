@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-18T17:39:48.474562949Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Once many code repos share one balls/tasks, a task needs to record which repo it belongs to. Add a repo field to Task, populated at create time from the code repo identity (remote URL or root basename), surfaced in bl list/show. It MUST ride the forward-compat #[serde(flatten)] extra catch-all (SPEC-lifecycle S13 / bl-d31c) so an older bl round-trips it unchanged rather than dropping it on every save: the same constraint that protects any participant-emitted field.\n\nWHY: this is the one genuinely new bit of durable task state the multi-repo model introduces; gate it behind the existing forward-compat seam so mixed-version clients on a shared hub do not silently strip provenance. Filed as a child, not a blocker: state_remote works without it; provenance just makes a shared hub legible.",
+  "external": {},
+  "id": "bl-499b",
+  "links": [],
+  "parent": "bl-19aa",
+  "priority": 3,
+  "status": "open",
+  "tags": ["multi-repo"],
+  "title": "Task repo provenance field via the forward-compat extra map",
+  "type": "task",
+  "updated_at": "2026-05-18T17:39:48.474562949Z"
+}
