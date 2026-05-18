@@ -61,6 +61,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl update TASK_ID --note "text"` | Add a note. |
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
+| `bl remaster TARGET` [`--commit`] / `bl remaster --detach` | Re-point this repo's `balls/tasks` at the git remote `TARGET` (a shared task hub) and reconcile local-only tasks onto it. Per-clone by default; `--commit` writes the project-wide `.balls/config.json`. `--detach` severs shared history and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
 
 > **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
 
@@ -175,6 +176,33 @@ Important:
 - **Approval is durable.** Close archives the task file from the state branch HEAD and removes the submitter's worktree + `work/TASK_ID` branch. The squash commit on main carries the work.
 - **Rejection keeps the worktree.** The submitter resumes in place; their next `bl review` re-merges main automatically.
 - If accepted work needs to be undone, that's a `git revert` of the delivered sha on main, not a `bl close` thing — close still archives the task.
+
+## Multi-repo: one project, many repos (opt-in)
+
+By default a repo's task state branch (`balls/tasks`) is negotiated
+against the same remote as its code (`origin`). A project spanning
+several code repos can instead share **one** task store on a dedicated
+hub remote. The single knob is `state_remote` in `.balls/config.json`
+(default: `origin`); point it at a git remote whose `balls/tasks` ref
+is authoritative. Everything else — claim/review/close/sync — then
+negotiates that ref through the existing git-remote participant. The
+code remote is untouched; only the orphan ref retargets.
+
+- **Onboard / join:** add the hub as a git remote, then
+  `bl remaster <hubremote>`. It fetches the hub's `balls/tasks`,
+  reconciles your local-only tasks onto it (a rare id clash with a
+  different task is re-imported under a fresh id, never silently
+  merged), and records the link per-clone. `--commit` writes the
+  link into the shared `.balls/config.json` so it travels with the
+  codebase. Idempotent: re-running against the same hub is a no-op.
+- **Unaware `bl init`:** a clone whose committed config names a hub
+  it has no git remote for stays *safe but unlinked* — a usable
+  isolated local store. `bl remaster` is the non-destructive way to
+  fold those tasks into the project later. `bl init` never resets,
+  force-pushes, or clobbers a shared branch.
+- **Leave:** `bl remaster --detach` forks the current branch into a
+  fresh local orphan and clears the link — the repo is standalone
+  again.
 
 ## Creating Tasks
 

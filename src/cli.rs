@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(name = "bl", version, about = "Git-native task tracker", long_about = None)]
@@ -240,6 +240,24 @@ pub enum Command {
         forget_all_half_pushes: bool,
     },
 
+    /// Re-point this repo's task state branch at TARGET (a configured
+    /// git remote) and reconcile local-only tasks onto it. The link
+    /// is per-clone unless `--commit`. `--detach` instead forks the
+    /// current branch into a fresh local orphan and goes standalone.
+    Remaster {
+        /// Git remote whose `balls/tasks` becomes authoritative.
+        /// Omit only with `--detach`.
+        target: Option<String>,
+        /// Write the link to the committed `.balls/config.json`
+        /// (project-wide) instead of the per-clone local override.
+        #[arg(long, conflicts_with = "detach")]
+        commit: bool,
+        /// Sever shared history and clear the link: the repo becomes
+        /// a standalone local task store again.
+        #[arg(long)]
+        detach: bool,
+    },
+
     /// Print the agent skill guide (SKILL.md).
     Skill,
 
@@ -256,43 +274,4 @@ pub enum Command {
     },
 }
 
-#[derive(Clone, Debug, ValueEnum)]
-pub enum ShellArg {
-    Bash,
-    Zsh,
-    Fish,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum DepCmd {
-    /// Add a dependency: TASK depends on DEPENDS_ON.
-    Add { task: String, depends_on: String },
-    /// Remove a dependency.
-    Rm { task: String, depends_on: String },
-    /// Print parent/child tree with box-drawing. Deps and gates show
-    /// as inline annotations, never as nesting. Without ID, prints
-    /// every parentless task as its own root.
-    Tree {
-        id: Option<String>,
-        /// Emit a nested JSON tree instead of the box-drawn text.
-        #[arg(long)]
-        json: bool,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-pub enum LinkCmd {
-    /// Add a typed link: relates_to, duplicates, supersedes, replies_to, gates.
-    /// `gates` blocks the source task from closing until the target closes.
-    Add {
-        task: String,
-        link_type: String,
-        target: String,
-    },
-    /// Remove a typed link.
-    Rm {
-        task: String,
-        link_type: String,
-        target: String,
-    },
-}
+pub use crate::cli_sub::{DepCmd, LinkCmd, ShellArg};

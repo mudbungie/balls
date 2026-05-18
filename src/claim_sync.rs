@@ -13,10 +13,10 @@
 //! in `crate::negotiation`; this module supplies the wire hooks and
 //! `push_claim` / `push_state_for` wrappers.
 //!
-//! The remote is not hardcoded: every fetch/push here resolves
-//! through `config.state_remote()` (default `origin`). This module is
-//! the participant seam bl-19aa retargets so a client repo can
-//! negotiate `balls/tasks` against a shared task hub.
+//! The remote is resolved (not hardcoded) through the
+//! per-clone/committed `state_remote` seam (bl-19aa); default
+//! `origin`. This is where a client repo retargets `balls/tasks` at
+//! a shared task hub.
 
 use crate::error::{BallError, Result};
 use crate::git;
@@ -29,14 +29,15 @@ use std::process::Output;
 const STATE_BRANCH: &str = "balls/tasks";
 const MAX_RETRIES: usize = 5;
 
-/// Resolve this repo's `state_remote` (default `origin`). This is the
-/// one seam that retargets `balls/tasks`: every fetch/push the
-/// git-remote participant runs reads it through here, so there is no
-/// second code path with `origin` baked in. Errors propagate (a
-/// required remote sync must not silently fall back to the wrong
-/// peer); the only caller contexts are `Result`-returning.
+/// Resolve this repo's effective `state_remote` — the one seam that
+/// retargets `balls/tasks` (per-clone override over committed,
+/// default `origin`). No other code path bakes in `origin`. Errors
+/// propagate: a required sync must not silently hit the wrong peer.
 fn state_remote(store: &Store) -> Result<String> {
-    Ok(store.load_config()?.state_remote().to_string())
+    let cfg = store.load_config()?;
+    let local = crate::policy::LocalConfig::load(store)?;
+    Ok(crate::policy::state_remote_opt(&cfg, local.as_ref())
+        .unwrap_or_else(|| crate::config::DEFAULT_STATE_REMOTE.to_string()))
 }
 
 /// Run `git push <state_remote> balls/tasks` from `dir` and classify
