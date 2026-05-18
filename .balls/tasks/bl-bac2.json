@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-18T17:45:00.915712187Z",
-  "delivered_in": null,
+  "delivered_in": "37ddb040bc3e95feace95a63d817e6c6d0fbbf25",
   "depends_on": ["bl-1b07"],
   "description": "A native plugin declares wants_context in its DescribeResponse. When set, bl serializes the EventCtx — prior task projection (the diff), actor identity, per-invocation overrides used (e.g. --no-sync), event name, commit sha, repo identity — to a dedicated FD (follow the BALLS_DIAG_FD pattern in plugin/diag.rs) or a --ctx-file path argument. The legacy stdin shape (bare Task JSON) is untouched. A plugin that does not declare wants_context receives byte-identical input to today.\n\nEventCtx already exists as an internal type on the Participant trait (S5); this is purely its wire serialization plus a versioned, additive schema — new keys ignored by older context-aware plugins, per the prereq's rule.\n\nWHY: the post-image alone cannot answer \"who changed what\" or \"what was it before\". This is the single highest-leverage gap — it converts every observer plugin from \"diff against my own shadow copy\" to \"react to the actual transition\". Gating on describe + a dedicated FD is exactly what keeps it forward-compatible in BOTH directions: an old bl never sends it, an old plugin never asks for it.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-cc24",
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["extensibility"],
   "title": "Deliver EventCtx to native plugins via a describe-gated side channel",
   "type": "task",
-  "updated_at": "2026-05-18T19:09:52.782241408Z"
+  "updated_at": "2026-05-18T19:26:06.058840308Z"
 }
