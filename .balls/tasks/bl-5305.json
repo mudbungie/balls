@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-5305",
+  "claimed_by": "Stateroom",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:05:01.377788449Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-00ca",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["docs","delivery"],
   "title": "Docs: delivery modes, target_branch, and forge-gated flow",
   "type": "task",
-  "updated_at": "2026-05-19T18:03:15.226400764Z"
+  "updated_at": "2026-05-19T18:03:29.116270366Z"
 }
