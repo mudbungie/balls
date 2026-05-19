@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T07:59:43.762543638Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "bl-d4b0 made `bl review` land a task's squash on its per-task `target_branch`. The machinery that runs AFTER the squash still assumes one repo-level integration branch, so a per-task-targeted delivery falls through two cracks.\n\n1. SYNC-PUSH GAP (functional, load-bearing). `bl sync` pushes only `Config::integration_branch(root)` to the code remote (src/commands/sync.rs:94). A task delivered via per-task override to `main` on a `develop`-default repo has its squash on local `main`, but `bl sync` pushes `develop` + the state branch and never `main` — the delivery is stranded locally and never reaches origin. Per-task delivery is not actually delivered.\n\n2. HALF-PUSH FALSE POSITIVE (cosmetic, self-recoverable). `detect_half_push` (src/commands/half_push.rs:38) scans only the repo-level integration branch for each closed+reviewed task's `[bl-xxxx]` tag. A per-task delivery's tag is on a different branch, so the task is flagged as a half-push during `bl sync`/`bl repair`. Warn-only and retractable via `bl repair --forget-half-push`, but noisy for exactly the git-flow workflow bl-d4b0 enables.\n\nROOT CAUSE: `bl review` can now deliver to N branches; `bl sync`'s push and `half_push`'s scan still think in one, reading the repo-level `integration_branch` where they need the task's effective one. For `half_push` the task is archived, so its `target_branch` is not on hand.\n\nSANE APPROACH (the elegant seam): the effective target branch is a fact known at `bl review` time. Persist it where the post-delivery machinery already looks — the state-branch commit. The `state: review bl-xxxx` subject already carries optional trailing markers (`no-code`); add `target=<branch>` alongside it, omitted when it equals the repo default so untouched repos stay byte-identical and old clients ignore it. Then: half_push builds an id->target map from state subjects it already parses (absent ⇒ today's repo-level fallback, no archive reconstruction, no all-branch scan); `bl sync` pushes the union of {repo-level integration branch} ∪ {distinct recorded targets of not-yet-synced deliveries}. This incidentally fixes a latent repo-level bug too: if `config.target_branch` changes between a task's delivery and a later half_push/sync, today's code mis-scans; recording the actual target at delivery time makes it historically accurate.\n\nBC: the `target=` marker is additive and omitted when equal to the repo default; pre-marker state commits and old clients fall back to current single-branch behavior — byte-identical for any repo not using per-task overrides.\n\nACCEPTANCE:\n- A task delivered via per-task target_branch to a non-default branch: `bl sync` pushes that branch to the code remote (squash reaches origin) alongside the repo default and the state branch.\n- That task is NOT flagged as a half-push by `bl sync`/`bl repair`.\n- Repo with no per-task overrides: state-commit format, sync push set, and half-push results byte-identical to pre-change.\n- Old client reading a `target=`-marked state commit: ignores the marker, behaves as today.\n\nParent bl-00ca (post-delivery coherence leg of forge-gated delivery). Relates to bl-d4b0. p2: the sync-push leg is a functional delivery gap for the workflow bl-d4b0 just shipped, not a nicety.",
+  "external": {},
+  "id": "bl-f788",
+  "links": [],
+  "parent": "bl-00ca",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["delivery","git-flow"],
+  "title": "Post-delivery machinery is blind to per-task target_branch",
+  "type": "bug",
+  "updated_at": "2026-05-19T07:59:43.762543638Z"
+}
