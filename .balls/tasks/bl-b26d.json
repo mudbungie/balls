@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b26d",
+  "claimed_by": "gleaning",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T18:08:52.735763472Z",
@@ -13,9 +13,9 @@
   "parent": "bl-32f8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": ["deps"],
   "title": "Drop fs2: use std::fs::File::lock/try_lock/unlock",
   "type": "task",
-  "updated_at": "2026-05-19T18:08:52.735763472Z"
+  "updated_at": "2026-05-19T18:09:03.249366687Z"
 }
