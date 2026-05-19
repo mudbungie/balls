@@ -26,6 +26,7 @@ pub mod commit_policy;
 pub mod config;
 pub mod delivery;
 pub mod display;
+pub mod doctor;
 pub mod error;
 pub mod git;
 pub mod git_state;
