@@ -13,7 +13,7 @@
 //! parent down mid-review. No new lifecycle state, no new old-client
 //! code — a reused primitive (SPEC §3, §4).
 
-use crate::error::Result;
+use crate::error::{BallError, Result};
 use crate::git;
 use crate::store::Store;
 use crate::task::{Link, LinkType, NewTaskOpts, Status, Task, TaskType};
@@ -105,4 +105,78 @@ pub fn deferred_review(
         "{id} is in review and gated by {child_id}; `bl close {id}` is blocked until the PR merges."
     );
     Ok(())
+}
+
+/// SPEC §7.3 — reject a deferred-mode review. Flip the parent back to
+/// `in_progress` *and* close its open `forge-gate` child in the SAME
+/// state-branch commit, dropping the now-dead `gates` link, so the
+/// invariant holds: a task is `in_progress` iff it has no open gate
+/// child. Returns `Ok(false)` when there is no such child — the caller
+/// then does a plain status update, so the non-deferred reject path is
+/// unchanged. Refuses without mutation if the gate child is claimed:
+/// archiving a claimed task needs the worktree teardown the update
+/// path does not own, so the operator resolves that first. The work
+/// branch on `origin` is deliberately left alone — the operator or
+/// forge plugin closes the PR if the work is being abandoned.
+///
+/// `parent` arrives already mutated to `status=in_progress` by the
+/// caller's field-apply loop; this owns the persist (save + the atomic
+/// archive commit) when it handles the reject.
+pub fn reject_deferred(
+    store: &Store,
+    parent: &mut Task,
+    note: Option<&str>,
+    identity: &str,
+) -> Result<bool> {
+    // `open_gate_blockers` returns every still-open gate-linked child
+    // and already absorbs archived targets / load errors (covered in
+    // `review`). Of those, only the deferred-mode auto-gate carries
+    // the `forge-gate` tag (SPEC §7.2 step 4); a hand-added audit gate
+    // is deliberate and stays put.
+    let blockers = crate::review::open_gate_blockers(store, parent)?;
+    let mut gate = None;
+    for bid in &blockers {
+        let c = store.load_task(bid)?;
+        if c.tags.iter().any(|t| t == "forge-gate") {
+            gate = Some(c);
+            break;
+        }
+    }
+    let Some(mut child) = gate else {
+        return Ok(false);
+    };
+    // Atomic refusal: a claimed gate child can't be torn down here
+    // (that needs `bl close`'s worktree teardown). Bail before any
+    // mutation so the reject is observably all-or-nothing.
+    if child.claimed_by.is_some() {
+        return Err(BallError::Other(format!(
+            "cannot reject {}: gate child {} is claimed — close or drop it first",
+            parent.id, child.id
+        )));
+    }
+    parent
+        .links
+        .retain(|l| !(matches!(l.link_type, LinkType::Gates) && l.target == child.id));
+    parent.touch();
+    store.save_task(parent)?;
+    if let Some(n) = note {
+        task_io::append_note_to(&store.task_path(&parent.id)?, identity, n)?;
+    }
+    child.status = Status::Closed;
+    child.closed_at = Some(chrono::Utc::now());
+    child.touch();
+    // The reject note lives in the parent's (un-archived) notes file,
+    // so — unlike a close — it need not be embedded in the commit
+    // message; mirror the plain `balls: update` single-line shape.
+    let msg = format!(
+        "state: reject {} deferred — closed gate {}",
+        parent.id, child.id
+    );
+    // `close_and_archive` re-reads the parent — picking up the status
+    // flip and dropped link we just saved — appends the closed-child
+    // record, and stages parent (json + notes) plus the child removal
+    // into ONE commit. That single commit is the atomicity SPEC §7.3
+    // requires.
+    store.close_and_archive(&child, &msg)?;
+    Ok(true)
 }
