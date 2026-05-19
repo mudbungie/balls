@@ -1,8 +1,17 @@
 //! Shared helpers for plugin integration tests.
 //!
-//! Provides mock plugin installation, configuration, and authentication.
+//! Provides mock plugin installation, configuration, and
+//! authentication. The ad-hoc `install_plugin_*` script builders are
+//! in the `scripts` submodule and re-exported, so call sites keep
+//! using `common::plugin::install_plugin_with_body` etc.
 
-#![allow(dead_code)]
+// Each integration test binary pulls in this helper module but uses
+// only a subset; `dead_code` covers the unused fns and
+// `unused_imports` the re-export glob in those crates.
+#![allow(dead_code, unused_imports)]
+
+mod scripts;
+pub use scripts::*;
 
 use super::git;
 use std::fs;
@@ -173,117 +182,4 @@ exit 1
 pub fn write_sync_response(repo_path: &Path, response: &str) {
     let response_path = repo_path.join(".balls/plugins/mock.json.sync-response");
     fs::write(response_path, response).unwrap();
-}
-
-/// Install a plugin script with a custom shell body. The body runs
-/// when the plugin is invoked with `push` or `sync`; auth-check
-/// passes iff `$AUTH_DIR/token.json` exists. Lower-level than
-/// `install_plugin_with_body` — use this when you need to control
-/// exactly what the plugin does (sleep, emit huge output, etc.).
-pub fn install_plugin_script(body: &str) -> tempfile::TempDir {
-    let bin_dir = tempfile::Builder::new()
-        .prefix("balls-script-bin-")
-        .tempdir()
-        .unwrap();
-    let script = format!(
-        r#"#!/bin/sh
-CMD="$1"
-shift
-AUTH_DIR=""
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --auth-dir) AUTH_DIR="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-case "$CMD" in
-    auth-check)
-        [ -f "$AUTH_DIR/token.json" ] && exit 0 || exit 1
-        ;;
-    push|sync)
-{body}
-        ;;
-    *) exit 0 ;;
-esac
-"#
-    );
-    let path = bin_dir.path().join("balls-plugin-mock");
-    fs::write(&path, script).unwrap();
-    let mut p = fs::metadata(&path).unwrap().permissions();
-    p.set_mode(0o755);
-    fs::set_permissions(&path, p).unwrap();
-    bin_dir
-}
-
-/// Install a plugin that writes `diag_snippet` (verbatim POSIX sh) to
-/// the diagnostics fd on push/sync, then returns an empty sync report.
-pub fn install_plugin_with_diag(diag_snippet: &str) -> tempfile::TempDir {
-    let bin_dir = tempfile::Builder::new().prefix("balls-diag-bin-").tempdir().unwrap();
-    let script = format!(
-        r#"#!/bin/sh
-CMD="$1"; shift
-AUTH_DIR=""
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --auth-dir) AUTH_DIR="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-case "$CMD" in
-    auth-check) [ -f "$AUTH_DIR/token.json" ] && exit 0 || exit 1 ;;
-    push|sync)
-        {diag_snippet}
-        cat - >/dev/null
-        echo '{{"created":[],"updated":[],"deleted":[]}}'
-        ;;
-esac
-"#
-    );
-    let path = bin_dir.path().join("balls-plugin-mock");
-    fs::write(&path, script).unwrap();
-    let mut p = fs::metadata(&path).unwrap().permissions();
-    p.set_mode(0o755);
-    fs::set_permissions(&path, p).unwrap();
-    bin_dir
-}
-
-/// Mock plugin that passes auth-check but returns the provided body on
-/// push/sync (empty, invalid JSON, etc.). Used to exercise plugin
-/// runner's graceful-degradation paths.
-pub fn install_plugin_with_body(body: &str) -> tempfile::TempDir {
-    let bin_dir = tempfile::Builder::new()
-        .prefix("balls-body-bin-")
-        .tempdir()
-        .unwrap();
-    let script = format!(
-        r#"#!/bin/sh
-CMD="$1"
-shift
-AUTH_DIR=""
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --auth-dir) AUTH_DIR="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-case "$CMD" in
-    auth-check)
-        [ -f "$AUTH_DIR/token.json" ] && exit 0 || exit 1
-        ;;
-    push|sync)
-        cat - >/dev/null
-        printf '%s' '{body}'
-        exit 0
-        ;;
-    *) exit 0 ;;
-esac
-"#,
-        body = body.replace('\'', "'\\''")
-    );
-    let path = bin_dir.path().join("balls-plugin-mock");
-    fs::write(&path, script).unwrap();
-    let mut p = fs::metadata(&path).unwrap().permissions();
-    p.set_mode(0o755);
-    fs::set_permissions(&path, p).unwrap();
-    bin_dir
 }

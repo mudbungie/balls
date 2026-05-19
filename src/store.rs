@@ -5,46 +5,14 @@ use crate::store_init::{commit_init, setup_state_branch, STATE_WORKTREE_REL};
 use crate::store_paths::{find_balls_root, find_main_root, resolve_tasks_dir, stealth_tasks_dir};
 use crate::task::{self, Task};
 use crate::task_io;
-use fs2::FileExt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Acquire an exclusive flock on the given path. The lock is released when
-/// the returned guard is dropped.
-pub struct LockGuard(fs::File);
-impl Drop for LockGuard {
-    fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.0);
-    }
-}
-
-pub fn task_lock(store: &Store, id: &str) -> Result<LockGuard> {
-    task::validate_id(id)?;
-    acquire_flock(&store.lock_dir().join(format!("{id}.lock")))
-}
-
-/// Acquire the store-wide state-worktree lock. Held for the duration
-/// of any write sequence targeting the state branch (commit_task,
-/// commit_staged, remove_task, close_and_archive). Serializes
-/// concurrent bl invocations from different tasks so git's
-/// `index.lock` never sees contention.
-fn state_worktree_flock(store: &Store) -> Result<LockGuard> {
-    acquire_flock(&store.lock_dir().join("state-worktree.lock"))
-}
-
-fn acquire_flock(path: &Path) -> Result<LockGuard> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let f = fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(path)?;
-    f.lock_exclusive()?;
-    Ok(LockGuard(f))
-}
+// flock primitives live in `store_lock` to keep this file under the
+// 300-line cap. `task_lock`/`LockGuard` are re-exported so the public
+// API path `balls::store::{task_lock, LockGuard}` is unchanged.
+pub use crate::store_lock::{task_lock, LockGuard};
+use crate::store_lock::state_worktree_flock;
 
 pub struct Store {
     pub root: PathBuf,

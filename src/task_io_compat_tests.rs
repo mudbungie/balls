@@ -2,9 +2,9 @@
 //! the task JSON written to the state branch (`Link` inside
 //! `task.links`, `ArchivedChild` inside `task.closed_children`, plus
 //! end-to-end version-mismatch). The top-level `Task.extra` and
-//! `Note.extra` cases live in `task_io_tests.rs`; this file is the
-//! sibling for the catch-alls that were added when state-branch
-//! commits started propagating across machines (bl-2148).
+//! `Note.extra` cases live in `task_io_passthrough_tests.rs`; this
+//! file is the sibling for the catch-alls that were added when
+//! state-branch commits started propagating across machines (bl-2148).
 
 use crate::task::{NewTaskOpts, Task};
 use tempfile::TempDir;

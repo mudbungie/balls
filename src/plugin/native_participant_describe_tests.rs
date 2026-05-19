@@ -3,8 +3,8 @@
 //! describe controls. Wire-level subprocess behavior lives in
 //! `tests/plugin_native_protocol.rs`.
 
-use super::test_helpers::{describe_for, entry, save_task, stealth_store};
 use super::{NativePluginParticipant, DEFAULT_NATIVE_RETRY_BUDGET};
+use crate::plugin::native_test_support::{describe_for, entry, save_task, stealth_store};
 use crate::plugin::native_types::{DescribeResponse, ProjectionWire};
 use crate::negotiation::{FailurePolicy, NegotiationResult, Protocol};
 use crate::participant::{self, Event, EventCtx, Field, Participant};

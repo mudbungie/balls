@@ -20,6 +20,7 @@
 pub mod archive_recovery;
 pub mod archived_child;
 pub mod bare_squash;
+pub mod claim_push;
 pub mod claim_sync;
 pub mod commit_msg;
 pub mod commit_policy;
@@ -29,6 +30,7 @@ pub mod display;
 pub mod doctor;
 pub mod error;
 pub mod git;
+pub mod git_merge;
 pub mod git_state;
 pub mod human_gate;
 pub mod link;
@@ -43,20 +45,28 @@ pub mod remaster;
 pub mod render_list;
 pub mod render_ready;
 pub mod render_show;
+pub mod render_show_relations;
+#[cfg(test)]
+mod render_show_test_support;
 pub mod render_show_text;
 pub mod resolve;
 pub mod review;
 pub mod review_safety;
 pub mod sanitize;
+pub mod status;
 pub mod store;
 mod store_init;
+mod store_lock;
 mod store_paths;
 pub mod sync_resolve;
 pub mod task;
 pub mod task_io;
 pub mod task_type;
 pub mod tree;
+#[cfg(test)]
+mod tree_test_support;
 pub mod worktree;
+pub mod worktree_teardown;
 
 pub use config::Config;
 pub use error::{BallError, Result};
