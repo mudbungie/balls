@@ -79,7 +79,15 @@ pub fn cmd_review(
     }
     let task = store.load_task(&id)?;
     let _ = plugin::dispatch_push(&store, &task, Event::Review, &ident);
-    println!("reviewed {id} — from the repo root, run `bl close {id} -m \"...\"` to finish");
+    let deferred = matches!(
+        store.load_config()?.delivery_mode(),
+        balls::config::DeliveryMode::Deferred
+    );
+    if deferred {
+        println!("reviewed {id} (deferred) — gated until the forge PR merges");
+    } else {
+        println!("reviewed {id} — from the repo root, run `bl close {id} -m \"...\"` to finish");
+    }
     Ok(())
 }
 

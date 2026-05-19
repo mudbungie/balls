@@ -1,22 +1,26 @@
-//! Task id generation with collision retry.
+//! Unique task-id minting. `SHA1(title + timestamp)` truncated to the
+//! repo's configured id length, retried with a stepped timestamp on
+//! collision. The single home for id generation: both `bl create` and
+//! deferred-mode `bl review`'s auto-gate child mint ids through here,
+//! so there is no second copy of the retry loop to drift.
 
-use balls::error::{BallError, Result};
-use balls::store::Store;
-use balls::task::Task;
+use crate::error::{BallError, Result};
+use crate::store::Store;
+use crate::task::Task;
 
-/// Generate a task id that does not yet exist in the store, retrying with an
-/// incremented timestamp on collision. Returns an error if no unique id can
-/// be found within a reasonable number of attempts.
-pub(crate) fn generate_unique_id(title: &str, store: &Store, id_length: usize) -> Result<String> {
+/// Generate an id not already present in `store`, reading the id
+/// length from the store's config. Thin store-aware wrapper over the
+/// pure `next_unique_id` loop.
+pub fn generate_task_id(store: &Store, title: &str) -> Result<String> {
+    let id_length = store.load_config()?.id_length;
     next_unique_id(title, id_length, chrono::Utc::now(), |id| {
         store.task_exists(id)
     })
 }
 
-/// Pure form of the retry loop: ask `exists` whether each candidate is taken,
-/// stepping the timestamp forward on collision. Split out so the retry and
-/// exhaustion paths can be tested deterministically without standing up a
-/// real Store.
+/// Pure form of the retry loop: ask `exists` whether each candidate is
+/// taken, stepping the timestamp forward on collision. Split out so the
+/// retry and exhaustion paths are testable without a real Store.
 fn next_unique_id<F>(
     title: &str,
     id_length: usize,
