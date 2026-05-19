@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T18:08:52.735763472Z",
-  "delivered_in": null,
+  "delivered_in": "b5540ab57ca918ddc2715d7de8653a49debf3db0",
   "depends_on": [],
   "description": "fs2 is used in exactly one non-test file, src/store_lock.rs, for FileExt::lock_exclusive() and FileExt::unlock(). std::fs::File::lock(), try_lock(), and unlock() were stabilized in Rust 1.89; verified to compile on the project toolchain (rustc 1.94). There is no rust-version/MSRV pin in Cargo.toml, so nothing blocks the swap.\n\nWHY: zero-cost win. Removes the fs2 crate from the tree for a ~5-line shim change in store_lock.rs. lock_exclusive() -> lock(); unlock() stays unlock(). libc is unaffected (still pulled by the plugin code), so no transitive regression.\n\nSCOPE: replace the fs2::FileExt import and the two call sites in src/store_lock.rs with the std equivalents; drop fs2 from Cargo.toml [dependencies]; confirm Cargo.lock no longer lists fs2; full test suite + 100% coverage gate must pass. If adding an MSRV pin is warranted as a side effect, note it but it is not required by this task.",
   "external": {},
@@ -13,9 +13,9 @@
   "parent": "bl-32f8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "tags": ["deps"],
   "title": "Drop fs2: use std::fs::File::lock/try_lock/unlock",
   "type": "task",
-  "updated_at": "2026-05-19T18:09:03.249366687Z"
+  "updated_at": "2026-05-19T18:13:34.518667087Z"
 }
