@@ -34,6 +34,7 @@ pub mod git_merge;
 pub mod git_state;
 pub mod human_gate;
 pub mod link;
+pub mod min_version;
 pub mod negotiation;
 pub mod participant;
 pub mod participant_config;
