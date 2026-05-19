@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-0c99",
+  "claimed_by": "Ahem",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:04:03.053675585Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-00ca",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["delivery","git-flow"],
   "title": "target_branch config: make integration branch explicit",
   "type": "task",
-  "updated_at": "2026-05-11T05:04:03.053675585Z"
+  "updated_at": "2026-05-19T06:22:22.203657804Z"
 }
