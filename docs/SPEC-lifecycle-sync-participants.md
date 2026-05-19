@@ -303,7 +303,9 @@ The legacy `Plugin::push` and `Plugin::sync` interface (subprocess + JSON on std
 
 The shim is the reference for "legacy plugins observe no behavior change." Conformance test §17.1 verifies this on a corpus of recorded fixtures: pre- and post-unification runs produce byte-identical state-branch commits, exit codes, and stdout/stderr, modulo timestamps.
 
-`run_plugin_push` and `run_plugin_sync` in `src/plugin/mod.rs` become thin wrappers that delegate to the negotiation primitive via the shim. They keep their signatures so the existing call sites in `commands/lifecycle.rs` are not touched in this ball — the call-site rewire is bl-2bf7.
+`run_plugin_push` and `run_plugin_sync` in `src/plugin/mod.rs` become thin wrappers that delegate to the negotiation primitive via the shim. They keep their signatures so the existing call sites in `commands/lifecycle.rs` are not touched in this ball — the call-site rewire is **bl-fb4d**.
+
+> Provenance: bl-2bf7 delivered the *git-remote* participant's slice of this — state-branch sync plus required-failure rollback on `review` and `close` (mirroring bl-2148's claim path), with `require_remote_on_review`/`_on_close` and `--sync`/`--no-sync`. It did **not** rewire the plugin dispatch call sites: as of its delivery the lifecycle commands still discard `plugin::dispatch_push`'s result (`let _ = …`), so a required *plugin* participant's failure or `reject` (§8.1) is computed by the primitive but not enforced at the command, and the §11 override log / `sync_status` are unbuilt. That plugin-side remainder — command-level consumption (rollback / non-zero on a required plugin outcome), EventCtx `task_before`/`commit` threading (§5.1), and the §11 override log + `sync_status` — is bl-fb4d.
 
 ## 13. Forward compatibility
 
@@ -329,7 +331,7 @@ The implementation children of bl-b7fb land in this order. Each child is observa
 4. **bl-1ea6** (Participant trait + git-remote reference impl). Defines the trait. Reroutes the claim-side state-branch sync through `Participant` → `Negotiation`. Plugin dispatch is untouched.
 5. **bl-b1dd** (legacy shim). Wraps existing subprocess plugins as Participants. After this lands, plugin push and sync flow through the negotiation primitive too. Behavior is byte-identical to today.
 6. **bl-50c5** (config inheritance). Adds the §11 schema and resolution rules. Old configs load via the §11 mapping; new configs gain per-event policy.
-7. **bl-2bf7** (apply to review/close). Subscribes participants to `review` and `close` events explicitly, using the failure-policy machinery from bl-50c5.
+7. **bl-2bf7** (apply to review/close — *git-remote slice only, as delivered*). Subscribes the **git-remote** participant to `review` and `close`: state-branch sync with required-failure rollback (mirroring bl-2148's claim path), plus `require_remote_on_review`/`_on_close` and `--sync`/`--no-sync`. Scope note: bl-2bf7 stopped at the git-remote participant. Wiring the **plugin** participants' failure policy into the commands — making `commands/lifecycle.rs` consume `dispatch_push`'s result (rollback / non-zero on a required plugin failure or `reject`, §8.1), thread EventCtx `task_before`/`commit` (§5.1), and add the §11 override log + `sync_status` — was deferred and is tracked as **bl-fb4d**. Until bl-fb4d lands, a required *plugin* participant's veto is computed by the primitive but not enforced at the command.
 8. **bl-4e7d** (commit policy). Adds the `CommitPolicy` field to `Outcome`. Legacy shim uses `Commit { message: None }`; native plugins can opt in.
 9. **bl-8b71** (native participant protocol). Adds the protocol version of plugin subcommands that lets plugins declare projections, return structured conflict reports (§8), and supply custom merge functions.
 10. **bl-a46d** (human-gate participant). Adds `gating` failure-policy machinery and `bl sync --review`.
