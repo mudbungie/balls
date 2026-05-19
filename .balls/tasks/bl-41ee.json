@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T16:31:21.516707599Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "WHY: bl-9f8e (b5b5256) documented how to *operate* an existing bare central hub and reconciled the 'run from the repo root' instructions, but it deliberately stopped at the runtime model (its scope, gated on bl-8cf7's discovery behavior). There is no committed doc for how a bare hub comes to *exist*. The bare hub is the recommended deployment, yet a reader who buys the pitch has no documented path from 'fresh machine' to 'working bare hub'.\n\nGAP / OPEN QUESTIONS the docs do not answer:\n- '.balls/config.json' is described throughout the README as 'committed to main', but a bare repo has no main work tree. How does config.json (and '.balls/plugins/', the '.balls/tasks' symlink, the '.balls/worktree' state worktree) physically land on disk at a bare root? Is it a normal 'bl init' in a non-bare clone followed by converting/serving it bare, a 'git clone --bare' plus a manual state-worktree setup, or does 'bl init' itself have a bare path?\n- What exactly does 'bl init' do when run against (or for) a bare repo today? README's 'bl init' section and the 'First-time setup' SKILL section both implicitly assume a work tree. bl-8cf7 fixed *discovery* against a bare root; it did not necessarily make 'bl init' bare-aware. This needs to be verified against the code before documenting — the answer determines whether this is purely a docs task or also surfaces a code gap (split a child bug ball if so).\n- The README already points at 'SPEC §11' for by-hand shell sequences; confirm whether the bare-hub bootstrap is covered there and either cross-link it or add the missing sequence.\n\nSCOPE: Investigate the actual bare-hub bootstrap path in the code (store_init / init command / bare detection), then document the canonical 'stand up a bare central hub from scratch' sequence alongside the existing 'bl init' and 'The bare central hub' sections. If 'bl init' is found not to support a bare target, file a child bug ball rather than papering over it with manual-only instructions. Docs-first; code only if investigation proves it necessary.\n\nFollows bl-9f8e (operating model). This is the bootstrap leg deliberately split out of it per that task's delivery note.",
+  "external": {},
+  "id": "bl-41ee",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["docs","bare-repo"],
+  "title": "Docs: document how to bootstrap a bare central hub",
+  "type": "task",
+  "updated_at": "2026-05-19T16:31:21.516707599Z"
+}
