@@ -7,6 +7,7 @@
 //! a corrupt repo doesn't loop the renderer.
 
 use crate::display::Display;
+use crate::sanitize;
 use crate::task::{LinkType, Status, Task};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -158,10 +159,11 @@ fn format_line(node: &Node, all: &[Task], d: Display) -> String {
     // `hier_path` is a spaced-off token next to the id, never fused
     // into it: readers see `bl-5c2d .1` so the path is obviously a
     // sibling-position annotation, not part of the addressable id.
+    let title = sanitize::inline(&t.title);
     let mut out = if node.hier_path.is_empty() {
-        format!("{}  {}", t.id, t.title)
+        format!("{}  {title}", t.id)
     } else {
-        format!("{} {}  {}", t.id, node.hier_path, t.title)
+        format!("{} {}  {title}", t.id, node.hier_path)
     };
     if t.task_type.is_epic() {
         out.push_str("  [epic]");

@@ -8,6 +8,7 @@
 //! lose the surrounding epic.
 
 use crate::display::Display;
+use crate::sanitize;
 use crate::task::{Status, Task};
 use owo_colors::OwoColorize;
 
@@ -30,7 +31,7 @@ fn format_row(t: &Task, all: &[Task], d: Display, me: &str) -> String {
     let tags = if t.tags.is_empty() {
         String::new()
     } else {
-        format!("  {}", t.tags.join(", "))
+        format!("  {}", sanitize::inline(&t.tags.join(", ")))
     };
     let mut row = format!(
         "{} {} {:<12} {} {}{}{}",
@@ -39,7 +40,7 @@ fn format_row(t: &Task, all: &[Task], d: Display, me: &str) -> String {
         d.status_word(&Status::Open),
         t.id,
         badge_segment,
-        t.title,
+        sanitize::inline(&t.title),
         tags,
     );
     if let Some(hint) = parent_hint(t, all, d) {
@@ -53,7 +54,7 @@ fn parent_hint(t: &Task, all: &[Task], d: Display) -> Option<String> {
     let pid = t.parent.as_ref()?;
     let parent = all.iter().find(|p| &p.id == pid)?;
     let arrow = if d.use_unicode() { "↑" } else { "^" };
-    let raw = format!("{arrow} {} ({})", parent.id, parent.title);
+    let raw = format!("{arrow} {} ({})", parent.id, sanitize::inline(&parent.title));
     Some(if d.use_color() {
         raw.dimmed().to_string()
     } else {
