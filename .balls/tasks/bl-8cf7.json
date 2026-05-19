@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8cf7",
+  "claimed_by": "swag",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:20:27.096650641Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["discovery","bare-repo"],
   "title": "Store::discover doesn't handle bare repos — emits misleading 'not initialized'",
   "type": "bug",
-  "updated_at": "2026-05-11T05:20:27.096650641Z"
+  "updated_at": "2026-05-19T05:15:14.018955999Z"
 }
