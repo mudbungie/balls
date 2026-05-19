@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T06:19:19.564475152Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Sixteen-plus source and test files sit at 285-299 lines, six of them at exactly 299 — one line under the hard pre-commit cap. The cap is doing its job: it is a proxy for 'this file holds more than one cohesive idea.' These files cannot absorb a single new line, which means the next feature touching them forces a rushed split under deadline pressure rather than a considered one now.\n\nGoal: split each along a genuine logical seam (a self-contained type, a cohesive group of helpers, a distinct command, a test theme) into a well-named sibling module — not arbitrary line-count chopping. Public API and behavior unchanged; re-export moved items so callers and lib.rs stay stable. All tests pass, clippy clean, 100% coverage, every file under 300.",
+  "external": {},
+  "id": "bl-22a7",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Decompose files near the 300-line cap into logical modules",
+  "type": "task",
+  "updated_at": "2026-05-19T06:19:19.564475152Z"
+}
