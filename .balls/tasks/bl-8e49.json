@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T18:01:44.850891410Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "README cites bare 'SPEC §N' but there is no top-level SPEC.md — there are three docs/SPEC-*.md files with independent section numbering. 'SPEC §11' is doubly ambiguous: SPEC-orphan-branch-state.md §11 is Hand-edit workflow, SPEC-lifecycle-sync-participants.md §11 is Config inheritance, and the README uses §11 for BOTH. Qualify every 'SPEC §' citation with its filename so a reader can open the right doc directly. Docs-only, surfaced as a follow-up note from bl-41ee.",
+  "external": {},
+  "id": "bl-8e49",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["docs"],
+  "title": "Docs: disambiguate README 'SPEC §' refs to their spec files",
+  "type": "task",
+  "updated_at": "2026-05-19T18:01:44.850891410Z"
+}
