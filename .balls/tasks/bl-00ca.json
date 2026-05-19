@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-11T05:22:25.030249403Z","id":"bl-ac91","title":"Write docs/SPEC-forge-gated-delivery.md"},{"closed_at":"2026-05-19T06:42:02.960493014Z","id":"bl-0c99","title":"target_branch config: make integration branch explicit"},{"closed_at":"2026-05-19T07:15:57.023866917Z","id":"bl-b017","title":"Deferred-squash review mode: push branch, auto-open gate"},{"closed_at":"2026-05-19T07:20:06.178892731Z","id":"bl-d4b0","title":"Per-task target_branch override"},{"closed_at":"2026-05-19T08:06:29.106841781Z","id":"bl-b7d3","title":"Advisory min_bl_version in config"},{"closed_at":"2026-05-19T16:40:28.523658487Z","id":"bl-3cc2","title":"Deferred-mode reject path: close gate child atomically"}],
+  "closed_children": [{"closed_at":"2026-05-11T05:22:25.030249403Z","id":"bl-ac91","title":"Write docs/SPEC-forge-gated-delivery.md"},{"closed_at":"2026-05-19T06:42:02.960493014Z","id":"bl-0c99","title":"target_branch config: make integration branch explicit"},{"closed_at":"2026-05-19T07:15:57.023866917Z","id":"bl-b017","title":"Deferred-squash review mode: push branch, auto-open gate"},{"closed_at":"2026-05-19T07:20:06.178892731Z","id":"bl-d4b0","title":"Per-task target_branch override"},{"closed_at":"2026-05-19T08:06:29.106841781Z","id":"bl-b7d3","title":"Advisory min_bl_version in config"},{"closed_at":"2026-05-19T16:40:28.523658487Z","id":"bl-3cc2","title":"Deferred-mode reject path: close gate child atomically"},{"closed_at":"2026-05-19T17:37:11.526433030Z","id":"bl-f788","title":"Post-delivery machinery is blind to per-task target_branch"}],
   "created_at": "2026-05-11T05:03:37.763325759Z",
   "delivered_in": null,
   "depends_on": [],
@@ -16,5 +16,5 @@
   "tags": ["delivery","forge-gated","bc-compat"],
   "title": "Forge-gated delivery and configurable integration branch",
   "type": "epic",
-  "updated_at": "2026-05-19T16:40:28.523679357Z"
+  "updated_at": "2026-05-19T17:37:11.526483706Z"
 }
