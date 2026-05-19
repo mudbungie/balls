@@ -50,8 +50,8 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 |---------|-------------|
 | `bl prime --as ID` [`--json`] | Sync, show ready + your claimed tasks. Run at session start. |
 | `bl ready` [`--json`] [`--limit N`] | List open tasks ready to claim. `--limit N` caps output; text mode adds a `... and K more` footer when truncated. |
-| `bl list` [`--status STATUS`] | List non-closed tasks (use `--status review` to find reviewables). |
-| `bl show TASK_ID` [`--json`] [`--verbose`] | Task details, including `delivered_in` sha after review. |
+| `bl list` [`--status STATUS`] [`--closed`] [`--all`] | List non-closed tasks (`--status review` finds reviewables). `--closed` (alias `--status closed`) reconstructs archived tasks from the `balls/tasks` history; `--all` lists open and closed together. |
+| `bl show TASK_ID` [`--json`] [`--verbose`] | Task details, including `delivered_in` sha after review. A closed task's id still resolves — `bl show` reconstructs it from the state-branch history. |
 | `bl create "TITLE" [-d DESC] [-p 1..4] [-t TYPE] [--parent ID] [--dep ID] [--tag T]` | File a new task. Prints the new task id to stdout. See **Creating Tasks** below. |
 | `bl claim TASK_ID` [`--no-worktree`] [`--sync`/`--no-sync`] | Start work: create worktree, set status=in_progress. `--no-worktree` skips worktree creation (required in no-git mode). `--sync` forces a remote round-trip on this claim (closes the offline-agent claim-race window); `--no-sync` skips one even if the repo's `require_remote_on_claim` is on. |
 | `bl review TASK_ID -m "msg"` [`--sync`/`--no-sync`] | Squash to main, set status=review. Worktree stays. The task id is auto-appended to the subject — do **not** include `[bl-xxxx]` in your `-m`. `--sync`/`--no-sync` toggles a remote round-trip of the state-branch review commit (mirrors `bl claim --sync`); the repo can default to required via `require_remote_on_review`. In no-git mode, status flip only. |
@@ -85,7 +85,7 @@ A `bl close` is additionally blocked if the task has any open `gates` links — 
 
 ### Removing unwanted or duplicate tasks
 
-If a task shouldn't exist — a duplicate of another open ball, a stale idea from a past exploration, something you decided against — **close it. Don't defer it, don't leave it in the queue.** Closing archives the task file from the state branch's HEAD; it is *archival, not destruction* (the state-branch history still has it, so closed tasks are recoverable via git). There is no separate `bl delete` and you don't need one.
+If a task shouldn't exist — a duplicate of another open ball, a stale idea from a past exploration, something you decided against — **close it. Don't defer it, don't leave it in the queue.** Closing archives the task file from the state branch's HEAD; it is *archival, not destruction* (the state-branch history still has it, so closed tasks are recoverable via git). There is no separate `bl delete` and you don't need one. To read a closed task back, `bl show <id>` resolves it directly (falling back to the history) and `bl list --closed` enumerates every archived task — both reconstruct from the state branch, so neither works in a stealth/no-git store.
 
 For an unclaimed task, one command does the job:
 

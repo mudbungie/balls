@@ -510,10 +510,13 @@ bl list --status open      # only open
 bl list -p 1               # only priority 1
 bl list --parent bl-x9y8   # children of a parent
 bl list --tag auth         # by tag
-bl list --all              # including closed
+bl list --closed           # only closed, reconstructed from history
+bl list --all              # open and closed together
 ```
 
 Without a status filter, `bl list` groups tasks by status under one-line headers and nests in-group children under their parent. With `--status X`, output is flat but the status column stays so the visual language matches.
+
+Closed tasks are `git rm`'d from the `balls/tasks` state branch, so `--closed` (alias: `--status closed`) and `--all` walk that branch's deletion history to reconstruct them — high-volume on a long-lived repo, and rendered flat since the grouped view is for live work. Recovery needs the state branch: a stealth/no-git store prints an "unavailable" note and lists nothing closed.
 
 Sample output (in a real terminal: priority dot is colored, status word is colored, glyphs render as Unicode):
 
@@ -555,6 +558,8 @@ bl show bl-a1b2 --verbose
 Lays out a styled header (priority dot + status glyph + id + title + claimed badge), a metadata row (`type`, `created`, `updated` — relative timestamps; `--verbose` appends absolute ISO), an optional `tags:` line, an optional `progress:` row for epics, a relations block (deps with inline statuses, gates, parent + parent title, children, delivered, branch, remote, dep_blocked when relevant), a wrapped description, and an oldest-first notes log.
 
 The delivery line looks like `delivered: e69193f Add bl completions... [bl-1a34]`; if the cached `delivered_in` SHA is stale, the tag scan on main still finds the commit and the display is annotated `(hint stale)`. `--json` exposes `delivered_in_resolved`, `delivered_in_hint_stale`, and (for `type=epic` tasks) a `progress: { closed, total }` object alongside the task.
+
+A **closed** task's id still resolves: when it's no longer on the state-branch HEAD, `bl show` reconstructs it from the `balls/tasks` deletion history (status overlaid as `closed`, `closed_at` taken from the close commit), then renders and resolves its `delivered:` line exactly as for a live task. No flag is needed — the not-found path falls back automatically.
 
 If a plugin has populated `task.external.<plugin>` with `remote_key` and/or `remote_url` (the Plugin Protocol convention — see below), `bl show` surfaces them as a `remote:` block so agents don't have to parse `--json` to find a Jira key or issue URL. Plugins whose blob has neither field are skipped — the human view doesn't dump arbitrary plugin internals.
 
