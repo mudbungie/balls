@@ -2,10 +2,15 @@ mod ctx;
 mod diag;
 mod dispatch;
 mod limits;
+mod native_fields;
 mod native_participant;
+mod native_proto;
+#[cfg(test)]
+mod native_test_support;
 mod native_types;
 mod participant;
 mod runner;
+mod runner_proc;
 mod types;
 
 pub use dispatch::{dispatch_drop, dispatch_push, dispatch_sync};

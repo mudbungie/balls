@@ -2,6 +2,12 @@ use crate::error::{BallError, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// Merge/conflict helpers live in `git_merge` to keep this file under
+// the 300-line cap. Re-exported so call sites keep using `git::*`.
+pub use crate::git_merge::{
+    git_list_conflicted_files, git_merge, git_merge_squash, is_merging, MergeResult,
+};
+
 /// Env vars git reads to locate its repo/index. We always pass the
 /// repo via `current_dir`, so inherited values of these would bypass
 /// our intent (e.g. inside a git hook). Scrub them on every spawn.
@@ -24,7 +30,7 @@ pub fn clean_git_command(dir: &Path) -> Command {
     cmd
 }
 
-fn run_git_in(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
+pub(crate) fn run_git_in(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
     let out = clean_git_command(dir)
         .args(args)
         .output()
@@ -109,17 +115,6 @@ pub fn git_commit_empty(dir: &Path, msg: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn is_merging(dir: &Path) -> bool {
-    // Linked worktrees keep MERGE_HEAD in the per-worktree admin dir
-    // (`.git/worktrees/<name>/`), not the shared common dir.
-    // `--git-dir` returns the per-worktree path.
-    run_git_ok(dir, &["rev-parse", "--git-dir"]).is_ok_and(|s| {
-        let gd = PathBuf::from(s.trim());
-        let abs = if gd.is_absolute() { gd } else { dir.join(gd) };
-        abs.join("MERGE_HEAD").exists()
-    })
-}
-
 pub fn has_staged_changes(dir: &Path) -> Result<bool> {
     let out = run_git_in(dir, &["diff", "--cached", "--quiet"])?;
     // exit 0 => no changes, exit 1 => changes
@@ -134,43 +129,6 @@ pub fn has_uncommitted_changes(dir: &Path) -> Result<bool> {
 pub fn git_fetch(dir: &Path, remote: &str) -> Result<bool> {
     let out = run_git_in(dir, &["fetch", remote])?;
     Ok(out.status.success())
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum MergeResult {
-    Clean,
-    UpToDate,
-    Conflict,
-}
-
-pub fn git_merge(dir: &Path, branch: &str) -> Result<MergeResult> {
-    classify_merge(run_git_in(dir, &["merge", "--no-edit", branch])?, "merge")
-}
-
-/// Squash merge: stage all changes from branch but do NOT commit.
-/// Caller must call `git_commit()` afterward to finalize.
-pub fn git_merge_squash(dir: &Path, branch: &str) -> Result<MergeResult> {
-    classify_merge(
-        run_git_in(dir, &["merge", "--squash", branch])?,
-        "merge --squash",
-    )
-}
-
-fn classify_merge(out: std::process::Output, what: &str) -> Result<MergeResult> {
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    if out.status.success() {
-        if stdout.contains("Already up to date") || stdout.contains("Already up-to-date") {
-            return Ok(MergeResult::UpToDate);
-        }
-        return Ok(MergeResult::Clean);
-    }
-    let combined = format!("{stdout}{stderr}");
-    if combined.contains("CONFLICT") || combined.contains("conflict") {
-        Ok(MergeResult::Conflict)
-    } else {
-        Err(BallError::Git(format!("{} failed: {}", what, combined.trim())))
-    }
 }
 
 pub fn git_push(dir: &Path, remote: &str, branch: &str) -> Result<()> {
@@ -273,16 +231,6 @@ pub fn git_init_commit(dir: &Path) -> Result<()> {
     }
     run_git_ok(dir, &["commit", "--allow-empty", "-m", "initial commit", "--no-verify"])?;
     Ok(())
-}
-
-pub fn git_list_conflicted_files(dir: &Path) -> Result<Vec<PathBuf>> {
-    let out = run_git_ok(dir, &["diff", "--name-only", "--diff-filter=U"])?;
-    let files = out
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(|l| dir.join(l))
-        .collect();
-    Ok(files)
 }
 
 pub(crate) fn git_ensure_user(dir: &Path) -> Result<()> {
