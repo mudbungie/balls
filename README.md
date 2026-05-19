@@ -329,6 +329,70 @@ The state worktree added in step 3 already carries `.gitattributes` and every ta
 
 ---
 
+## Delivery Modes
+
+`bl review` delivers a task's work branch onto an **integration branch**. *Which* branch, and *how* the squash lands, are two axes balls makes explicit. The full design — invariants, backwards-compat audit, conformance tests — is [docs/SPEC-forge-gated-delivery.md](docs/SPEC-forge-gated-delivery.md); this section is the operational summary.
+
+**The integration branch is resolved, not assumed.** At review time:
+
+```
+effective_target_branch = task.target_branch       # per-task override
+                       ?? config.target_branch      # repo-level setting
+                       ?? git_current_branch(root)   # the historical fallback
+```
+
+The last fallback — *whatever branch is checked out at the repo root* — is what balls has always done, and it lived undocumented in `review.rs` until this section. It is still the default: a repo that sets neither `config.target_branch` nor a per-task `target_branch` behaves bit-identically to every prior version, squashing into the root's current branch. Setting `target_branch` only matters when you want to stop depending on "whatever HEAD points to" — e.g. a git-flow repo whose features target `develop` while a hotfix task overrides `target_branch` to `main`.
+
+### local-squash (default)
+
+`bl review` squashes `work/bl-xxxx` into the integration branch immediately and locally, writes the `delivered_in` hint, and flips the task to `review`. One agent then runs `bl close` and the task is done. This is the trunk-based flow the rest of these docs describe; nothing changes unless you opt in below.
+
+**Worked example — single-agent, trunk-based:**
+
+```bash
+bl claim bl-a1b2                       # -> .balls-worktrees/bl-a1b2
+cd .balls-worktrees/bl-a1b2
+# ...edit, commit...
+bl review bl-a1b2 -m "Add rate limiter"   # squashes into main locally, status=review
+cd <repo root>
+bl close  bl-a1b2 -m "ship"             # main now carries the squash with [bl-a1b2]
+```
+
+### deferred (forge-gated, opt-in)
+
+For repos whose merges are produced *by a forge* after required review/CI — GitHub PRs, GitLab MRs, Gitea PRs. Enabled per-repo in config (`delivery.mode = "deferred"`); `target_branch` must be set explicitly (a PR needs an unambiguous base). In this mode `bl review`:
+
+1. Pushes `work/bl-xxxx` to `origin` instead of squashing locally.
+2. Auto-creates a **gate child** task and links it `parent gates child`.
+3. Flips the parent to `review` — but leaves `delivered_in` null and the integration branch untouched.
+
+The parent's `bl close` is now blocked by the open `gates` link (an existing primitive — see *Gates: post-review blockers*). It unblocks only when the gate child closes, which happens when the forge merges the PR — done by hand, or automatically by a **forge plugin** (see below). The `[bl-xxxx]` tag on the integration branch is then the forge-produced merge commit; `bl close` resolves `delivered_in` via tag-scan.
+
+**Worked example — agent + forge PR:**
+
+```bash
+bl claim bl-c3d4 && cd .balls-worktrees/bl-c3d4
+# ...edit, commit...
+bl review bl-c3d4 -m "Add OAuth flow"
+#   pushes work/bl-c3d4 to origin, prints a recommended PR title ending [bl-c3d4]
+#   and the gate child id; parent is now review + gated
+gh pr create --base develop --head work/bl-c3d4 --title "Add OAuth flow [bl-c3d4]"
+# ...reviewers approve, forge merges the PR into develop...
+# the gate child closes (manually, or a forge plugin's sync closes it)
+cd <repo root>
+bl close bl-c3d4 -m "ship"             # unblocked; delivered_in resolved by tag-scan
+```
+
+### Backwards-compatibility caveat
+
+All new behavior is opt-in via config; new fields use lenient serde, so an **old `bl` reading a deferred-mode repo silently ignores the new fields**. The one accepted hazard: an old `bl` running `bl review` on a deferred-mode repo does not know to defer — it performs the old local squash, contaminating the integration branch with a premature commit. This is documented, not engineered against (per project decision 2026-05-10); a repo can advertise a `min_bl_version` so newer clients warn. The more dangerous case — an old client tearing a gated task down mid-review — *is* prevented: old `bl close` already respects the `gates` block, because gates predate this feature.
+
+### Forge plugins vs. issue-tracker plugins
+
+A **forge plugin** (e.g. a GitHub PR plugin) automates the deferred-mode gate: it opens/updates the PR on `bl review` and closes the gate child when the PR merges. This is a *different role* from an **issue-tracker plugin** (Jira, Linear, GitHub Issues), which mirrors task state to/from an external backlog. They use the same plugin protocol (§Plugin System) but solve unrelated problems — don't reach for a forge plugin to sync issues, or an issue-tracker plugin to gate delivery. Forge plugins are per-forge and ship **separately** from balls core (the lifecycle hooks here are forge-agnostic; only the plugin is forge-specific); a concrete GitHub implementation is tracked as its own deliverable, not bundled in this repo.
+
+---
+
 ## Task File Schema
 
 Each task is a single JSON file at `.balls/tasks/<id>.json`.
@@ -891,6 +955,9 @@ Committed to main, shared across the team.
   "require_remote_on_close": false,
   "worktree_dir": ".balls-worktrees",
   "tasks_dir": null,
+  "delivery": { "mode": "local-squash" },
+  "target_branch": null,
+  "min_bl_version": null,
   "plugins": {
     "jira": {
       "enabled": true,
@@ -911,6 +978,9 @@ Committed to main, shared across the team.
 | `require_remote_on_close` | When true, `bl close` pushes the state-branch archive commit to `origin/balls/tasks` before the worktree is torn down. A required-policy failure leaves the worktree, claim file, and task file in place for retry. Same precedence chain as the others; per-invocation override `bl close --sync` / `--no-sync`. |
 | `worktree_dir` | Where `bl claim` creates worktrees. Must be a relative path under the repo; values containing `..` or starting with `/` are rejected on load. |
 | `tasks_dir` | *(removed in 0.3.4)* Stealth-mode task storage is controlled via `bl init --stealth [--tasks-dir PATH]` and persisted in `.balls/local/tasks_dir`, not in the committed config. Older configs that carry this field are unaffected — it was never read. |
+| `delivery.mode` | `"local-squash"` (default) or `"deferred"`. Selects the `bl review` code path — see *Delivery Modes*. An absent `delivery` block equals `{"mode": "local-squash"}`; the default is bit-identical to every prior version. |
+| `target_branch` | Repo-level integration branch. `null` (default) falls back to the branch checked out at the repo root — the historical, previously-undocumented behavior. A per-task `target_branch` field overrides this (e.g. a hotfix targeting `main` on a `develop`-default repo). Required (non-null) when `delivery.mode = "deferred"`. |
+| `min_bl_version` | Advisory only. Newer `bl` clients warn when their version is below this; older clients ignore it. Surfaces the deferred-mode caveat (an old client local-squashes instead of deferring) without engineering prevention. |
 | `plugins` | Per-plugin enable/sync flags and config file paths. |
 
 ### Environment overrides
@@ -1351,7 +1421,9 @@ Cline Kanban provides a visual board for agent orchestration with worktree-per-t
 
 ### GitHub Issues / Jira / Linear
 
-Traditional trackers weren't designed for agent workflows. They require network round-trips for every read, can't be queried offline, don't support the claim-and-worktree lifecycle, and have no concept of local-first operation. They remain the right tools for human project management. Ball integrates with them via plugins rather than replacing them.
+Traditional trackers weren't designed for agent workflows. They require network round-trips for every read, can't be queried offline, don't support the claim-and-worktree lifecycle, and have no concept of local-first operation. They remain the right tools for human project management. Ball integrates with them via *issue-tracker* plugins rather than replacing them.
+
+Don't confuse that with a **forge plugin**, which is a different integration entirely: a forge plugin gates *delivery* (opening the PR on `bl review`, closing the gate child when the forge merges) in deferred mode — see *Delivery Modes*. Same plugin protocol, unrelated job; issue-tracker plugins mirror backlog state, forge plugins drive the merge gate. Forge plugins ship separately, per-forge, and are not bundled in this repo.
 
 ### The balls approach
 
