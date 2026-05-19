@@ -280,3 +280,18 @@ fn legacy_config_without_state_remote_loads_and_defaults() {
     assert_eq!(cfg.state_remote, None);
     assert_eq!(cfg.state_remote(), "origin");
 }
+
+#[test]
+fn delivery_mode_defaults_and_round_trips() {
+    // Unset delivery never serializes and resolves to local-squash.
+    let dir = TempDir::new().unwrap();
+    let p = dir.path().join("d.json");
+    let mut cfg = Config::default();
+    cfg.save(&p).unwrap();
+    assert!(!std::fs::read_to_string(&p).unwrap().contains("delivery"));
+    assert_eq!(cfg.delivery_mode(), DeliveryMode::LocalSquash);
+    cfg.delivery = Some(Delivery { mode: DeliveryMode::Deferred });
+    cfg.save(&p).unwrap();
+    assert!(std::fs::read_to_string(&p).unwrap().contains(r#""mode": "deferred""#));
+    assert_eq!(Config::load(&p).unwrap().delivery_mode(), DeliveryMode::Deferred);
+}
