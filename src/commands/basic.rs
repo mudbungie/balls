@@ -4,7 +4,8 @@ use super::discover;
 use balls::display;
 use balls::error::{BallError, Result};
 use balls::participant::Event;
-use balls::plugin;
+use balls::participant_config::{override_tokens, InvocationOverrides};
+use balls::plugin::{self, Rollback};
 use balls::ready;
 use balls::render_list;
 use balls::store::{task_lock, Store};
@@ -35,6 +36,7 @@ pub struct CreateArgs {
     pub tag: Vec<String>,
     pub description: String,
     pub target_branch: Option<String>,
+    pub overrides: InvocationOverrides,
 }
 
 pub fn cmd_create(args: CreateArgs) -> Result<()> {
@@ -47,6 +49,7 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
         tag,
         description,
         target_branch,
+        overrides,
     } = args;
     let store = discover()?;
 
@@ -79,6 +82,7 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
     let mut task = Task::new(opts, id.clone());
     task.repo = Some(repo_identity(&store));
     task.target_branch = target_branch;
+    let rb = plugin::state_head(&store)?;
     {
         let _g = task_lock(&store, &id)?;
         store.save_task(&task)?;
@@ -87,7 +91,19 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
 
     // SPEC §6.1: task birth is its own event, not an `Update`. A
     // mirror-on-create plugin can finally tell creation from change.
-    let _ = plugin::dispatch_push(&store, &task, Event::Create, &super::default_identity());
+    // No pre-image — `create` has no prior (SPEC §5.1, correctly
+    // absent). A required veto rewinds the create commit (§9).
+    let tokens = override_tokens(&overrides, false, false);
+    plugin::finish(
+        &store,
+        None,
+        &task,
+        Event::Create,
+        &super::default_identity(),
+        &overrides,
+        &tokens,
+        Rollback::State(rb.as_deref()),
+    )?;
 
     println!("{id}");
     Ok(())

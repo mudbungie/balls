@@ -106,51 +106,44 @@ fn main() {
     let result = match cli.command {
         Command::Init { stealth, tasks_dir } => commands::cmd_init(stealth, tasks_dir),
         Command::Create {
-            title,
-            priority,
-            task_type,
-            parent,
-            dep,
-            tag,
-            description,
-            target_branch,
+            title, priority, task_type, parent, dep, tag, description,
+            target_branch, participant,
         } => commands::cmd_create(commands::CreateArgs {
-            title,
-            priority,
-            task_type,
-            parent: normalize_opt(parent),
-            dep: normalize_vec(dep),
-            tag,
-            description,
+            title, priority, task_type, parent: normalize_opt(parent),
+            dep: normalize_vec(dep), tag, description,
             target_branch: target_branch.filter(|b| !b.is_empty()),
+            overrides: participant.overrides(),
         }),
-        Command::List {
-            status,
-            priority,
-            parent,
-            tag,
-            all,
-            closed,
-            json,
-        } => commands::cmd_list(status, priority, normalize_opt(parent), tag, all, closed, json),
+        Command::List { status, priority, parent, tag, all, closed, json } => {
+            commands::cmd_list(status, priority, normalize_opt(parent), tag, all, closed, json)
+        }
         Command::Show { id, json, verbose } => commands::cmd_show(normalize_id(id), json, verbose),
         Command::Ready { json, no_fetch, limit } => commands::cmd_ready(json, no_fetch, limit),
-        Command::Claim { id, identity, no_worktree, sync, no_sync } => {
-            commands::cmd_claim(normalize_id(id), identity, no_worktree, sync, no_sync)
+        Command::Claim { id, identity, no_worktree, sync, no_sync, participant } => {
+            commands::cmd_claim(
+                normalize_id(id), identity, no_worktree, sync, no_sync,
+                participant.overrides(),
+            )
         }
-        Command::Review { id, message, identity, sync, no_sync } => {
-            commands::cmd_review(normalize_id(id), message, identity, sync, no_sync)
+        Command::Review { id, message, identity, sync, no_sync, participant } => {
+            commands::cmd_review(
+                normalize_id(id), message, identity, sync, no_sync,
+                participant.overrides(),
+            )
         }
-        Command::Close { id, message, identity, sync, no_sync } => {
-            commands::cmd_close(normalize_id(id), message, identity, sync, no_sync)
+        Command::Close { id, message, identity, sync, no_sync, participant } => {
+            commands::cmd_close(
+                normalize_id(id), message, identity, sync, no_sync,
+                participant.overrides(),
+            )
         }
         Command::Drop { id, force } => commands::cmd_drop(normalize_id(id), force),
-        Command::Update {
-            id,
-            assignments,
-            note,
-            identity,
-        } => commands::cmd_update(normalize_id(id), assignments, note, identity),
+        Command::Update { id, assignments, note, identity, participant } => {
+            commands::cmd_update(
+                normalize_id(id), assignments, note, identity,
+                participant.overrides(),
+            )
+        }
         Command::Dep { sub } => commands::cmd_dep(normalize_dep(sub)),
         Command::Link { sub } => commands::cmd_link(normalize_link(sub)),
         Command::Sync {

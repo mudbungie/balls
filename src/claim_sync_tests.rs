@@ -117,12 +117,7 @@ fn participant_protocol_is_some_for_lifecycle_events() {
     // for_claim() answers Some only on Claim — the bl-2148 surface
     // is unchanged for callers that opted into claim-only.
     let p = GitRemoteParticipant::for_claim();
-    let mk = |event| crate::participant::EventCtx {
-        event,
-        store: &store,
-        task_id: &id,
-        identity: "alice",
-    };
+    let mk = |event| crate::participant::EventCtx::new(event, &store, &id, "alice");
     assert!(p.protocol(Event::Claim, mk(Event::Claim)).is_some());
     // The protocol method itself answers Some for any state-branch
     // lifecycle event regardless of subscription — `participant::run`

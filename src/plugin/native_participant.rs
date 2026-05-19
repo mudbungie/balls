@@ -57,17 +57,14 @@ pub struct NativePluginParticipant {
     wants_context: bool,
 }
 
-/// Default budget per SPEC §7 — same as the git-remote participant
-/// and the inline `claim_sync` retry loop bl-2148 introduced.
+/// Default budget per SPEC §7 — same as the git-remote participant.
 pub const DEFAULT_NATIVE_RETRY_BUDGET: usize = 5;
 
 impl NativePluginParticipant {
-    /// Construct from a successful `describe` response. The describe
-    /// response declares which events the plugin can negotiate; the
-    /// effective failure policies still come from
-    /// `effective_subscriptions` so per-event config layering applies
-    /// the same way it does for legacy plugins. Returns `Err` if the
-    /// describe payload's projection contains an unknown field name.
+    /// Construct from a successful `describe`. Declared events are
+    /// intersected with `effective_subscriptions` so SPEC §11 config
+    /// layering applies as for legacy plugins. `Err` if the declared
+    /// projection names an unknown field.
     pub fn from_describe(
         store: &Store,
         name: String,
@@ -132,8 +129,18 @@ impl Participant for NativePluginParticipant {
         event: Event,
         ctx: EventCtx<'a>,
     ) -> Option<Self::Protocol<'a>> {
-        let task = ctx.store.load_task(ctx.task_id).ok()?;
-        Some(NativeProtocol::new(
+        // Prefer the command's in-hand post-image: a `close` archived
+        // the task file pre-dispatch, so re-loading would miss it and
+        // the plugin could never veto (SPEC §9). Non-push callers fall
+        // back to the store.
+        let task = match ctx.post {
+            Some(t) => t.clone(),
+            None => match ctx.store.load_task(ctx.task_id) {
+                Ok(t) => t,
+                Err(_) => return None,
+            },
+        };
+        let proto = NativeProtocol::new(
             &self.plugin,
             &self.name,
             event,
@@ -141,7 +148,11 @@ impl Participant for NativePluginParticipant {
             self.retry_budget,
             self.wants_context,
             ctx.identity.to_string(),
-        ))
+            ctx.task_before.map(|t| Box::new(t.clone())),
+            ctx.commit.map(str::to_string),
+            ctx.overrides.to_vec(),
+        );
+        Some(proto)
     }
 }
 

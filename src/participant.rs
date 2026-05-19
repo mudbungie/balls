@@ -23,6 +23,7 @@
 use crate::error::{BallError, Result};
 use crate::negotiation::{Accepted, FailurePolicy, Negotiation, NegotiationResult, Protocol};
 use crate::store::Store;
+use crate::task::Task;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -158,13 +159,62 @@ impl Projection {
 }
 
 /// SPEC §3 — context for one (event, participant) negotiation.
-/// Borrowed; the negotiation primitive doesn't hold state beyond the
-/// protocol it builds from this.
+/// Borrowed. The push-path keys below are populated via
+/// [`EventCtx::with_context`]; other callers keep the `new` defaults.
 pub struct EventCtx<'a> {
     pub event: Event,
     pub store: &'a Store,
     pub task_id: &'a str,
     pub identity: &'a str,
+    /// The post-image Task the command holds. A `close` archived the
+    /// task file before dispatch, so the protocol must negotiate on
+    /// this in-hand image rather than re-loading from the store.
+    pub post: Option<&'a Task>,
+    /// SPEC §5.1 — pre-image (diff basis); `None` on `create`.
+    pub task_before: Option<&'a Task>,
+    /// SPEC §5.1 — state-branch sha of this event's commit.
+    pub commit: Option<&'a str>,
+    /// SPEC §11/§5.1 — per-invocation override tokens that applied.
+    pub overrides: &'a [String],
+}
+
+impl<'a> EventCtx<'a> {
+    /// Bare context — the four always-present fields, push-path keys
+    /// defaulted off (non-push callers use this).
+    pub fn new(
+        event: Event,
+        store: &'a Store,
+        task_id: &'a str,
+        identity: &'a str,
+    ) -> Self {
+        Self {
+            event,
+            store,
+            task_id,
+            identity,
+            post: None,
+            task_before: None,
+            commit: None,
+            overrides: &[],
+        }
+    }
+
+    /// Layer the push-path context (post-image + SPEC §5.1 keys) onto
+    /// a bare context.
+    #[must_use]
+    pub fn with_context(
+        mut self,
+        post: Option<&'a Task>,
+        task_before: Option<&'a Task>,
+        commit: Option<&'a str>,
+        overrides: &'a [String],
+    ) -> Self {
+        self.post = post;
+        self.task_before = task_before;
+        self.commit = commit;
+        self.overrides = overrides;
+        self
+    }
 }
 
 /// SPEC §5 — the participant contract.
@@ -222,12 +272,10 @@ pub fn run<P: Participant>(
     Negotiation::new(protocol, policy).run()
 }
 
-/// Strict variant of [`run`] for callers whose failure policy is
-/// structurally `Required`: collapses `Skipped` and `Staged` into
-/// `Err`. Mirrors `Negotiation::run_strict` one level up. The
-/// claim-sync path uses this so the not-subscribed and absorbed-
-/// failure variants surface as the same error shape as a wire
-/// failure (the caller already needs to roll back the local commit).
+/// Strict variant of [`run`] for structurally-`Required` callers:
+/// collapses `Skipped`/`Staged` into `Err` (mirrors
+/// `Negotiation::run_strict`). The claim-sync path uses this so every
+/// absorbed variant surfaces as one error shape for its rollback.
 pub fn run_strict<P: Participant>(
     participant: &P,
     event: Event,

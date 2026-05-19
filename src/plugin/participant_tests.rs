@@ -113,12 +113,7 @@ fn protocol_for_push_event_loads_the_task() {
     save_task(&store, "bl-7e57");
     let p = LegacyPluginParticipant::from_entry(&store, "x".into(), &entry(true), None);
     for event in [Event::Claim, Event::Review, Event::Close, Event::Update] {
-        let ctx = EventCtx {
-            event,
-            store: &store,
-            task_id: "bl-7e57",
-            identity: "alice",
-        };
+        let ctx = EventCtx::new(event, &store, "bl-7e57", "alice");
         assert!(matches!(
             p.protocol(event, ctx),
             Some(LegacyProtocol::Push { .. })
@@ -130,12 +125,7 @@ fn protocol_for_push_event_loads_the_task() {
 fn protocol_for_push_event_returns_none_when_task_missing() {
     let (_td, store) = stealth_store();
     let p = LegacyPluginParticipant::from_entry(&store, "x".into(), &entry(true), None);
-    let ctx = EventCtx {
-        event: Event::Review,
-        store: &store,
-        task_id: "bl-9999",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Review, &store, "bl-9999", "alice");
     assert!(p.protocol(Event::Review, ctx).is_none());
 }
 
@@ -149,12 +139,7 @@ fn protocol_for_sync_event_returns_sync_variant() {
         &entry(true),
         Some("filter".into()),
     );
-    let ctx = EventCtx {
-        event: Event::Sync,
-        store: &store,
-        task_id: "",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Sync, &store, "", "alice");
     assert!(matches!(
         p.protocol(Event::Sync, ctx),
         Some(LegacyProtocol::Sync { .. })
@@ -175,12 +160,7 @@ fn run_through_participant_primitive_absorbs_unreachable_as_skipped() {
     let (_td, store) = stealth_store();
     save_task(&store, "bl-7e57");
     let p = LegacyPluginParticipant::from_entry(&store, "ghost".into(), &entry(true), None);
-    let ctx = EventCtx {
-        event: Event::Claim,
-        store: &store,
-        task_id: "bl-7e57",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Claim, &store, "bl-7e57", "alice");
     let saved = std::env::var_os("PATH");
     unsafe {
         std::env::remove_var("PATH");
@@ -206,12 +186,7 @@ fn dispatch_propose_via_outer_protocol_unreachable_executable() {
     let (_td, store) = stealth_store();
     save_task(&store, "bl-0001");
     let p = LegacyPluginParticipant::from_entry(&store, "x".into(), &entry(true), None);
-    let ctx = EventCtx {
-        event: Event::Claim,
-        store: &store,
-        task_id: "bl-0001",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Claim, &store, "bl-0001", "alice");
     let saved = std::env::var_os("PATH");
     unsafe {
         std::env::remove_var("PATH");
@@ -221,12 +196,7 @@ fn dispatch_propose_via_outer_protocol_unreachable_executable() {
     let push_outcome = push_proto.pushed();
     let push_budget = push_proto.retry_budget();
     push_proto.fetch_remote_view().unwrap();
-    let sync_ctx = EventCtx {
-        event: Event::Sync,
-        store: &store,
-        task_id: "",
-        identity: "alice",
-    };
+    let sync_ctx = EventCtx::new(Event::Sync, &store, "", "alice");
     let mut sync_proto = p.protocol(Event::Sync, sync_ctx).unwrap();
     let sync_class = sync_proto.propose().unwrap();
     let sync_outcome = sync_proto.pushed();
