@@ -151,6 +151,11 @@ pub struct Task {
     /// in the commit message — see `crate::delivery`.
     #[serde(default)]
     pub delivered_in: Option<String>,
+    /// Provenance: the code repo this task was created in (`origin`
+    /// URL, else repo path). Set at create; legible on a shared hub.
+    /// Older `bl` round-trips it via `extra` (SPEC §13 / bl-d31c).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
     /// Forward-compat passthrough. Any top-level JSON field that the
     /// current struct doesn't name lands here on deserialize and
     /// round-trips back out on save. Lets an older `bl` load a task
@@ -264,6 +269,7 @@ impl Task {
             external: BTreeMap::new(),
             synced_at: BTreeMap::new(),
             delivered_in: None,
+            repo: None,
             extra: BTreeMap::new(),
         }
     }
