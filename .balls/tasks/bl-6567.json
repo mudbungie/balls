@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T18:08:52.759600090Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Every chrono use in the codebase is Utc::now(), DateTime<Utc>, RFC3339 serialize/parse, and Duration arithmetic — zero local-time or timezone use across ~18 files. chrono's default feature set pulls iana-time-zone (a tz-database lookup crate) for Local, which balls never touches.\n\nWHY: removes the iana-time-zone dependency chain for no behavior change. Pure footprint reduction; the RFC3339-UTC + Duration surface balls actually uses is preserved.\n\nSCOPE: change Cargo.toml to chrono = { version = \"0.4\", default-features = false, features = [\"now\", \"serde\"] } (adjust the minimal feature list so Utc::now(), DateTime<Utc>, to_rfc3339*, parse_from_rfc3339, and chrono::Duration::* all still compile); verify iana-time-zone is gone from cargo tree; full test suite + 100% coverage gate must pass. Full chrono removal (hand-rolled RFC3339) was considered and rejected as not worth the parsing risk — do not do that here.",
+  "external": {},
+  "id": "bl-6567",
+  "links": [],
+  "parent": "bl-32f8",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["deps"],
+  "title": "Trim chrono default features (drop iana-time-zone)",
+  "type": "task",
+  "updated_at": "2026-05-19T18:08:52.759600090Z"
+}
