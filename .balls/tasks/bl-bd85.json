@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-bd85",
+  "claimed_by": "gleaning",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T18:08:52.780211623Z",
@@ -13,9 +13,9 @@
   "parent": "bl-32f8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": ["deps"],
   "title": "Decide: replace sha1+hex with git hash-object",
   "type": "task",
-  "updated_at": "2026-05-19T18:08:52.780211623Z"
+  "updated_at": "2026-05-19T18:19:30.165746093Z"
 }
