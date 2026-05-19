@@ -10,6 +10,7 @@
 mod common;
 
 use common::*;
+use predicates::prelude::*;
 use std::fs;
 use std::path::Path;
 
@@ -162,5 +163,105 @@ fn sync_pushes_configured_target_branch() {
         sha(code.path(), "main"),
         main_remote_before,
         "sync must not advance main"
+    );
+}
+
+/// Run `bl create --target-branch B TITLE`, returning the new id.
+fn create_with_target(repo: &Path, title: &str, branch: &str) -> String {
+    let out = bl(repo)
+        .args(["create", title, "--target-branch", branch])
+        .output()
+        .expect("bl create");
+    assert!(out.status.success(), "bl create --target-branch failed");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// bl-d4b0 acceptance: `bl create --target-branch` writes the field;
+/// `bl review` squashes into it, beating BOTH the repo-level
+/// `target_branch` (develop) AND the current-branch fallback (main);
+/// `bl show` surfaces it; the task closes cleanly.
+#[test]
+fn per_task_target_branch_overrides_config_and_checkout() {
+    let repo = new_repo();
+    seed_config(repo.path(), Some("develop"));
+    init_in(repo.path());
+    git(repo.path(), &["branch", "develop"]);
+    git(repo.path(), &["branch", "release"]);
+
+    let main_before = sha(repo.path(), "main");
+    let develop_before = sha(repo.path(), "develop");
+    let release_before = sha(repo.path(), "release");
+
+    let id = create_with_target(repo.path(), "hotfix", "release");
+    let j = read_task_json(repo.path(), &id);
+    assert_eq!(
+        j["target_branch"].as_str(),
+        Some("release"),
+        "bl create --target-branch must write the field"
+    );
+
+    bl(repo.path())
+        .args(["show", &id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("target:"))
+        .stdout(predicate::str::contains("release"));
+    let jshow: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &bl(repo.path())
+            .args(["show", &id, "--json"])
+            .output()
+            .unwrap()
+            .stdout,
+    ))
+    .unwrap();
+    assert_eq!(jshow["task"]["target_branch"], "release");
+
+    bl(repo.path()).args(["claim", &id]).assert().success();
+    let wt = repo.path().join(".balls-worktrees").join(&id);
+    fs::write(wt.join("hotfix.txt"), "fix").unwrap();
+    bl(repo.path())
+        .args(["review", &id, "-m", "ship hotfix"])
+        .assert()
+        .success();
+
+    assert_eq!(sha(repo.path(), "main"), main_before, "main untouched");
+    assert_eq!(
+        sha(repo.path(), "develop"),
+        develop_before,
+        "repo-level develop must be ignored when the task overrides it"
+    );
+    let release_after = sha(repo.path(), "release");
+    assert_ne!(release_after, release_before, "release advanced");
+    assert!(
+        subject(repo.path(), "release").contains(&format!("[{id}]")),
+        "squash must land on the per-task target"
+    );
+    assert_eq!(
+        read_task_json(repo.path(), &id)["delivered_in"].as_str(),
+        Some(release_after.as_str())
+    );
+
+    bl(repo.path())
+        .args(["close", &id, "-m", "approved"])
+        .assert()
+        .success();
+    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
+}
+
+/// A task created without `--target-branch` must not serialize the
+/// key: existing task files stay byte-identical and an older `bl`
+/// reading the file is unaffected.
+#[test]
+fn unset_per_task_target_branch_is_not_serialized() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "plain");
+    let raw = fs::read_to_string(
+        repo.path().join(format!(".balls/tasks/{id}.json")),
+    )
+    .unwrap();
+    assert!(
+        !raw.contains("target_branch"),
+        "unset per-task target_branch must not serialize: {raw}"
     );
 }

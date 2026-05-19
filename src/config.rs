@@ -242,6 +242,28 @@ impl Config {
         }
     }
 
+    /// Resolve the effective integration branch for delivering one
+    /// specific task. A task's own `target_branch` is the per-task
+    /// override — the smallest unit that expresses git-flow's
+    /// hotfix→main vs feature→develop split without a parallel
+    /// "branch type" lifecycle. It wins outright; otherwise this
+    /// falls back to the repo-level `integration_branch()` seam. This
+    /// is the per-task analogue of that seam, so the full precedence
+    ///   `task.target_branch ?? config.target_branch ?? HEAD@root`
+    /// lives in exactly one place. Every consumer that delivers or
+    /// resolves a *single task* (review's squash, claim's worktree
+    /// catch-up, show's delivery scan) routes through here.
+    pub fn integration_branch_for(
+        &self,
+        root: &Path,
+        task_target: Option<&str>,
+    ) -> Result<String> {
+        match task_target {
+            Some(b) => Ok(b.to_string()),
+            None => self.integration_branch(root),
+        }
+    }
+
     /// Resolved delivery mode. The single seam `bl review` consults to
     /// pick its code path; `None` delivery block ⇒ `LocalSquash`, so an
     /// untouched repo behaves exactly as before this field existed.

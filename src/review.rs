@@ -103,7 +103,8 @@ pub fn review_worktree(
         }
         crate::review_safety::add_user_changes(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("wip: {id}"));
-        let main_branch = cfg.integration_branch(&store.root)?;
+        let main_branch =
+            cfg.integration_branch_for(&store.root, task.target_branch.as_deref())?;
         merge_or_fail(
             &wt_path,
             &main_branch,
