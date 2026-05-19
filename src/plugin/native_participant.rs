@@ -189,7 +189,8 @@ fn classify(
     pending_conflict: &mut Option<ProposeConflict>,
     name: &str,
 ) -> AttemptClass {
-    match (resp.ok, resp.conflict) {
+    let ProposeResponse { ok, conflict, extra } = resp;
+    match (ok, conflict) {
         (Some(ok), _) => {
             *accepted = Some(ok);
             AttemptClass::Ok
@@ -197,6 +198,15 @@ fn classify(
         (None, Some(conflict)) => {
             *pending_conflict = Some(conflict);
             AttemptClass::Conflict
+        }
+        // SPEC §13 seam 2: an unknown variant was captured in `extra`
+        // rather than dropped — degrade to `Other` and name it so the
+        // failure is diagnosable, not a mute "nothing returned".
+        (None, None) if !extra.is_empty() => {
+            let v = extra.keys().cloned().collect::<Vec<_>>().join(", ");
+            AttemptClass::Other(format!(
+                "plugin `{name}` propose returned unknown variant(s): {v}"
+            ))
         }
         (None, None) => AttemptClass::Other(format!(
             "plugin `{name}` propose returned neither ok nor conflict"

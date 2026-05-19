@@ -15,19 +15,41 @@ use crate::negotiation::CommitPolicy;
 use crate::participant::{Event, Field, Projection};
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Output of `balls-plugin-<name> describe`. The plugin declares the
 /// events it subscribes to and the projection of `Task` it claims as
 /// authoritative.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DescribeResponse {
-    #[serde(default)]
+    /// SPEC §13 seam 3: parsed leniently. An event this build does
+    /// not know is dropped from the set; the known events still
+    /// negotiate and the handshake survives. It does NOT hard-error
+    /// the describe parse (which would lose the plugin's whole native
+    /// protocol to the legacy shim).
+    #[serde(default, deserialize_with = "lenient_events")]
     pub subscriptions: Vec<Event>,
     pub projection: ProjectionWire,
     /// Optional retry budget override; SPEC §7 default is 5.
     #[serde(default)]
     pub retry_budget: Option<usize>,
+}
+
+/// Deserialize a describe subscription list, dropping any element this
+/// build does not recognize as an `Event`. SPEC §13 seam 3: an older
+/// `bl` meeting a plugin that subscribes to a newer event (e.g.
+/// `create`) keeps what it understands and drops the rest — unknown =
+/// round-trip, never die. A non-event element (wrong type, etc.) is
+/// dropped the same way rather than failing the whole handshake.
+fn lenient_events<'de, D>(d: D) -> std::result::Result<Vec<Event>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = Vec::<Value>::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|v| serde_json::from_value::<Event>(v).ok())
+        .collect())
 }
 
 /// Wire shape for the field projection. Strings are parsed into
@@ -43,16 +65,25 @@ pub struct ProjectionWire {
     pub external_prefixes: Vec<String>,
 }
 
-/// Output of `balls-plugin-<name> propose --event <event>` — exactly
+/// Output of `balls-plugin-<name> propose --event <event>` — at most
 /// one of `ok` or `conflict` is populated. A plugin that returns
 /// neither (empty stdout, exit 0) is treated as `Other` — no
 /// recoverable conflict, no successful proposal.
-#[derive(Debug, Clone, Deserialize)]
+///
+/// SPEC §13 seam 2: any other top-level key (a variant this build
+/// does not know — e.g. an old `bl` meeting bl-2062's `reject`) lands
+/// in `extra` instead of being silently discarded. `classify` then
+/// degrades to `Other` and names the variant. Capturing rather than
+/// dropping is what keeps the rule symmetric with `Task::extra` and
+/// robust against a future `deny_unknown_fields`.
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProposeResponse {
     #[serde(default)]
     pub ok: Option<ProposeOk>,
     #[serde(default)]
     pub conflict: Option<ProposeConflict>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
 }
 
 /// Successful propose: the plugin returns a partial Task JSON

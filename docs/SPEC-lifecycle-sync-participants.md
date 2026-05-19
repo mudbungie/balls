@@ -101,21 +101,55 @@ The git-remote participant's projection covers every canonical `Task` field. Plu
 
 `merge: MergeFn` operates on the *projected* overlap of two views. The git-remote participant reuses today's `resolve.rs::resolve_conflict`. Plugins inherit a default merge that picks the participant's view (since by §3, a participant authoritatively owns its projection); plugins that need richer merge supply their own through the native protocol (separate ball: bl-8b71).
 
+### 5.1 EventCtx wire delivery (native-only, describe-gated)
+
+`EventCtx` (the per-(event, participant) context the negotiation primitive constructs) is internal today: only the post-image Task JSON reaches a subprocess plugin's stdin. That is insufficient for any real policy — the plugin cannot see *who* moved the task, *what it was before*, or *which overrides were in play*. This subsection specifies how a native participant opts into receiving it.
+
+A native plugin declares `wants_context: true` in its `DescribeResponse`. When set, `bl` serializes an `EventCtx` document and delivers it on a **dedicated, describe-gated side channel** — a new file descriptor advertised via an environment variable, following the `BALLS_DIAG_FD` precedent (`plugin/diag.rs`), or a `--ctx-file <path>` argument. The legacy stdin shape (bare Task JSON for `propose`) is **byte-unchanged**. A plugin that does not declare `wants_context` receives byte-identical input to today.
+
+`EventCtx` wire schema — versioned and additive; unknown keys are ignored per §13:
+
+```json
+{
+  "schema_version": 1,
+  "event": "review",
+  "actor": "<identity>",
+  "task_before": { "...prior Task projection (the diff basis)..." },
+  "overrides": ["--no-sync"],
+  "commit": "<state-branch sha when known>",
+  "repo": "<repo identity>"
+}
+```
+
+This is native-only **by construction**: a legacy plugin has no describe handshake to gate on, and its stdin is frozen by §17.1. An old `bl` never sends the side channel; an old context-aware plugin tolerates new keys per §13. Wrapping or extending the legacy stdin shape to carry context is prohibited — it breaks §17.1.
+
 ## 6. Lifecycle events and subscriptions
 
-The five lifecycle events:
+The lifecycle events:
 
 | Event | Trigger | Default participants subscribed |
 |---|---|---|
+| `create` | `bl create` | none by default; native plugins that declare it (§6.1) |
 | `claim` | `bl claim` | git-remote (when `require_remote_on_claim`), all `enabled` plugins with `sync_on_change` |
 | `review` | `bl review` | all `enabled` plugins with `sync_on_change` |
 | `close` | `bl close` and `bl update status=closed` (unclaimed) | all `enabled` plugins with `sync_on_change` |
 | `update` | `bl update` (non-closing) | all `enabled` plugins with `sync_on_change` |
+| `drop` | `bl drop` | none by default; native plugins that declare it, observe-only (§6.2) |
 | `sync`  | `bl sync`, `bl prime` | git-remote always; all `enabled` plugins (regardless of `sync_on_change`) |
 
 The "default participants" column is the legacy mapping (§11): an unmodified `.balls/config.json` produces this set. Subscriptions per event are configurable (§10) once a participant or operator opts in.
 
-`drop` is intentionally not a lifecycle event. Drop is a local-only release of a claim; it does not change the durable Task and so has nothing to negotiate. If a future case demands drop-side notification (e.g. notify Jira "agent walked away"), revisit this spec rather than smuggling drop in through the back door.
+### 6.1 `create` is a first-class, describe-gated event
+
+Task creation is a lifecycle event like the others. Before this amendment, creation rode `Event::Update` (a pragmatic stand-in), which conflated "a new task exists" with "an existing task changed" — a mirror-on-create into Jira/Linear could not tell the two apart. `create` is now a distinct `Event` variant dispatched at the task-creation command path.
+
+Subscription is describe-gated exactly like `claim`/`review`/`close`/`update`: an old plugin never declares `create`, so an old plugin is never invoked on it; the addition is purely additive per §13. This removes the observe-death-but-not-birth asymmetry.
+
+### 6.2 `drop` is an observe-only event
+
+Drop is a local-only release of a claim; it changes no durable Task. The "agent walked away → notify Jira/Linear" case is real, so drop is **not** silenced — but because there is no durable state, there is nothing to negotiate, nothing to roll back, and nothing to gate.
+
+Resolution (this amendment supersedes the prior "drop is intentionally not a lifecycle event" fiat): `drop` is an **observe-only** lifecycle event. A native plugin that declares it receives a best-effort notification on `bl drop`. The notification cannot block or alter the drop. `required` and `gating` failure policies on `drop` are rejected at config validation — there is no durable state for them to act on, and "soft policy, hard primitive" (§2) forbids letting an observer veto a local release. This keeps the §16 invariant that drop changes no durable Task while admitting the real notification case explicitly rather than by exception.
 
 ## 7. The negotiation primitive
 
@@ -151,6 +185,30 @@ Subprocess plugins that opt into the participant protocol emit a structured conf
 ```
 
 The negotiation primitive consumes the report, runs the projection's merge, and retries. A plugin that does not implement the participant protocol (legacy push/sync) cannot emit conflicts; the shim (§11) treats every legacy failure as `Other`, never `Conflict`. This is a deliberate restriction: legacy plugins don't get the retry-on-conflict path because they have no way to declare projection.
+
+### 8.1 Reject: a first-class policy veto
+
+A native propose response has three branches, not two. Alongside `ok` and `conflict`, a participant may return `reject`:
+
+```json
+{ "reject": { "reason": "CI is red on this branch; close blocked" } }
+```
+
+`reject` carries a human reason string and **no Task state**. It is the participant saying "this transition must not proceed", with a reason — not a wire failure and not a recoverable field clash. The three outcomes are distinct and must not be conflated:
+
+- **`conflict`** — recoverable field clash. The primitive fetches the remote view, merges by projection, and retries (§7, §8). Bounded by the retry budget.
+- **`reject`** — deliberate policy veto. No retry, no merge. The reason propagates per the failure policy below.
+- **`Other`** — wire failure: crash, timeout, unparseable output, or an unknown variant per §13. Carries a diagnostic, not a policy decision.
+
+Before `reject` existed, a plugin could only block a transition by faking a crash (`Other`) or a bogus `conflict`. Making the veto first-class is what makes arbitrary *policy* — not just side-effects — expressible.
+
+Negotiation maps `reject` by the subscription's failure policy (§9):
+
+- **required** → the lifecycle event aborts. The Task is rolled back to its pre-event state. The error message carries the plugin name and the reason verbatim.
+- **best-effort** → warn and continue; the event succeeds; the rejection (plugin + reason) is recorded in `task.sync_status.<participant>`.
+- **gating** → stage for `bl sync --review`; the event proceeds in the pending-external state.
+
+`reject` honors §2 soft policy: a required participant can veto, but an explicit per-invocation operator override (`--skip=<name>`, or the `--no-sync` analog for git-remote) still ships. The override is logged in the state-branch commit message per §11 so a post-hoc audit sees that a required participant's veto was overridden. A required plugin's `reject` is a hard primitive expressed through soft policy; it is never server-side enforcement.
 
 ## 9. Failure policy
 
@@ -249,9 +307,17 @@ The shim is the reference for "legacy plugins observe no behavior change." Confo
 
 ## 13. Forward compatibility
 
-The Task struct gains a `#[serde(flatten)] extra: BTreeMap<String, Value>` catch-all (bl-d31c). This is what makes mixed-version state-branch propagation safe: a newer `bl` adds a participant-shaped field to the Task; an older `bl` reads the file, round-trips the unknown field through `extra`, and writes it back unchanged. Without this, `bl-2148`'s active push of state-branch commits to remotes would silently drop newer fields on every save by an older client.
+**The rule, stated once and generally: unknown = round-trip, never die.** Every serde seam that crosses a version boundary — a newer `bl` or a newer plugin on one side, an older one on the other — must degrade gracefully when it meets a value it does not recognize. It preserves or sidelines the unknown and continues; it never panics, never hard-errors the operation, and never silently discards the rest of the message. A seam that aborts on an unrecognized peer value is a regression, tested by §17.
 
-bl-d31c is a hard prerequisite for landing any participant-emitted Task field. It is filed as an independent sibling of this SPEC because it is also useful on its own and should not block on the SPEC.
+This applies symmetrically across the three seams the participant model crosses:
+
+1. **Task fields.** The `Task` struct carries a `#[serde(flatten)] extra: BTreeMap<String, Value>` catch-all (bl-d31c). A newer `bl` adds a participant-shaped field; an older `bl` reads the file, round-trips the unknown field through `extra`, and writes it back unchanged. Without this, `bl-2148`'s active push of state-branch commits would silently drop newer fields on every save by an older client. This is a hard prerequisite for landing any participant-emitted Task field.
+
+2. **Native propose-response variants.** A propose response whose only populated key is a variant this build does not know (e.g. an old `bl` meeting bl-2062's `reject`) is *captured*, not dropped, and degrades to the `Other` attempt class. The `Other` message names the unrecognized variant. It never panics and never hard-errors the event; the failure policy (§9) then decides the event's fate exactly as for any other `Other`.
+
+3. **Describe subscription set.** An unknown event name in a plugin's `DescribeResponse.subscriptions` (e.g. an old `bl` meeting bl-ec62's `create`) is dropped from the resolved set. The known subscriptions are still negotiated and the describe handshake **succeeds** — it does not fall back to the legacy shim and does not fail registration. The same rule covers any future additive describe field (e.g. `wants_context`, §5.1): old `bl` ignores it; new `bl` honors it.
+
+The rule is general, not a list: any future serde seam a participant feature introduces inherits it. New keys are ignored by older readers; new variants degrade to `Other`; new enum members are dropped from the set they belong to. Implementations state this once and reuse it — re-deriving per-seam ad-hoc tolerance is the regression §2 warns about.
 
 ## 14. Migration plan
 
@@ -296,7 +362,7 @@ This is the answer to "where do I see what happened during sync?" without introd
 - **No server-side enforcement.** The `bl-2148` stance applies: soft policy, hard primitives. The system gives the operator controls; it does not enforce participant requirements against an explicit operator override.
 - **No custom Status enum extensions.** The canonical Status enum stays at five variants. Remote-side state (Jira "Done", Linear "Cancelled", etc.) lives in projections under `external.<plugin_name>.*`.
 - **No transactional cross-participant writes.** A claim that succeeds against git but fails against Jira is two separate outcomes, not a rolled-back transaction. The failure policy decides what the lifecycle event does about it.
-- **No drop-side participation.** Drop is local-only (§6). Future cases that demand drop-side notification revisit the spec.
+- **No negotiated drop.** Drop is observe-only (§6.2): a native plugin may receive a best-effort notification, but drop changes no durable Task, so there is nothing to negotiate, roll back, or gate. `required`/`gating` on `drop` are config-validation errors. (This refines the original "no drop-side participation"; the notification case is now admitted explicitly rather than by spec exception.)
 - **No participant ordering guarantees beyond declared dependencies.** Two independent participants on the same event run concurrently from the operator's perspective. A participant that requires another to run first declares a dependency in its config; the negotiation primitive honors declared dependencies and rejects cycles. Implicit ordering is a regression.
 - **No exposure of native git participants from plugins.** A plugin cannot impersonate `git-remote`. The `name` field is checked against a reserved-names list at registration.
 
@@ -320,6 +386,11 @@ These are the tests that must exist (and fail for the right reason) before any i
 14. **Hand-edit workflow still works.** The §11 hand-edit sequence from `SPEC-orphan-branch-state.md` produces the same observable behavior post-unification: a hand edit committed to the state branch is picked up by the next sync. Participants do not require `bl` to write Task files.
 15. **Reserved participant names are rejected.** A plugin named `git-remote` or `core` fails registration.
 16. **Audit records are emitted but not committed.** Every negotiation writes one audit record to the diagnostics channel. No audit content appears in any state-branch commit.
+17. **Describe subscription set tolerates unknown events** (§13 seam 3). A `DescribeResponse` whose subscriptions include an event this build does not know parses successfully; the unknown event is absent from the resolved set, the known events are still negotiated, and the handshake does not fall back to the legacy shim. (bl-1b07)
+18. **Unknown native propose variant degrades to `Other`** (§13 seam 2). A propose response whose only populated key is an unrecognized variant is classified `Other` — not a panic, not a hard error — the message names the variant, and the event then follows its failure policy. (bl-1b07)
+19. **`reject` is distinct from `conflict` and `Other`** (§8.1). A `reject` from a required participant aborts the event with the plugin's reason verbatim; best-effort warns and continues and records it in `sync_status`; gating stages; an explicit operator override still ships and is logged per §11. (bl-2062)
+20. **`create` is describe-gated; `drop` is observe-only** (§6.1, §6.2). A native plugin subscribed to `create` is invoked on `bl create`; one not declaring it is not. A plugin subscribed to `drop` receives a best-effort notification on `bl drop`; `required`/`gating` on `drop` fail config validation. (bl-ec62)
+21. **EventCtx side channel is describe-gated and additive** (§5.1). A native plugin that sets `wants_context` receives the `EventCtx` document on the dedicated side channel; one that does not receives byte-identical stdin to today; an unknown `EventCtx` key is ignored by a context-aware plugin. (bl-bac2)
 
 No implementation change lands until every test in this list exists and fails for the right reason.
 
