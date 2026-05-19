@@ -78,8 +78,9 @@ fn scrub_path(repo: &Path, path: &Path) {
 
 /// True when `dir`'s gitdir has `core.bare = true`. Bare gitdirs
 /// reject working-tree commands; callers must route those ops through
-/// a real worktree.
-fn is_bare_repo(dir: &Path) -> Result<bool> {
+/// a real worktree. Shared with `Store::discover` (bl-8cf7): a bare
+/// root has no work tree, so discovery can't lean on `--show-toplevel`.
+pub(crate) fn is_bare_repo(dir: &Path) -> Result<bool> {
     Ok(git::run_git_ok(dir, &["rev-parse", "--is-bare-repository"])?.trim() == "true")
 }
 

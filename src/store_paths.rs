@@ -2,6 +2,7 @@
 //! `store.rs` so that the main module stays focused on the Store API.
 
 use crate::error::{BallError, Result};
+use crate::git;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -34,6 +35,20 @@ pub(crate) fn dirs_base(hash: &str) -> String {
         format!("{}/.local/share/balls/{}", home, &hash[..12])
     } else {
         format!("/tmp/balls-stealth-{}", &hash[..12])
+    }
+}
+
+/// Gate for `discover_git`: confirm `from` is inside a git repo. A
+/// bare hub has no work tree, so `rev-parse --show-toplevel` (used by
+/// `git_root`) fails there — but it is still a git repo whose gitdir
+/// parent is the main root. Tolerate that; only a genuine non-git dir
+/// keeps the `NotARepo` error so `discover` falls back to no-git
+/// discovery. (bl-8cf7)
+pub(crate) fn require_git_repo(from: &Path) -> Result<()> {
+    match git::git_root(from) {
+        Ok(_) => Ok(()),
+        Err(_) if crate::bare_squash::is_bare_repo(from).unwrap_or(false) => Ok(()),
+        Err(e) => Err(e),
     }
 }
 
