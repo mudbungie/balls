@@ -1,10 +1,11 @@
 //! Coverage for `NativeProtocol`'s in-process branches: the
 //! propose-classify state machine, fetch_remote_view, and the
 //! `pushed` outcome shape. These drive `__test_*` helpers exposed by
-//! `native_participant.rs` so tests do not need a real subprocess.
+//! `native_proto::test_helpers` so tests do not need a real subprocess.
 
-use super::test_helpers::{__test_classify, entry, save_task, stealth_store};
+use super::test_helpers::__test_classify;
 use super::NativeProtocol;
+use crate::plugin::native_test_support::{entry, save_task, stealth_store};
 use crate::plugin::native_types::{CommitPolicyWire, ProposeConflict, ProposeOk, ProposeResponse};
 use crate::plugin::Plugin;
 use crate::negotiation::{AttemptClass, CommitPolicy, Protocol};

@@ -215,5 +215,9 @@ fn gates_parent(t: &Task, all: &[Task]) -> bool {
 mod tests;
 
 #[cfg(test)]
+#[path = "tree_format_tests.rs"]
+mod format_tests;
+
+#[cfg(test)]
 #[path = "tree_hier_tests.rs"]
 mod hier_tests;
