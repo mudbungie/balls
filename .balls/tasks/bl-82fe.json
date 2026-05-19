@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T16:29:34.153968602Z",
-  "delivered_in": null,
+  "delivered_in": "34df474af0168368f2dac2c4ae79daf715372e5f",
   "depends_on": [],
   "description": "WHY: bl-9f8e (b5b5256) documented the bare central-hub model in prose and added a glossary entry, but the README 'File and Folder Layout' ASCII diagram still depicts only the non-bare clone: it shows 'project/' with project files 'on main' and '.balls/ # gitignored on main', which implicitly assumes a working tree. A reader who internalizes the new bare-hub section and then looks at the diagram for the concrete layout gets a picture that contradicts it — there is no work tree at a bare root, '.balls/' and '.balls-worktrees/' are loose on-disk store dirs next to the bare gitdir, and nothing is 'gitignored on main' because there is no checked-out main.\n\nGAP: The prose says one thing; the canonical layout diagram still shows the other. The bare hub is the *recommended* deployment, so the diagram should not silently assume the non-bare case.\n\nSCOPE: Add a bare-hub variant of the File/Folder Layout block (or annotate the existing one) showing: bare '.git' at the root, '.balls/' and '.balls-worktrees/' as plain on-disk dirs (not a tracked working set, no 'gitignored on main' framing), the '.balls/tasks' symlink and state worktree unchanged. Keep the existing non-bare diagram for the ordinary-clone case; make explicit which is which. Reconcile the '.gitignore entries' subsection note with the bare case. Docs-only; no code, full suite already green on the dependency.\n\nRelates to / follows bl-9f8e. Deliberately split out of bl-9f8e to keep that task's reconciliation scope tight (per delivery note).",
   "external": {},
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "tags": ["docs","bare-repo"],
   "title": "Docs: add a bare-hub variant to the README File/Folder Layout diagram",
   "type": "task",
-  "updated_at": "2026-05-19T17:35:06.503616882Z"
+  "updated_at": "2026-05-19T17:39:00.585981839Z"
 }
