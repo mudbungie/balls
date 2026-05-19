@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c90c",
+  "claimed_by": "Garbage",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T06:14:35.960030156Z",
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Surface closed/archived tasks: bl show <id> history fallback + bl list --closed/--all",
   "type": "task",
-  "updated_at": "2026-05-19T06:14:35.960030156Z"
+  "updated_at": "2026-05-19T06:14:41.449206722Z"
 }
