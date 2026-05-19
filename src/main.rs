@@ -1,4 +1,5 @@
 mod cli;
+mod cli_sub;
 mod commands;
 
 use balls::error::{BallError, Result};
@@ -171,6 +172,11 @@ fn main() {
             forget_half_push,
             forget_all_half_pushes,
         } => commands::cmd_repair(fix, forget_half_push, forget_all_half_pushes),
+        Command::Remaster {
+            target,
+            commit,
+            detach,
+        } => commands::cmd_remaster(target, commit, detach),
         Command::Skill => {
             print!("{}", include_str!("../SKILL.md"));
             Ok(())
