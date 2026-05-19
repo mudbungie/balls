@@ -22,7 +22,18 @@ pub(crate) const STATE_WORKTREE_REL: &str = ".balls/worktree";
 /// best-effort publishes all target it, so a client repo pointed at a
 /// shared task hub adopts the hub's `balls/tasks` instead of forking
 /// an unrelated orphan. The code remote is never referenced here.
-pub(crate) fn setup_state_branch(root: &Path, remote: &str) -> Result<()> {
+/// `linked` is true when the committed config explicitly set
+/// `state_remote` (vs the defaulted `origin`); it gates the
+/// not-yet-joined advisory below.
+///
+/// Safety invariant (bl-8e8f): init is never destructive to a shared
+/// branch. It only ever *tracks* an existing remote branch or
+/// *creates* a local orphan and tries a plain (non-force) push. A
+/// divergent or non-empty remote `balls/tasks` makes that push a
+/// no-op (git rejects the non-fast-forward); init never resets,
+/// force-pushes, or overwrites it. Joining a hub whose history you've
+/// diverged from is `bl remaster`'s job, an explicit reconcile step.
+pub(crate) fn setup_state_branch(root: &Path, remote: &str, linked: bool) -> Result<()> {
     let has_remote = git::git_has_remote(root, remote);
     if !git_state::branch_exists(root, STATE_BRANCH) {
         // Prefer tracking the remote copy: two `bl init`s in separate
@@ -38,6 +49,8 @@ pub(crate) fn setup_state_branch(root: &Path, remote: &str) -> Result<()> {
             // Best-effort publish so a second clone's init discovers the
             // branch on the remote and tracks it instead of creating its
             // own unrelated orphan. Offline? Fine — first sync will push.
+            // A non-empty remote rejects this non-force push: that is
+            // the non-clobber guarantee, not an error.
             if has_remote {
                 let _ = git::git_push(root, remote, STATE_BRANCH);
             }
@@ -59,6 +72,21 @@ pub(crate) fn setup_state_branch(root: &Path, remote: &str) -> Result<()> {
     // freshly-local. Best-effort.
     if has_remote {
         let _ = git::git_push(root, remote, STATE_BRANCH);
+    }
+
+    // The committed config declares a `state_remote` this clone can't
+    // reach (no git remote of that name): an unaware `bl init` here is
+    // safe-but-unlinked — a usable isolated local store, never a
+    // destructive surprise. Surface that and the explicit join path so
+    // the divergence is a known state, not a silent one.
+    if linked && !has_remote {
+        eprintln!(
+            "note: .balls/config.json sets state_remote `{remote}`, but this \
+             clone has no git remote `{remote}`. Created an isolated local \
+             task store — your tasks are not shared with the project yet. \
+             Add the remote, then run `bl remaster {remote}` to join \
+             (non-destructive)."
+        );
     }
     Ok(())
 }
