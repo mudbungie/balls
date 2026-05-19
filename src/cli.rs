@@ -31,9 +31,8 @@ pub enum Command {
         /// Priority: 1 (highest) to 4 (lowest)
         #[arg(short = 'p', long, default_value_t = 3)]
         priority: u8,
-        /// Task type label. Free-form identifier; common values:
-        /// task, bug, epic, feature, chore, spike, question,
-        /// discussion, retro. Only `epic` has special rendering.
+        /// Task type label (free-form: task, bug, epic, feature,
+        /// chore, …). Only `epic` has special rendering.
         #[arg(short = 't', long, default_value = "task")]
         task_type: String,
         /// Parent task ID
@@ -49,11 +48,12 @@ pub enum Command {
         #[arg(short = 'd', long, default_value = "")]
         description: String,
         /// Integration branch this task's `bl review` squashes into,
-        /// overriding the repo-level `target_branch` and the
-        /// current-branch fallback (e.g. a hotfix targeting `main` in
-        /// a `develop`-default repo).
+        /// overriding the repo `target_branch` and current-branch
+        /// fallback (e.g. a hotfix targeting `main` in a develop repo).
         #[arg(long = "target-branch")]
         target_branch: Option<String>,
+        #[command(flatten)]
+        participant: ParticipantFlags,
     },
 
     /// List tasks.
@@ -70,9 +70,8 @@ pub enum Command {
         /// Filter by tag
         #[arg(long)]
         tag: Option<String>,
-        /// Open and closed tasks together. Closed tasks are
-        /// reconstructed from the `balls/tasks` history — high-volume
-        /// on long-lived repos.
+        /// Open and closed tasks together (closed ones reconstructed
+        /// from `balls/tasks` history — high-volume on old repos).
         #[arg(long)]
         all: bool,
         /// Only closed/archived tasks, reconstructed from the
@@ -100,9 +99,8 @@ pub enum Command {
         json: bool,
         #[arg(long)]
         no_fetch: bool,
-        /// Cap the number of entries shown. Text mode appends a
-        /// `... and N more` footer when the queue is longer; JSON
-        /// returns an array of at most this length. Must be >= 1.
+        /// Cap entries shown (text mode appends a `... and N more`
+        /// footer; JSON returns at most this many). Must be >= 1.
         #[arg(long)]
         limit: Option<usize>,
     },
@@ -125,6 +123,8 @@ pub enum Command {
         /// `require_remote_on_claim`.
         #[arg(long, conflicts_with = "sync")]
         no_sync: bool,
+        #[command(flatten)]
+        participant: ParticipantFlags,
     },
 
     /// Submit work for review: merge to main, keep worktree for rework.
@@ -147,6 +147,8 @@ pub enum Command {
         /// Skip any configured remote round-trip on this review.
         #[arg(long, conflicts_with = "sync")]
         no_sync: bool,
+        #[command(flatten)]
+        participant: ParticipantFlags,
     },
 
     /// Close a reviewed task: archive and remove worktree. Must run from repo root.
@@ -166,6 +168,8 @@ pub enum Command {
         /// Skip any configured remote round-trip on this close.
         #[arg(long, conflicts_with = "sync")]
         no_sync: bool,
+        #[command(flatten)]
+        participant: ParticipantFlags,
     },
 
     /// Drop a claim: reset task and remove worktree.
@@ -184,6 +188,8 @@ pub enum Command {
         note: Option<String>,
         #[arg(long = "as")]
         identity: Option<String>,
+        #[command(flatten)]
+        participant: ParticipantFlags,
     },
 
     /// Manage dependencies.
@@ -290,4 +296,4 @@ pub enum Command {
     },
 }
 
-pub use crate::cli_sub::{DepCmd, LinkCmd, ShellArg};
+pub use crate::cli_sub::{DepCmd, LinkCmd, ParticipantFlags, ShellArg};

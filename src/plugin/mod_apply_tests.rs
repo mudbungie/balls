@@ -5,10 +5,54 @@
 //! payload, no-op merge errors).
 
 use super::*;
+use crate::negotiation::{CommitPolicy, FailurePolicy};
 use crate::participant::{Field, Projection};
+use crate::store::Store;
 use crate::task::{NewTaskOpts, Task};
 use serde_json::json;
 use std::collections::BTreeSet;
+
+fn stealth_store() -> (tempfile::TempDir, Store) {
+    let td = tempfile::tempdir().unwrap();
+    let store = Store::init(
+        td.path(),
+        true,
+        Some(td.path().join("t").to_string_lossy().into_owned()),
+    )
+    .unwrap();
+    (td, store)
+}
+
+fn one_contribution() -> PushContribution {
+    PushContribution {
+        name: "jira".into(),
+        projection: Projection::external_only("jira"),
+        payload: ContributionPayload::Native(json!({})),
+        failure_policy: FailurePolicy::BestEffort,
+        commit_policy: CommitPolicy::default(),
+    }
+}
+
+#[test]
+fn apply_is_noop_when_task_already_archived() {
+    // A `close` removes the task file before apply runs. Loading it
+    // back is `TaskNotFound`; apply must no-op (mirrors the
+    // pre-bl-fb4d swallow), not error the command.
+    let (_td, store) = stealth_store();
+    apply_push_contributions(&store, "bl-1234", &[one_contribution()], &[])
+        .expect("archived task ⇒ benign no-op");
+}
+
+#[test]
+fn apply_propagates_non_notfound_load_error() {
+    // A corrupt task file is a real error, distinct from "archived":
+    // it must propagate, not be swallowed as a no-op.
+    let (_td, store) = stealth_store();
+    std::fs::write(store.task_path("bl-1234").unwrap(), "not json").unwrap();
+    let err =
+        apply_push_contributions(&store, "bl-1234", &[one_contribution()], &[]).unwrap_err();
+    let _ = format!("{err}");
+}
 
 fn dummy_task(id: &str) -> Task {
     Task::new(

@@ -1,3 +1,4 @@
+mod consume;
 mod ctx;
 mod diag;
 mod dispatch;
@@ -13,7 +14,8 @@ mod runner;
 mod runner_proc;
 mod types;
 
-pub use dispatch::{dispatch_drop, dispatch_push, dispatch_sync};
+pub use consume::{finish, log_overrides, state_head, Rollback};
+pub use dispatch::{dispatch_drop, dispatch_push, dispatch_sync, DispatchInput, DispatchOutcome};
 pub use native_participant::{NativeOutcome, NativePluginParticipant};
 pub use native_types::{
     CommitPolicyWire, DescribeResponse, ProjectionWire, ProposeConflict, ProposeOk,
@@ -57,17 +59,48 @@ pub struct PushContribution {
 }
 
 /// Apply a set of push contributions and write the state-branch
-/// commits implied by their `CommitPolicy`s. Today's all-legacy
-/// configs produce one trailing default commit so the observable
-/// result is byte-identical to the pre-bl-8b71 dispatcher. Native
-/// plugins fold their projected Task slice into the working task at
-/// `Apply` time; the planner sequences both kinds together.
+/// commits implied by their `CommitPolicy`s, and fold SPEC §9/§8.1
+/// `sync_status` for native best-effort skips. A successful
+/// contribution clears its participant's stale `sync_status`; a
+/// `skipped` entry sets it to the verbatim reason. Today's all-legacy
+/// configs reach neither path (legacy skips are never in `skipped`),
+/// so the observable result stays byte-identical to the pre-bl-8b71
+/// dispatcher (SPEC §12). Native plugins fold their projected slice
+/// at `Apply` time; the planner sequences both kinds together.
 pub fn apply_push_contributions(
     store: &Store,
     task_id: &str,
     contributions: &[PushContribution],
+    skipped: &[(String, String)],
 ) -> Result<()> {
+    if contributions.is_empty() && skipped.is_empty() {
+        return Ok(());
+    }
+    let _g = task_lock(store, task_id)?;
+    // A `close` archived the task file before this ran: there is
+    // nowhere to fold a projection or persist `sync_status`, and
+    // there is nothing to retry against an archived task. No-op,
+    // mirroring the pre-bl-fb4d swallow. A required veto never
+    // reaches here — it aborts in `dispatch_push` before apply.
+    let mut task = match store.load_task(task_id) {
+        Ok(t) => t,
+        Err(crate::error::BallError::TaskNotFound(_)) => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    for c in contributions {
+        task.sync_status.remove(&c.name);
+    }
+    for (name, reason) in skipped {
+        task.sync_status.insert(name.clone(), reason.clone());
+    }
     if contributions.is_empty() {
+        // sync_status-only: one commit records the skip reasons. Only
+        // reachable for native participants — a legacy skip never
+        // enters `skipped`, so unmodified configs never hit this and
+        // SPEC §12 byte-identity holds.
+        task.touch();
+        store.save_task(&task)?;
+        store.commit_task(task_id, &format!("balls: sync_status for {task_id}"))?;
         return Ok(());
     }
     let plan_steps = plan(
@@ -81,8 +114,6 @@ pub fn apply_push_contributions(
             .collect::<Vec<_>>(),
         &format!("balls: update external for {task_id}"),
     )?;
-    let _g = task_lock(store, task_id)?;
-    let mut task = store.load_task(task_id)?;
     let now = Utc::now();
     for op in plan_steps {
         match op {

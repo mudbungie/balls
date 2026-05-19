@@ -17,7 +17,10 @@ impl<'a> NativeProtocol<'a> {
     pub(crate) fn __test_new(
         plugin: &'a Plugin, name: &'a str, event: Event, task: Task, retry_budget: usize,
     ) -> Self {
-        NativeProtocol::new(plugin, name, event, task, retry_budget, false, String::new())
+        NativeProtocol::new(
+            plugin, name, event, task, retry_budget, false, String::new(),
+            None, None, Vec::new(),
+        )
     }
     pub(crate) fn __test_record_ok(&mut self, ok: ProposeOk) { self.accepted = Some(ok); }
     pub(crate) fn __test_record_conflict(&mut self, c: ProposeConflict) {

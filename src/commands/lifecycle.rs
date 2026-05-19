@@ -4,7 +4,8 @@
 use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::participant::Event;
-use balls::plugin;
+use balls::participant_config::{override_tokens, InvocationOverrides};
+use balls::plugin::{self, Rollback};
 use balls::policy::{self, ClaimPolicy, LocalConfig, SyncOverride};
 use balls::store::{task_lock, Store};
 use balls::task::{Status, Task, TaskType};
@@ -16,6 +17,7 @@ pub fn cmd_claim(
     no_worktree: bool,
     sync: bool,
     no_sync: bool,
+    overrides: InvocationOverrides,
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
@@ -29,14 +31,28 @@ pub fn cmd_claim(
         worktree::claim_no_worktree(&store, &id, &ident, claim_policy)?;
         println!("claimed {id} (no worktree)");
     } else {
+        // Pre-image: the open task before the claim mutated it — the
+        // diff basis a claim-mirror plugin sees (SPEC §5.1).
+        let task_before = store.load_task(&id).ok();
         let path = worktree::create_worktree(&store, &id, &ident, claim_policy)?;
         let task = store.load_task(&id)?;
-        if plugin::dispatch_push(&store, &task, Event::Claim, &ident).is_ok() {
-            let main_branch = store
-                .load_config()?
-                .integration_branch_for(&store.root, task.target_branch.as_deref())?;
-            let _ = balls::git::git_merge(&path, &main_branch);
-        }
+        let tokens = override_tokens(&overrides, sync, no_sync);
+        // A required plugin veto un-claims (drop_worktree); best-
+        // effort skips are recorded in sync_status (SPEC §9).
+        plugin::finish(
+            &store,
+            task_before.as_ref(),
+            &task,
+            Event::Claim,
+            &ident,
+            &overrides,
+            &tokens,
+            Rollback::DropClaim,
+        )?;
+        let main_branch = store
+            .load_config()?
+            .integration_branch_for(&store.root, task.target_branch.as_deref())?;
+        let _ = balls::git::git_merge(&path, &main_branch);
         println!("{}", path.display());
     }
     Ok(())
@@ -62,10 +78,13 @@ pub fn cmd_review(
     identity: Option<String>,
     sync: bool,
     no_sync: bool,
+    overrides: InvocationOverrides,
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     let message = balls::commit_msg::join_messages(&message);
+    let task_before = store.load_task(&id).ok();
+    let rb = plugin::state_head(&store)?;
     // A `--no-worktree` claim leaves `task.branch` unset and never
     // creates `.balls-worktrees/<id>`. Such a task has no work branch to
     // squash, so it takes the same metadata-only flip as no-git mode —
@@ -80,7 +99,17 @@ pub fn cmd_review(
         balls::review::review_worktree(&store, &id, message.as_deref(), &ident, policy)?;
     }
     let task = store.load_task(&id)?;
-    let _ = plugin::dispatch_push(&store, &task, Event::Review, &ident);
+    let tokens = override_tokens(&overrides, sync, no_sync);
+    plugin::finish(
+        &store,
+        task_before.as_ref(),
+        &task,
+        Event::Review,
+        &ident,
+        &overrides,
+        &tokens,
+        Rollback::State(rb.as_deref()),
+    )?;
     let deferred = matches!(
         store.load_config()?.delivery_mode(),
         balls::config::DeliveryMode::Deferred
@@ -99,10 +128,13 @@ pub fn cmd_close(
     identity: Option<String>,
     sync: bool,
     no_sync: bool,
+    overrides: InvocationOverrides,
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     let message = balls::commit_msg::join_messages(&message);
+    let task_before = store.load_task(&id).ok();
+    let rb = plugin::state_head(&store)?;
     let task = if store.no_git {
         balls::review::close_no_git(&store, &id, message.as_deref(), &ident)?
     } else {
@@ -111,7 +143,20 @@ pub fn cmd_close(
         let policy = policy::resolve_close(repo, local.as_ref(), cli);
         balls::review::close_worktree(&store, &id, message.as_deref(), &ident, policy)?
     };
-    let _ = plugin::dispatch_push(&store, &task, Event::Close, &ident);
+    let tokens = override_tokens(&overrides, sync, no_sync);
+    // A required plugin veto rolls the state branch back to `rb`,
+    // un-archiving the task (SPEC §9). The main squash / worktree
+    // teardown stay owned by close_worktree, deferred per the SPEC.
+    plugin::finish(
+        &store,
+        task_before.as_ref(),
+        &task,
+        Event::Close,
+        &ident,
+        &overrides,
+        &tokens,
+        Rollback::State(rb.as_deref()),
+    )?;
     println!("closed {id}");
     if !store.no_git {
         println!("{}", store.root.display());
@@ -158,13 +203,19 @@ pub fn cmd_update(
     assignments: Vec<String>,
     note: Option<String>,
     identity: Option<String>,
+    overrides: InvocationOverrides,
 ) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
     let closing = assignments.iter().any(|a| a == "status=closed");
-    let task = {
+    // Snapshot the state-branch tip before this command's event
+    // commit — the rewind target on a required veto (SPEC §9). The
+    // tip can't move until `commit_task`/`close_and_archive` below.
+    let rb = plugin::state_head(&store)?;
+    let (task, task_before) = {
         let _g = task_lock(&store, &id)?;
         let mut task = store.load_task(&id)?;
+        let task_before = task.clone();
         if closing && task.claimed_by.is_some() {
             return Err(BallError::InvalidTask(
                 "use `bl close` for claimed tasks (handles worktree teardown and merge)".into(),
@@ -200,11 +251,21 @@ pub fn cmd_update(
             }
             store.commit_task(&id, &format!("balls: update {} - {}", id, task.title))?;
         }
-        task
+        (task, task_before)
     };
 
     let event = if closing { Event::Close } else { Event::Update };
-    let _ = plugin::dispatch_push(&store, &task, event, &ident);
+    let tokens = override_tokens(&overrides, false, false);
+    plugin::finish(
+        &store,
+        Some(&task_before),
+        &task,
+        event,
+        &ident,
+        &overrides,
+        &tokens,
+        Rollback::State(rb.as_deref()),
+    )?;
 
     if closing {
         println!("closed and archived {id}");
