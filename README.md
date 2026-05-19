@@ -38,6 +38,13 @@ make hooks     # one-time: install the repo-local pre-commit hook
 
 `make hooks` wires up the repo-local pre-commit hook (clippy, line-length cap, tests, 100% coverage). Run it once per clone; it's not part of `make install` because a user installing the binary shouldn't have hooks attached to whatever repo they happen to be in. The coverage check requires `cargo install cargo-tarpaulin`.
 
+`make hooks` is recommended, not required. A pre-commit hook and a **bare core repo** are two valid paths to the same guarantee — that the 300-line and 100%-coverage gates can't be bypassed — and which one fits depends on circumstance:
+
+- **Local hook** — for an ordinary clone where the working branch can be committed to directly, when you want the gate to fail at commit time, or when there is no CI. Strength: fast local feedback. Cost: a per-clone install, a `tarpaulin` run on every commit, and `git commit --no-verify` slips past it.
+- **Bare core** — for the worktree/merge model this repo uses: a bare core, every change arriving via a worktree and a `bl review` squash-merge, the gates enforced in CI. A bare repo has no working tree, so the working branch *cannot* be edited directly — the architecture makes the bypass impossible rather than merely discouraging it. Cost: a violation surfaces at review/CI, not at the commit.
+
+The two compose rather than exclude: a bare core can still install the hook (one install in the shared common dir covers every worktree) for at-commit feedback layered on top of the structural guarantee.
+
 To remove everything `make install` placed:
 
 ```bash
