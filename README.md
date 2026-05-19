@@ -158,6 +158,7 @@ cargo publish
 | **task** | A unit of work. One JSON file on the `balls/tasks` orphan branch, exposed to main via a symlink. |
 | **state branch** | The orphan git branch `balls/tasks` that holds all task state. No shared history with main. |
 | **state worktree** | A second git worktree at `.balls/worktree/` with the state branch checked out. Where task files physically live. |
+| **bare hub** | The recommended deployment: a bare repo (`core.bare = true`) with no work tree. All work happens in `.balls-worktrees/<id>/` checkouts; direct commits to the operating branch are a git-level impossibility, not a discouraged convention. Its "repo root" is the bare gitdir's parent. See *The bare central hub* below. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a git worktree under `.balls-worktrees/<id>/` for the work. |
 | **review** | Squash-merges the work branch into main as a single feature commit tagged `[bl-xxxx]` and flips the task to `review` on the state branch. A checkpoint state; the default flow is to follow it with `bl close`. |
@@ -230,6 +231,28 @@ main                                balls/tasks  (orphan — no shared history)
 ```
 
 Every lifecycle transition (create, claim, review, close, update, note, dep, link) is a commit on `balls/tasks`. The only commits that land on `main` are the substantive feature commits produced by `bl review` — each one carries a `[bl-xxxx]` delivery tag in its subject so the main commit can be correlated back to the state-branch record. See the Delivery Link section below.
+
+---
+
+## The bare central hub (recommended deployment)
+
+The recommended production topology is a **bare** repository (`core.bare = true`) acting as a central hub. There is no working tree at the root: every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses, and the one the install section's "bare core" option sets up.
+
+**Why bare-ness is load-bearing, not incidental.** The rest of these docs preach a worktree-only rule — *edits go in the worktree, never directly on the operating branch*. A pre-commit hook can only *discourage* the bypass; `git commit --no-verify` slips past it. A bare repo makes the bypass a **git-level impossibility**: a bare repo has no working tree, so git itself refuses to commit or even stage on the operating branch from the root (`fatal: this operation must be run in a work tree`). The convention becomes a hard invariant that no agent or human can violate, by mistake or on purpose. That structural guarantee — not mere tidiness — is why bare is the recommended hub.
+
+**Where the root is, and what's in it.** balls resolves the repo root of a bare hub as the bare gitdir's parent directory (`find_main_root`). That directory holds the bare `.git`, plus the on-disk store directories — `.balls/` and `.balls-worktrees/` — as ordinary files. They are *not* a tracked working set; they are the store itself, sitting next to the bare gitdir.
+
+**Observing state — `git status` at the root is fatal by design.** At a bare root, `git status` does not print a clean tree; it exits with `fatal: this operation must be run in a work tree`. That is correct behavior, not a broken repo: there is no work tree to report on, and the loose files at the root are the store, not git's working set. Read state the two ways that *do* work:
+
+- **Tasks:** `bl list` (and `bl show`, `bl ready`, `bl prime`) — all read-only, all run from the bare root.
+- **Code in flight:** `git status` / `git diff` / `git log` *inside* the active `.balls-worktrees/<id>/` checkout, which is an ordinary worktree where those commands behave normally.
+
+**Where `bl` must run.** As of bl-8cf7, `Store::discover` tolerates a bare root, so every read-only and root command works from the bare hub directly. (Before that fix they failed with a misleading `not initialized. Run bl init` even on a healthy hub; bl-597e additionally made discovery errors path-aware so the wrong-directory case is obvious.) Two commands have bare-specific mechanics, both transparent to the caller:
+
+- `bl review` cannot run a working-tree squash at a bare root, so it provisions an ephemeral detached worktree under `.balls/local/`, performs the squash there, and fast-forwards the operating branch from the bare gitdir afterward (see `bare_squash.rs`). You invoke it exactly as on a normal repo.
+- `bl close` runs from the bare root normally. Its only hard constraint is that it must **not** be run from inside the bl worktree it is about to delete — and a bare hub's root is, by construction, never inside a worktree.
+
+**Reconciling "run from the repo root."** Every "run `bl close` from the repo root" instruction in this README and in SKILL.md is correct for a bare hub: the bare directory *is* that repo root, and `bl close` prints it on success so you can `cd` back. The rule was never "find the checked-out main branch" — it is "not from within the bl worktree." On a bare hub there is no checked-out main to stand in; that absence is the entire point of choosing bare.
 
 ---
 
@@ -600,7 +623,7 @@ If the reviewer rejects (`bl update bl-a1b2 status=in_progress`), the worker res
 bl close bl-a1b2 -m "approved"
 ```
 
-Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back.
+Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back. On a bare hub the repo root is the bare directory itself (there is no checked-out main to stand in); `bl close` runs there normally — see *The bare central hub*.
 
 The reviewer message is embedded in the state-branch close commit's body (not appended to a notes file, which is about to be deleted). It's still in git history on `balls/tasks`. `-m` is repeatable here too — each value becomes its own paragraph.
 
