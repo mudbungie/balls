@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T05:40:02.658965300Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Realizes SPEC §14's planned post-primitive step (the migration plan names this 'bl-2bf7', but no such ball was ever created — this is it). The bl-cc24 epic delivered the negotiation/dispatch PRIMITIVES (Reject outcome + failure-policy mapping, create/drop events, describe-gated EventCtx wire) fully and conformance-tested AT THE PRIMITIVE LEVEL. This ball wires those primitives into the lifecycle COMMAND layer, which today deliberately discards them.\n\nSCOPE (the command-side wiring the primitives were built for):\n1. Consume the dispatch_push result. Today cmd_claim/review/close/update and cmd_create do 'let _ = plugin::dispatch_push(...)' — a required participant's Err (incl. a first-class Reject carrying plugin+reason, bl-2062) is computed correctly by the primitive but thrown away: the state-branch commit already landed and the command exits 0. Wire: on a required failure, roll back the event's state-branch commit and exit non-zero with the reason verbatim (SPEC §9). Best-effort still warns+continues and should record task.sync_status.<participant> (SPEC §9 — no sync_status field/infra exists yet; add it). Gating staging is bl-a46d, out of scope here.\n2. EventCtx reserved additive keys (SPEC §5.1, deferred by bl-bac2). Thread the PRE-IMAGE task (the diff basis 'task_before') and the state-branch 'commit' sha from each command into dispatch so EventCtxWire can populate them. Today dispatch is called post-mutate+post-commit with only the post-image; commands must snapshot before mutation (create => no prior, correctly absent) and capture the sha. Additive per the v1 schema: a context-aware plugin gains the keys with no break.\n3. Per-invocation override surface (SPEC §11). Wire CLI --skip=NAME / --required=NAME / the --no-sync analog into InvocationOverrides (the type exists; CLI wiring does not), and log applied overrides in the state-branch commit message (the §11 override log, e.g. '[--no-sync]') so a post-hoc audit shows which negotiations ran without their required participants. This is what makes the §2 soft-policy guarantee real end-to-end.\n\nWHY NOW vs WHY DEFERRED: the epic scoped each child to the layer it owned and tested only that layer, rather than fake unbuilt behavior or balloon scope by rewiring every command's control flow + rollback (a distinct blast radius). That was the SPEC's intended staging. But 'staged in SPEC prose' is not 'tracked' — without this ball the work is invisible to bl ready/list. Conformance targets: required reject aborts bl close with the reason and rolls back; --skip lets it ship and logs the override; a context-aware plugin sees task_before/commit.",
+  "external": {},
+  "id": "bl-fb4d",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["plugins","participants"],
+  "title": "Command-level participant enforcement: consume dispatch results; thread EventCtx pre-image + commit sha",
+  "type": "task",
+  "updated_at": "2026-05-19T05:40:02.658965300Z"
+}
