@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:04:03.053675585Z",
-  "delivered_in": null,
+  "delivered_in": "1794475242c6dbdc623ca38d8d1f6ec5485e777d",
   "depends_on": ["bl-ac91"],
   "description": "Add a repo-level \"target_branch\" field to .balls/config.json. When set, bl review uses it instead of git_current_branch(&store.root) when deciding the integration target. Threads through:\n- src/review.rs:94 (merge-in step) and the subsequent squash-merge.\n- src/delivery.rs:32 (tag-scan branch).\n- src/commands/sync.rs (sync of integration branch alongside state branch).\n\nDefault unset → falls back to current behavior (current branch at repo root). Document this fallback explicitly — today it is implicit and fragile.\n\nWHY: today's \"use whatever HEAD points to at the repo root\" is undocumented and fragile (a stray git checkout main re-targets every subsequent review). Making the integration target explicit is also a strict precondition for deferred-squash mode: the forge plugin needs to know which branch the PR targets.\n\nACCEPTANCE:\n- New repo with target_branch=null (or absent): all existing tests pass unchanged.\n- target_branch=develop on a repo with main checked out at root: bl review squashes into develop, not main.\n- bl sync still pushes the configured target_branch alongside the state branch.\n- delivery.rs tag-scan uses target_branch when resolving delivered_in hints.\n- Unit tests for the config knob and integration tests for the review path against a non-default branch.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-00ca",
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["delivery","git-flow"],
   "title": "target_branch config: make integration branch explicit",
   "type": "task",
-  "updated_at": "2026-05-19T06:22:22.203657804Z"
+  "updated_at": "2026-05-19T06:40:02.833877949Z"
 }
