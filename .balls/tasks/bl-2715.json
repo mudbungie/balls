@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2715",
+  "claimed_by": "Suspect",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:20:38.174711380Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["ux","diagnostics"],
   "title": "bl doctor: read-only diagnostic for repo/bl state drift",
   "type": "task",
-  "updated_at": "2026-05-11T05:20:38.174711380Z"
+  "updated_at": "2026-05-19T06:39:32.691428871Z"
 }
