@@ -182,6 +182,14 @@ Balls stores task state on a dedicated orphan git branch called `balls/tasks`. I
 
 ### File and Folder Layout
 
+Two deployment shapes share one store format. The **ordinary clone** has
+a working tree; the **bare central hub** has none. The state worktree,
+the `.balls/tasks` symlink, the orphan branch, and `.balls-worktrees/`
+are byte-for-byte identical in both — bare-ness changes only the root,
+never the orphan-branch machinery.
+
+**Ordinary clone (working tree present):**
+
 ```
 project/
 ├── .balls/                          # gitignored on main, set up by `bl init`
@@ -206,9 +214,34 @@ project/
 
 The `.balls/tasks` symlink in main's working tree is the key to naïve visibility. It points at `.balls/worktree/.balls/tasks`, which is the state worktree's checkout — where task files physically live. Reading `.balls/tasks/bl-abc.json` follows the symlink into the state worktree and returns the canonical file. `bl` commands and hand-editing agree.
 
+**Bare central hub (no working tree — the recommended deployment):**
+
+```
+hub/                                 # "repo root" = the bare gitdir's parent
+├── .git/                            # bare gitdir (core.bare = true); no checkout
+├── .balls/                          # loose on-disk store — NOT a tracked working set
+│   ├── tasks → worktree/.balls/tasks    # symlink — same as the ordinary clone
+│   ├── worktree/                        # state worktree on balls/tasks (unchanged)
+│   │   └── .balls/tasks/
+│   │       ├── bl-a1b2.json
+│   │       ├── bl-a1b2.notes.jsonl
+│   │       └── .gitattributes
+│   ├── config.json                      # project-wide settings (materialized here)
+│   ├── plugins/                         # plugin configs
+│   └── local/                           # ephemeral per-hub state
+│       ├── claims/
+│       ├── lock/
+│       └── plugins/
+└── .balls-worktrees/                    # the only working trees on a bare hub
+    ├── bl-a1b2/                         # full checkout on work/bl-a1b2 branch
+    └── bl-c3d4/
+```
+
+At a bare hub there is no `project/` working tree, and nothing is "gitignored on main" — there is no checked-out main to ignore from. `.balls/` and `.balls-worktrees/` are the store itself, ordinary directories sitting next to the bare gitdir, not a tracked working set; `config.json` and `plugins/` are present as loose files rather than a checkout of main. The only real working trees are the per-task `.balls-worktrees/<id>/` checkouts. The state worktree, the `.balls/tasks` symlink, and the state branch are exactly as in the ordinary clone. How the loose store comes to exist at a fresh bare root is the bootstrap sequence — see *The bare central hub* and the `bl init` section.
+
 ### .gitignore entries
 
-`bl init` adds these to main's `.gitignore`:
+`bl init` adds these to the **ordinary clone's** `.gitignore` on main:
 
 ```
 .balls/local
@@ -216,6 +249,8 @@ The `.balls/tasks` symlink in main's working tree is the key to naïve visibilit
 .balls/worktree
 .balls-worktrees
 ```
+
+A bare hub has no checked-out main and no `.gitignore` governing it: the same paths are never a tracked working set there, so nothing has to be ignored. These entries matter only for the working-tree case.
 
 ### State branch history
 
