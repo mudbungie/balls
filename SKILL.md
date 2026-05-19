@@ -18,6 +18,14 @@ So the rule reads as a consequence: while you hold a claim, edits go in the work
 
 This binds the balls workflow, not your repo. Outside a claimed task, your tree is yours. But once `bl claim` has printed a path, that path is where the work goes.
 
+## Operating against a bare hub
+
+The recommended deployment is a **bare** central repo (`core.bare = true`): no work tree at the root, every change in a `.balls-worktrees/<id>/` checkout. The "repo root" the close rule names *is* that bare directory — `cd` there and `bl close` works. Three things that bite if you don't expect them:
+
+- `git status` at the bare root is **fatal by design** (`fatal: this operation must be run in a work tree`), not a broken repo. To see state: `bl list` for tasks; `git status`/`git diff` *inside* your `.balls-worktrees/<id>/` worktree for code.
+- Read-only and root commands (`bl prime`/`ready`/`list`/`show`, and `bl close`) all work from the bare root. `bl review` does its own squash via an internal detached worktree — nothing extra for you to do.
+- The inviolable rule is unchanged and really means "not from inside the bl worktree." On a bare hub there is no checked-out main to stand in, so `cd <repo root>` before `bl close` means `cd` to the bare directory.
+
 ## Session Start
 
 Run `bl prime` at the start of every session:
