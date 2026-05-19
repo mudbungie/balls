@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-19T18:13:41.621104964Z","id":"bl-b26d","title":"Drop fs2: use std::fs::File::lock/try_lock/unlock"},{"closed_at":"2026-05-19T18:17:25.052199980Z","id":"bl-6567","title":"Trim chrono default features (drop iana-time-zone)"}],
+  "closed_children": [{"closed_at":"2026-05-19T18:13:41.621104964Z","id":"bl-b26d","title":"Drop fs2: use std::fs::File::lock/try_lock/unlock"},{"closed_at":"2026-05-19T18:17:25.052199980Z","id":"bl-6567","title":"Trim chrono default features (drop iana-time-zone)"},{"closed_at":"2026-05-19T18:22:51.717524917Z","id":"bl-bd85","title":"Decide: replace sha1+hex with git hash-object"}],
   "created_at": "2026-05-19T18:08:31.253035954Z",
   "delivered_in": null,
   "depends_on": [],
@@ -17,5 +17,5 @@
   "tags": ["deps","footprint"],
   "title": "Dependency footprint audit: hold the jq+git+ln line",
   "type": "epic",
-  "updated_at": "2026-05-19T18:17:25.052215898Z"
+  "updated_at": "2026-05-19T18:22:51.717537269Z"
 }
