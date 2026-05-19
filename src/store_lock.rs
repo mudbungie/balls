@@ -10,7 +10,6 @@
 use crate::error::Result;
 use crate::store::Store;
 use crate::task;
-use fs2::FileExt;
 use std::fs;
 use std::path::Path;
 
@@ -19,7 +18,7 @@ use std::path::Path;
 pub struct LockGuard(fs::File);
 impl Drop for LockGuard {
     fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.0);
+        let _ = fs::File::unlock(&self.0);
     }
 }
 
@@ -47,6 +46,6 @@ fn acquire_flock(path: &Path) -> Result<LockGuard> {
         .read(true)
         .write(true)
         .open(path)?;
-    f.lock_exclusive()?;
+    f.lock()?;
     Ok(LockGuard(f))
 }
