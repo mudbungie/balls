@@ -1,13 +1,13 @@
-//! sync, resolve, prime, repair — remote reconciliation and agent bootstrap.
+//! sync, resolve, prime — remote reconciliation and agent bootstrap.
 
-use super::half_push::{detect_half_push, write_forget_half_push};
+use super::half_push::detect_half_push;
 use super::sync_report::apply_sync_report;
 use super::sync_review;
 use super::{default_identity, discover};
-use balls::error::{BallError, Result};
+use balls::error::Result;
 use balls::store::Store;
 use balls::task::{Status, Task};
-use balls::{git, plugin, policy, ready, resolve, sanitize, sync_resolve, worktree};
+use balls::{git, plugin, policy, ready, resolve, sanitize, sync_resolve};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -41,7 +41,7 @@ pub fn cmd_sync(args: SyncArgs) -> Result<()> {
 
 fn cmd_sync_run(remote: &str, task_filter: Option<&str>) -> Result<()> {
     let store = discover()?;
-    if !store.no_git && git::git_has_remote(&store.root, remote) {
+    if !store.no_git {
         sync_with_remote(&store, remote)?;
     }
     let ident = default_identity();
@@ -58,30 +58,44 @@ fn cmd_sync_run(remote: &str, task_filter: Option<&str>) -> Result<()> {
 }
 
 fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
-    if !git::git_fetch(&store.root, remote)? {
+    // The two legs are gated independently: the main branch on the
+    // code remote, the state branch on the resolved `state_remote`.
+    // Before bl-88c7 a single code-remote gate fronted both, so a
+    // hub-linked client with a reachable hub but no code `origin`
+    // silently skipped the `balls/tasks` leg too. Splitting the gates
+    // fixes that without disturbing the common case: when
+    // `state_remote` is unset/==origin it resolves to the code remote,
+    // `state_present` reuses `code_present` (no extra git invocation),
+    // and the whole sequence is byte-identical to before this change.
+    let code_present = git::git_has_remote(&store.root, remote);
+
+    if code_present && !git::git_fetch(&store.root, remote)? {
         eprintln!("warning: fetch failed, continuing offline");
     }
+
     // Per SPEC §7.3 push order: state branch first, main second. If the
     // main push fails after the state push lands on the remote, the
     // next sync's half-push detector (below) surfaces the orphaned
     // state commit so the main push can be retried.
-    //
-    // The state branch negotiates against `state_remote`; the code
-    // branch stays on the code remote (`remote`). An unset
-    // `state_remote` follows the code remote, so a single-repo setup —
-    // including `bl sync --remote X` — is byte-identical to before
-    // this field; only an explicit hub link decouples the two.
+    let mut state_synced = false;
     if !store.stealth {
-        let cfg = store.load_config()?;
-        let local = policy::LocalConfig::load(store)?;
-        let state_remote = policy::state_remote_opt(&cfg, local.as_ref())
-            .unwrap_or_else(|| remote.to_string());
-        sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
+        let state_remote = resolve_state_remote(store, remote);
+        let state_present = if state_remote == remote {
+            code_present
+        } else {
+            git::git_has_remote(&store.root, &state_remote)
+        };
+        if state_present {
+            sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
+            state_synced = true;
+        }
     }
-    let main_branch = store.load_config()?.integration_branch(&store.root)?;
-    sync_branch(&store.root, remote, &main_branch)?;
+    if code_present {
+        let main_branch = store.load_config()?.integration_branch(&store.root)?;
+        sync_branch(&store.root, remote, &main_branch)?;
+    }
 
-    if !store.stealth {
+    if !store.stealth && (code_present || state_synced) {
         for id in detect_half_push(store)? {
             eprintln!(
                 "warning: state branch records close for {id} but no `[{id}]` tag reachable from main"
@@ -89,6 +103,20 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Resolve the remote the `balls/tasks` branch negotiates against.
+/// Falls back to the code remote (`code_remote`) on an unset
+/// `state_remote` *or* a config that won't load — sync stays resilient
+/// to a corrupt `.balls/config.json` the same way the plugin leg does
+/// (it warns, it doesn't abort), so a config a hub can't be read from
+/// degrades to single-repo behavior rather than failing the command.
+fn resolve_state_remote(store: &Store, code_remote: &str) -> String {
+    let Ok(cfg) = store.load_config() else {
+        return code_remote.to_string();
+    };
+    let local = policy::LocalConfig::load(store).ok().flatten();
+    policy::state_remote_opt(&cfg, local.as_ref()).unwrap_or_else(|| code_remote.to_string())
 }
 
 /// Fetch + merge + push a single branch in `dir`. Retries once on push
@@ -219,77 +247,3 @@ fn notify_claim_policy(store: &Store) {
     );
     policy::notify_repo_default_once(store, resolved);
 }
-
-pub fn cmd_repair(
-    fix: bool,
-    forget_half_push: Vec<String>,
-    forget_all_half_pushes: bool,
-) -> Result<()> {
-    let store = discover()?;
-
-    // Forget actions run first: they're surgical and only touch the
-    // state branch. They don't depend on, or interact with, the
-    // task-file scan or orphan-cleanup paths below.
-    if !forget_half_push.is_empty() || forget_all_half_pushes {
-        if store.no_git || store.stealth {
-            return Err(BallError::Other(
-                "--forget-half-push requires a non-stealth git-backed repo".into(),
-            ));
-        }
-        let flagged = detect_half_push(&store)?;
-        let targets: Vec<String> = if forget_all_half_pushes {
-            flagged.clone()
-        } else {
-            for id in &forget_half_push {
-                if !flagged.contains(id) {
-                    return Err(BallError::Other(format!(
-                        "{id} is not a currently-flagged half-push; nothing to forget"
-                    )));
-                }
-            }
-            forget_half_push.clone()
-        };
-        if targets.is_empty() {
-            println!("No half-push warnings to forget.");
-        } else {
-            write_forget_half_push(&store, &targets)?;
-            for id in &targets {
-                println!("forgot half-push: {id}");
-            }
-        }
-        return Ok(());
-    }
-
-    let dir = store.tasks_dir();
-    let mut bad = Vec::new();
-    if dir.exists() {
-        for e in fs::read_dir(&dir)? {
-            let e = e?;
-            let p = e.path();
-            if p.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            if let Err(err) = Task::load(&p) {
-                bad.push((p, err.to_string()));
-            }
-        }
-    }
-    if bad.is_empty() {
-        println!("All task files OK.");
-    } else {
-        for (p, e) in &bad {
-            println!("BAD: {} - {}", p.display(), e);
-        }
-    }
-    if fix && !store.no_git {
-        let (rc, rw) = worktree::cleanup_orphans(&store)?;
-        for id in &rc {
-            println!("removed orphan claim: {id}");
-        }
-        for id in &rw {
-            println!("removed orphan worktree: {id}");
-        }
-    }
-    Ok(())
-}
-
