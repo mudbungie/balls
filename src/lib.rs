@@ -46,6 +46,7 @@ pub mod render_show_text;
 pub mod resolve;
 pub mod review;
 pub mod review_safety;
+pub mod sanitize;
 pub mod store;
 mod store_init;
 mod store_paths;

@@ -13,6 +13,7 @@
 
 use crate::display::Display;
 use crate::progress;
+use crate::sanitize;
 use crate::task::{Status, Task};
 use std::collections::HashSet;
 use std::fmt::Write;
@@ -133,7 +134,7 @@ fn format_row(t: &Task, depth: usize, ctx: &Ctx<'_>) -> String {
     let tags = if t.tags.is_empty() {
         String::new()
     } else {
-        t.tags.join(", ")
+        sanitize::inline(&t.tags.join(", "))
     };
     let title = epic_title(t, ctx);
     fit(&prefix_styled, &title, &tags, ctx.columns)
@@ -143,11 +144,12 @@ fn format_row(t: &Task, depth: usize, ctx: &Ctx<'_>) -> String {
 /// progress bar so the epic row scans as a container at a glance.
 /// Other types render bare titles.
 fn epic_title(t: &Task, ctx: &Ctx<'_>) -> String {
+    let title = sanitize::inline(&t.title);
     if !t.task_type.is_epic() {
-        return t.title.clone();
+        return title;
     }
     let (closed, total) = progress::counts(ctx.all, &t.id);
-    format!("{}  [epic]  {}", t.title, progress::summary(closed, total, ctx.d))
+    format!("{title}  [epic]  {}", progress::summary(closed, total, ctx.d))
 }
 
 fn fit(prefix_styled: &str, title: &str, tags: &str, columns: usize) -> String {
