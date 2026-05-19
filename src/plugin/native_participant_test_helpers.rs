@@ -58,6 +58,7 @@ pub(crate) fn describe_for(events: &[Event]) -> DescribeResponse {
             ..ProjectionWire::default()
         },
         retry_budget: None,
+        wants_context: false,
     }
 }
 
@@ -73,6 +74,7 @@ impl<'a> NativeProtocol<'a> {
         Self {
             plugin, name, event, task: Box::new(task),
             accepted: None, pending_conflict: None, retry_budget,
+            wants_context: false, identity: String::new(),
         }
     }
     pub(crate) fn __test_record_ok(&mut self, ok: ProposeOk) { self.accepted = Some(ok); }

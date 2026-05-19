@@ -101,14 +101,26 @@ impl Plugin {
     /// converts that into `AttemptClass::Other`. A successful
     /// `ProposeResponse` may carry either an `ok` or `conflict`
     /// branch; both are handed back unchanged.
-    pub fn propose(&self, event: Event, task: &Task) -> Result<Option<ProposeResponse>> {
+    pub fn propose(
+        &self,
+        event: Event,
+        task: &Task,
+        ctx_json: Option<&str>,
+    ) -> Result<Option<ProposeResponse>> {
         let json = serde_json::to_string(task)?;
         let event_name = event_subcommand_arg(event);
-        let outcome = self.spawn_and_run(
-            "propose",
-            &[("--event", event_name)],
-            json.as_bytes(),
-        )?;
+        // SPEC §5.1: only a context-aware plugin gets `--ctx-file`.
+        // `_ctx` outlives `spawn_and_run` and RAII-removes the file
+        // once the child has exited and read it.
+        let ctx = match ctx_json {
+            Some(j) => Some(super::ctx::CtxFile::new(j)?),
+            None => None,
+        };
+        let mut flags: Vec<(&str, &str)> = vec![("--event", event_name)];
+        if let Some(cf) = &ctx {
+            flags.push(("--ctx-file", cf.path_str()));
+        }
+        let outcome = self.spawn_and_run("propose", &flags, json.as_bytes())?;
         Ok(self.parse_outcome::<ProposeResponse>("propose", outcome))
     }
 
@@ -228,7 +240,7 @@ impl Plugin {
 /// Map an `Event` to the lowercase wire name a native plugin
 /// receives via `--event`. Stable identifier — same as the serde
 /// rename used on the JSON-side `Event` enum.
-fn event_subcommand_arg(event: Event) -> &'static str {
+pub(crate) fn event_subcommand_arg(event: Event) -> &'static str {
     match event {
         Event::Claim => "claim",
         Event::Review => "review",

@@ -216,3 +216,39 @@ fn commit_policy_wire_round_trips_each_variant() {
         assert_eq!(wire.into_policy(), expected);
     }
 }
+
+// SPEC §5.1: `wants_context` is additive and defaults false — an old
+// plugin that never emits it is byte-identical (no side channel).
+#[test]
+fn describe_wants_context_defaults_false_and_parses_true() {
+    let off: DescribeResponse =
+        serde_json::from_str(r#"{ "projection": {} }"#).unwrap();
+    assert!(!off.wants_context);
+    let on: DescribeResponse =
+        serde_json::from_str(r#"{ "projection": {}, "wants_context": true }"#)
+            .unwrap();
+    assert!(on.wants_context);
+}
+
+// SPEC §5.1: the v1 wire shape. schema_version is pinned; repo rides
+// only when known; overrides is an explicit (currently empty) list.
+#[test]
+fn event_ctx_wire_serializes_v1_shape() {
+    let json =
+        EventCtxWire::for_event("review", "alice", Some("git@h:p.git".into()))
+            .unwrap();
+    let v: Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(v["schema_version"], EVENT_CTX_SCHEMA_VERSION);
+    assert_eq!(v["event"], "review");
+    assert_eq!(v["actor"], "alice");
+    assert_eq!(v["repo"], "git@h:p.git");
+    assert_eq!(v["overrides"], serde_json::json!([]));
+}
+
+#[test]
+fn event_ctx_wire_omits_repo_when_absent() {
+    let json = EventCtxWire::for_event("create", "bob", None).unwrap();
+    let v: Value = serde_json::from_str(&json).unwrap();
+    assert!(v.get("repo").is_none(), "absent repo must be omitted: {v}");
+    assert_eq!(v["actor"], "bob");
+}
