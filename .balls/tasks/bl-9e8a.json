@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T17:42:07.210971408Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "WHY: The bare central hub is the *recommended* production deployment, yet bl init cannot create one. Store::init resolves the repo root via git::git_root -> `git rev-parse --show-toplevel`, which a bare repo has no answer for; the NotARepo arm only falls back to no-git mode when --tasks-dir is set, and even then setup_state_branch/commit_init write files and `git commit` at the working-tree root, impossible at a bare root. Discovery is bare-aware (bl-8cf7); creation is not. Net: the recommended topology has no `bl` on-ramp — bl-41ee had to document a hand sequence (clone+init a throwaway working tree -> push -> git clone --bare into <hub>/.git -> reconstruct the loose store + state worktree + symlink + materialize main-tracked config.json).\\n\\nSCOPE: Add a first-class bare-hub bootstrap to the tool, e.g. `bl init --bare <hubdir>` (or `bl hub init`): given a hub dir and a source remote that already has balls/tasks, perform steps 2-3 of the README 'Bootstrapping a bare hub from scratch' subsection mechanically — bare-clone into <hubdir>/.git, set the remote-tracking refspec, fetch, add the state worktree, create the .balls/tasks symlink and .balls/local scaffolding, and materialize .balls/config.json from main's tree. Idempotent/self-healing like the working-tree bl init. Keep the documented by-hand sequence valid (SPEC principle: standard tools suffice) — this is a convenience wrapper over it, not a replacement. Update README + SPEC §10 (bl init responsibilities) once it lands.\\n\\nFollows bl-41ee (which documented the manual path and filed this rather than papering the gap over with manual-only instructions).",
+  "external": {},
+  "id": "bl-9e8a",
+  "links": [],
+  "parent": "bl-41ee",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["bare-repo","init"],
+  "title": "bl init: no bare-hub path; recommended deployment is manual-only",
+  "type": "bug",
+  "updated_at": "2026-05-19T17:42:07.210971408Z"
+}
