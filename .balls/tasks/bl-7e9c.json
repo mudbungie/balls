@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-7e9c",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T06:10:51.341825894Z",
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Document bare core repo as an alternative to the local pre-commit hook",
   "type": "docs",
-  "updated_at": "2026-05-19T06:10:51.341825894Z"
+  "updated_at": "2026-05-19T06:10:55.056198072Z"
 }
