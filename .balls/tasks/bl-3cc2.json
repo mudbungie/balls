@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T07:12:46.884903221Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "SPEC §7.3 / conformance §14.8. In deferred mode, rejecting a parent via `bl update <id> status=in_progress` must additionally close the auto-opened forge-gate child in the same state-branch commit (or refuse if it cannot be closed atomically). Invariant: a task is in_progress iff no open gate child exists. bl-b017 [bl-b017] delivered the forward review path only; its acceptance list does not cover reject, so the gate child is currently orphaned (left open) on a deferred-mode rejection, and the parent keeps a dangling gates link. WHY tracked separately: bl-b017 was scoped to 'push branch, auto-open gate'; the reject leg is a distinct primitive and was deliberately not in its acceptance. The work branch on origin is left alone on reject (operator/forge closes the PR if abandoning).",
+  "external": {},
+  "id": "bl-3cc2",
+  "links": [],
+  "parent": "bl-00ca",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["delivery","forge-gated","lifecycle"],
+  "title": "Deferred-mode reject path: close gate child atomically",
+  "type": "task",
+  "updated_at": "2026-05-19T07:12:46.884903221Z"
+}
