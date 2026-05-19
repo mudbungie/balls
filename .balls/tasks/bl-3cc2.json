@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-3cc2",
+  "claimed_by": "Redeeming",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T07:12:46.884903221Z",
@@ -13,9 +13,9 @@
   "parent": "bl-00ca",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": ["delivery","forge-gated","lifecycle"],
   "title": "Deferred-mode reject path: close gate child atomically",
   "type": "task",
-  "updated_at": "2026-05-19T07:12:46.898087324Z"
+  "updated_at": "2026-05-19T07:55:14.258125988Z"
 }
