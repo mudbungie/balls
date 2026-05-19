@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T06:14:35.960030156Z",
-  "delivered_in": null,
+  "delivered_in": "096e19223a375364c2358441ab67c6b42b43d676",
   "depends_on": [],
   "description": "Closed tasks are git-rm'd from the balls/tasks orphan branch at close (Store::close_and_archive). They survive only in that branch's HISTORY, so today there is NO way to view a closed task: bl show <id> hits TaskNotFound (load_task reads the state-branch HEAD checkout), and bl list --all is a DEAD flag (it filters status!=Closed off an on-disk scan, but closed task files are off-disk).\n\nWHY: 'closed is recoverable via git' is stated in the skill/README as a property of the design, but nothing in bl actually exercises it. A task tracker you can't ask 'what did we already do / show me bl-xxxx that we closed' is half a tracker. Both user-requested surfaces (single closed task; closed-only list; open+closed combined) reduce to the same archaeology, so they MUST share one core — no redundant git-log walkers.\n\nKEY SUBTLETY: close_and_archive never re-saves the task before git-rm, so the archived blob is the task in its PRE-close (review) state. Authoritative closed facts live in the deletion commit, not the file: subject 'state: close <id> - <title>' or 'balls: close <id> - <title>' (+ body = close/reviewer message), commit date ~= closed_at. Reconstruction overlays status=Closed + closed_at + close-note from the commit onto the parsed blob.\n\nDESIGN:\n- New src/archive_recovery.rs (+ archive_recovery_tests.rs), <=300 lines each. Runs in store.state_worktree_dir() on branch balls/tasks.\n  * recover_one(store,id) -> Option<RecoveredTask>: git log -1 --diff-filter=D for .balls/tasks/<id>.json; blob = git show <D>^:path; parse Task; overlay from commit.\n  * recover_all(store) -> Vec<RecoveredTask>: git log --diff-filter=D --name-only over .balls/tasks/, newest deletion per id wins, skip .notes.jsonl.\n  * Stealth/no_git: return empty + caller prints clear 'recovery needs the git state branch' notice (non-fatal).\n- bl show: cmd_show falls back to archive_recovery::recover_one on TaskNotFound, then existing render_show::render path (delivery::resolve unaffected — [bl-id] tag is permanent on main). NO new flag (fixes existing help-text promise; elegance: no redundant path).\n- bl list: add --closed (closed only) to CLI; make existing --all mean open+closed together (live tasks + reconstructed closed, de-duped, stable sort). --json for both. cmd_list + cli.rs + main.rs dispatch.\n\nACCEPTANCE:\n- bl show <closed id> renders the task with status closed, closed-at from the deletion commit, close message, and resolved delivered: sha. Unknown id still errors cleanly.\n- bl list --closed lists every archived task (oldest->newest), --json shaped like bl list --json.\n- bl list --all = open + closed merged, no dupes; default bl list unchanged.\n- Stealth/no-git: graceful 'unavailable' message, no panic, exit 0 for list / clean error for show.\n- 100% coverage incl. recreate+reclose (newest deletion wins), no-parent task, stealth path. All files <=300 lines. Full test suite green at merge.\n\nBC: no Task schema change; no new Status; recovery is read-only git plumbing. Old bl unaffected.",
   "external": {},
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "tags": [],
   "title": "Surface closed/archived tasks: bl show <id> history fallback + bl list --closed/--all",
   "type": "task",
-  "updated_at": "2026-05-19T06:14:41.449206722Z"
+  "updated_at": "2026-05-19T06:31:38.680233310Z"
 }
