@@ -136,6 +136,23 @@ pub fn git_push(dir: &Path, remote: &str, branch: &str) -> Result<()> {
     Ok(())
 }
 
+/// `git clone --bare <source> <gitdir>`. Runs from `gitdir`'s parent
+/// (created if absent) so the bare gitdir lands at exactly that path,
+/// e.g. `<hub>/.git`. Used by the `bl init --bare` hub bootstrap.
+pub fn git_clone_bare(source: &str, gitdir: &Path) -> Result<()> {
+    let parent = gitdir.parent().unwrap_or(gitdir);
+    std::fs::create_dir_all(parent)?;
+    run_git_ok(parent, &["clone", "--bare", source, &gitdir.to_string_lossy()])?;
+    Ok(())
+}
+
+/// `git config <key> <value>` in `dir`'s repo. Idempotent: re-setting
+/// the same key overwrites with the same value.
+pub fn git_config_set(dir: &Path, key: &str, value: &str) -> Result<()> {
+    run_git_ok(dir, &["config", key, value])?;
+    Ok(())
+}
+
 /// `git reset --hard <revspec>` — used by lifecycle rollback paths
 /// to undo a transition's local commits when a required participant
 /// rejected the negotiation.
