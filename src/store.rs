@@ -65,7 +65,7 @@ impl Store {
     }
 
     fn discover_git(from: &Path) -> Result<Self> {
-        git::git_root(from)?;
+        crate::store_paths::require_git_repo(from)?;
         let common_dir = git::git_common_dir(from)?;
         let main_root = find_main_root(&common_dir)?;
         if !main_root.join(".balls").exists() {
