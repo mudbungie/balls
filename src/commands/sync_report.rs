@@ -3,6 +3,7 @@
 //! Absorbs per-item failures: a malformed entry logs a warning and moves
 //! on rather than aborting the whole report.
 
+use super::sync_bounds;
 use balls::error::Result;
 use balls::plugin::SyncReport;
 use balls::store::{task_lock, Store};
@@ -11,7 +12,14 @@ use chrono::Utc;
 use serde_json::Value;
 
 pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) {
-    for item in &report.created {
+    let (created, dropped) = sync_bounds::clamp_creates(&report.created);
+    if dropped > 0 {
+        eprintln!(
+            "warning: sync-report from {plugin_name}: {dropped} create(s) over the {} flood backstop skipped this sync; raise BALLS_PLUGIN_MAX_SYNC_CREATES if a real store is genuinely this large",
+            sync_bounds::max_sync_creates()
+        );
+    }
+    for item in created {
         warn_on_err("create", apply_created(store, plugin_name, item));
     }
     for item in &report.updated {
@@ -34,6 +42,19 @@ fn warn_on_err(what: &str, result: Result<()>) {
     }
 }
 
+/// Truncate a synced free-text field in place to the per-field
+/// backstop, warning (not failing) if it bit. The whole point is
+/// graceful degradation: a pathological multi-hundred-MiB title is
+/// clipped with a visible marker and the sync still applies — it is
+/// never the reason a real payload's sibling fields get dropped.
+fn bound(plugin: &str, what: &str, field: &str, s: &mut String) {
+    if let Some(orig) = sync_bounds::truncate_field(s) {
+        eprintln!(
+            "warning: sync {what} from {plugin}: {field} field was {orig} bytes, truncated to the ingest backstop (raise BALLS_PLUGIN_MAX_SYNC_FIELD_BYTES if this was a real payload)"
+        );
+    }
+}
+
 fn apply_created(
     store: &Store,
     plugin_name: &str,
@@ -42,16 +63,20 @@ fn apply_created(
     let task_type = TaskType::parse(&item.task_type).unwrap_or_else(|_| TaskType::task());
     let priority = item.priority.clamp(1, 4);
     let status = Status::parse(&item.status).unwrap_or(Status::Open);
+    let mut title = item.title.clone();
+    let mut description = item.description.clone();
+    bound(plugin_name, "create", "title", &mut title);
+    bound(plugin_name, "create", "description", &mut description);
     let opts = NewTaskOpts {
-        title: item.title.clone(),
+        title: title.clone(),
         task_type,
         priority,
         parent: None,
         depends_on: Vec::new(),
-        description: item.description.clone(),
+        description,
         tags: item.tags.clone(),
     };
-    let id = balls::task_id::generate_task_id(store, &item.title)?;
+    let id = balls::task_id::generate_task_id(store, &title)?;
     let mut task = Task::new(opts, id.clone());
     task.status = status;
     task.external
@@ -76,8 +101,9 @@ fn apply_updated(
         );
         return Ok(());
     };
+    let what = format!("update {}", item.task_id);
     for (field, value) in &item.fields {
-        apply_field_update(&mut task, field, value);
+        apply_field_update(plugin_name, &what, &mut task, field, value);
     }
     if !item.external.is_empty() {
         task.external
@@ -87,8 +113,10 @@ fn apply_updated(
     task.touch();
     store.save_task(&task)?;
     if let Some(note) = &item.add_note {
+        let mut note = note.clone();
+        bound(plugin_name, &what, "note", &mut note);
         let task_path = store.task_path(&item.task_id)?;
-        balls::task_io::append_note_to(&task_path, plugin_name, note)?;
+        balls::task_io::append_note_to(&task_path, plugin_name, &note)?;
     }
     store.commit_task(
         &item.task_id,
@@ -97,11 +125,13 @@ fn apply_updated(
     Ok(())
 }
 
-fn apply_field_update(task: &mut Task, field: &str, value: &Value) {
+fn apply_field_update(plugin: &str, what: &str, task: &mut Task, field: &str, value: &Value) {
     match field {
         "title" => {
             if let Some(s) = value.as_str() {
-                task.title = s.to_string();
+                let mut t = s.to_string();
+                bound(plugin, what, "title", &mut t);
+                task.title = t;
             }
         }
         "priority" => {
@@ -118,7 +148,9 @@ fn apply_field_update(task: &mut Task, field: &str, value: &Value) {
         }
         "description" => {
             if let Some(s) = value.as_str() {
-                task.description = s.to_string();
+                let mut d = s.to_string();
+                bound(plugin, what, "description", &mut d);
+                task.description = d;
             }
         }
         _ => {}

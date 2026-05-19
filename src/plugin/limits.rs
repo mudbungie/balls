@@ -2,8 +2,10 @@
 //! subprocesses. Enforces:
 //!
 //! - Max stdout/stderr buffered: `BALLS_PLUGIN_MAX_STREAM_BYTES` or
-//!   1 MiB by default. Reader threads keep draining past the cap so
-//!   the plugin never blocks on a full pipe.
+//!   1 MiB by default, hard-bounded by the `BALLS_PLUGIN_ABS_MAX_
+//!   STREAM_BYTES` backstop (64 MiB) so a raised stream cap can never
+//!   disable memory protection. Reader threads keep draining past the
+//!   cap so the plugin never blocks on a full pipe.
 //! - Wall-clock cap on the whole invocation:
 //!   `BALLS_PLUGIN_TIMEOUT_SECS` or 30s by default. On timeout, the
 //!   child's entire process group is SIGKILL'd — a plugin is
@@ -17,6 +19,7 @@ use std::process::{Child, ExitStatus};
 use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_STREAM_BYTES: usize = 1024 * 1024;
+const DEFAULT_ABS_MAX_STREAM_BYTES: usize = 64 * 1024 * 1024;
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 
@@ -25,6 +28,33 @@ pub fn max_stream_bytes() -> usize {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_MAX_STREAM_BYTES)
+}
+
+/// Absolute hard ceiling on bytes buffered from one plugin stream,
+/// independent of `BALLS_PLUGIN_MAX_STREAM_BYTES` and *never* lifted
+/// by raising it. Defaults to 64 MiB — orders of magnitude above any
+/// real sync payload — and exists for exactly one reason: loosening
+/// the per-stream cap for a legitimately large sync must not also
+/// turn into "a plugin may now stream the process to death".
+/// Overridable via `BALLS_PLUGIN_ABS_MAX_STREAM_BYTES` for the rare
+/// genuinely enormous store; the discard warning names the knob so an
+/// operator who hits it knows the (generous) way out.
+pub fn abs_max_stream_bytes() -> usize {
+    std::env::var("BALLS_PLUGIN_ABS_MAX_STREAM_BYTES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_ABS_MAX_STREAM_BYTES)
+}
+
+/// The cap actually enforced on a drained stream: the smaller of the
+/// configured per-stream cap and the absolute backstop. With the
+/// default config this is exactly `max_stream_bytes()` (1 MiB ≤ 64
+/// MiB), so behavior is byte-identical to before the backstop
+/// existed; it only diverges once `BALLS_PLUGIN_MAX_STREAM_BYTES` has
+/// been raised past the backstop — precisely the case we refuse to
+/// let disable all protection.
+pub fn effective_stream_cap() -> usize {
+    max_stream_bytes().min(abs_max_stream_bytes())
 }
 
 pub fn timeout() -> Duration {
@@ -68,7 +98,7 @@ pub fn run_with_limits(
         });
     }
 
-    let cap = max_stream_bytes();
+    let cap = effective_stream_cap();
     let stdout = child.stdout.take().expect("stdout piped");
     let stderr = child.stderr.take().expect("stderr piped");
     let stdout_thread = std::thread::spawn(move || drain_capped(stdout, cap));
