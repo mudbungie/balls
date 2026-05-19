@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T05:54:48.151566405Z",
-  "delivered_in": null,
+  "delivered_in": "f516badd31e8e6963d6a8ecee6aceaf3c77332bb",
   "depends_on": [],
   "description": "KNOWN LIMITATION introduced as a scope decision in bl-c0c6 (state_remote). cmd_sync_run (src/commands/sync.rs) gates ALL of sync_with_remote — including the state-branch leg — behind git_has_remote(&store.root, <code remote, default origin>). So a hub-linked client that has a reachable state_remote but NO code 'origin' remote (a repo with code but no code remote, only a task hub) silently skips syncing balls/tasks on a plain 'bl sync'.\n\nNot data-losing and narrow: bl claim/review/close with require_remote_on_* and bl remaster already round-trip the state branch against state_remote regardless (claim_sync uses policy::state_remote_opt). The recommended hub topology has both an origin and a hub remote, so the common path is unaffected and byte-identical. Only the standalone 'bl sync' in the code-remote-absent topology is affected.\n\nFIX: decouple the two legs' gating in cmd_sync_run/sync_with_remote — gate the state-branch leg on the resolved state_remote existing (git_has_remote(root, state_remote)) and the main leg on the code remote, instead of one outer code-remote gate. Must stay byte-identical when state_remote is unset/==origin (conformance: every git invocation unchanged for a single-repo setup; mirror the bl-c0c6 state_remote.rs tests). Add an integration test: hub-only client (no origin) → bl sync pushes balls/tasks to the hub.",
   "external": {},
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "tags": ["multi-repo","delivery"],
   "title": "bl sync: sync the state branch even when the code remote is absent",
   "type": "bug",
-  "updated_at": "2026-05-19T06:28:24.980986073Z"
+  "updated_at": "2026-05-19T06:45:04.747242173Z"
 }
