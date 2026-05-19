@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:04:15.886297621Z",
-  "delivered_in": null,
+  "delivered_in": "70ae15fbb60304aa4d12e75a395225f107ad0a02",
   "depends_on": ["bl-0c99"],
   "description": "Implement delivery.mode=\"deferred\" in .balls/config.json. When set, bl review on a task:\n1. Commits uncommitted worktree changes (unchanged from today).\n2. Pushes work/bl-xxxx to origin (the configured remote).\n3. Auto-creates a child gate task — \"Forge: PR merged for bl-xxxx\" — and links the parent via `bl link add <parent> gates <child>`. The link type \"gates\" already exists and is enforced on close.\n4. Flips status to review on the state branch.\n5. Does NOT squash-merge into target_branch. Does NOT set delivered_in. Does NOT touch the integration branch at all.\n6. Prints a PR title hint that includes [bl-xxxx] so the operator (human or forge plugin) preserves the delivery tag in the forge-produced commit.\n\nWHY: external review needs the work branch alive on origin and the integration branch untouched until the forge produces the merge commit. The auto-gate is what makes this BC-safe: old bl clients refuse to close a task with an open gates link, so even an old client that never heard of deferred mode cannot tear down the worktree mid-review. This reuses an existing primitive instead of inventing a new lifecycle state.\n\nThe auto-gate child should carry a tag (e.g. \"forge-gate\") so it is filterable in bl ready and bl list. It should NOT be claimable in the normal sense — closing it is the forge plugin's job (or a human running bl close on it after merging the PR by hand). We rely on the existing \"do not claim a task that is the target of an open gates link\" guidance in SKILL.md to keep agents off it.\n\nACCEPTANCE:\n- mode=local-squash (default): all existing tests pass; behavior bit-identical to today.\n- mode=deferred: bl review pushes work branch, creates gate child, sets status=review, leaves target_branch untouched.\n- bl close on the parent fails with the existing gates-blocked error until the gate child closes.\n- bl close on the gate child carries the forge merge SHA in its message (or via --delivered flag on the gate close), so the parent's subsequent close can opportunistically resolve delivered_in.\n- Old bl client running bl close on a deferred-mode parent is correctly refused by the gates check (no special code in the old client — this is the BC win).",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-00ca",
   "priority": 1,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["delivery","forge-gated","lifecycle"],
   "title": "Deferred-squash review mode: push branch, auto-open gate",
   "type": "task",
-  "updated_at": "2026-05-19T06:52:41.317599923Z"
+  "updated_at": "2026-05-19T07:13:14.537114134Z"
 }
