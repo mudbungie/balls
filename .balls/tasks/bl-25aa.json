@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:04:49.138166789Z",
-  "delivered_in": null,
+  "delivered_in": "f9096306799b09d261c1789dc779e4cc6f6ab512",
   "depends_on": ["bl-b017","bl-87ea"],
   "description": "Implement balls-plugin-github as a separate binary using the existing plugin protocol (README §Plugin System). Commands:\n\n- auth-setup: prompt for GitHub token (PAT or fine-grained), validate against GET /user, write to .balls/local/plugins/github/token.json.\n- auth-check: re-validate token, exit 0/1.\n- push --task ID: for a task in status=review under delivery.mode=deferred — open or update the PR for work/bl-xxxx against the configured target_branch. PR title includes [bl-xxxx]. Store pull_request: { number, url, head_sha, target_branch } in task.external.github.\n- sync [--task ID]: for each deferred-mode task in review with task.external.github.pull_request set, poll PR state via GitHub API. When state=merged, return an \"updated\" entry that closes the gate child (the one auto-opened by bl review in deferred mode), carrying the merge_commit_sha in the add_note field. Core processes this through the normal sync-report path; the gate child closes; the parent's bl close becomes unblocked.\n\nWHY: the lifecycle hooks landed by the deferred-squash and close-resolution balls work without any forge plugin — humans can drive it manually by closing the gate child themselves after merging the PR via the GitHub UI. The plugin automates the close-the-gate step so agents don't have to babysit forge state, and centralizes [bl-xxxx]-tag enforcement on PR title.\n\nAuth and API specifics stay entirely in the plugin per balls's principle \"plugins extend, core stays small\" (README §Principles).\n\nOut of scope for this ball:\n- GitLab/Bitbucket — separate balls if there's demand. The lifecycle work is forge-agnostic; only the plugin is GitHub-specific.\n- Automating the initial PR open. The plugin can support it (push --task), but agents may also use gh pr create directly; both paths are valid.\n\nACCEPTANCE:\n- Plugin binary balls-plugin-github passes auth-check against a valid PAT.\n- push --task on a deferred-mode review task opens a PR; task.external.github populated.\n- sync detects a merged PR and emits a sync-report that closes the gate child with the merge SHA in the note.\n- After plugin sync, the gate child is closed; bl close on the parent succeeds and resolves delivered_in via tag-scan.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "none",
   "priority": 2,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["forge-gated","plugin"],
   "title": "balls-plugin-github: forge-gated delivery automation",
   "type": "task",
-  "updated_at": "2026-05-19T18:03:09.499205012Z"
+  "updated_at": "2026-05-19T18:27:21.774131589Z"
 }
