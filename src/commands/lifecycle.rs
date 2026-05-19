@@ -32,7 +32,9 @@ pub fn cmd_claim(
         let path = worktree::create_worktree(&store, &id, &ident, claim_policy)?;
         let task = store.load_task(&id)?;
         if plugin::dispatch_push(&store, &task, Event::Claim, &ident).is_ok() {
-            let main_branch = store.load_config()?.integration_branch(&store.root)?;
+            let main_branch = store
+                .load_config()?
+                .integration_branch_for(&store.root, task.target_branch.as_deref())?;
             let _ = balls::git::git_merge(&path, &main_branch);
         }
         println!("{}", path.display());

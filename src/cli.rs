@@ -48,6 +48,12 @@ pub enum Command {
         /// Description
         #[arg(short = 'd', long, default_value = "")]
         description: String,
+        /// Integration branch this task's `bl review` squashes into,
+        /// overriding the repo-level `target_branch` and the
+        /// current-branch fallback (e.g. a hotfix targeting `main` in
+        /// a `develop`-default repo).
+        #[arg(long = "target-branch")]
+        target_branch: Option<String>,
     },
 
     /// List tasks.

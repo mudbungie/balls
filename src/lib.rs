@@ -64,6 +64,7 @@ pub mod task;
 pub mod task_id;
 pub mod task_io;
 pub mod task_type;
+pub mod task_validate;
 pub mod tree;
 #[cfg(test)]
 mod tree_test_support;
