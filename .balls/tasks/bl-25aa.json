@@ -10,11 +10,11 @@
   "external": {},
   "id": "bl-25aa",
   "links": [],
-  "parent": "none",
+  "parent": null,
   "priority": 2,
   "status": "open",
   "tags": ["forge-gated","plugin"],
   "title": "balls-plugin-github: forge-gated delivery automation",
   "type": "task",
-  "updated_at": "2026-05-19T18:30:48.399863578Z"
+  "updated_at": "2026-05-19T18:39:01.625609341Z"
 }
