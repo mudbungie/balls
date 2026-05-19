@@ -154,22 +154,8 @@ pub enum Command {
     /// Close a reviewed task: archive and remove worktree. Must run from repo root.
     Close {
         id: String,
-        /// Reviewer message, embedded in the state-branch close
-        /// commit body. Repeatable, like `git commit -m … -m …`:
-        /// each value becomes its own paragraph.
-        #[arg(short = 'm', long = "message")]
-        message: Vec<String>,
-        #[arg(long = "as")]
-        identity: Option<String>,
-        /// Force a remote round-trip on this close. Mirrors
-        /// `bl claim --sync`.
-        #[arg(long, conflicts_with = "no_sync")]
-        sync: bool,
-        /// Skip any configured remote round-trip on this close.
-        #[arg(long, conflicts_with = "sync")]
-        no_sync: bool,
         #[command(flatten)]
-        participant: ParticipantFlags,
+        args: CloseArgs,
     },
 
     /// Drop a claim: reset task and remove worktree.
@@ -296,4 +282,4 @@ pub enum Command {
     },
 }
 
-pub use crate::cli_sub::{DepCmd, LinkCmd, ParticipantFlags, ShellArg};
+pub use crate::cli_sub::{CloseArgs, DepCmd, LinkCmd, ParticipantFlags, ShellArg};

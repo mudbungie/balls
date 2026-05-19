@@ -29,6 +29,33 @@ impl ParticipantFlags {
     }
 }
 
+/// `bl close` arguments, split here so `cli.rs`'s `Command` enum stays
+/// under the 300-line cap (mirrors `CreateArgs`/`SyncArgs`). Flattened
+/// into `Command::Close`.
+#[derive(Args, Debug)]
+pub struct CloseArgs {
+    /// Reviewer message, embedded in the state-branch close commit
+    /// body. Repeatable, like `git commit -m … -m …`: each value
+    /// becomes its own paragraph.
+    #[arg(short = 'm', long = "message")]
+    pub message: Vec<String>,
+    #[arg(long = "as")]
+    pub identity: Option<String>,
+    /// Override the delivering commit instead of tag-scanning the
+    /// target branch (SPEC §6; bl-87ea). Use when the forge produced a
+    /// rebase-merge with several commits and you want a specific one.
+    #[arg(long = "delivered", value_name = "SHA")]
+    pub delivered: Option<String>,
+    /// Force a remote round-trip on this close. Mirrors `bl claim --sync`.
+    #[arg(long, conflicts_with = "no_sync")]
+    pub sync: bool,
+    /// Skip any configured remote round-trip on this close.
+    #[arg(long, conflicts_with = "sync")]
+    pub no_sync: bool,
+    #[command(flatten)]
+    pub participant: ParticipantFlags,
+}
+
 #[derive(Clone, Debug, ValueEnum)]
 pub enum ShellArg {
     Bash,
