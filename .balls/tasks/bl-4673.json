@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-19T06:50:10.668300377Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Second ingest prerequisite for the bidirectional GitHub-issues plugin (sanitizer bl-b807 was the first, delivered). Bidirectional sync makes SyncCreate/SyncUpdate title, description, tags, notes and the verbatim external map attacker-controlled, and they land as committed files on the balls/tasks branch.\n\nPHILOSOPHY — read before picking numbers: big text is fine. Large descriptions, long titles, many tags, fat external blobs are all legitimate and must pass through untouched. Tight content limits and charset policing are an explicit NON-GOAL: they are obnoxious, they break real data, and they are not what this is for. The ONLY thing we are defending against is pathological abuse — a denial-of-service or a multi-gig unbounded buffer that OOMs the process or wedges the repo. Everything here is a backstop set far above any plausible real payload, not a policy knob.\n\nPRIOR ART / don't double-impose: a 1 MiB per-invocation stdout cap already exists (BALLS_PLUGIN_MAX_STREAM_BYTES, src/plugin/limits.rs) and already prevents the acute multi-gig case for default configs. The residual gaps this ball closes are narrow:\n- Raising BALLS_PLUGIN_MAX_STREAM_BYTES for a legitimately large sync currently removes ALL protection — there should be a second, very generous absolute backstop (tens of MiB range) that a raised stream cap does not disable, so 'I needed a 4 MiB sync' never becomes 'a plugin can now stream me 8 GiB'.\n- A single pathological field (e.g. a multi-hundred-MiB title within a raised cap) should degrade gracefully: truncate with a visible marker + a diagnostic, never reject the whole sync and never buffer unboundedly.\n- Creates-per-sync flood: a sanity ceiling set in the thousands purely as a flood backstop, warn-not-fail, env-overridable and documented. Real repos must never hit it.\n- The external map rides the same overall-payload backstop; do NOT schema-police or size-police individual external slices beyond that.\n\nGENEROSITY IS THE DESIGN CONSTRAINT. Prefer truncate-and-warn over reject. Prefer a documented override on every ceiling. If a limit would plausibly bite a real GitHub repo's issues, it is too tight — raise it.\n\nTESTS: pathological inputs (oversized single field, flood of creates, BALLS_PLUGIN_MAX_STREAM_BYTES raised absurdly high) must not OOM/DoS and must degrade gracefully (truncate + diagnostic, sync still applies); generous-but-real payloads pass byte-unchanged. 100% coverage, clippy clean, files under 300 lines.",
+  "external": {},
+  "id": "bl-4673",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["security"],
+  "title": "Generous anti-DoS backstops on plugin sync ingest",
+  "type": "task",
+  "updated_at": "2026-05-19T06:50:10.668300377Z"
+}
