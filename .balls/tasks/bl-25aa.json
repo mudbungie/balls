@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-25aa",
+  "claimed_by": "Suffusing",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:04:49.138166789Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-00ca",
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["forge-gated","plugin"],
   "title": "balls-plugin-github: forge-gated delivery automation",
   "type": "task",
-  "updated_at": "2026-05-11T05:04:49.138166789Z"
+  "updated_at": "2026-05-19T17:57:44.016815250Z"
 }
