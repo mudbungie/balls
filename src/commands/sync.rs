@@ -7,7 +7,7 @@ use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::store::Store;
 use balls::task::{Status, Task};
-use balls::{git, plugin, policy, ready, resolve, sync_resolve, worktree};
+use balls::{git, plugin, policy, ready, resolve, sanitize, sync_resolve, worktree};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -192,14 +192,14 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
         println!(
             "Claimed (resume): {} \"{}\" @ {}{}",
             t.id,
-            t.title,
+            sanitize::inline(&t.title),
             wt_dir.display(),
             suffix,
         );
     }
     println!("Ready:");
     for t in &ready_tasks {
-        println!("  [P{}] {} \"{}\"", t.priority, t.id, t.title);
+        println!("  [P{}] {} \"{}\"", t.priority, t.id, sanitize::inline(&t.title));
     }
     println!("===");
     Ok(())

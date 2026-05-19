@@ -11,6 +11,7 @@ use crate::delivery::{self, Delivery};
 use crate::display::Display;
 use crate::progress;
 use crate::ready;
+use crate::sanitize;
 use crate::render_show_text::{format_time, wrap};
 use crate::task::{LinkType, Task};
 use chrono::{DateTime, Utc};
@@ -66,7 +67,7 @@ fn write_header(out: &mut String, t: &Task, ctx: &Ctx<'_>) {
         ctx.d.status_glyph(&t.status),
         ctx.d.status_word(&t.status),
         t.id,
-        t.title,
+        sanitize::inline(&t.title),
     );
 }
 
@@ -84,7 +85,7 @@ fn write_tags(out: &mut String, t: &Task) {
     if t.tags.is_empty() {
         return;
     }
-    let _ = writeln!(out, "  tags: {}", t.tags.join(", "));
+    let _ = writeln!(out, "  tags: {}", sanitize::inline(&t.tags.join(", ")));
 }
 
 fn write_relations(
@@ -189,7 +190,7 @@ fn write_parent(out: &mut String, t: &Task, all: &[Task]) {
     let title = all
         .iter()
         .find(|p| &p.id == pid)
-        .map_or(String::new(), |p| format!("  {}", p.title));
+        .map_or(String::new(), |p| format!("  {}", sanitize::inline(&p.title)));
     let _ = writeln!(out, "  parent:   {pid}{title}");
 }
 
@@ -200,10 +201,12 @@ fn write_children(out: &mut String, t: &Task, all: &[Task]) {
     }
     let _ = writeln!(out, "  children:");
     for k in &kids {
-        let _ = writeln!(out, "    {} [{}] {}", k.id, k.status.as_str(), k.title);
+        let s = sanitize::inline(&k.title);
+        let _ = writeln!(out, "    {} [{}] {}", k.id, k.status.as_str(), s);
     }
     for a in &t.closed_children {
-        let _ = writeln!(out, "    {} [archived] {}", a.id, a.title);
+        let s = sanitize::inline(&a.title);
+        let _ = writeln!(out, "    {} [archived] {}", a.id, s);
     }
     let _ = writeln!(
         out,
@@ -225,13 +228,13 @@ fn write_delivered(out: &mut String, delivery: &Delivery, repo_root: &Path) {
 
 fn write_branch(out: &mut String, t: &Task) {
     if let Some(b) = &t.branch {
-        let _ = writeln!(out, "  branch:   {b}");
+        let _ = writeln!(out, "  branch:   {}", sanitize::inline(b));
     }
 }
 
 fn write_repo(out: &mut String, t: &Task) {
     if let Some(r) = &t.repo {
-        let _ = writeln!(out, "  repo:     {r}");
+        let _ = writeln!(out, "  repo:     {}", sanitize::inline(r));
     }
 }
 
@@ -241,12 +244,12 @@ fn write_external(out: &mut String, t: &Task) {
         .iter()
         .filter_map(|(name, value)| {
             let obj = value.as_object()?;
-            let key = obj.get("remote_key").and_then(|v| v.as_str()).map(String::from);
-            let url = obj.get("remote_url").and_then(|v| v.as_str()).map(String::from);
+            let key = obj.get("remote_key").and_then(|v| v.as_str()).map(sanitize::inline);
+            let url = obj.get("remote_url").and_then(|v| v.as_str()).map(sanitize::inline);
             if key.is_none() && url.is_none() {
                 return None;
             }
-            Some((name.clone(), key, url))
+            Some((sanitize::inline(name), key, url))
         })
         .collect();
     if rows.is_empty() {
@@ -265,7 +268,7 @@ fn write_description(out: &mut String, t: &Task, columns: usize) {
     }
     out.push('\n');
     out.push_str("  description\n");
-    for line in wrap(&t.description, columns.saturating_sub(4).max(1)) {
+    for line in wrap(&sanitize::block(&t.description), columns.saturating_sub(4).max(1)) {
         let _ = writeln!(out, "    {line}");
     }
 }
@@ -278,7 +281,8 @@ fn write_notes(out: &mut String, t: &Task, ctx: &Ctx<'_>) {
     let _ = writeln!(out, "  notes ({})", t.notes.len());
     for n in &t.notes {
         let when = format_time(n.ts, ctx);
-        let _ = writeln!(out, "    {when}  {}  — {}", n.author, n.text);
+        let (au, tx) = (sanitize::inline(&n.author), sanitize::inline(&n.text));
+        let _ = writeln!(out, "    {when}  {au}  — {tx}");
     }
 }
 
