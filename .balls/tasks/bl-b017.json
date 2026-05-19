@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b017",
+  "claimed_by": "agent",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:04:15.886297621Z",
@@ -12,9 +12,9 @@
   "links": [],
   "parent": "bl-00ca",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "tags": ["delivery","forge-gated","lifecycle"],
   "title": "Deferred-squash review mode: push branch, auto-open gate",
   "type": "task",
-  "updated_at": "2026-05-11T05:04:15.886297621Z"
+  "updated_at": "2026-05-19T06:52:41.317599923Z"
 }
