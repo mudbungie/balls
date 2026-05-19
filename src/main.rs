@@ -168,6 +168,7 @@ fn main() {
         }),
         Command::Resolve { file } => commands::cmd_resolve(file),
         Command::Prime { identity, json } => commands::cmd_prime(identity, json),
+        Command::Doctor => commands::cmd_doctor(),
         Command::Repair {
             fix,
             forget_half_push,
