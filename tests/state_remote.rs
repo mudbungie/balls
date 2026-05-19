@@ -128,6 +128,56 @@ fn unset_state_remote_is_byte_identical_default() {
     );
 }
 
+/// True if the bare repo at `bare` has `<id>.json` committed on the
+/// state branch — i.e. the task itself reached the hub, not merely an
+/// empty `balls/tasks` ref.
+fn hub_has_task(bare: &Path, id: &str) -> bool {
+    git_ok(
+        bare,
+        &[
+            "cat-file",
+            "-e",
+            &format!("refs/heads/balls/tasks:.balls/tasks/{id}.json"),
+        ],
+    )
+}
+
+/// bl-88c7 regression: a hub-linked client with a reachable
+/// `state_remote` but NO code remote must still push `balls/tasks` on
+/// a plain `bl sync`. Before the per-leg gate split, the single
+/// code-remote gate fronting both legs skipped the state branch too.
+#[test]
+fn hub_only_client_with_no_code_remote_still_syncs_state_branch() {
+    let hub = new_bare_remote();
+
+    // A repo with code but no code remote — only a task hub.
+    let alice = new_repo();
+    git(
+        alice.path(),
+        &["remote", "add", "hub", &hub.path().to_string_lossy()],
+    );
+    seed_config(alice.path(), Some("hub"));
+    bl(alice.path()).arg("init").assert().success();
+    assert!(
+        !git_ok(alice.path(), &["remote", "get-url", "origin"]),
+        "precondition: this topology has no code `origin` remote"
+    );
+
+    let id = create_task(alice.path(), "hub-only task");
+    // The task is committed to the local state branch but not yet
+    // published — `bl create` does not round-trip the hub.
+    assert!(
+        !hub_has_task(hub.path(), &id),
+        "task must not reach the hub before sync"
+    );
+
+    bl(alice.path()).arg("sync").assert().success();
+    assert!(
+        hub_has_task(hub.path(), &id),
+        "bl sync must push balls/tasks to the hub even with no code remote"
+    );
+}
+
 /// `state_remote: "origin"` is explicitly the same as unset: the
 /// state branch still tracks the code remote.
 #[test]
