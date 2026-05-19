@@ -66,24 +66,43 @@ pub struct ProjectionWire {
 }
 
 /// Output of `balls-plugin-<name> propose --event <event>` — at most
-/// one of `ok` or `conflict` is populated. A plugin that returns
-/// neither (empty stdout, exit 0) is treated as `Other` — no
-/// recoverable conflict, no successful proposal.
+/// one of `ok`, `conflict`, or `reject` is populated. A plugin that
+/// returns none of them (empty stdout, exit 0) is treated as `Other`
+/// — no recoverable conflict, no successful proposal, no veto.
+///
+/// SPEC §8.1: the three branches are distinct and must not be
+/// conflated. `ok`/`conflict` carry Task state; `reject` carries a
+/// policy veto with a human reason and no state.
 ///
 /// SPEC §13 seam 2: any other top-level key (a variant this build
-/// does not know — e.g. an old `bl` meeting bl-2062's `reject`) lands
-/// in `extra` instead of being silently discarded. `classify` then
-/// degrades to `Other` and names the variant. Capturing rather than
-/// dropping is what keeps the rule symmetric with `Task::extra` and
-/// robust against a future `deny_unknown_fields`.
+/// does not know) lands in `extra` instead of being silently
+/// discarded. `classify` then degrades to `Other` and names the
+/// variant. Capturing rather than dropping is what keeps the rule
+/// symmetric with `Task::extra` and robust against a future
+/// `deny_unknown_fields`.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProposeResponse {
     #[serde(default)]
     pub ok: Option<ProposeOk>,
     #[serde(default)]
     pub conflict: Option<ProposeConflict>,
+    #[serde(default)]
+    pub reject: Option<ProposeReject>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+/// SPEC §8.1 — a deliberate policy veto. Carries a human reason and
+/// NO Task state. Distinct from `conflict` (recoverable field clash,
+/// retried) and `Other` (wire failure). The negotiation primitive
+/// maps it by the subscription's failure policy: required aborts the
+/// event with this reason; best-effort warns and continues; gating
+/// stages. `reason` defaults to empty so a terse `{"reject":{}}`
+/// still reads as a veto rather than failing the parse.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ProposeReject {
+    #[serde(default)]
+    pub reason: String,
 }
 
 /// Successful propose: the plugin returns a partial Task JSON

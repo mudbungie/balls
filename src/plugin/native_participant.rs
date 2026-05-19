@@ -189,29 +189,36 @@ fn classify(
     pending_conflict: &mut Option<ProposeConflict>,
     name: &str,
 ) -> AttemptClass {
-    let ProposeResponse { ok, conflict, extra } = resp;
-    match (ok, conflict) {
-        (Some(ok), _) => {
-            *accepted = Some(ok);
-            AttemptClass::Ok
-        }
-        (None, Some(conflict)) => {
-            *pending_conflict = Some(conflict);
-            AttemptClass::Conflict
-        }
-        // SPEC §13 seam 2: an unknown variant was captured in `extra`
-        // rather than dropped — degrade to `Other` and name it so the
-        // failure is diagnosable, not a mute "nothing returned".
-        (None, None) if !extra.is_empty() => {
-            let v = extra.keys().cloned().collect::<Vec<_>>().join(", ");
-            AttemptClass::Other(format!(
-                "plugin `{name}` propose returned unknown variant(s): {v}"
-            ))
-        }
-        (None, None) => AttemptClass::Other(format!(
-            "plugin `{name}` propose returned neither ok nor conflict"
-        )),
+    let ProposeResponse { ok, conflict, reject, extra } = resp;
+    // SPEC §8.1 precedence: a state-bearing accept/conflict wins; then
+    // an explicit veto; then an unknown variant; then nothing.
+    if let Some(ok) = ok {
+        *accepted = Some(ok);
+        return AttemptClass::Ok;
     }
+    if let Some(conflict) = conflict {
+        *pending_conflict = Some(conflict);
+        return AttemptClass::Conflict;
+    }
+    if let Some(reject) = reject {
+        // Distinct from Other: a deliberate veto carrying a reason.
+        return AttemptClass::Reject(format!(
+            "plugin `{name}` rejected: {}",
+            reject.reason
+        ));
+    }
+    // SPEC §13 seam 2: an unknown variant was captured in `extra`
+    // rather than dropped — degrade to `Other` and name it so the
+    // failure is diagnosable, not a mute "nothing returned".
+    if !extra.is_empty() {
+        let v = extra.keys().cloned().collect::<Vec<_>>().join(", ");
+        return AttemptClass::Other(format!(
+            "plugin `{name}` propose returned unknown variant(s): {v}"
+        ));
+    }
+    AttemptClass::Other(format!(
+        "plugin `{name}` propose returned neither ok nor conflict"
+    ))
 }
 
 impl Participant for NativePluginParticipant {
@@ -252,36 +259,6 @@ impl Participant for NativePluginParticipant {
             retry_budget: self.retry_budget,
         })
     }
-}
-
-/// Test-only constructor exposing private state of `NativeProtocol`
-/// so unit tests drive the in-process branches without spawning.
-#[cfg(test)]
-impl<'a> NativeProtocol<'a> {
-    pub(crate) fn __test_new(
-        plugin: &'a Plugin, name: &'a str, event: Event, task: Task, retry_budget: usize,
-    ) -> Self {
-        Self {
-            plugin, name, event, task: Box::new(task),
-            accepted: None, pending_conflict: None, retry_budget,
-        }
-    }
-    pub(crate) fn __test_record_ok(&mut self, ok: ProposeOk) { self.accepted = Some(ok); }
-    pub(crate) fn __test_record_conflict(&mut self, c: ProposeConflict) {
-        self.pending_conflict = Some(c);
-    }
-    pub(crate) fn __test_task_title(&self) -> String { self.task.title.clone() }
-    pub(crate) fn __test_has_pending_conflict(&self) -> bool {
-        self.pending_conflict.is_some()
-    }
-}
-
-#[cfg(test)]
-pub(crate) fn __test_classify(
-    resp: ProposeResponse, accepted: &mut Option<ProposeOk>,
-    pending_conflict: &mut Option<ProposeConflict>, name: &str,
-) -> AttemptClass {
-    classify(resp, accepted, pending_conflict, name)
 }
 
 #[cfg(test)]
