@@ -18,6 +18,7 @@ pub mod sync;
 mod sync_bounds;
 mod sync_report;
 mod sync_review;
+mod sync_targets;
 pub mod update;
 
 pub use basic::{cmd_create, cmd_init, cmd_list, cmd_show, CreateArgs};

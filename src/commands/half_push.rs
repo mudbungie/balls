@@ -35,19 +35,59 @@ pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
         .iter()
         .filter_map(|s| extract_state_id(s, "state: forget-half-push "))
         .collect();
-    let main_branch = store.load_config()?.integration_branch(&store.root)?;
-    let main_subjects = git_state::log_subjects(&store.root, &main_branch)?;
+    // Per-task deliveries (bl-d4b0) record their effective integration
+    // branch as a `target=<branch>` marker on the review subject; the
+    // `[bl-xxxx]` tag for those lives on that branch, not the repo
+    // level one. Newest review wins (state log is newest-first) so a
+    // re-review with a changed target is scanned on its latest branch.
+    // Absent marker ⇒ repo-level fallback, so a repo with no per-task
+    // overrides scans exactly one branch as before (byte-identical).
+    let mut targets: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for s in &state_subjects {
+        if let Some((id, branch)) = reviewed_target(s) {
+            targets.entry(id).or_insert(branch);
+        }
+    }
+    let repo_main = store.load_config()?.integration_branch(&store.root)?;
+    let repo_main_subjects = git_state::log_subjects(&store.root, &repo_main)?;
+    let mut extra: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     let mut missing = Vec::new();
     for subj in &state_subjects {
         let Some(id) = extract_state_id(subj, "state: close ") else { continue };
         if !reviewed.contains(&id) { continue; }
         if forgotten.contains(&id) { continue; }
         let tag = format!("[{id}]");
-        if !main_subjects.iter().any(|s| s.contains(&tag)) && !missing.contains(&id) {
+        let delivered = match targets.get(&id) {
+            Some(b) if *b != repo_main => extra
+                .entry(b.clone())
+                .or_insert_with(|| git_state::log_subjects(&store.root, b).unwrap_or_default())
+                .iter()
+                .any(|s| s.contains(&tag)),
+            _ => repo_main_subjects.iter().any(|s| s.contains(&tag)),
+        };
+        if !delivered && !missing.contains(&id) {
             missing.push(id);
         }
     }
     Ok(missing)
+}
+
+/// Extract `(id, branch)` from a `state: review <id> target=<branch>`
+/// subject (bl-f788). The marker is emitted only when the task
+/// delivered to a branch other than the repo-level integration branch,
+/// so a subject without it (every pre-bl-f788 commit, every default
+/// delivery) yields `None` and the caller falls back to the repo-level
+/// branch — today's single-branch behavior. `no-code` reviews never
+/// carry a target (nothing was delivered) and so also yield `None`.
+pub(super) fn reviewed_target(subject: &str) -> Option<(String, String)> {
+    let rest = subject.strip_prefix("state: review ")?;
+    let mut parts = rest.split_whitespace();
+    let id = parts.next()?;
+    if !id.starts_with("bl-") {
+        return None;
+    }
+    let branch = parts.find_map(|t| t.strip_prefix("target="))?;
+    (!branch.is_empty()).then(|| (id.to_string(), branch.to_string()))
 }
 
 /// Write a `state: forget-half-push <id>` marker commit on the state
@@ -87,7 +127,25 @@ fn delivered_review_id(subject: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{delivered_review_id, extract_state_id};
+    use super::{delivered_review_id, extract_state_id, reviewed_target};
+
+    #[test]
+    fn reviewed_target_extracts_marked_branch() {
+        assert_eq!(
+            reviewed_target("state: review bl-1234 target=develop"),
+            Some(("bl-1234".into(), "develop".into()))
+        );
+    }
+
+    #[test]
+    fn reviewed_target_none_without_marker() {
+        assert!(reviewed_target("state: review bl-1234").is_none());
+        assert!(reviewed_target("state: review bl-1234 no-code").is_none());
+        assert!(reviewed_target("state: close bl-1234").is_none());
+        assert!(reviewed_target("state: review custom target=x").is_none());
+        assert!(reviewed_target("state: review ").is_none());
+        assert!(reviewed_target("state: review bl-1234 target=").is_none());
+    }
 
     #[test]
     fn extract_state_id_handles_matching_prefix() {
