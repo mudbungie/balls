@@ -62,6 +62,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
 | `bl remaster TARGET` [`--commit`] / `bl remaster --detach` | Re-point this repo's `balls/tasks` at the git remote `TARGET` (a shared task hub) and reconcile local-only tasks onto it. Per-clone by default; `--commit` writes the project-wide `.balls/config.json`. `--detach` severs shared history and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
+| `bl doctor` | Read-only drift check. Reports the specific reason bl can't run here (or that it can but state has drifted) and names the command that fixes each. Never mutates — `repair` stays the only action verb. Run it when bl behaves unexpectedly or before trusting an unfamiliar repo. |
 
 > **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
 
@@ -315,3 +316,4 @@ Set `BALLS_IDENTITY` in your environment or use `--as` on commands that accept i
 | Orphaned claims/worktrees | `bl repair --fix` |
 | Stale `state branch records close for bl-xxxx...` warnings on `bl sync` (pre-0.3.8 gate closes, or abandoned deliveries) | `bl repair --forget-half-push <id>` per id, or `bl repair --forget-all-half-pushes` to retract every current one |
 | Lost context mid-task | `bl prime` shows your claimed tasks |
+| `bl` fails opaquely, or a repo's docs mention bl but commands error | `bl doctor` — read-only; names the exact cause and the fixing command |

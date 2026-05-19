@@ -228,6 +228,10 @@ pub enum Command {
         json: bool,
     },
 
+    /// Read-only health check: report repo/bl state drift and the
+    /// command that fixes each. Changes nothing.
+    Doctor,
+
     /// Scan and repair malformed task files and orphaned state.
     Repair {
         #[arg(long)]
