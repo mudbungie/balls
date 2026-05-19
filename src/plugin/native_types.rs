@@ -1,18 +1,15 @@
 //! Wire schemas for the native plugin protocol (SPEC §5, §8, §10).
 //!
-//! A plugin opts into native participation by shipping two extra
-//! subcommands: `describe` (returns the projection and event
-//! subscriptions) and `propose` (per-event negotiation step). Plugins
-//! that lack them stay on the legacy push/sync shim — see SPEC §12.
-//!
-//! Types here are deserialize-only: balls reads the plugin's stdout.
-//! The runner (`super::native_runner`) parses these shapes and the
-//! participant adapter (`super::native_participant`) converts them
-//! into the canonical `Projection` / `Event` / `CommitPolicy` types.
+//! A plugin opts in by shipping `describe` + `propose` subcommands;
+//! lacking them it stays on the legacy push/sync shim (SPEC §12).
+//! Most types are deserialize-only (balls reads plugin stdout);
+//! `EventCtxWire` is the one serialize-only shape — balls writes it
+//! to the §5.1 side channel.
 
 use crate::error::{BallError, Result};
 use crate::negotiation::CommitPolicy;
 use crate::participant::{Event, Field, Projection};
+use crate::task::Task;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -47,24 +44,17 @@ pub struct DescribeResponse {
 }
 
 /// Schema version for the `EventCtx` side channel. Bumped only on a
-/// breaking change; new *keys* are additive and do NOT bump it
-/// (SPEC §5.1 / §13: a context-aware plugin ignores keys it does not
-/// know).
+/// breaking change; new *keys* are additive and do NOT bump it (SPEC
+/// §5.1 / §13: a context-aware plugin ignores keys it doesn't know).
 pub const EVENT_CTX_SCHEMA_VERSION: u32 = 1;
 
 /// SPEC §5.1 — the `EventCtx` document delivered on the describe-gated
 /// side channel (`--ctx-file`). Serialize-only: `bl` writes it, the
-/// plugin reads it. The post-image Task still arrives unchanged on
-/// stdin; this answers "who, which event, which repo" that the
-/// post-image alone cannot.
-///
-/// Honest field set for v1: `task_before` (the pre-image diff basis)
-/// and `commit` (state-branch sha) are reserved additive keys — they
-/// land when their upstream wiring does (command-side pre-image
-/// threading; sha plumbing), exactly as the schema's additive
-/// contract intends. `overrides` is present and accurate: it is
-/// empty until the CLI `--skip`/`--no-sync` surface is wired
-/// (bl-2bf7), not a stub.
+/// plugin reads it; the post-image Task still arrives unchanged on
+/// stdin. `task_before` (the pre-image diff basis) and `commit` (the
+/// state-branch sha of this event) are the reserved additive keys
+/// bl-fb4d wires from the command side; both skip-serialize when
+/// absent so an old context-aware plugin is unaffected (SPEC §13).
 #[derive(Debug, Clone, Serialize)]
 pub struct EventCtxWire {
     pub schema_version: u32,
@@ -73,18 +63,36 @@ pub struct EventCtxWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
     pub overrides: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_before: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
 }
 
 impl EventCtxWire {
-    /// Build the v1 EventCtx JSON for one event. `overrides` is empty
-    /// until the CLI override surface is wired (bl-2bf7).
-    pub fn for_event(event: &str, actor: &str, repo: Option<String>) -> Result<String> {
+    /// Build the v1 EventCtx JSON for one event. `task_before` is
+    /// serialized as the prior Task projection; `overrides` carries
+    /// the per-invocation tokens that applied (SPEC §11).
+    pub fn for_event(
+        event: &str,
+        actor: &str,
+        repo: Option<String>,
+        task_before: Option<&Task>,
+        commit: Option<&str>,
+        overrides: &[String],
+    ) -> Result<String> {
+        let task_before = task_before
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(BallError::Json)?;
         serde_json::to_string(&Self {
             schema_version: EVENT_CTX_SCHEMA_VERSION,
             event: event.to_string(),
             actor: actor.to_string(),
             repo,
-            overrides: Vec::new(),
+            overrides: overrides.to_vec(),
+            task_before,
+            commit: commit.map(str::to_string),
         })
         .map_err(BallError::Json)
     }

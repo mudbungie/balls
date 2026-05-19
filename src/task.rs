@@ -22,9 +22,8 @@ pub struct Note {
     pub ts: DateTime<Utc>,
     pub author: String,
     pub text: String,
-    /// Forward-compat passthrough: unknown fields from a newer `bl`
-    /// land here on deserialize and round-trip back out on save. See
-    /// the `Task::extra` doc for the full rationale.
+    /// Forward-compat passthrough; see the `Task::extra` doc for the
+    /// full rationale.
     #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: BTreeMap<String, Value>,
 }
@@ -57,14 +56,18 @@ pub struct Task {
     pub closed_children: Vec<ArchivedChild>,
     #[serde(default)]
     pub external: BTreeMap<String, Value>,
-    /// Per-plugin timestamp of the last time balls applied a push or
-    /// sync response for this task from the named plugin. Plugins
-    /// compare their remote's `updated_at` against this value for
-    /// bidirectional conflict resolution without maintaining a
-    /// side-cache. Written by balls, sent back on every push/sync.
-    /// Missing keys mean "never synced by that plugin".
+    /// Per-plugin timestamp of the last applied push/sync response.
+    /// Plugins compare their remote's `updated_at` against this for
+    /// bidirectional conflict resolution without a side-cache. Missing
+    /// keys mean "never synced by that plugin".
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub synced_at: BTreeMap<String, DateTime<Utc>>,
+    /// SPEC §9/§8.1 — per-participant verbatim reason a native
+    /// best-effort negotiation did not land (a `reject` reason or
+    /// wire-failure message). Set on skip, cleared on next success.
+    /// Legacy-shim skips stay silent so SPEC §12 byte-identity holds.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub sync_status: BTreeMap<String, String>,
     /// Performance hint: SHA of the squash-merge on main that
     /// delivered this task. Ground truth is the `[id]` tag embedded
     /// in the commit message — see `crate::delivery`.
@@ -151,6 +154,7 @@ impl Task {
             closed_children: Vec::new(),
             external: BTreeMap::new(),
             synced_at: BTreeMap::new(),
+            sync_status: BTreeMap::new(),
             delivered_in: None,
             repo: None,
             target_branch: None,

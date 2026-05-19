@@ -67,12 +67,7 @@ fn from_describe_uses_default_retry_budget_when_unspecified() {
         describe_for(&[Event::Claim]),
     )
     .unwrap();
-    let ctx = EventCtx {
-        event: Event::Claim,
-        store: &store,
-        task_id: "bl-0001",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Claim, &store, "bl-0001", "alice");
     let proto = p.protocol(Event::Claim, ctx).unwrap();
     assert_eq!(proto.retry_budget(), DEFAULT_NATIVE_RETRY_BUDGET);
 }
@@ -92,12 +87,7 @@ fn from_describe_honors_explicit_retry_budget_override() {
         d,
     )
     .unwrap();
-    let ctx = EventCtx {
-        event: Event::Claim,
-        store: &store,
-        task_id: "bl-0002",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Claim, &store, "bl-0002", "alice");
     let proto = p.protocol(Event::Claim, ctx).unwrap();
     assert_eq!(proto.retry_budget(), 2);
 }
@@ -151,12 +141,7 @@ fn protocol_returns_none_when_task_missing() {
         describe_for(&[Event::Claim]),
     )
     .unwrap();
-    let ctx = EventCtx {
-        event: Event::Claim,
-        store: &store,
-        task_id: "bl-9999",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Claim, &store, "bl-9999", "alice");
     assert!(p.protocol(Event::Claim, ctx).is_none());
 }
 
@@ -175,12 +160,7 @@ fn unsubscribed_event_is_skipped_at_run_level() {
         describe_for(&[Event::Claim]),
     )
     .unwrap();
-    let ctx = EventCtx {
-        event: Event::Review,
-        store: &store,
-        task_id: "bl-0003",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Review, &store, "bl-0003", "alice");
     let r = participant::run(&p, Event::Review, ctx).unwrap();
     assert!(matches!(r, NegotiationResult::Skipped(_)));
 }
@@ -201,12 +181,7 @@ fn run_against_missing_executable_collapses_to_skipped() {
         describe_for(&[Event::Claim]),
     )
     .unwrap();
-    let ctx = EventCtx {
-        event: Event::Claim,
-        store: &store,
-        task_id: "bl-0004",
-        identity: "alice",
-    };
+    let ctx = EventCtx::new(Event::Claim, &store, "bl-0004", "alice");
     let saved = std::env::var_os("PATH");
     unsafe {
         std::env::remove_var("PATH");

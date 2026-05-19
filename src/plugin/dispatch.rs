@@ -24,57 +24,100 @@ use crate::participant_config::InvocationOverrides;
 use crate::store::Store;
 use crate::task::Task;
 
+/// Everything a lifecycle command hands the push dispatcher. The
+/// `task_before`/`commit`/`override_tokens` triple feeds the SPEC §5.1
+/// side channel and §11 audit; `overrides` (skip/required) drives
+/// per-invocation subscription resolution.
+pub struct DispatchInput<'a> {
+    pub store: &'a Store,
+    pub task_before: Option<&'a Task>,
+    pub task: &'a Task,
+    pub event: Event,
+    pub identity: &'a str,
+    pub commit: Option<&'a str>,
+    pub overrides: &'a InvocationOverrides,
+    pub override_tokens: &'a [String],
+}
+
+/// What the command consumes back. `skipped` is the native
+/// best-effort participants whose negotiation didn't land —
+/// `(name, verbatim reason)`, folded into `task.sync_status` by the
+/// apply step. Legacy-shim skips are deliberately absent so SPEC §12
+/// byte-identity holds for unmodified configs.
+#[derive(Debug, Default)]
+pub struct DispatchOutcome {
+    pub skipped: Vec<(String, String)>,
+}
+
+/// One plugin's dispatch result before composition.
+enum DispatchItem {
+    Contribution(PushContribution),
+    /// Native best-effort skip — recorded in `sync_status`.
+    Skipped(String, String),
+    /// Not subscribed, a legacy-shim skip, or gating-staged (bl-a46d):
+    /// nothing to apply and nothing to record.
+    Inert,
+}
+
 /// Fire all subscribed plugins for a push-shaped event
-/// (claim/review/close/update). Each plugin is dispatched once, via
-/// either the native protocol (when `describe` succeeds) or the
-/// legacy shim. Outcomes funnel into a single `PushContribution`
-/// vector and through the SPEC §10 commit-policy planner so a config
-/// that mixes the two protocols still produces a deterministic
-/// commit sequence.
-pub fn dispatch_push(
-    store: &Store,
-    task: &Task,
-    event: Event,
-    identity: &str,
-) -> Result<()> {
+/// (create/claim/review/close/update). Each plugin runs once, native
+/// (when `describe` succeeds) or legacy shim. Successful outcomes
+/// funnel through the SPEC §10 planner; a required failure (incl. a
+/// first-class `reject`, §8.1) propagates as `Err` for the command to
+/// roll back; native best-effort skips are returned for `sync_status`.
+pub fn dispatch_push(input: &DispatchInput) -> Result<DispatchOutcome> {
+    let &DispatchInput {
+        store,
+        task_before,
+        task,
+        event,
+        identity,
+        commit,
+        overrides,
+        override_tokens,
+    } = input;
     debug_assert!(matches!(
         event,
         Event::Create | Event::Claim | Event::Review | Event::Close | Event::Update
     ));
     let cfg = store.load_config()?;
     let mut contributions = Vec::new();
+    let mut skipped = Vec::new();
     for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
-        let ctx = EventCtx {
-            event,
-            store,
-            task_id: &task.id,
-            identity,
-        };
-        if let Some(c) = dispatch_one_push(store, name, entry, event, ctx)? {
-            contributions.push(c);
+        let ctx = EventCtx::new(event, store, &task.id, identity).with_context(
+            Some(task),
+            task_before,
+            commit,
+            override_tokens,
+        );
+        match dispatch_one_push(store, name, entry, event, ctx, overrides)? {
+            DispatchItem::Contribution(c) => contributions.push(c),
+            DispatchItem::Skipped(n, reason) => skipped.push((n, reason)),
+            DispatchItem::Inert => {}
         }
     }
-    super::apply_push_contributions(store, &task.id, &contributions)?;
-    Ok(())
+    super::apply_push_contributions(store, &task.id, &contributions, &skipped)?;
+    Ok(DispatchOutcome { skipped })
 }
 
 /// Decide which protocol a plugin uses and run one negotiation. A
 /// plugin that responds to `describe` is routed through the native
-/// protocol; otherwise we fall through to the legacy shim. A native
-/// plugin that doesn't subscribe to this event returns `None` so the
-/// dispatcher does not double-fire it via the shim.
+/// protocol; otherwise the legacy shim. A native plugin that doesn't
+/// subscribe to this event is `Inert` so the dispatcher does not
+/// double-fire it via the shim.
 fn dispatch_one_push(
     store: &Store,
     name: &str,
     entry: &crate::config::PluginEntry,
     event: Event,
     ctx: EventCtx<'_>,
-) -> Result<Option<PushContribution>> {
+    overrides: &InvocationOverrides,
+) -> Result<DispatchItem> {
     let plugin = super::Plugin::resolve(store, name, entry);
     if let Some(describe) = plugin.describe()? {
-        return run_native(store, name, entry, event, ctx, describe);
+        return run_native(store, name, entry, event, ctx, overrides, describe);
     }
-    run_legacy(store, name, entry, event, ctx)
+    run_legacy(store, name, entry, event, ctx, overrides)
 }
 
 fn run_native(
@@ -83,35 +126,43 @@ fn run_native(
     entry: &crate::config::PluginEntry,
     event: Event,
     ctx: EventCtx<'_>,
+    overrides: &InvocationOverrides,
     describe: super::native_types::DescribeResponse,
-) -> Result<Option<PushContribution>> {
+) -> Result<DispatchItem> {
     let participant = NativePluginParticipant::from_describe(
         store,
         name.to_string(),
         entry,
         None,
-        &InvocationOverrides::default(),
+        overrides,
         describe,
     )?;
     if !participant.subscriptions().contains(&event) {
-        return Ok(None);
+        return Ok(DispatchItem::Inert);
     }
     let failure_policy = participant.failure_policy(event);
     let projection = participant.projection().clone();
-    if let NegotiationResult::Ok(Accepted {
-        outcome: NativeOutcome { task_projection, commit_policy },
-        ..
-    }) = participant::run(&participant, event, ctx)?
-    {
-        return Ok(Some(PushContribution {
+    // A required failure surfaces as `Err` from `participant::run`
+    // (the negotiation's `classify_failure`); `?` carries it to the
+    // command, which rolls the state branch back (SPEC §9). A native
+    // best-effort skip is captured for `sync_status` (§8.1/§9);
+    // gating staging is bl-a46d, treated inert here.
+    match participant::run(&participant, event, ctx)? {
+        NegotiationResult::Ok(Accepted {
+            outcome: NativeOutcome { task_projection, commit_policy },
+            ..
+        }) => Ok(DispatchItem::Contribution(PushContribution {
             name: name.to_string(),
             projection,
             payload: ContributionPayload::Native(task_projection),
             failure_policy,
             commit_policy,
-        }));
+        })),
+        NegotiationResult::Skipped(reason) => {
+            Ok(DispatchItem::Skipped(name.to_string(), reason))
+        }
+        NegotiationResult::Staged(_) => Ok(DispatchItem::Inert),
     }
-    Ok(None)
 }
 
 fn run_legacy(
@@ -120,11 +171,23 @@ fn run_legacy(
     entry: &crate::config::PluginEntry,
     event: Event,
     ctx: EventCtx<'_>,
-) -> Result<Option<PushContribution>> {
-    let participant =
-        LegacyPluginParticipant::from_entry(store, name.to_string(), entry, None);
+    overrides: &InvocationOverrides,
+) -> Result<DispatchItem> {
+    // Legacy plugins honor §11 `--skip`/`--required` too, but their
+    // skips stay silent: recording `sync_status` for an unmodified
+    // config would add a state-branch commit where today there is
+    // none, breaking SPEC §12 / §17.1 byte-identity. So a non-Ok
+    // legacy outcome is `Inert`, never `Skipped`.
+    let participant = LegacyPluginParticipant::resolved(
+        store,
+        name.to_string(),
+        entry,
+        None,
+        overrides,
+        None,
+    );
     if !participant.subscriptions().contains(&event) {
-        return Ok(None);
+        return Ok(DispatchItem::Inert);
     }
     let failure_policy = participant.failure_policy(event);
     let projection = Projection::external_only(name);
@@ -133,7 +196,7 @@ fn run_legacy(
         commit_policy,
     }) = participant::run(&participant, event, ctx)?
     {
-        return Ok(Some(PushContribution {
+        return Ok(DispatchItem::Contribution(PushContribution {
             name: name.to_string(),
             projection,
             payload: ContributionPayload::Legacy(r),
@@ -141,7 +204,7 @@ fn run_legacy(
             commit_policy,
         }));
     }
-    Ok(None)
+    Ok(DispatchItem::Inert)
 }
 
 /// Fire all subscribed plugins for the standalone sync event. Returns
@@ -166,12 +229,7 @@ pub fn dispatch_sync(
             entry,
             filter.map(str::to_string),
         );
-        let ctx = EventCtx {
-            event: Event::Sync,
-            store,
-            task_id: filter.unwrap_or(""),
-            identity,
-        };
+        let ctx = EventCtx::new(Event::Sync, store, filter.unwrap_or(""), identity);
         if let Ok(NegotiationResult::Ok(Accepted {
             outcome: LegacyOutcome::Sync(Some(r)),
             ..
@@ -195,14 +253,10 @@ pub fn dispatch_sync(
 /// `drop` cannot reach here: config validation rejects them.
 pub fn dispatch_drop(store: &Store, task: &Task, identity: &str) -> Result<()> {
     let cfg = store.load_config()?;
+    let overrides = InvocationOverrides::default();
     for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
-        let ctx = EventCtx {
-            event: Event::Drop,
-            store,
-            task_id: &task.id,
-            identity,
-        };
-        let _ = dispatch_one_push(store, name, entry, Event::Drop, ctx);
+        let ctx = EventCtx::new(Event::Drop, store, &task.id, identity);
+        let _ = dispatch_one_push(store, name, entry, Event::Drop, ctx, &overrides);
     }
     Ok(())
 }

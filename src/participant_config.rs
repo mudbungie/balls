@@ -99,6 +99,43 @@ impl InvocationOverrides {
     }
 }
 
+/// SPEC §11 / §5.1 — the per-invocation override tokens applied to
+/// this event, in a stable order (git-remote sync flag, then sorted
+/// `--skip`, then sorted `--required`). Used verbatim in the EventCtx
+/// `overrides` array and, bracket-wrapped by [`override_log`],
+/// appended to the state-branch commit message so a post-hoc audit
+/// sees which negotiations ran without their required participants.
+/// `BTreeSet` iteration is already sorted, so the result is
+/// deterministic across runs — load-bearing for commit-message tests.
+pub fn override_tokens(ov: &InvocationOverrides, sync: bool, no_sync: bool) -> Vec<String> {
+    let mut out = Vec::new();
+    if sync {
+        out.push("--sync".to_string());
+    } else if no_sync {
+        out.push("--no-sync".to_string());
+    }
+    out.extend(ov.skip.iter().map(|n| format!("--skip={n}")));
+    out.extend(ov.required.iter().map(|n| format!("--required={n}")));
+    out
+}
+
+/// The §11 audit fragment for a state-branch commit subject: each
+/// token from [`override_tokens`] wrapped in brackets and space-
+/// joined, with a leading space so it appends cleanly. Empty (and
+/// thus a no-op append) when no override applied — keeping default
+/// invocations byte-identical per SPEC §12.
+pub fn override_log(tokens: &[String]) -> String {
+    if tokens.is_empty() {
+        return String::new();
+    }
+    let joined = tokens
+        .iter()
+        .map(|t| format!("[{t}]"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(" {joined}")
+}
+
 /// Legacy `sync_on_change` mapping (SPEC §11): `true` subscribes to
 /// every push-shaped event with default `BestEffort`; `false`
 /// subscribes only to the standalone `Sync` event. Either way the
