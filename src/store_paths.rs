@@ -64,12 +64,14 @@ pub(crate) fn find_main_root(common_dir: &Path) -> Result<PathBuf> {
 /// the project root when no git repo is available (no-git mode).
 pub(crate) fn find_balls_root(from: &Path) -> Result<PathBuf> {
     let mut cur = fs::canonicalize(from).unwrap_or_else(|_| from.to_path_buf());
+    let mut searched = Vec::new();
     loop {
+        searched.push(cur.clone());
         if cur.join(".balls/config.json").exists() {
             return Ok(cur);
         }
         if !cur.pop() {
-            return Err(BallError::NotInitialized);
+            return Err(BallError::no_balls_on_walk(searched));
         }
     }
 }
@@ -87,5 +89,23 @@ mod tests {
             std::env::set_var("HOME", h);
         }
         assert!(result.starts_with("/tmp/balls-stealth-"));
+    }
+
+    #[test]
+    fn find_balls_root_reports_the_walked_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let start = dir.path().join("a/b/c");
+        fs::create_dir_all(&start).unwrap();
+        let err = find_balls_root(&start).unwrap_err();
+        match err {
+            BallError::NotInitialized(crate::error::NotInitKind::NoBallsOnWalk(searched)) => {
+                // First entry is the (canonicalized) start dir; the walk
+                // ends at the filesystem root.
+                assert!(searched.len() >= 4);
+                assert!(searched.first().unwrap().ends_with("a/b/c"));
+                assert_eq!(searched.last().unwrap(), Path::new("/"));
+            }
+            other => panic!("expected NoBallsOnWalk, got {other}"),
+        }
     }
 }

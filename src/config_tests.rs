@@ -20,7 +20,11 @@ fn load_missing_returns_not_initialized() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("missing.json");
     let err = Config::load(&path).unwrap_err();
-    assert!(matches!(err, BallError::NotInitialized));
+    assert!(matches!(
+        err,
+        BallError::NotInitialized(crate::error::NotInitKind::ConfigMissing(_))
+    ));
+    assert!(err.to_string().contains("not initialized"));
 }
 
 #[test]
