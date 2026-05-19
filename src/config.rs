@@ -98,6 +98,14 @@ pub struct Config {
     /// unset so an untouched config stays byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery: Option<Delivery>,
+    /// Advisory minimum `bl` version (SPEC §5 / §10). `None` (the
+    /// default, and every config written before this field) is silent.
+    /// When set, a client below it warns on load; older clients drop
+    /// the unknown field entirely. Advisory only — no engineering
+    /// prevention; see `min_version`. Skipped when unset so an
+    /// untouched config stays byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_bl_version: Option<String>,
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
 }
@@ -126,6 +134,7 @@ impl Default for Config {
             state_remote: None,
             target_branch: None,
             delivery: None,
+            min_bl_version: None,
             plugins: BTreeMap::new(),
         }
     }
@@ -152,6 +161,7 @@ impl Config {
         let mut c: Config = serde_json::from_str(&s)?;
         c.sanitize();
         c.validate()?;
+        crate::min_version::warn_if_below(c.min_bl_version.as_deref());
         Ok(c)
     }
 
@@ -278,3 +288,7 @@ impl Config {
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "config_schema_tests.rs"]
+mod schema_tests;
