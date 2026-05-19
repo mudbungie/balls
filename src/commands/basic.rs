@@ -23,15 +23,31 @@ pub fn cmd_init(stealth: bool, tasks_dir: Option<String>) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_create(
-    title: String,
-    priority: u8,
-    task_type: String,
-    parent: Option<String>,
-    dep: Vec<String>,
-    tag: Vec<String>,
-    description: String,
-) -> Result<()> {
+/// CLI inputs for `bl create`, bundled so the function stays under
+/// clippy's argument cap — mirrors `SyncArgs`. `main.rs` threads the
+/// clap flags through one struct.
+pub struct CreateArgs {
+    pub title: String,
+    pub priority: u8,
+    pub task_type: String,
+    pub parent: Option<String>,
+    pub dep: Vec<String>,
+    pub tag: Vec<String>,
+    pub description: String,
+    pub target_branch: Option<String>,
+}
+
+pub fn cmd_create(args: CreateArgs) -> Result<()> {
+    let CreateArgs {
+        title,
+        priority,
+        task_type,
+        parent,
+        dep,
+        tag,
+        description,
+        target_branch,
+    } = args;
     let store = discover()?;
 
     balls::task::validate_priority(priority)?;
@@ -62,6 +78,7 @@ pub fn cmd_create(
 
     let mut task = Task::new(opts, id.clone());
     task.repo = Some(repo_identity(&store));
+    task.target_branch = target_branch;
     {
         let _g = task_lock(&store, &id)?;
         store.save_task(&task)?;
@@ -200,7 +217,7 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     // resolve a delivery against, so fall back to an empty result.
     let delivery = store
         .load_config()
-        .and_then(|c| c.integration_branch(&store.root))
+        .and_then(|c| c.integration_branch_for(&store.root, task.target_branch.as_deref()))
         .map(|b| balls::delivery::resolve(&store.root, &b, &task))
         .unwrap_or(balls::delivery::Delivery {
             sha: None,
