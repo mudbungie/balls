@@ -10,12 +10,12 @@
   "external": {},
   "id": "bl-9e8a",
   "links": [],
-  "parent": "bl-41ee",
+  "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
   "tags": ["bare-repo","init"],
   "title": "bl init: no bare-hub path; recommended deployment is manual-only",
   "type": "bug",
-  "updated_at": "2026-05-19T18:19:13.408161619Z"
+  "updated_at": "2026-05-19T18:20:10.946034441Z"
 }
