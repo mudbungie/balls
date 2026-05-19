@@ -91,7 +91,7 @@ pub fn review_worktree(
     with_task_lock(store, id, || {
         crate::review_safety::add_user_changes(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("wip: {id}"));
-        let main_branch = git::git_current_branch(&store.root)?;
+        let main_branch = store.load_config()?.integration_branch(&store.root)?;
         merge_or_fail(
             &wt_path,
             &main_branch,
@@ -108,7 +108,12 @@ pub fn review_worktree(
         // The state-branch snapshot must be taken before `commit_task`
         // lands the review commit; another agent advancing the state
         // branch concurrently would otherwise make `HEAD~1` ambiguous.
-        let pre_main_sha = git::git_resolve_sha(&store.root, "HEAD")?;
+        // Snapshot the integration branch by name, not `HEAD`: with a
+        // configured `target_branch`, HEAD at the root is *not* the
+        // branch the squash lands on. For the default (target unset,
+        // integration branch == checkout) `rev-parse <branch>` and
+        // `rev-parse HEAD` resolve the same sha — byte-identical.
+        let pre_main_sha = git::git_resolve_sha(&store.root, &main_branch)?;
         let state_dir = store.state_worktree_dir();
         let pre_state_sha =
             (policy.require_remote && !store.stealth)

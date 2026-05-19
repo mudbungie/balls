@@ -18,11 +18,34 @@ use std::path::{Path, PathBuf};
 /// or `None` when the squash produced no staged changes (a "no-code"
 /// review — the caller decides whether to skip the commit and emit a
 /// `no-code` state-branch marker).
-pub fn squash_into_main(store: &Store, branch: &str, msg: &str) -> Result<Option<String>> {
-    if !is_bare_repo(&store.root)? {
+pub fn squash_into_main(
+    store: &Store,
+    branch: &str,
+    msg: &str,
+    main_branch: &str,
+) -> Result<Option<String>> {
+    if squashes_in_place(store, main_branch)? {
         return squash_in_place(&store.root, branch, msg);
     }
-    squash_in_detached_worktree(store, branch, msg)
+    squash_in_detached_worktree(store, branch, msg, main_branch)
+}
+
+/// In-place squash (`git merge --squash` in the repo-root work tree,
+/// committing onto whatever is checked out there) is correct *only*
+/// when the integration branch is exactly the branch checked out at a
+/// non-bare root. A bare root has no work tree; a `target_branch`
+/// pointing somewhere other than the checkout would land the squash
+/// on the wrong branch and disturb the user's tree. Both of those
+/// cases route through a detached worktree pinned at `main_branch`
+/// instead. Unset `target_branch` on a normal repo ⇒ in-place,
+/// byte-identical to before the `integration_branch` seam. `rewind_main`
+/// keys off the same predicate so a failed review unwinds the branch
+/// it actually moved.
+pub(crate) fn squashes_in_place(store: &Store, main_branch: &str) -> Result<bool> {
+    if is_bare_repo(&store.root)? {
+        return Ok(false);
+    }
+    Ok(git::git_current_branch(&store.root)? == main_branch)
 }
 
 fn squash_in_place(dir: &Path, branch: &str, msg: &str) -> Result<Option<String>> {
@@ -39,14 +62,14 @@ fn squash_in_detached_worktree(
     store: &Store,
     branch: &str,
     msg: &str,
+    main: &str,
 ) -> Result<Option<String>> {
-    let main = git::git_current_branch(&store.root)?;
     let tmp = squash_worktree_path(store);
     scrub_path(&store.root, &tmp);
     if let Some(parent) = tmp.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    worktree_add_detach(&store.root, &tmp, &main)?;
+    worktree_add_detach(&store.root, &tmp, main)?;
     let result = squash_in_place(&tmp, branch, msg);
     if let Ok(Some(sha)) = result.as_ref() {
         update_ref(&store.root, &format!("refs/heads/{main}"), sha)?;

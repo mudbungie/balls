@@ -76,17 +76,18 @@ pub fn commit_touches_runtime(repo: &Path, sha: &str) -> Result<Vec<String>> {
 /// best-effort: the original review failure is what the caller cares
 /// about.
 pub fn rewind_main(store: &Store, main_branch: &str, pre_main_sha: &str) -> Result<()> {
-    if is_bare(&store.root)? {
+    // Mirror the squash mechanism: an in-place squash moved the
+    // checked-out branch, so `reset --hard` rewinds it; the
+    // detached-worktree path (bare root, or a `target_branch` that
+    // isn't the checkout) moved a ref the work tree never touched, so
+    // rewind that ref directly.
+    if crate::bare_squash::squashes_in_place(store, main_branch)? {
+        git::git_reset_hard(&store.root, pre_main_sha)?;
+    } else {
         let refname = format!("refs/heads/{main_branch}");
         git::run_git_ok(&store.root, &["update-ref", &refname, pre_main_sha])?;
-    } else {
-        git::git_reset_hard(&store.root, pre_main_sha)?;
     }
     Ok(())
-}
-
-fn is_bare(dir: &Path) -> Result<bool> {
-    Ok(git::run_git_ok(dir, &["rev-parse", "--is-bare-repository"])?.trim() == "true")
 }
 
 /// Build the error returned when a squash brought runtime paths in.
@@ -120,7 +121,8 @@ pub fn commit_squash_and_flip(
     pre_main_sha: &str,
     main_branch: &str,
 ) -> Result<()> {
-    let delivered_sha = crate::bare_squash::squash_into_main(store, branch, squash_msg)?;
+    let delivered_sha =
+        crate::bare_squash::squash_into_main(store, branch, squash_msg, main_branch)?;
     if let Some(sha) = delivered_sha.as_deref() {
         let dirty = commit_touches_runtime(&store.root, sha)?;
         if !dirty.is_empty() {
