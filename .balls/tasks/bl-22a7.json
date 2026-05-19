@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-22a7",
+  "claimed_by": "Dispenser",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T06:19:19.564475152Z",
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": [],
   "title": "Decompose files near the 300-line cap into logical modules",
   "type": "task",
-  "updated_at": "2026-05-19T06:19:19.564475152Z"
+  "updated_at": "2026-05-19T06:19:22.872355487Z"
 }
