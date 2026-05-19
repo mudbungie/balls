@@ -224,6 +224,7 @@ pub fn close_worktree(
     message: Option<&str>,
     identity: &str,
     policy: ClaimPolicy,
+    delivered: Option<String>,
 ) -> Result<Task> {
     let wt_path = worktree_path(store, id)?;
     if let Ok(cwd) = std::env::current_dir() {
@@ -237,6 +238,17 @@ pub fn close_worktree(
     with_task_lock(store, id, || {
         let mut t = store.load_task(id)?;
         enforce_gates(store, &t)?;
+        // bl-87ea: deferred mode never wrote `delivered_in` (no local
+        // squash) and `--delivered` overrides the scan. Commit a newly
+        // resolved hint to the state branch *before* `close_and_archive`
+        // git-rm's the file, so archive recovery's pre-deletion blob
+        // carries it — as local-squash mode persists it in `review`.
+        let cfg = store.load_config()?;
+        let target = cfg.integration_branch_for(&store.root, t.target_branch.as_deref())?;
+        if crate::delivery::populate_on_close(&store.root, &target, &mut t, delivered) {
+            store.save_task(&t)?;
+            store.commit_task(id, &format!("state: deliver {id}"))?;
+        }
         let branch = t.branch.clone().unwrap_or_else(|| format!("work/{id}"));
         t.status = Status::Closed;
         t.closed_at = Some(chrono::Utc::now());
