@@ -26,15 +26,16 @@ pub struct Delivery {
 }
 
 /// Resolve the delivering commit for `task`. Consults the hint first,
-/// falls back to a tag scan on main. Returns an empty result if the
-/// git state can't be queried (e.g., `repo_root` isn't a git repo).
-pub fn resolve(repo_root: &Path, task: &Task) -> Delivery {
-    let Ok(main_branch) = git::git_current_branch(repo_root) else {
-        return Delivery { sha: None, hint_stale: false };
-    };
+/// falls back to a tag scan on `main_branch` — the integration branch
+/// the caller resolved through `Config::integration_branch` (the
+/// single `target_branch` seam), so this stays a pure git query with
+/// no config knowledge of its own. Returns an empty result if the git
+/// state can't be queried (e.g., `repo_root` isn't a git repo, or the
+/// branch doesn't exist).
+pub fn resolve(repo_root: &Path, main_branch: &str, task: &Task) -> Delivery {
     let tag = format!("[{}]", task.id);
     if let Some(hint) = &task.delivered_in {
-        if git::git_is_ancestor(repo_root, hint, &main_branch)
+        if git::git_is_ancestor(repo_root, hint, main_branch)
             && git::git_commit_subject(repo_root, hint)
                 .is_some_and(|s| s.contains(&tag))
         {
@@ -45,7 +46,7 @@ pub fn resolve(repo_root: &Path, task: &Task) -> Delivery {
         }
         // Hint doesn't verify — fall through to the tag scan. Mark
         // stale only if the tag scan finds a *different* answer.
-        let resolved = git::git_log_find_subject(repo_root, &main_branch, &tag);
+        let resolved = git::git_log_find_subject(repo_root, main_branch, &tag);
         let stale = match (&resolved, hint) {
             (Some(sha), h) => sha != h,
             (None, _) => true,
@@ -56,7 +57,7 @@ pub fn resolve(repo_root: &Path, task: &Task) -> Delivery {
         };
     }
     Delivery {
-        sha: git::git_log_find_subject(repo_root, &main_branch, &tag),
+        sha: git::git_log_find_subject(repo_root, main_branch, &tag),
         hint_stale: false,
     }
 }
@@ -88,8 +89,10 @@ mod tests {
 
     #[test]
     fn resolve_returns_empty_when_not_a_git_repo() {
+        // Not a git repo: every git query fails, so resolve yields an
+        // empty, non-stale result regardless of the branch passed.
         let dir = TempDir::new().unwrap();
-        let d = resolve(dir.path(), &empty_task());
+        let d = resolve(dir.path(), "main", &empty_task());
         assert!(d.sha.is_none());
         assert!(!d.hint_stale);
     }

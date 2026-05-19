@@ -197,7 +197,17 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
         other => other?,
     };
     let all = store.all_tasks()?;
-    let delivery = balls::delivery::resolve(&store.root, &task);
+    // Resolve the integration branch through the single seam; if the
+    // store can't answer (no-git, branch missing) there's nothing to
+    // resolve a delivery against, so fall back to an empty result.
+    let delivery = store
+        .load_config()
+        .and_then(|c| c.integration_branch(&store.root))
+        .map(|b| balls::delivery::resolve(&store.root, &b, &task))
+        .unwrap_or(balls::delivery::Delivery {
+            sha: None,
+            hint_stale: false,
+        });
 
     if json {
         let blocked = ready::is_dep_blocked(&all, &task);

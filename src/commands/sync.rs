@@ -78,7 +78,7 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
             .unwrap_or_else(|| remote.to_string());
         sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
     }
-    let main_branch = git::git_current_branch(&store.root)?;
+    let main_branch = store.load_config()?.integration_branch(&store.root)?;
     sync_branch(&store.root, remote, &main_branch)?;
 
     if !store.stealth {
@@ -152,7 +152,7 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
 
     // `.ok()` collapses both no-git and ref-missing into None — prime_status
     // treats None as "skip the indicators" so we never special-case here.
-    let main_branch = git::git_current_branch(&store.root).ok();
+    let main_branch = store.load_config().and_then(|c| c.integration_branch(&store.root)).ok();
     let claimed_status: Vec<serde_json::Value> = claimed
         .iter()
         .map(|t| {

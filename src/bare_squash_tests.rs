@@ -4,6 +4,7 @@
 //! and their failure paths so coverage stays at 100%.
 
 use super::*;
+use crate::config::Config;
 use crate::error::BallError;
 use std::path::Path;
 use std::process::Command;
@@ -137,4 +138,42 @@ fn squash_worktree_path_includes_pid() {
     let name = p.file_name().unwrap().to_string_lossy().to_string();
     assert!(name.starts_with("squash-"));
     assert!(name.ends_with(&std::process::id().to_string()));
+}
+
+#[test]
+fn squashes_in_place_true_only_when_checkout_is_target() {
+    // Non-bare repo, `main` checked out: an integration target of
+    // `main` squashes in place (today's byte-identical default); any
+    // other target must route through the detached worktree so the
+    // user's checkout is never disturbed.
+    let td = tempdir().unwrap();
+    init_repo(td.path());
+    let store = Store::init(td.path(), false, None).unwrap();
+    assert!(squashes_in_place(&store, "main").unwrap());
+    assert!(!squashes_in_place(&store, "develop").unwrap());
+}
+
+#[test]
+fn squashes_in_place_false_on_bare_repo() {
+    // A bare root has no work tree, so the in-place squash is never
+    // valid regardless of the integration branch name.
+    let td = tempdir().unwrap();
+    init_repo(td.path());
+    let store = Store::init(td.path(), false, None).unwrap();
+    assert!(raw_git(td.path(), &["config", "core.bare", "true"])
+        .status
+        .success());
+    assert!(!squashes_in_place(&store, "main").unwrap());
+}
+
+#[test]
+fn default_config_integration_branch_falls_back_to_checkout() {
+    // The `None` arm of the seam: an unset target_branch resolves to
+    // the branch checked out at the root — `main` here.
+    let td = tempdir().unwrap();
+    init_repo(td.path());
+    assert_eq!(
+        Config::default().integration_branch(td.path()).unwrap(),
+        "main"
+    );
 }

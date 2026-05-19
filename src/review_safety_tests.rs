@@ -96,18 +96,6 @@ fn commit_touches_runtime_empty_for_clean_commit() {
     assert!(hits.is_empty(), "expected empty, got {hits:?}");
 }
 
-#[test]
-fn is_bare_helper_distinguishes_layouts() {
-    let regular = tempdir().unwrap();
-    init_repo(regular.path());
-    assert!(!is_bare(regular.path()).unwrap());
-
-    let bare = tempdir().unwrap();
-    assert!(raw_git(bare.path(), &["init", "-q", "--bare"])
-        .status
-        .success());
-    assert!(is_bare(bare.path()).unwrap());
-}
 
 #[test]
 fn commit_squash_and_flip_rewinds_main_when_squash_carries_runtime() {

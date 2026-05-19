@@ -34,6 +34,7 @@ fn write_config(store: &Store, plugins: BTreeMap<String, PluginEntry>) {
         require_remote_on_review: false,
         require_remote_on_close: false,
         state_remote: None,
+        target_branch: None,
         plugins,
     };
     cfg.save(&store.config_path()).unwrap();
