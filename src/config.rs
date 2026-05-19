@@ -20,6 +20,30 @@ pub struct PluginEntry {
     pub participant: Option<ParticipantConfig>,
 }
 
+/// Which `bl review` code path a repo follows (SPEC §5).
+///
+/// `LocalSquash` is today's behavior — squash the work branch into the
+/// integration branch locally and immediately. `Deferred` hands the
+/// squash off to an external forge: `bl review` pushes the work branch
+/// and opens an auto-gate instead of touching the integration branch.
+/// Absent config ⇒ `LocalSquash`, byte-identical to before this field.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DeliveryMode {
+    #[default]
+    LocalSquash,
+    Deferred,
+}
+
+/// The `delivery` config block. Its own struct (rather than a bare
+/// `DeliveryMode` field) so future delivery knobs extend it without
+/// another top-level key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Delivery {
+    #[serde(default)]
+    pub mode: DeliveryMode,
+}
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -66,6 +90,14 @@ pub struct Config {
     /// `state_remote` — unset is byte-identical to before this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_branch: Option<String>,
+    /// Opt-in delivery mode (SPEC §5). `None` (the default, and every
+    /// config written before this field) means `local-squash` — the
+    /// squash lands locally as it always has. `Some` with
+    /// `mode = "deferred"` makes `bl review` push the work branch and
+    /// open a forge gate instead. Skipped from serialization when
+    /// unset so an untouched config stays byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<Delivery>,
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
 }
@@ -93,6 +125,7 @@ impl Default for Config {
             require_remote_on_close: false,
             state_remote: None,
             target_branch: None,
+            delivery: None,
             plugins: BTreeMap::new(),
         }
     }
@@ -207,6 +240,16 @@ impl Config {
             Some(b) => Ok(b.clone()),
             None => git::git_current_branch(root),
         }
+    }
+
+    /// Resolved delivery mode. The single seam `bl review` consults to
+    /// pick its code path; `None` delivery block ⇒ `LocalSquash`, so an
+    /// untouched repo behaves exactly as before this field existed.
+    pub fn delivery_mode(&self) -> DeliveryMode {
+        self.delivery
+            .as_ref()
+            .map(|d| d.mode.clone())
+            .unwrap_or_default()
     }
 }
 

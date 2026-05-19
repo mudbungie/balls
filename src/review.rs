@@ -89,9 +89,21 @@ pub fn review_worktree(
     let branch = task.branch.clone().unwrap_or_else(|| format!("work/{id}"));
 
     with_task_lock(store, id, || {
+        let cfg = store.load_config()?;
+        let deferred = matches!(cfg.delivery_mode(), crate::config::DeliveryMode::Deferred);
+        // SPEC §5: deferred mode hands the squash to a forge, so the PR
+        // base must be unambiguous — an implicit "whatever's checked
+        // out" target is rejected. Fail before any mutation.
+        if deferred && cfg.target_branch.is_none() {
+            return Err(BallError::Other(
+                "delivery.mode=deferred requires an explicit target_branch in \
+                 .balls/config.json (the forge PR base must be unambiguous)"
+                    .into(),
+            ));
+        }
         crate::review_safety::add_user_changes(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("wip: {id}"));
-        let main_branch = store.load_config()?.integration_branch(&store.root)?;
+        let main_branch = cfg.integration_branch(&store.root)?;
         merge_or_fail(
             &wt_path,
             &main_branch,
@@ -99,6 +111,12 @@ pub fn review_worktree(
                 "conflicts merging {main_branch} into work/{id}. Resolve in worktree, then retry."
             ),
         )?;
+
+        if deferred {
+            return crate::review_deferred::deferred_review(
+                store, &wt_path, id, &branch, &task, &main_branch, message, identity,
+            );
+        }
 
         // Snapshot pre-review tips so any failure between the squash
         // commit and the state-branch flip (or the require_remote

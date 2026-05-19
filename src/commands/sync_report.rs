@@ -3,7 +3,6 @@
 //! Absorbs per-item failures: a malformed entry logs a warning and moves
 //! on rather than aborting the whole report.
 
-use super::id_gen::generate_unique_id;
 use balls::error::Result;
 use balls::plugin::SyncReport;
 use balls::store::{task_lock, Store};
@@ -12,9 +11,8 @@ use chrono::Utc;
 use serde_json::Value;
 
 pub fn apply_sync_report(store: &Store, plugin_name: &str, report: &SyncReport) {
-    let id_length = store.load_config().map_or(4, |c| c.id_length);
     for item in &report.created {
-        warn_on_err("create", apply_created(store, plugin_name, item, id_length));
+        warn_on_err("create", apply_created(store, plugin_name, item));
     }
     for item in &report.updated {
         warn_on_err(
@@ -40,7 +38,6 @@ fn apply_created(
     store: &Store,
     plugin_name: &str,
     item: &balls::plugin::SyncCreate,
-    id_length: usize,
 ) -> Result<()> {
     let task_type = TaskType::parse(&item.task_type).unwrap_or_else(|_| TaskType::task());
     let priority = item.priority.clamp(1, 4);
@@ -54,7 +51,7 @@ fn apply_created(
         description: item.description.clone(),
         tags: item.tags.clone(),
     };
-    let id = generate_unique_id(&item.title, store, id_length)?;
+    let id = balls::task_id::generate_task_id(store, &item.title)?;
     let mut task = Task::new(opts, id.clone());
     task.status = status;
     task.external

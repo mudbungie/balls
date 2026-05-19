@@ -9,7 +9,6 @@ pub mod completions;
 pub mod dep_link;
 pub mod doctor;
 mod half_push;
-mod id_gen;
 pub mod lifecycle;
 mod prime_status;
 pub mod ready_cmd;

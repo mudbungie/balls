@@ -1,7 +1,6 @@
 //! init, create, list, show, ready — the read-mostly commands.
 
 use super::discover;
-use super::id_gen::generate_unique_id;
 use balls::display;
 use balls::error::{BallError, Result};
 use balls::participant::Event;
@@ -56,8 +55,7 @@ pub fn cmd_create(
         tags: tag,
     };
 
-    let cfg = store.load_config()?;
-    let id = generate_unique_id(&title, &store, cfg.id_length)?;
+    let id = balls::task_id::generate_task_id(&store, &title)?;
     // New-task cycle check is unnecessary: a fresh id has no dependants yet,
     // so no chain through `dep` can reach it. Existing deps were already
     // validated above.
