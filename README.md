@@ -146,7 +146,7 @@ cargo publish
 5. **Local cache is disposable.** The `.balls/local/` directory is gitignored ephemeral state. Deleting it loses nothing durable.
 6. **Offline-safe.** All operations produce valid local state. Conflicts are resolved at merge time, never prevented by connectivity checks.
 7. **Worktrees are first-class.** Claiming a task creates a git worktree. The worktree name is the task ID. One task, one workspace.
-8. **The CLI is a convenience, not a requirement.** Every operation is expressible as file edits + standard git commands. A human with `vim`, `ln`, and `git` can do everything `bl` does — SPEC §11 publishes the shell sequences.
+8. **The CLI is a convenience, not a requirement.** Every operation is expressible as file edits + standard git commands. A human with `vim`, `ln`, and `git` can do everything `bl` does — `SPEC-orphan-branch-state.md` §11 publishes the shell sequences.
 9. **Plugins extend, core stays small.** External integrations (Jira, Linear, GitHub Issues) are handled by a plugin interface. Auth, sync logic, and API specifics never enter the core.
 
 ---
@@ -581,7 +581,7 @@ With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of 
 
 **No-git mode:** `bl init --tasks-dir PATH` also works outside a git repository. In this mode balls stores tasks as flat JSON files at the given path with no git operations at all — no state branch, no commits, no worktrees. All commands work: `create`, `list`, `show`, `update`, `sync` (plugin-only), `ready`, `repair`. The only behavioral difference is that `bl claim` requires `--no-worktree` (since there's no git repo to create a worktree in), and `bl review`/`bl close` are status flips with no merge.
 
-**By hand:** see SPEC §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
+**By hand:** see `SPEC-orphan-branch-state.md` §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
 
 **Bare hub:** everything above assumes a working tree. `bl init` cannot initialize a bare repo (no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into) — standing up the recommended bare central-hub deployment is a separate, currently by-hand procedure documented in *The bare central hub → Bootstrapping a bare hub from scratch* above. Closing that tooling gap is tracked as bl-9e8a.
 
@@ -712,7 +712,7 @@ bl update bl-a1b2 status=closed        # closing unclaimed tasks skips the bl cl
 
 Edits fields directly on the state branch (no bl worktree required) and commits `balls: update bl-a1b2 - title`. Notes are appended to the sibling `.notes.jsonl` file. `status=closed` on an unclaimed task goes through the same atomic archive as `bl close`.
 
-**By hand:** see SPEC §11 for the canonical edit-and-publish shell sequence (`$EDITOR .balls/tasks/bl-a1b2.json; git -C .balls/worktree add .balls/tasks/bl-a1b2.json; git -C .balls/worktree commit -m "bl-a1b2: bumped priority"`).
+**By hand:** see `SPEC-orphan-branch-state.md` §11 for the canonical edit-and-publish shell sequence (`$EDITOR .balls/tasks/bl-a1b2.json; git -C .balls/worktree add .balls/tasks/bl-a1b2.json; git -C .balls/worktree commit -m "bl-a1b2: bumped priority"`).
 
 ### bl drop ID [--force]
 
@@ -831,7 +831,7 @@ Reconciles both main and the state branch with `origin`:
 
 Push ordering matters: state branch goes first so that if the sync is interrupted between pushes, the closing commit is already visible to other workers — they'll see the task as closed even though the feature commit is still coming.
 
-**By hand:** see SPEC §11. The shell sequence is two `git -C .balls/worktree push origin balls/tasks` plus a `git push origin main`, with `git fetch` and `git merge` between as needed.
+**By hand:** see `SPEC-orphan-branch-state.md` §11. The shell sequence is two `git -C .balls/worktree push origin balls/tasks` plus a `git push origin main`, with `git fetch` and `git merge` between as needed.
 
 #### Human-gate review (`--review`, `--apply`, `--discard`)
 
@@ -1136,15 +1136,15 @@ When `sync_on_change` is true in config:
 
 Core calls `auth-check` before every push or sync. If auth is expired (exit 1), core prints a warning and skips that plugin. Local operations are never blocked by plugin auth failures.
 
-### Participant enforcement (SPEC §9/§11)
+### Participant enforcement (`SPEC-lifecycle-sync-participants.md` §9/§11)
 
 Each subscribed plugin negotiates the event under a per-event failure policy (`.balls/config.json` → `plugins.<name>.participant.subscriptions.<event>.policy`, one of `required` / `best-effort` / `gating`; legacy `sync_on_change` maps to `best-effort`). What the lifecycle command does with the outcome:
 
-- **required** — a wire failure or a first-class `reject` (SPEC §8.1, a native `{"reject":{"reason":...}}`) **aborts the command**: the event's state-branch commit is rolled back so the task returns to its pre-event state, and `bl` exits non-zero with the plugin's reason verbatim. (`bl claim` rolls back by un-claiming; the review squash on `main` and the close worktree teardown are out of scope per the SPEC's staging.)
+- **required** — a wire failure or a first-class `reject` (`SPEC-lifecycle-sync-participants.md` §8.1, a native `{"reject":{"reason":...}}`) **aborts the command**: the event's state-branch commit is rolled back so the task returns to its pre-event state, and `bl` exits non-zero with the plugin's reason verbatim. (`bl claim` rolls back by un-claiming; the review squash on `main` and the close worktree teardown are out of scope per the SPEC's staging.)
 - **best-effort** — warn and continue; the event ships and the verbatim reason is recorded in `task.sync_status.<plugin>` (cleared on the next success). Legacy-shim skips stay silent so unmodified configs are byte-identical.
 - **gating** — inert until the staging machinery lands (separate ball); the event ships, nothing is recorded.
 
-Per-invocation overrides (SPEC §11), valid on `claim`/`review`/`close`/`update`/`create`:
+Per-invocation overrides (`SPEC-lifecycle-sync-participants.md` §11), valid on `claim`/`review`/`close`/`update`/`create`:
 
 | Flag | Effect |
 |---|---|
@@ -1152,7 +1152,7 @@ Per-invocation overrides (SPEC §11), valid on `claim`/`review`/`close`/`update`
 | `--required=NAME` | Force participant `NAME` to `required` for this event. |
 | `--sync` / `--no-sync` | Force the git-remote participant on/off (as before). |
 
-Every applied override is logged in the event's state-branch commit subject (e.g. `balls: update bl-a1b2 - title [--skip=jira]`) so a post-hoc audit shows which negotiations ran without their required participants. A `wants_context` native plugin additionally receives the pre-image (`task_before`), the event's `commit` sha, and the `overrides` list on its describe-gated EventCtx side channel (SPEC §5.1).
+Every applied override is logged in the event's state-branch commit subject (e.g. `balls: update bl-a1b2 - title [--skip=jira]`) so a post-hoc audit shows which negotiations ran without their required participants. A `wants_context` native plugin additionally receives the pre-image (`task_before`), the event's `commit` sha, and the `overrides` list on its describe-gated EventCtx side channel (`SPEC-lifecycle-sync-participants.md` §5.1).
 
 ### Sync with `--task` filtering
 
