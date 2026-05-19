@@ -99,7 +99,7 @@ pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let s = fs::read_to_string(path).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => BallError::NotInitialized,
+            std::io::ErrorKind::NotFound => BallError::config_missing(path),
             _ => BallError::Io(e),
         })?;
         let mut c: Config = serde_json::from_str(&s)?;
