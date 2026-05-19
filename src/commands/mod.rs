@@ -13,6 +13,7 @@ pub mod lifecycle;
 mod prime_status;
 pub mod ready_cmd;
 pub mod remaster;
+pub mod repair;
 pub mod sync;
 mod sync_report;
 mod sync_review;
@@ -23,7 +24,8 @@ pub use dep_link::{cmd_dep, cmd_link};
 pub use lifecycle::{cmd_claim, cmd_close, cmd_drop, cmd_review, cmd_update};
 pub use ready_cmd::cmd_ready;
 pub use remaster::cmd_remaster;
-pub use sync::{cmd_prime, cmd_repair, cmd_resolve, cmd_sync, SyncArgs};
+pub use repair::cmd_repair;
+pub use sync::{cmd_prime, cmd_resolve, cmd_sync, SyncArgs};
 
 pub(crate) fn discover() -> Result<Store> {
     let cwd = env::current_dir()?;
