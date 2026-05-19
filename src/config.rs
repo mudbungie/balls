@@ -1,4 +1,5 @@
 use crate::error::{BallError, Result};
+use crate::git;
 use crate::participant_config::ParticipantConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -53,6 +54,18 @@ pub struct Config {
     /// the codebase; a fork detaches via the per-clone override.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_remote: Option<String>,
+    /// The integration branch `bl review` squashes into, `bl sync`
+    /// pushes alongside the state branch, and the delivery-link /
+    /// half-push tag scans consult. `None` (the default, and every
+    /// config written before this field) falls back to whatever
+    /// branch is checked out at the repo root — today's *implicit*
+    /// target, which a stray `git checkout` at the root silently
+    /// re-points. Set this to pin the target explicitly: `develop`
+    /// for a git-flow repo, `main` for a hotfix worktree. Resolved
+    /// through the single `integration_branch()` seam below, mirroring
+    /// `state_remote` — unset is byte-identical to before this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_branch: Option<String>,
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
 }
@@ -79,6 +92,7 @@ impl Default for Config {
             require_remote_on_review: false,
             require_remote_on_close: false,
             state_remote: None,
+            target_branch: None,
             plugins: BTreeMap::new(),
         }
     }
@@ -177,6 +191,22 @@ impl Config {
     /// in. `None` ⇒ `origin`, byte-identical to a single-repo setup.
     pub fn state_remote(&self) -> &str {
         self.state_remote.as_deref().unwrap_or(DEFAULT_STATE_REMOTE)
+    }
+
+    /// Resolve the integration branch. This is the single seam every
+    /// integration-branch consumer (`bl review`'s squash, `bl sync`'s
+    /// push, the delivery-link and half-push tag scans, `bl claim`'s
+    /// worktree base) routes through, so the `target_branch`
+    /// precedence lives in exactly one place — the analogue of
+    /// `state_remote()`, but with a dynamic default. Configured value
+    /// wins; otherwise fall back to the branch checked out at `root`
+    /// (`git rev-parse --abbrev-ref HEAD`), which is byte-identical to
+    /// the implicit behavior that predated this field.
+    pub fn integration_branch(&self, root: &Path) -> Result<String> {
+        match &self.target_branch {
+            Some(b) => Ok(b.clone()),
+            None => git::git_current_branch(root),
+        }
     }
 }
 

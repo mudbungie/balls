@@ -195,6 +195,41 @@ fn state_remote_explicit_value_resolves_and_round_trips() {
     assert_eq!(loaded.state_remote(), "taskhub");
 }
 
+#[test]
+fn target_branch_none_is_omitted_from_serialization() {
+    // skip_serializing_if keeps an unmodified config byte-identical:
+    // the key must not appear when unset, mirroring state_remote.
+    let cfg = Config::default();
+    assert_eq!(cfg.target_branch, None);
+    let s = serde_json::to_string(&cfg).unwrap();
+    assert!(
+        !s.contains("target_branch"),
+        "default config must not serialize target_branch: {s}"
+    );
+}
+
+#[test]
+fn target_branch_explicit_value_short_circuits_git_and_round_trips() {
+    // A configured target_branch wins outright: `integration_branch`
+    // returns it without consulting git, so a path that isn't even a
+    // repo still resolves. This is the single-seam guarantee.
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("c.json");
+    let cfg = Config {
+        target_branch: Some("develop".to_string()),
+        ..Config::default()
+    };
+    cfg.save(&path).unwrap();
+    let loaded = Config::load(&path).unwrap();
+    assert_eq!(loaded.target_branch.as_deref(), Some("develop"));
+    assert_eq!(
+        loaded
+            .integration_branch(std::path::Path::new("/no/such/repo"))
+            .unwrap(),
+        "develop"
+    );
+}
+
 // SPEC §6.2 / §17.20: `drop` is observe-only. `required`/`gating` on
 // it must fail config validation; `best-effort` is the only legal
 // policy.

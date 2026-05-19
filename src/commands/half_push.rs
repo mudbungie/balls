@@ -35,7 +35,7 @@ pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
         .iter()
         .filter_map(|s| extract_state_id(s, "state: forget-half-push "))
         .collect();
-    let main_branch = git::git_current_branch(&store.root)?;
+    let main_branch = store.load_config()?.integration_branch(&store.root)?;
     let main_subjects = git_state::log_subjects(&store.root, &main_branch)?;
     let mut missing = Vec::new();
     for subj in &state_subjects {
