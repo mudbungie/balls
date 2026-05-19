@@ -64,9 +64,15 @@ pub enum Command {
         /// Filter by tag
         #[arg(long)]
         tag: Option<String>,
-        /// Include closed tasks
+        /// Open and closed tasks together. Closed tasks are
+        /// reconstructed from the `balls/tasks` history — high-volume
+        /// on long-lived repos.
         #[arg(long)]
         all: bool,
+        /// Only closed/archived tasks, reconstructed from the
+        /// `balls/tasks` history.
+        #[arg(long)]
+        closed: bool,
         /// JSON output
         #[arg(long)]
         json: bool,
