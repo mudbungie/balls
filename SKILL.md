@@ -77,9 +77,13 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 ## Task Lifecycle
 
 ```
+                          ┌─ local-squash (default): squashed to integration branch ─┐
 open ──claim──> in_progress ──review──> review ──close──> archived
                      ^                    │      │
                      └────── reject ──────┘      └── blocked while open `gates` links exist
+                          └─ deferred (opt-in): branch pushed, auto-gate child opened;
+                             review still set, but close stays blocked until the forge
+                             merges and the gate child closes ─┘
 ```
 
 - **open**: available to claim.
@@ -160,6 +164,24 @@ bl review bl-abcd \
 ```
 
 A single `-m` value may still contain newlines (first line = title, rest = body), so `-m "$(cat <<'EOF' … EOF)"` keeps working. A single-line `-m "fix foo"` becomes `fix foo [bl-abcd]` with no body. Don't stuff a multi-sentence summary into one line; that produces an unreadable `git log --oneline`.
+
+## Forge-gated review (opt-in)
+
+Most repos use the default *local-squash* delivery: `bl review` squashes your branch to the integration branch immediately and you `bl close` yourself. Some repos opt into *deferred* delivery instead (`delivery.mode = "deferred"` in `.balls/config.json`) because their merges are produced by a forge — a GitHub PR, GitLab MR — after required review and CI. The full picture is README §Delivery Modes and `docs/SPEC-forge-gated-delivery.md`; here is only what changes for you as the working agent.
+
+**What `bl review` does differently in deferred mode.** It does *not* squash to the integration branch. Instead it:
+
+- pushes your `work/bl-xxxx` branch to `origin`,
+- auto-creates a **gate child** task and links the parent to it (`parent gates child`),
+- flips the parent to `review`, leaving `delivered_in` null.
+
+It prints a recommended PR title ending in `[bl-xxxx]`, the gate child id, and the branch name. Open the PR (`gh pr create` or your forge's plugin) against the configured target branch, keeping that `[bl-xxxx]` in the title.
+
+**The gate child is not yours to claim.** It is a marker that the parent is waiting on an external merge — exactly the "do not claim a `gates` target" rule from the Links section. Don't claim it, don't work it. It closes on its own when the forge merges the PR: either someone closes it by hand after merging, or a forge plugin's `sync` closes it automatically and carries the merge SHA back. Once it closes, the parent's `bl close` unblocks; run it from the repo root and `delivered_in` resolves from the `[bl-xxxx]` tag the forge merge put on the integration branch.
+
+So in deferred mode your finish line moves: `bl review` is genuinely a handoff to the forge, not a transient flip-through. You're done once the PR is open and the gate child exists — *unless* you're also the one merging the PR, in which case carry it through to `bl close`.
+
+**Backwards-compat caveat.** If you're on an old `bl` in a deferred-mode repo, `bl review` won't know to defer — it will local-squash and contaminate the integration branch with a premature commit. There is no guard against this; check `min_bl_version` in `.balls/config.json` and make sure your `bl --version` meets it before running `bl review` in an unfamiliar repo. (Old `bl close` is safe — it still respects the gate block.)
 
 ## Multi-agent: split submitter and reviewer (opt-in)
 
