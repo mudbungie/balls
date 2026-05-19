@@ -69,11 +69,11 @@ impl Store {
         let common_dir = git::git_common_dir(from)?;
         let main_root = find_main_root(&common_dir)?;
         if !main_root.join(".balls").exists() {
-            return Err(BallError::NotInitialized);
+            return Err(BallError::git_repo_no_balls(&main_root));
         }
         let (tasks_dir_path, stealth) = resolve_tasks_dir(&main_root);
         if !stealth && !tasks_dir_path.exists() {
-            return Err(BallError::NotInitialized);
+            return Err(BallError::state_worktree_missing(&main_root, &tasks_dir_path));
         }
         git::git_ensure_user(&main_root)?;
         Ok(Store { root: main_root, stealth, no_git: false, tasks_dir_path })
@@ -83,7 +83,7 @@ impl Store {
         let root = find_balls_root(from)?;
         let (tasks_dir_path, stealth) = resolve_tasks_dir(&root);
         if !stealth || !tasks_dir_path.exists() {
-            return Err(BallError::NotInitialized);
+            return Err(BallError::no_git_store_unusable(&root, &tasks_dir_path, stealth));
         }
         Ok(Store { root, stealth, no_git: true, tasks_dir_path })
     }
