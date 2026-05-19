@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-88c7",
+  "claimed_by": "Understand",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T05:54:48.151566405Z",
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": ["multi-repo","delivery"],
   "title": "bl sync: sync the state branch even when the code remote is absent",
   "type": "bug",
-  "updated_at": "2026-05-19T05:54:48.151566405Z"
+  "updated_at": "2026-05-19T06:28:24.980986073Z"
 }
