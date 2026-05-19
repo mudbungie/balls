@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-82fe",
+  "claimed_by": "Groundhog",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T16:29:34.153968602Z",
@@ -13,9 +13,9 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "tags": ["docs","bare-repo"],
   "title": "Docs: add a bare-hub variant to the README File/Folder Layout diagram",
   "type": "task",
-  "updated_at": "2026-05-19T16:29:34.153968602Z"
+  "updated_at": "2026-05-19T17:35:06.503616882Z"
 }
