@@ -231,8 +231,13 @@ impl Store {
         let _g = state_worktree_flock(self)?;
         let dir = self.state_worktree_dir();
         if let Some(pid) = &task.parent {
-            let rel = PathBuf::from(format!(".balls/tasks/{pid}.json"));
-            git::git_add(&dir, &[rel.as_path()])?;
+            // Stage the parent's notes sidecar alongside its json: it
+            // always exists post-`save_task` (mirrors `commit_task`),
+            // is a no-op stage when unchanged, and carries the reject
+            // note into this same commit on the deferred-reject path.
+            let pj = PathBuf::from(format!(".balls/tasks/{pid}.json"));
+            let pn = PathBuf::from(format!(".balls/tasks/{pid}.notes.jsonl"));
+            git::git_add(&dir, &[pj.as_path(), pn.as_path()])?;
         }
         let json = PathBuf::from(format!(".balls/tasks/{}.json", task.id));
         let notes = PathBuf::from(format!(".balls/tasks/{}.notes.jsonl", task.id));
