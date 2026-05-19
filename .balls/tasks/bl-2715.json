@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-11T05:20:38.174711380Z",
-  "delivered_in": null,
+  "delivered_in": "5025efb6a03e03958047cd858d50b0fdd9946bb8",
   "depends_on": [],
   "description": "WHY: agents and humans get confused when a repo's docs reference bl but the repo isn't actually bl-init'ed (or vice versa, or state has drifted). Today these only surface as opaque errors mid-workflow. A diagnostic command that flags drift up front turns \"bl prime mysteriously fails\" into \"AGENTS.md mentions bl but .balls/ is missing — either run bl init or remove the references.\"\n\nCHECKS to consider (start small, expand as cases emerge):\n  - AGENTS.md / CLAUDE.md / README mentions bl but no .balls/\n  - .balls/ present but state branch missing or far behind origin\n  - .balls/worktree exists but isn't a valid linked worktree\n  - Stale claims (claim files for tasks that no longer exist or are already closed)\n  - Worktrees in .balls-worktrees/ with no matching task or claim\n  - Override file .balls/local/tasks_dir points somewhere that doesn't exist\n  - Bare repo on a bl version that doesn't support bare discovery (once that gap is closed)\n\nNON-GOALS: not bl repair (which already exists and mutates). doctor is read-only — it diagnoses, suggests, never touches state. Keep \"repair\" as the only action verb.\n\nPRIORITY: lower than the bare-repo discovery bug and the error-message work — those will eliminate the cases doctor would otherwise carry. Build doctor once those land and we can see what's actually left over. Source: external user feedback noting that an AGENTS.md referencing bl in a not-init'd repo had no easy way to be detected.",
   "external": {},
@@ -12,9 +12,9 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "in_progress",
+  "status": "review",
   "tags": ["ux","diagnostics"],
   "title": "bl doctor: read-only diagnostic for repo/bl state drift",
   "type": "task",
-  "updated_at": "2026-05-19T06:39:32.691428871Z"
+  "updated_at": "2026-05-19T06:58:30.191823741Z"
 }
