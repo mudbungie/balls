@@ -139,6 +139,24 @@ impl Config {
                 self.worktree_dir
             )));
         }
+        // SPEC §6.2: `drop` is observe-only. A `required` or `gating`
+        // policy on it is rejected here — an observer must never be
+        // able to block or stage a local claim release (§2 soft
+        // policy, hard primitive). Only `best-effort` is legal.
+        for (name, entry) in &self.plugins {
+            let drop_policy = entry
+                .participant
+                .as_ref()
+                .and_then(|p| p.subscriptions.get(&crate::participant::Event::Drop));
+            if let Some(ep) = drop_policy {
+                if !matches!(ep.policy, crate::participant_config::PolicyKind::BestEffort) {
+                    return Err(BallError::Other(format!(
+                        "invalid config: plugin {name:?} subscribes to `drop` with a \
+                         non-best-effort policy; drop is observe-only (SPEC §6.2)"
+                    )));
+                }
+            }
+        }
         Ok(())
     }
 

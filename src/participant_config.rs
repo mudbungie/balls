@@ -104,8 +104,16 @@ impl InvocationOverrides {
 /// subscribes only to the standalone `Sync` event. Either way the
 /// resulting policies match today's swallow-and-warn behavior.
 pub fn legacy_subscriptions(sync_on_change: bool) -> ParticipantConfig {
+    // `Create` is included so a legacy plugin still fires on
+    // `bl create` exactly as before bl-ec62 (when creation rode
+    // `Update`): the legacy push wire carries no event name, so the
+    // observable behavior is byte-identical (SPEC §12 / §17.1).
+    // `Drop` is deliberately omitted: `bl drop` was silent for legacy
+    // plugins and must stay so — drop is native-only/observe-only
+    // (SPEC §6.2).
     let events: &[Event] = if sync_on_change {
         &[
+            Event::Create,
             Event::Claim,
             Event::Review,
             Event::Close,

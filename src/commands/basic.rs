@@ -70,7 +70,9 @@ pub fn cmd_create(
         store.commit_task(&id, &format!("balls: create {id} - {title}"))?;
     }
 
-    let _ = plugin::dispatch_push(&store, &task, Event::Update, &super::default_identity());
+    // SPEC §6.1: task birth is its own event, not an `Update`. A
+    // mirror-on-create plugin can finally tell creation from change.
+    let _ = plugin::dispatch_push(&store, &task, Event::Create, &super::default_identity());
 
     println!("{id}");
     Ok(())

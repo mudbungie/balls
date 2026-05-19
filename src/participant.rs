@@ -26,13 +26,18 @@ use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-/// SPEC §6 — discrete state transitions `bl` runs against a task. The
-/// `Drop` event is intentionally absent (SPEC §6): drop is a local
-/// release with no durable change to negotiate.
+/// SPEC §6 — discrete state transitions `bl` runs against a task.
+///
+/// `Create` (SPEC §6.1) is a first-class, describe-gated event: task
+/// birth, distinct from `Update`. `Drop` (SPEC §6.2) is observe-only:
+/// a participant may be notified that a claim was released, but drop
+/// changes nothing to negotiate and an observer can never block it.
 ///
 /// Serializes to lowercase strings (`"claim"`, `"review"`, ...) so it
 /// can sit as a JSON object key in `.balls/config.json` participant
-/// subscription maps.
+/// subscription maps. New variants are additive per §13: an older
+/// `bl` meeting one in a describe response drops that one
+/// subscription (bl-1b07) rather than failing the handshake.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Event {
@@ -41,6 +46,8 @@ pub enum Event {
     Close,
     Update,
     Sync,
+    Create,
+    Drop,
 }
 
 /// SPEC §3 — canonical Task field set used by `Projection`. Mirrors
