@@ -9,7 +9,7 @@
   "description": "SPEC §5 / §10. Add the advisory `min_bl_version` config field: a newer bl whose version is below it warns; older clients ignore it. This is the documented (not engineered) mitigation for the one accepted BC caveat — an old bl on a deferred-mode repo running `bl review` still does the old local-squash, contaminating the integration branch (epic bl-00ca ACCEPTED CAVEAT 2026-05-10). bl-b017 [bl-b017] scoped the `delivery` block to `mode` only; min_bl_version is advisory-only and was not in its acceptance. May fold into docs ball bl-5305 if preferred.",
   "external": {},
   "id": "bl-b7d3",
-  "links": [],
+  "links": [{"link_type":"relates_to","target":"bl-b017"}],
   "parent": "bl-00ca",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
@@ -17,5 +17,5 @@
   "tags": ["delivery","bc-compat"],
   "title": "Advisory min_bl_version in config",
   "type": "task",
-  "updated_at": "2026-05-19T07:12:46.910160473Z"
+  "updated_at": "2026-05-19T07:12:46.922531293Z"
 }
