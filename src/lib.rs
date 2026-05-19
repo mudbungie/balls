@@ -17,6 +17,7 @@
 //! }
 //! ```
 
+pub mod archive_recovery;
 pub mod archived_child;
 pub mod bare_squash;
 pub mod claim_sync;

@@ -111,17 +111,39 @@ pub fn cmd_list(
     parent: Option<String>,
     tag: Option<String>,
     all: bool,
+    closed: bool,
     json: bool,
 ) -> Result<()> {
     let store = discover()?;
-    let mut tasks = store.all_tasks()?;
+    let st = status.as_deref().map(Status::parse).transpose()?;
+    let want_closed = closed || st.as_ref() == Some(&Status::Closed);
 
-    if let Some(s) = &status {
-        let st = Status::parse(s)?;
-        tasks.retain(|t| t.status == st);
-    } else if !all {
-        tasks.retain(|t| t.status != Status::Closed);
+    if (want_closed || all) && !balls::archive_recovery::available(&store) {
+        eprintln!(
+            "note: closed tasks live only in the git state branch; \
+             unavailable in this store"
+        );
     }
+
+    // `--status X` (X != closed) keeps its historical precedence over
+    // `--all`. `--closed`/`--status closed` reconstruct from history;
+    // `--all` folds that history in alongside the live set.
+    let mut tasks = if want_closed {
+        balls::archive_recovery::recover_all(&store)
+    } else if let Some(s) = &st {
+        let mut live = store.all_tasks()?;
+        live.retain(|t| &t.status == s);
+        live
+    } else {
+        let mut live = store.all_tasks()?;
+        if all {
+            live.extend(balls::archive_recovery::recover_all(&store));
+        } else {
+            live.retain(|t| t.status != Status::Closed);
+        }
+        live
+    };
+
     if let Some(p) = priority {
         tasks.retain(|t| t.priority == p);
     }
@@ -140,7 +162,9 @@ pub fn cmd_list(
     if json {
         println!("{}", serde_json::to_string_pretty(&tasks)?);
     } else {
-        let flat = status.is_some();
+        // Grouped view (GROUP_ORDER) deliberately drops Closed, so any
+        // set that may carry closed tasks renders flat.
+        let flat = want_closed || all || st.is_some();
         let me = super::default_identity();
         let cols = terminal_columns();
         let all = store.all_tasks()?;
@@ -164,7 +188,14 @@ fn terminal_columns() -> usize {
 
 pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     let store = discover()?;
-    let task = store.load_task(&id)?;
+    // A closed task's file is gone from the state-branch HEAD; fall
+    // back to reconstructing it from history so `bl show <id>` keeps
+    // the promise its own help text makes for closed tasks.
+    let task = match store.load_task(&id) {
+        Err(BallError::TaskNotFound(_)) => balls::archive_recovery::recover_one(&store, &id)
+            .ok_or(BallError::TaskNotFound(id.clone()))?,
+        other => other?,
+    };
     let all = store.all_tasks()?;
     let delivery = balls::delivery::resolve(&store.root, &task);
 
