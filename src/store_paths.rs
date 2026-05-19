@@ -22,6 +22,24 @@ pub(crate) fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
 }
 
 /// Generate a deterministic external path for stealth tasks.
+///
+/// Why `sha1` and not `git hash-object` (footprint audit, epic
+/// bl-32f8): this is the one in-tree hash that the jq+git+ln line
+/// genuinely cannot reach. Two independent disqualifiers:
+///   1. This path is computed in *stealth / no-git mode* — the mode
+///      whose entire point is operating outside a git repo. Deriving
+///      the store location by shelling to git would require the very
+///      context this mode is built to not need.
+///   2. `git hash-object` returns `sha1("blob <len>\0" + content)`,
+///      not `sha1(content)`. The value differs, and this hash *is*
+///      the store directory: changing it silently orphans every
+///      existing stealth store. It is a persisted on-disk contract.
+/// So `sha1`+`hex` is a deliberate, bounded kept exception — same
+/// shape as the plugin/libc line: small, well-understood, clearly
+/// demarcated, with no primitive substitute. The only remaining
+/// lever is vendoring a ~75-line SHA-1 (drops the RustCrypto chain,
+/// keeps the exact values); deferred as an explicit decision because
+/// it trades a vetted crate for a hand-maintained crypto primitive.
 pub(crate) fn stealth_tasks_dir(root: &Path) -> PathBuf {
     use sha1::{Digest, Sha1};
     let root_str = root.to_string_lossy();
