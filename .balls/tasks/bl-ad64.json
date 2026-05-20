@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T02:32:47.996149077Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "\n\n\n## 🤖 New release\n\n* `balls`: 0.3.10 -> 0.3.11\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n## [0.3.11](https://github.com/mudbungie/balls/compare/v0.3.10...v0.3.11) - 2026-05-13\n\n### Changes\n\n- never deliver .balls runtime paths; rewind main on failure [bl-0dc3]\n\n<!--\n  Don't append bullets here. release-plz owns this file: each release\n  cut auto-generates the new `[X.Y.Z]` section from commit subjects\n  (see `release-plz.toml`; commits prefixed `balls:` are skipped).\n  The rich \"why\" lives in commit message bodies — `bl review -m TITLE\n  -m PARA -m PARA` makes those easy, and `git show <sha>` or\n  `gh release view vX.Y.Z` reads them back. The CHANGELOG is the\n  index; commit history is the narrative. Hand-curating bullets here\n  reintroduces the dual-source drift cleaned up in bl-3751.\n-->\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with [release-plz](https://github.com/release-plz/release-plz/).",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":14,"source":"github","state":"closed","synced_at":"2026-05-20T02:32:47.774122791+00:00","url":"https://github.com/mudbungie/balls/pull/14"}}}},
+  "id": "bl-ad64",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T02:32:47.996153877Z"},
+  "tags": [],
+  "title": "chore: release v0.3.11",
+  "type": "task",
+  "updated_at": "2026-05-20T02:32:47.996149077Z"
+}
