@@ -69,8 +69,8 @@ pub fn resolve(repo_root: &Path, main_branch: &str, task: &Task) -> Delivery {
 /// `[id]`-tagged merge commit into the task file the close commit
 /// archives, so a later `bl show` resolves via the fast hint path.
 ///
-/// `manual` (`bl close --delivered <sha>`) wins unconditionally and
-/// skips the scan — the operator's explicit override for the case
+/// `manual_sha` (`bl close --delivered <sha>`) wins unconditionally
+/// and skips the scan — the operator's explicit override for the case
 /// where the forge produced a rebase-merge with several commits and
 /// they want to point at a specific one. Otherwise this is a no-op
 /// when the hint is already set (local-squash mode wrote it in
@@ -82,26 +82,34 @@ pub fn resolve(repo_root: &Path, main_branch: &str, task: &Task) -> Delivery {
 /// half-push detector (which scans subjects, not this hint) is
 /// unaffected.
 ///
-/// Returns `true` iff `delivered_in` was set, so the close path knows
-/// to persist the task to the state branch before archiving it (the
+/// `manual_repo` (`bl close --delivered-repo <url>`, bl-733e) is the
+/// parallel override for `delivered_repo`. The auto-tag default —
+/// "the current clone's `origin`" — is correct for any operator
+/// running close in the clone that produced the sha. A bridge clone
+/// running close from a sync hook on behalf of *another* repo
+/// (README §Bridging) needs to declare the true source: this flag
+/// does that. It always wins over the auto-tag and can be set with
+/// or without `--delivered`. Setting it on a task with no sha
+/// (manual or scanned) is allowed but odd — the operator opted in.
+///
+/// Returns `true` iff anything changed, so the close path knows to
+/// persist the task to the state branch before archiving it (the
 /// no-op local-squash path returns `false` and stays byte-identical).
 pub fn populate_on_close(
     repo_root: &Path,
     target_branch: &str,
     task: &mut Task,
-    manual: Option<String>,
+    manual_sha: Option<String>,
+    manual_repo: Option<String>,
 ) -> bool {
     // bl-7523: whenever we *set* `delivered_in` we also tag the
-    // local repo as the delivery's source, so a reader on a hub (or
-    // a sibling client) can resolve the sha even when no code clone
-    // is locally checked out. The already-set path stays a no-op —
-    // the local-squash review path already wrote both fields, and
-    // pre-bl-7523 tasks without `delivered_repo` are read as "the
-    // locally-checked-out repo" (no retrofit).
-    let new_sha = if let Some(sha) = manual {
+    // local repo as the delivery's source so a reader on a hub (or a
+    // sibling client) can resolve the sha. bl-733e: an operator can
+    // override that auto-tag via `manual_repo`, which always wins.
+    let new_sha = if let Some(sha) = manual_sha {
         Some(sha)
     } else if task.delivered_in.is_some() {
-        return false;
+        None
     } else if let Some(sha) = resolve(repo_root, target_branch, task).sha {
         Some(sha)
     } else {
@@ -113,10 +121,20 @@ pub fn populate_on_close(
         );
         None
     };
-    let Some(sha) = new_sha else { return false };
-    task.delivered_in = Some(sha);
-    task.delivered_repo = Some(crate::repo_url::current(repo_root));
-    true
+    let mut changed = false;
+    if let Some(sha) = new_sha {
+        task.delivered_in = Some(sha);
+        task.delivered_repo = Some(crate::repo_url::current(repo_root));
+        changed = true;
+    }
+    if let Some(url) = manual_repo {
+        // Operator override: always wins, even when no sha was
+        // written this pass (e.g. correcting the source repo on an
+        // already-set delivered_in).
+        task.delivered_repo = Some(url);
+        changed = true;
+    }
+    changed
 }
 
 /// Human-friendly `"<short> <subject>"` for display in `bl show`.
@@ -158,12 +176,12 @@ mod tests {
     fn populate_on_close_manual_override_wins_unconditionally() {
         // `bl close --delivered <sha>` skips the scan and sets the
         // hint even when one is already present (forge rebase-merge).
-        // bl-7523: the manual sha is by definition local-resolvable,
-        // so `delivered_repo` is tagged with the current repo.
+        // Without `--delivered-repo`, `delivered_repo` auto-tags with
+        // the current repo (bl-7523).
         let dir = TempDir::new().unwrap();
         let mut t = empty_task();
         t.delivered_in = Some("oldsha".into());
-        let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()));
+        let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()), None);
         assert!(changed);
         assert_eq!(t.delivered_in.as_deref(), Some("forced"));
         assert_eq!(
@@ -181,7 +199,7 @@ mod tests {
         let mut t = empty_task();
         t.delivered_in = Some("fromreview".into());
         t.delivered_repo = Some("git@h:from-review.git".into());
-        let changed = populate_on_close(dir.path(), "main", &mut t, None);
+        let changed = populate_on_close(dir.path(), "main", &mut t, None, None);
         assert!(!changed);
         assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
         assert_eq!(t.delivered_repo.as_deref(), Some("git@h:from-review.git"));
@@ -194,10 +212,71 @@ mod tests {
         // no sha, no provenance.
         let dir = TempDir::new().unwrap();
         let mut t = empty_task();
-        let changed = populate_on_close(dir.path(), "main", &mut t, None);
+        let changed = populate_on_close(dir.path(), "main", &mut t, None, None);
         assert!(!changed);
         assert!(t.delivered_in.is_none());
         assert!(t.delivered_repo.is_none());
+    }
+
+    #[test]
+    fn populate_on_close_manual_repo_overrides_auto_tag() {
+        // bl-733e: `--delivered <sha> --delivered-repo <url>` writes
+        // both fields verbatim — the operator's declared source
+        // wins over the local clone's `origin` auto-tag.
+        let dir = TempDir::new().unwrap();
+        let mut t = empty_task();
+        let changed = populate_on_close(
+            dir.path(),
+            "main",
+            &mut t,
+            Some("forced".into()),
+            Some("git@h:client-a.git".into()),
+        );
+        assert!(changed);
+        assert_eq!(t.delivered_in.as_deref(), Some("forced"));
+        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:client-a.git"));
+    }
+
+    #[test]
+    fn populate_on_close_manual_repo_alone_updates_only_provenance() {
+        // bl-733e: `--delivered-repo <url>` without `--delivered`
+        // corrects the source repo on a task that already has a sha
+        // (typical bridge-clone sync hook case). delivered_in stays
+        // untouched; delivered_repo gets the new value.
+        let dir = TempDir::new().unwrap();
+        let mut t = empty_task();
+        t.delivered_in = Some("fromreview".into());
+        t.delivered_repo = Some("git@h:wrong.git".into());
+        let changed = populate_on_close(
+            dir.path(),
+            "main",
+            &mut t,
+            None,
+            Some("git@h:right.git".into()),
+        );
+        assert!(changed);
+        assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
+        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:right.git"));
+    }
+
+    #[test]
+    fn populate_on_close_manual_repo_writes_even_when_no_sha_resolves() {
+        // bl-733e: declaring a source repo on a task with no sha
+        // (scan miss, no manual sha) is allowed — the operator
+        // opted in explicitly. delivered_in stays null; we still
+        // return true so the caller persists the provenance.
+        let dir = TempDir::new().unwrap();
+        let mut t = empty_task();
+        let changed = populate_on_close(
+            dir.path(),
+            "main",
+            &mut t,
+            None,
+            Some("git@h:c.git".into()),
+        );
+        assert!(changed);
+        assert!(t.delivered_in.is_none());
+        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:c.git"));
     }
 
     #[test]
