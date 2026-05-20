@@ -225,6 +225,7 @@ pub fn close_worktree(
     identity: &str,
     policy: ClaimPolicy,
     delivered: Option<String>,
+    delivered_repo: Option<String>,
 ) -> Result<Task> {
     let wt_path = worktree_path(store, id)?;
     if let Ok(cwd) = std::env::current_dir() {
@@ -245,7 +246,7 @@ pub fn close_worktree(
         // carries it — as local-squash mode persists it in `review`.
         let cfg = store.load_config()?;
         let target = cfg.integration_branch_for(&store.root, t.target_branch.as_deref())?;
-        if crate::delivery::populate_on_close(&store.root, &target, &mut t, delivered) {
+        if crate::delivery::populate_on_close(&store.root, &target, &mut t, delivered, delivered_repo) {
             store.save_task(&t)?;
             store.commit_task(id, &format!("state: deliver {id}"))?;
         }
