@@ -41,7 +41,7 @@ make hooks     # one-time: install the repo-local pre-commit hook
 `make hooks` is recommended, not required. A pre-commit hook and a **bare core repo** are two valid paths to the same guarantee — that the 300-line and 100%-coverage gates can't be bypassed — and which one fits depends on circumstance:
 
 - **Local hook** — for an ordinary clone where the working branch can be committed to directly, when you want the gate to fail at commit time, or when there is no CI. Strength: fast local feedback. Cost: a per-clone install, a `tarpaulin` run on every commit, and `git commit --no-verify` slips past it.
-- **Bare core** — for the worktree/merge model this repo uses: a bare core, every change arriving via a worktree and a `bl review` squash-merge, the gates enforced in CI. A bare repo has no working tree, so the working branch *cannot* be edited directly — the architecture makes the bypass impossible rather than merely discouraging it. Cost: a violation surfaces at review/CI, not at the commit.
+- **Bare core** — for the worktree/merge model this repo uses: a bare core, every change arriving via a worktree and a `bl review` squash-merge, the gates enforced in CI. A bare repo has no working tree, so the working branch *cannot* be edited directly — the architecture makes the bypass impossible rather than merely discouraging it. Cost: a violation surfaces at review/CI, not at the commit. Standing one up is *The bare central hub → Bootstrapping a bare hub from scratch*, below.
 
 The two compose rather than exclude: a bare core can still install the hook (one install in the shared common dir covers every worktree) for at-commit feedback layered on top of the structural guarantee.
 
@@ -271,7 +271,7 @@ Every lifecycle transition (create, claim, review, close, update, note, dep, lin
 
 ## The bare central hub (recommended deployment)
 
-The recommended production topology is a **bare** repository (`core.bare = true`) acting as a central hub. There is no working tree at the root: every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses, and the one the install section's "bare core" option sets up.
+The recommended production topology is a **bare** repository (`core.bare = true`) acting as a central hub. There is no working tree at the root: every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses; the *Bootstrapping a bare hub from scratch* subsection below is the canonical sequence for standing one up.
 
 **Why bare-ness is load-bearing, not incidental.** The rest of these docs preach a worktree-only rule — *edits go in the worktree, never directly on the operating branch*. A pre-commit hook can only *discourage* the bypass; `git commit --no-verify` slips past it. A bare repo makes the bypass a **git-level impossibility**: a bare repo has no working tree, so git itself refuses to commit or even stage on the operating branch from the root (`fatal: this operation must be run in a work tree`). The convention becomes a hard invariant that no agent or human can violate, by mistake or on purpose. That structural guarantee — not mere tidiness — is why bare is the recommended hub.
 
@@ -288,6 +288,44 @@ The recommended production topology is a **bare** repository (`core.bare = true`
 - `bl close` runs from the bare root normally. Its only hard constraint is that it must **not** be run from inside the bl worktree it is about to delete — and a bare hub's root is, by construction, never inside a worktree.
 
 **Reconciling "run from the repo root."** Every "run `bl close` from the repo root" instruction in this README and in SKILL.md is correct for a bare hub: the bare directory *is* that repo root, and `bl close` prints it on success so you can `cd` back. The rule was never "find the checked-out main branch" — it is "not from within the bl worktree." On a bare hub there is no checked-out main to stand in; that absence is the entire point of choosing bare.
+
+### Bootstrapping a bare hub from scratch
+
+There is no `bl init --bare`. `bl init`'s work is *working-tree* wiring — the one-time `balls: initialize` commit on `main`, the `.gitignore` entries, the `.balls/tasks` symlink into main's checkout. A bare repo has no working tree by construction, so `bl init` at a bare root fails before it starts: it resolves the root via `git rev-parse --show-toplevel`, which a bare repo does not have. That is a tracked ergonomic gap (a `bl init --bare` that mechanizes the steps below), not a wontfix — see bl-9e8a. Until it lands, stand a hub up by hand. The sequence is short because the orphan-branch design means a hub is just a loose store wrapped around an already-published `balls/tasks`:
+
+```bash
+# 1. ONE working-tree clone creates the balls/tasks orphan branch and
+#    pushes it to the shared remote. Skip this whole step if the project
+#    already uses balls — balls/tasks is already on origin.
+git clone git@host:proj.git /tmp/proj-init && cd /tmp/proj-init
+bl init        # writes `balls: initialize` on main, creates + pushes balls/tasks
+bl sync        # ensure both main and balls/tasks are on origin
+cd / && rm -rf /tmp/proj-init        # the seeding clone is disposable
+
+# 2. The hub is a BARE repo whose gitdir is a `.git` directory inside
+#    the hub root, so the gitdir's parent (the hub root) is where the
+#    loose store lives. Clone bare into that `.git`.
+mkdir -p /srv/proj-hub
+git clone --bare git@host:proj.git /srv/proj-hub/.git
+cd /srv/proj-hub
+git --git-dir=.git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git --git-dir=.git fetch origin
+
+# 3. Reconstruct the loose store at the bare root — the part `bl init`
+#    would do in a working-tree clone but cannot here. The store dirs are
+#    gitignored on main so a clone never carries them; config.json IS
+#    tracked on main, so materialize it from main's tree (no checkout
+#    exists to copy it from at a bare root).
+git worktree add .balls/worktree balls/tasks
+ln -s worktree/.balls/tasks .balls/tasks
+mkdir -p .balls/plugins .balls/local/claims .balls/local/lock .balls/local/plugins
+git show main:.balls/config.json > .balls/config.json
+
+# 4. Verify. Read-only and root commands work from the bare root (bl-8cf7).
+bl list
+```
+
+The state worktree added in step 3 already carries `.gitattributes` and every task file from `balls/tasks`, so nothing is reseeded — it is pure on-disk scaffolding around an already-populated orphan branch. From here `bl claim` / `bl review` / `bl close` run at the bare root exactly as described above; `bl review`'s ephemeral-worktree squash (`bare_squash.rs`) needs no extra setup.
 
 ---
 
@@ -544,6 +582,8 @@ With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of 
 **No-git mode:** `bl init --tasks-dir PATH` also works outside a git repository. In this mode balls stores tasks as flat JSON files at the given path with no git operations at all — no state branch, no commits, no worktrees. All commands work: `create`, `list`, `show`, `update`, `sync` (plugin-only), `ready`, `repair`. The only behavioral difference is that `bl claim` requires `--no-worktree` (since there's no git repo to create a worktree in), and `bl review`/`bl close` are status flips with no merge.
 
 **By hand:** see SPEC §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
+
+**Bare hub:** everything above assumes a working tree. `bl init` cannot initialize a bare repo (no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into) — standing up the recommended bare central-hub deployment is a separate, currently by-hand procedure documented in *The bare central hub → Bootstrapping a bare hub from scratch* above. Closing that tooling gap is tracked as bl-9e8a.
 
 ### bl create TITLE [options]
 

@@ -190,6 +190,8 @@ On a fresh clone, `bl init` performs:
 
 `bl init` does not run implicitly. Other commands that need the state worktree detect its absence and fail with a clear "run `bl init` first" message.
 
+Every responsibility above is working-tree work (the one-time main commit, the main `.gitignore`, the symlink into main's checkout). `bl init` is therefore working-tree-only by design and cannot initialize a bare repo. Standing up the recommended bare central-hub deployment is a separate procedure — a by-hand sequence (README *Bootstrapping a bare hub from scratch*) over the same primitives, with a first-class `bl init --bare` wrapper tracked but not yet built (bl-9e8a). The by-hand sequence stays canonical per §2 principle 3.
+
 ## 11. Hand-edit workflow
 
 This section is the concrete answer to "what does a user do when `bl` is broken and they need to edit a task by hand?" If this sequence stops working, the implementation has drifted from the spec.
