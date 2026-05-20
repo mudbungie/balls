@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-20T03:11:26.573634424Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-05-20T06:46:56.825597195Z"},
   "tags": [],
   "title": "chore: release v0.3.5",
   "type": "task",
-  "updated_at": "2026-05-20T03:11:26.573631388Z"
+  "updated_at": "2026-05-20T06:46:56.825598407Z"
 }
