@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T03:11:26.496467130Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "\n\n\n## 🤖 New release\n\n* `balls`: 0.3.11 -> 0.4.0\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n## [0.4.0](https://github.com/mudbungie/balls/compare/v0.3.11...v0.4.0) - 2026-05-20\n\n### Changes\n\n- Fix remaining map_unwrap_or clippy lints [bl-2fe1]\n- Fix map_unwrap_or clippy lint for rust 1.95 [bl-650b]\n- Wire balls to its own GitHub plugins + fix latent clippy lint [bl-71db]\n- Record sha1+hex as a deliberate kept exception [bl-bd85]\n- bl init --bare: first-class bare central-hub bootstrap [bl-9e8a]\n- Trim chrono to default-features=false [bl-6567]\n- Drop fs2 in favor of std file locking [bl-b26d]\n- Document delivery modes, target_branch, and forge-gated flow [bl-5305]\n- Disambiguate README SPEC cross-references to their files [bl-8e49]\n- Document bootstrapping a bare central hub from scratch [bl-41ee]\n- Add a bare-hub variant to the File/Folder Layout diagram [bl-82fe]\n- bl close: resolve delivered_in via tag-scan when null [bl-87ea]\n- Make post-delivery machinery follow per-task target_branch [bl-f788]\n- Deferred-mode reject closes forge-gate child atomically [bl-3cc2]\n- Document the bare central-hub repo model [bl-9f8e]\n- Add advisory min_bl_version config field [bl-b7d3]\n- Generous anti-DoS backstops on plugin sync ingest [bl-4673]\n- Enforce participant outcomes at the command layer [bl-fb4d]\n- Add per-task target_branch override [bl-d4b0]\n- Deferred-squash review mode: push branch, auto-open gate [bl-b017]\n- Add bl doctor: read-only repo/bl drift diagnostic [bl-2715]\n- Decouple sync's state-branch leg from the code remote [bl-88c7]\n- Make the integration branch explicit via target_branch [bl-0c99]\n- Neutralize terminal control sequences in rendered task content [bl-b807]\n- Reconstruct closed tasks from state-branch history [bl-c90c]\n- Distinct, path-aware discovery errors [bl-597e]\n- correct bl-2bf7 scope; point plugin-side remainder at bl-fb4d [bl-5336]\n- Tolerate bare repos in Store::discover [bl-8cf7]\n- Deliver EventCtx to native plugins via a describe-gated side channel [bl-bac2]\n- create lifecycle event; resolve drop as observe-only participation [bl-ec62]\n- First-class Reject { reason } propose outcome, wired to failure policy [bl-2062]\n- Task repo provenance: record which code repo created each task [bl-499b]\n- bl remaster: recover into, re-target, or detach from a shared task hub [bl-2057]\n- symmetric unknown=round-trip across serde seams [bl-1b07]\n- bl init safety: adopt a configured state_remote; never clobber a shared branch [bl-8e8f]\n- decouple balls/tasks ref from the code remote [bl-c0c6]\n- handle bl review on --no-worktree-claimed tasks [bl-7152]\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with [release-plz](https://github.com/release-plz/release-plz/).",
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":15,"source":"github","state":"closed","synced_at":"2026-05-20T03:11:26.300655248+00:00","url":"https://github.com/mudbungie/balls/pull/15"}}},
+  "id": "bl-0eef",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T03:11:26.496469825Z"},
+  "tags": [],
+  "title": "chore: release v0.4.0",
+  "type": "task",
+  "updated_at": "2026-05-20T03:11:26.496467130Z"
+}
