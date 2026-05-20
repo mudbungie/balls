@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/mudbungie/balls/compare/v0.3.11...v0.4.0) - 2026-05-20
+
+### Changes
+
+- Fix remaining map_unwrap_or clippy lints [bl-2fe1]
+- Fix map_unwrap_or clippy lint for rust 1.95 [bl-650b]
+- Wire balls to its own GitHub plugins + fix latent clippy lint [bl-71db]
+- Record sha1+hex as a deliberate kept exception [bl-bd85]
+- bl init --bare: first-class bare central-hub bootstrap [bl-9e8a]
+- Trim chrono to default-features=false [bl-6567]
+- Drop fs2 in favor of std file locking [bl-b26d]
+- Document delivery modes, target_branch, and forge-gated flow [bl-5305]
+- Disambiguate README SPEC cross-references to their files [bl-8e49]
+- Document bootstrapping a bare central hub from scratch [bl-41ee]
+- Add a bare-hub variant to the File/Folder Layout diagram [bl-82fe]
+- bl close: resolve delivered_in via tag-scan when null [bl-87ea]
+- Make post-delivery machinery follow per-task target_branch [bl-f788]
+- Deferred-mode reject closes forge-gate child atomically [bl-3cc2]
+- Document the bare central-hub repo model [bl-9f8e]
+- Add advisory min_bl_version config field [bl-b7d3]
+- Generous anti-DoS backstops on plugin sync ingest [bl-4673]
+- Enforce participant outcomes at the command layer [bl-fb4d]
+- Add per-task target_branch override [bl-d4b0]
+- Deferred-squash review mode: push branch, auto-open gate [bl-b017]
+- Add bl doctor: read-only repo/bl drift diagnostic [bl-2715]
+- Decouple sync's state-branch leg from the code remote [bl-88c7]
+- Make the integration branch explicit via target_branch [bl-0c99]
+- Neutralize terminal control sequences in rendered task content [bl-b807]
+- Reconstruct closed tasks from state-branch history [bl-c90c]
+- Distinct, path-aware discovery errors [bl-597e]
+- correct bl-2bf7 scope; point plugin-side remainder at bl-fb4d [bl-5336]
+- Tolerate bare repos in Store::discover [bl-8cf7]
+- Deliver EventCtx to native plugins via a describe-gated side channel [bl-bac2]
+- create lifecycle event; resolve drop as observe-only participation [bl-ec62]
+- First-class Reject { reason } propose outcome, wired to failure policy [bl-2062]
+- Task repo provenance: record which code repo created each task [bl-499b]
+- bl remaster: recover into, re-target, or detach from a shared task hub [bl-2057]
+- symmetric unknown=round-trip across serde seams [bl-1b07]
+- bl init safety: adopt a configured state_remote; never clobber a shared branch [bl-8e8f]
+- decouple balls/tasks ref from the code remote [bl-c0c6]
+- handle bl review on --no-worktree-claimed tasks [bl-7152]
+
 ## [0.3.11](https://github.com/mudbungie/balls/compare/v0.3.10...v0.3.11) - 2026-05-13
 
 ### Changes
