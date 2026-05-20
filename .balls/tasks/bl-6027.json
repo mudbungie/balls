@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-20T03:11:26.439267903Z"},
+  "status": "closed",
+  "synced_at": {"github-issues":"2026-05-20T03:33:29.036395056Z"},
   "tags": [],
   "title": "Fix all remaining map_unwrap_or clippy lints (rust 1.95) [bl-2fe1]",
   "type": "task",
-  "updated_at": "2026-05-20T03:11:26.439263154Z"
+  "updated_at": "2026-05-20T03:33:29.036396879Z"
 }
