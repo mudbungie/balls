@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T02:32:48.032222775Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "\n\n\n## 🤖 New release\n\n* `balls`: 0.3.7 -> 0.3.8\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n## [0.3.8](https://github.com/mudbungie/balls/compare/v0.3.7...v0.3.8) - 2026-04-22\n\n### Changes\n\n- silence rustc 1.95 lints across 7 files [bl-0e99]\n- use is_ok_and for CLICOLOR=0 check [bl-1040]\n- rename backronym 'Branched' -> 'Branching' [bl-2284]\n- empty squash yields delivered_in=None, skip half-push warning [bl-6729]\n- add Branched Agent Labor and Logistics System backronym [bl-0512]\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with [release-plz](https://github.com/release-plz/release-plz/).",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":11,"source":"github","state":"closed","synced_at":"2026-05-20T02:32:47.774127621+00:00","url":"https://github.com/mudbungie/balls/pull/11"}}}},
+  "id": "bl-a71f",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T02:32:48.032225542Z"},
+  "tags": [],
+  "title": "chore: release v0.3.8",
+  "type": "task",
+  "updated_at": "2026-05-20T02:32:48.032222775Z"
+}
