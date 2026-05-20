@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-20T03:11:26.485830636Z"},
+  "status": "closed",
+  "synced_at": {"github-issues":"2026-05-20T03:33:29.079890049Z"},
   "tags": [],
   "title": "README: document the native plugin protocol (describe/propose, projections, reject, create/drop, EventCtx) [bl-c972]",
   "type": "task",
-  "updated_at": "2026-05-20T03:11:26.485827270Z"
+  "updated_at": "2026-05-20T03:33:29.079891512Z"
 }
