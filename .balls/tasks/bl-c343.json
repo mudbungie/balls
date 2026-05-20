@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c343",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T03:01:50.555993675Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T03:01:52.032278652Z"},
   "tags": [],
   "title": "plugins missing native protocol 'describe' subcommand — warning noise on every bl invocation",
   "type": "bug",
-  "updated_at": "2026-05-20T03:01:52.032286617Z"
+  "updated_at": "2026-05-20T06:47:30.582853513Z"
 }
