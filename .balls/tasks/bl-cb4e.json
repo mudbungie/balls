@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-cb4e",
+  "claimed_by": "gleaning",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T03:28:50.638537837Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T03:28:51.590302439Z"},
   "tags": ["deps","footprint"],
   "title": "Vendor a minimal SHA-1; drop sha1 + hex crates",
   "type": "task",
-  "updated_at": "2026-05-20T03:28:51.590311606Z"
+  "updated_at": "2026-05-20T03:28:56.098632881Z"
 }
