@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-20T06:47:07.280469088Z"},
   "tags": [],
   "title": "github-issues: close-mirror doesn't fire for born-closed GH issues",
   "type": "bug",
-  "updated_at": "2026-05-20T06:47:07.280476742Z"
+  "updated_at": "2026-05-20T06:53:39.941696511Z"
 }
