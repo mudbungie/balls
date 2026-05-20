@@ -16,11 +16,25 @@
 pub fn format_squash(message: Option<&str>, task_title: &str, id: &str) -> String {
     let raw = message.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(task_title);
     let (title, body) = split_title_body(raw);
-    let tagged = format!("{} [{}]", title.trim_end(), id);
+    let tagged = tag_title(title, id);
     match body {
         Some(b) if !b.is_empty() => format!("{tagged}\n\n{b}"),
         _ => tagged,
     }
+}
+
+/// Just the tagged subject line — the title (first line of `message`,
+/// or `task_title` when empty) with `[id]` appended, no body. Used as
+/// the recommended PR title in deferred-mode `bl review`, where the
+/// operator needs the delivery tag preserved in the forge-produced
+/// commit but not the multi-paragraph body.
+pub fn subject_with_tag(message: Option<&str>, task_title: &str, id: &str) -> String {
+    let raw = message.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(task_title);
+    tag_title(split_title_body(raw).0, id)
+}
+
+fn tag_title(title: &str, id: &str) -> String {
+    format!("{} [{}]", title.trim_end(), id)
 }
 
 /// Collapse repeated `-m` values into one message string.
@@ -144,6 +158,21 @@ mod tests {
         assert_eq!(
             format_squash(msg.as_deref(), "ignored", "bl-1234"),
             "Short title [bl-1234]\n\nBody paragraph."
+        );
+    }
+
+    #[test]
+    fn subject_with_tag_is_title_only_no_body() {
+        // Multi-line message: only the first line, tagged, survives —
+        // the body a PR title must not carry is dropped.
+        assert_eq!(
+            subject_with_tag(Some("Add feature\n\nlong body"), "ignored", "bl-1234"),
+            "Add feature [bl-1234]"
+        );
+        // Empty message falls back to the task title, same as squash.
+        assert_eq!(
+            subject_with_tag(Some("  "), "Fallback", "bl-abcd"),
+            "Fallback [bl-abcd]"
         );
     }
 
