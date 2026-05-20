@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T20:19:09.619829201Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\nA closed task's `delivered_in` records the squash sha that delivered the work. In a single-repo balls deployment that sha resolves trivially against the task store's local git — `bl show`'s `delivered_in_resolved`, `git show <sha>`, release-plz's delivery walks, the github-issues plugin's task-to-commit threading all work because the sha and the task share a repository.\n\nOnce tasks live in a master (per bl-ffb4) and code lives in any of N client repos, the sha is meaningful only against whichever client actually produced it. Readers on the master, or on a sibling client, see a sha with no resolvable parent — `delivered_in_resolved` returns null, debugging affordances quietly stop working, and any tooling that walks delivery shas fragments along repo boundaries.\n\nThe cure is provenance: alongside the sha, record where it came from. The cross-repo model collapses without this — every closed task is opaque to anyone not standing in the right client repo.\n\n# Options for the provenance field\n\nThree shapes worth weighing:\n\n1. **Full URL** (e.g. `delivered_repo: \"git@github.com:org/repo-b.git\"`): robust, self-describing, no registration. Verbose; depends on URL stability over time.\n2. **Short client tag** (e.g. `delivered_repo: \"repo-b\"`, with a `clients` map in the master's `.balls/config.json` resolving `repo-b → git@...`): compact, gives the master a roster of its clients, supports rename via the registry. Adds a registration step.\n3. **Inferred from `git remote get-url origin`** at delivery time, no separate field: zero-config, but fragile when origin URLs differ across clones (ssh vs https, mirror remotes) and doesn't survive a rename of origin.\n\n(1) is the simplest contract; (2) is the most operable for an org with a dozen client repos. (3) is tempting but probably the wrong call — it conflates 'where I happened to push from' with 'where this work lives.'\n\n# Scope\n\n- Add provenance field to the task schema (name TBD; `delivered_repo` is a placeholder).\n- Populate it on `bl review` / `bl close` from the client repo's origin URL (or a configured client tag, if option 2 wins).\n- Teach `bl show` and `delivered_in_resolved` to use it: at minimum present the resolved URL so a reader can navigate; ideally fetch from the named repo when the sha isn't present locally.\n- Define backward-compat: tasks delivered before this field exists are bare. Acceptable — pre-mastering deployments are single-repo and the sha still resolves locally. No retrofit.\n\n# Wider question\n\nProvenance also matters for cross-repo task-to-task `relates_to` links, commit shas referenced in task notes, and any other 'sha pasted into a task' affordance. Worth defining the provenance shape **once** and reusing it across these surfaces rather than adding a sibling field per use case.\n\n# Origin\n\nFootgun #1 from the bl-ffb4 review pass. The user agreed it's a legitimate extension. File children as scope solidifies.",
+  "external": {},
+  "id": "bl-7523",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["multi-repo","schema","master-url"],
+  "title": "delivered_in provenance: tag the source repo so cross-repo shas resolve",
+  "type": "task",
+  "updated_at": "2026-05-20T20:19:09.619829201Z"
+}
