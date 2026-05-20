@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T02:32:47.821448112Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "\n\n\n## 🤖 New release\n\n* `balls`: 0.4.0 -> 0.5.0\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n## [0.5.0](https://github.com/mudbungie/balls/compare/v0.4.0...v0.5.0) - 2026-05-20\n\n### Changes\n\n- Auto-derive minor/major bumps from [minor]/[major] markers [bl-313a]\n- document the native plugin protocol [bl-c972]\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with [release-plz](https://github.com/release-plz/release-plz/).",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":30,"source":"github","state":"open","synced_at":"2026-05-20T02:32:47.774092123+00:00","url":"https://github.com/mudbungie/balls/pull/30"}}}},
+  "id": "bl-50ea",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T02:32:47.821452161Z"},
+  "tags": [],
+  "title": "chore: release v0.5.0",
+  "type": "task",
+  "updated_at": "2026-05-20T02:32:47.821448112Z"
+}
