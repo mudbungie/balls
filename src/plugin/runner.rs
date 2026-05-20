@@ -21,7 +21,8 @@ pub struct Plugin {
 impl Plugin {
     pub fn resolve(store: &Store, name: &str, entry: &PluginEntry) -> Self {
         let executable = format!("balls-plugin-{name}");
-        let config_path = store.root.join(&entry.config_file);
+        // bl-a7d9: master_url shifts plugin config to the hub; seam in store_plugins.
+        let config_path = store.plugin_config_root().join(&entry.config_file);
         let auth_dir = store.local_plugins_dir().join(name);
         Plugin {
             executable,
