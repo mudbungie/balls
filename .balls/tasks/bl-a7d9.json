@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-ffb4's open architectural question:\n\n> Plugins on the mastered side: a clone of B with master_url=A inherits A's plugin configs from A's balls/tasks, not B's committed config. Need to nail down precedence.\n\nThe user's answer (2026-05-20): **master wins. Unified config.**\n\nThis is the natural composition with the rest of the multi-repo model: the bridge/proxy pattern (bl-bfb7) already centralizes plugin policy in one place — the bridge clone. Letting client repos override would re-introduce the very fragmentation (N secrets, N sync races, drifting mirroring policy) that the bridge pattern exists to eliminate. Master-wins also matches the field's own semantics: master_url moves authority to the hub for the task store; it should move authority for plugin policy too.\n\n# Concrete deliverable\n\n- Define and codify the rule in SPEC / SKILL.md: when master_url is set, .balls/plugins/ on the hub is authoritative; the project repo's .balls/plugins/ is ignored (or refused with a clear error if present, so it can't drift)\n- Decide on the storage shape: most natural is to read .balls/plugins/ from the state-repo's HEAD of balls/tasks (or wherever plugin configs live on the hub), not from the project's committed config\n- Implement the resolver: a single seam analogous to state_remote() / master_url() that returns the effective plugin config map\n- Migration: a master_url repo that ALSO has project-side .balls/plugins/ at adoption time — warn? refuse? auto-migrate to the hub? Probably warn-and-ignore on first run, with a follow-on cleanup helper\n\n# Out of scope\n\n- Per-task plugin overrides (different question, different ball if it grows legs)\n- Plugins on the hub talking to multiple master_url clients with different auth contexts — that's the bridge-pattern concern, already documented under bl-bfb7\n\n# Origin\n\nUser directive on bl-ffb4 close-out: \"on 5, the master wins. The idea is unified config. file a ball for that\".",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":51,"source":"balls","state":"open","synced_at":"2026-05-20T23:04:55.119692+00:00","url":"https://github.com/mudbungie/balls/issues/51"}}},
   "id": "bl-a7d9",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T23:04:55.136842229Z"},
   "tags": ["multi-repo","master_url","plugins"],
   "title": "Plugin precedence on mastered repos: master wins (unified config)",
   "type": "task",
-  "updated_at": "2026-05-20T23:04:53.295853233Z"
+  "updated_at": "2026-05-20T23:04:55.136849653Z"
 }
