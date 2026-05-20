@@ -62,6 +62,56 @@ pub fn resolve(repo_root: &Path, main_branch: &str, task: &Task) -> Delivery {
     }
 }
 
+/// Populate `task.delivered_in` at close time when it is still null
+/// (SPEC §6; bl-87ea). Deferred-mode `bl review` never lands a local
+/// squash, so it never writes the hint — by the time `bl close` runs
+/// after the forge merges, the field is still null. This caches the
+/// `[id]`-tagged merge commit into the task file the close commit
+/// archives, so a later `bl show` resolves via the fast hint path.
+///
+/// `manual` (`bl close --delivered <sha>`) wins unconditionally and
+/// skips the scan — the operator's explicit override for the case
+/// where the forge produced a rebase-merge with several commits and
+/// they want to point at a specific one. Otherwise this is a no-op
+/// when the hint is already set (local-squash mode wrote it in
+/// `review`, so that path stays byte-identical). When the hint is
+/// null we reuse `resolve` — the same tag-scan machinery, so this is
+/// a strict generalization, not a new mechanism — against the task's
+/// effective `target_branch`. A miss warns and leaves the hint null:
+/// the `[id]` tag in the merge subject is still ground truth, and the
+/// half-push detector (which scans subjects, not this hint) is
+/// unaffected.
+///
+/// Returns `true` iff `delivered_in` was set, so the close path knows
+/// to persist the task to the state branch before archiving it (the
+/// no-op local-squash path returns `false` and stays byte-identical).
+pub fn populate_on_close(
+    repo_root: &Path,
+    target_branch: &str,
+    task: &mut Task,
+    manual: Option<String>,
+) -> bool {
+    if let Some(sha) = manual {
+        task.delivered_in = Some(sha);
+        return true;
+    }
+    if task.delivered_in.is_some() {
+        return false;
+    }
+    if let Some(sha) = resolve(repo_root, target_branch, task).sha {
+        task.delivered_in = Some(sha);
+        true
+    } else {
+        eprintln!(
+            "warning: no [{id}] commit reachable on {target_branch}; closing \
+             without delivered_in (the [{id}] tag in the merge subject stays \
+             ground truth)",
+            id = task.id,
+        );
+        false
+    }
+}
+
 /// Human-friendly `"<short> <subject>"` for display in `bl show`.
 pub fn describe(repo_root: &Path, sha: &str) -> String {
     let short = git::git_short_sha(repo_root, sha).unwrap_or_else(|| sha.to_string());
@@ -95,6 +145,41 @@ mod tests {
         let d = resolve(dir.path(), "main", &empty_task());
         assert!(d.sha.is_none());
         assert!(!d.hint_stale);
+    }
+
+    #[test]
+    fn populate_on_close_manual_override_wins_unconditionally() {
+        // `bl close --delivered <sha>` skips the scan and sets the
+        // hint even when one is already present (forge rebase-merge).
+        let dir = TempDir::new().unwrap();
+        let mut t = empty_task();
+        t.delivered_in = Some("oldsha".into());
+        let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()));
+        assert!(changed);
+        assert_eq!(t.delivered_in.as_deref(), Some("forced"));
+    }
+
+    #[test]
+    fn populate_on_close_is_noop_when_hint_already_set() {
+        // Local-squash mode wrote the hint in `review`; close must
+        // not touch it (no scan, byte-identical archived task).
+        let dir = TempDir::new().unwrap();
+        let mut t = empty_task();
+        t.delivered_in = Some("fromreview".into());
+        let changed = populate_on_close(dir.path(), "main", &mut t, None);
+        assert!(!changed);
+        assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
+    }
+
+    #[test]
+    fn populate_on_close_scan_miss_leaves_hint_null() {
+        // Null hint, no `[id]` commit reachable (not a git repo, so
+        // the tag scan finds nothing): warn and proceed with null.
+        let dir = TempDir::new().unwrap();
+        let mut t = empty_task();
+        let changed = populate_on_close(dir.path(), "main", &mut t, None);
+        assert!(!changed);
+        assert!(t.delivered_in.is_none());
     }
 
     #[test]

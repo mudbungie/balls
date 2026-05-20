@@ -131,10 +131,10 @@ fn main() {
                 participant.overrides(),
             )
         }
-        Command::Close { id, message, identity, sync, no_sync, participant } => {
+        Command::Close { id, args } => {
             commands::cmd_close(
-                normalize_id(id), message, identity, sync, no_sync,
-                participant.overrides(),
+                normalize_id(id), args.message, args.identity, args.delivered,
+                args.sync, args.no_sync, args.participant.overrides(),
             )
         }
         Command::Drop { id, force } => commands::cmd_drop(normalize_id(id), force),
