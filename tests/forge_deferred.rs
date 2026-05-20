@@ -10,46 +10,10 @@
 
 mod common;
 
+use common::forge::{gate_child, seed, sha};
 use common::*;
 use predicates::prelude::*;
 use std::fs;
-use std::path::Path;
-
-/// Seed `.balls/config.json` before `bl init` so the repo is in the
-/// requested delivery mode from its first lifecycle command (mirrors
-/// `tests/target_branch.rs::seed_config`).
-fn seed(repo: &Path, target_branch: Option<&str>) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    let tb = match target_branch {
-        Some(b) => format!(r#","target_branch":"{b}""#),
-        None => String::new(),
-    };
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees"{tb},"delivery":{{"mode":"deferred"}}}}"#
-        ),
-    )
-    .unwrap();
-}
-
-fn sha(repo: &Path, refname: &str) -> String {
-    git(repo, &["rev-parse", refname]).trim().to_string()
-}
-
-/// The id of the lone `forge-gate` child, via `bl list --tag`.
-fn gate_child(repo: &Path) -> String {
-    let out = bl(repo)
-        .args(["list", "--json", "--tag", "forge-gate"])
-        .output()
-        .expect("bl list");
-    let v: serde_json::Value =
-        serde_json::from_slice(&out.stdout).expect("list json");
-    let arr = v.as_array().expect("array");
-    assert_eq!(arr.len(), 1, "exactly one forge-gate child");
-    arr[0]["id"].as_str().unwrap().to_string()
-}
 
 /// Conformance §14.4: deferred review pushes the work branch, opens the
 /// gate, flips to review, and leaves the integration branch and
