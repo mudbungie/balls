@@ -2,6 +2,7 @@
 
 use super::half_push::detect_half_push;
 use super::sync_report::apply_sync_report;
+use super::sync_targets::push_recorded_targets;
 use super::sync_review;
 use super::{default_identity, discover};
 use balls::error::Result;
@@ -93,6 +94,9 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     if code_present {
         let main_branch = store.load_config()?.integration_branch(&store.root)?;
         sync_branch(&store.root, remote, &main_branch)?;
+        if !store.stealth {
+            push_recorded_targets(store, remote, &main_branch)?;
+        }
     }
 
     if !store.stealth && (code_present || state_synced) {

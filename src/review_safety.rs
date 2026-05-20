@@ -135,6 +135,21 @@ pub fn commit_squash_and_flip(
     let had_delivery = delivered_sha.is_some();
     let task_path = store.task_path(id)?;
     let mut t = Task::load(&task_path)?;
+    // Per-task delivery (bl-d4b0) lands the squash on the task's own
+    // `target_branch`, not the repo-level integration branch. Record
+    // that effective branch in the review subject so the post-delivery
+    // machinery (`bl sync`'s push, half-push's tag scan) finds the
+    // delivery on the right branch (bl-f788). Omitted when it equals
+    // the repo-level default, so untouched repos keep byte-identical
+    // state subjects and old clients see no marker. The
+    // `target_branch.is_some()` gate keeps the no-override path free of
+    // the extra config/HEAD resolution.
+    let target_marker = if had_delivery && t.target_branch.is_some() {
+        let repo_default = store.load_config()?.integration_branch(&store.root)?;
+        (main_branch != repo_default).then(|| main_branch.to_string())
+    } else {
+        None
+    };
     t.status = Status::Review;
     t.delivered_in = delivered_sha;
     t.touch();
@@ -142,10 +157,10 @@ pub fn commit_squash_and_flip(
     if let Some(msg) = message {
         task_io::append_note_to(&task_path, identity, msg)?;
     }
-    let state_msg = if had_delivery {
-        format!("state: review {id}")
-    } else {
-        format!("state: review {id} no-code")
+    let state_msg = match (had_delivery, &target_marker) {
+        (false, _) => format!("state: review {id} no-code"),
+        (true, Some(b)) => format!("state: review {id} target={b}"),
+        (true, None) => format!("state: review {id}"),
     };
     store.commit_task(id, &state_msg)?;
     Ok(())
