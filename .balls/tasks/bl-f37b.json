@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-f37b",
-  "claimed_by": "Selfish",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T23:31:52.724377764Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-20T23:32:00.594566214Z"},
   "tags": ["multi-repo","schema","master-url"],
   "title": "delivered_in_resolved: transparent cross-repo resolution via delivered_repo",
   "type": "task",
-  "updated_at": "2026-05-20T23:32:00.594577105Z"
+  "updated_at": "2026-05-20T23:32:06.366607454Z"
 }
