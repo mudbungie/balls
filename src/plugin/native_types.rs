@@ -17,6 +17,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+// The `Field` ⇄ wire-string bijection lives in `native_fields` to
+// keep this file under the 300-line cap. Re-exported so the existing
+// `native_types::{field_wire_name, parse_field}` paths are unchanged.
+pub use crate::plugin::native_fields::{field_wire_name, parse_field};
+
 /// Output of `balls-plugin-<name> describe`. The plugin declares the
 /// events it subscribes to and the projection of `Task` it claims as
 /// authoritative.
@@ -205,62 +210,6 @@ impl CommitPolicyWire {
             CommitPolicyWire::Suppress => CommitPolicy::Suppress,
         }
     }
-}
-
-/// Inverse of `parse_field` — the on-wire JSON key for a `Field`.
-/// Stable: changing one of these renames a Task field on the wire.
-pub fn field_wire_name(f: Field) -> &'static str {
-    match f {
-        Field::Title => "title",
-        Field::Type => "type",
-        Field::Priority => "priority",
-        Field::Status => "status",
-        Field::Parent => "parent",
-        Field::DependsOn => "depends_on",
-        Field::Description => "description",
-        Field::Tags => "tags",
-        Field::Notes => "notes",
-        Field::Links => "links",
-        Field::ClaimedBy => "claimed_by",
-        Field::Branch => "branch",
-        Field::ClosedAt => "closed_at",
-        Field::UpdatedAt => "updated_at",
-        Field::ClosedChildren => "closed_children",
-        Field::External => "external",
-        Field::SyncedAt => "synced_at",
-        Field::DeliveredIn => "delivered_in",
-    }
-}
-
-/// Parse a canonical-field string into the `Field` enum. Unknown
-/// names are rejected so a typo in `describe` fails registration
-/// loudly rather than silently dropping the projection.
-pub fn parse_field(name: &str) -> Result<Field> {
-    Ok(match name {
-        "title" => Field::Title,
-        "type" => Field::Type,
-        "priority" => Field::Priority,
-        "status" => Field::Status,
-        "parent" => Field::Parent,
-        "depends_on" => Field::DependsOn,
-        "description" => Field::Description,
-        "tags" => Field::Tags,
-        "notes" => Field::Notes,
-        "links" => Field::Links,
-        "claimed_by" => Field::ClaimedBy,
-        "branch" => Field::Branch,
-        "closed_at" => Field::ClosedAt,
-        "updated_at" => Field::UpdatedAt,
-        "closed_children" => Field::ClosedChildren,
-        "external" => Field::External,
-        "synced_at" => Field::SyncedAt,
-        "delivered_in" => Field::DeliveredIn,
-        other => {
-            return Err(BallError::Other(format!(
-                "unknown projection field: {other}"
-            )))
-        }
-    })
 }
 
 impl ProjectionWire {

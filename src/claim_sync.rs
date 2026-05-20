@@ -18,74 +18,20 @@
 //! `origin`. This is where a client repo retargets `balls/tasks` at
 //! a shared task hub.
 
+// Remote resolution + push-outcome classification live in
+// `claim_push` to keep this file under the 300-line cap. The public
+// `push_state_classified` is re-exported so its API path is stable.
+pub use crate::claim_push::push_state_classified;
+
+use crate::claim_push::{state_remote, STATE_BRANCH};
 use crate::error::{BallError, Result};
 use crate::git;
 use crate::negotiation::{AttemptClass, FailurePolicy, Protocol};
 use crate::participant::{self, Event, EventCtx, Participant, Projection};
 use crate::store::Store;
-use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::path::PathBuf;
 
-const STATE_BRANCH: &str = "balls/tasks";
 const MAX_RETRIES: usize = 5;
-
-/// Resolve this repo's effective `state_remote` — the one seam that
-/// retargets `balls/tasks` (per-clone override over committed,
-/// default `origin`). No other code path bakes in `origin`. Errors
-/// propagate: a required sync must not silently hit the wrong peer.
-fn state_remote(store: &Store) -> Result<String> {
-    let cfg = store.load_config()?;
-    let local = crate::policy::LocalConfig::load(store)?;
-    Ok(crate::policy::state_remote_opt(&cfg, local.as_ref())
-        .unwrap_or_else(|| crate::config::DEFAULT_STATE_REMOTE.to_string()))
-}
-
-/// Run `git push <state_remote> balls/tasks` from `dir` and classify
-/// the outcome. Spawn failures propagate as Err — they're
-/// catastrophic (no git on PATH) rather than a remote-state condition.
-pub fn push_state_classified(dir: &Path, remote: &str) -> Result<AttemptClass> {
-    let out = git::clean_git_command(dir)
-        .args(["push", remote, STATE_BRANCH])
-        .output()?;
-    Ok(classify_push_output(&out))
-}
-
-fn classify_push_output(out: &Output) -> AttemptClass {
-    if out.status.success() {
-        return AttemptClass::Ok;
-    }
-    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-    let l = stderr.to_lowercase();
-    if l.contains("rejected")
-        && (l.contains("non-fast-forward")
-            || l.contains("fetch first")
-            || l.contains("[rejected]"))
-    {
-        return AttemptClass::Conflict;
-    }
-    if is_unreachable(&l) {
-        return AttemptClass::Unreachable(stderr);
-    }
-    AttemptClass::Other(stderr)
-}
-
-fn is_unreachable(stderr_lower: &str) -> bool {
-    const UNREACHABLE_MARKERS: &[&str] = &[
-        "could not resolve",
-        "could not read from remote",
-        "connection refused",
-        "connection timed out",
-        "connection reset",
-        "repository not found",
-        "permission denied",
-        "does not appear to be a git repository",
-        "unable to access",
-        "host key verification failed",
-        "no such host",
-        "network is unreachable",
-    ];
-    UNREACHABLE_MARKERS.iter().any(|m| stderr_lower.contains(m))
-}
 
 /// Outcome of the claim-sync negotiation.
 #[derive(Debug, PartialEq, Eq)]
