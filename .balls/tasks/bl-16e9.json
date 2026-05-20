@@ -7,16 +7,16 @@
   "delivered_in": "0f4593e6b0a8553e30e56e5d425ccdbe4c27f6cd",
   "depends_on": [],
   "description": "# Why\n\nbl-ffb4 routes state-branch ops through .balls/state-repo/ when master_url is set, but cmd_sync's state-leg presence gate still asks the project root whether the state remote exists:\n\n    let state_present = if state_remote == remote {\n        code_present\n    } else {\n        git::git_has_remote(&store.root, &state_remote)\n    };\n\nIn master_url mode the state-repo carries the hub remote — `origin` inside .balls/state-repo/.git/config — and the project root carries only the user's code remotes (and might carry none at all, e.g. the bridge clone in the multi-repo proxy pattern documented under bl-bfb7). So the gate silently skips the state push in exactly the topology master_url was built to enable.\n\nThe bl-ffb4 integration test `fresh_clone_with_master_url_auto_provisions_on_prime` does not catch this because clone_from_remote provisions an origin on the teammate; the check passes for the wrong reason.\n\n# Concrete fix\n\nThe presence check should run against state_worktree_dir(), not store.root. With master_url set the state-repo always has `origin` (it's how ensure() materializes it), so the check effectively becomes \"the state-repo exists,\" which is the right invariant.\n\n# Scope\n\n- src/commands/sync.rs: redirect the state-leg presence gate to state_worktree_dir() when master_url is set (or unconditionally — git_has_remote in the state-repo is the right question in both modes)\n- Add a test where master_url is set and the project has no `origin`: bl sync must still push balls/tasks to the hub",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":48,"source":"balls","state":"open","synced_at":"2026-05-20T23:20:42.966288142+00:00","url":"https://github.com/mudbungie/balls/issues/48"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":48,"source":"balls","state":"open","synced_at":"2026-05-20T23:29:32.367107542+00:00","url":"https://github.com/mudbungie/balls/issues/48"}}},
   "id": "bl-16e9",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-20T23:20:42.982868046Z"},
+  "synced_at": {"github-issues":"2026-05-20T23:29:32.377269733Z"},
   "tags": ["multi-repo","master_url"],
   "title": "master_url: sync state-leg gate runs against state-repo, not project root",
   "type": "bug",
-  "updated_at": "2026-05-20T23:29:30.435008277Z"
+  "updated_at": "2026-05-20T23:29:32.377278610Z"
 }
