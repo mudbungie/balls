@@ -67,7 +67,7 @@ pub(crate) fn setup_state_branch(root: &Path, remote: &str, linked: bool) -> Res
     }
 
     seed_state_worktree(&state_wt)?;
-    ensure_tasks_symlink(root)?;
+    ensure_tasks_symlink(root, "worktree/.balls/tasks")?;
 
     // Publish the seed commit if we made one above and the branch is
     // freshly-local. Best-effort.
@@ -181,11 +181,13 @@ fn seed_state_worktree(state_wt: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Expose the state worktree's task directory to the main checkout via a
-/// stable symlink: `<root>/.balls/tasks -> worktree/.balls/tasks`. An
-/// engineer on main can `ls .balls/tasks/`, `cat`, and `$EDITOR` files
-/// through this symlink without any balls-specific knowledge.
-fn ensure_tasks_symlink(root: &Path) -> Result<()> {
+/// Expose the state checkout's task directory to the main checkout via a
+/// stable symlink: `<root>/.balls/tasks -> <target>`. `target` is a path
+/// relative to `<root>/.balls/` — `worktree/.balls/tasks` in legacy
+/// mode, `state-repo/.balls/tasks` in master_url mode. An engineer on
+/// main can `ls .balls/tasks/`, `cat`, and `$EDITOR` files through this
+/// symlink without any balls-specific knowledge.
+pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
     let link = root.join(".balls/tasks");
     if link.is_symlink() {
         return Ok(());
@@ -200,7 +202,7 @@ fn ensure_tasks_symlink(root: &Path) -> Result<()> {
     }
     #[cfg(unix)]
     {
-        std::os::unix::fs::symlink(PathBuf::from("worktree/.balls/tasks"), &link)?;
+        std::os::unix::fs::symlink(PathBuf::from(target), &link)?;
     }
     #[cfg(not(unix))]
     {

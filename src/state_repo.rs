@@ -82,6 +82,12 @@ pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
     }
 
     seed(&dir)?;
+    // Expose .balls/state-repo/.balls/tasks at the convenience path
+    // .balls/tasks (mirrors the legacy `worktree`-mode symlink). The
+    // legacy path is created in setup_state_branch; the master_url path
+    // bypasses that helper entirely, so without this call the README's
+    // "ls/$EDITOR .balls/tasks" ergonomic is missing on master_url repos.
+    crate::store_init::ensure_tasks_symlink(root, "state-repo/.balls/tasks")?;
 
     if !online {
         eprintln!(
