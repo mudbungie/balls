@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-321d",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T03:01:07.184365480Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T03:01:08.139383363Z"},
   "tags": [],
   "title": "github-issues: close-mirror doesn't fire for born-closed GH issues",
   "type": "bug",
-  "updated_at": "2026-05-20T03:01:08.139395467Z"
+  "updated_at": "2026-05-20T06:47:04.270911845Z"
 }
