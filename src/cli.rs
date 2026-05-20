@@ -22,6 +22,13 @@ pub enum Command {
         /// Custom absolute path for task storage. Implies --stealth.
         #[arg(long)]
         tasks_dir: Option<String>,
+        /// Bootstrap a bare central hub: bare-clone SOURCE into
+        /// HUBDIR/.git and reconstruct the loose store there.
+        /// Idempotent. SOURCE's `main` must already be
+        /// balls-initialized (run `bl init` in a working clone and
+        /// push first). Mutually exclusive with --stealth/--tasks-dir.
+        #[arg(long, num_args = 2, value_names = ["SOURCE", "HUBDIR"])]
+        bare: Option<Vec<String>>,
     },
 
     /// Create a new task.

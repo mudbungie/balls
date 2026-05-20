@@ -104,7 +104,9 @@ fn main() {
     let cli = Cli::parse();
     balls::display::init(cli.plain);
     let result = match cli.command {
-        Command::Init { stealth, tasks_dir } => commands::cmd_init(stealth, tasks_dir),
+        Command::Init { stealth, tasks_dir, bare } => {
+            commands::cmd_init(stealth, tasks_dir, bare)
+        }
         Command::Create {
             title, priority, task_type, parent, dep, tag, description,
             target_branch, participant,

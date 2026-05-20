@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::store_init::{commit_init, setup_state_branch, STATE_WORKTREE_REL};
+use crate::store_init::{bootstrap_bare_hub, commit_init, setup_state_branch, STATE_WORKTREE_REL};
 use crate::store_paths::{find_balls_root, find_main_root, resolve_tasks_dir, stealth_tasks_dir};
 use crate::task::{self, Task};
 use crate::task_io;
@@ -108,6 +108,16 @@ impl Store {
             commit_init(&repo_root, is_stealth, already)?;
         }
         Ok(Store { root: repo_root, stealth: is_stealth, no_git, tasks_dir_path })
+    }
+
+    /// Bootstrap a bare central hub at `hubdir` from `source` and open
+    /// a Store rooted there. The convenience wrapper over the by-hand
+    /// README bootstrap; the heavy lifting (clone, scaffold, materialize
+    /// config, state wiring) lives in `store_init::bootstrap_bare_hub`.
+    pub fn init_bare(source: &str, hubdir: &Path) -> Result<Self> {
+        let root = bootstrap_bare_hub(source, hubdir)?;
+        let (tasks_dir_path, _) = resolve_tasks_dir(&root);
+        Ok(Store { root, stealth: false, no_git: false, tasks_dir_path })
     }
 
     pub fn balls_dir(&self) -> PathBuf {

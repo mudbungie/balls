@@ -12,18 +12,6 @@ use balls::store::{task_lock, Store};
 use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 
-pub fn cmd_init(stealth: bool, tasks_dir: Option<String>) -> Result<()> {
-    let cwd = env::current_dir()?;
-    let store = Store::init(&cwd, stealth, tasks_dir)?;
-    if store.stealth {
-        println!("Initialized balls (stealth) in {}", store.root.display());
-        println!("Tasks stored at: {}", store.tasks_dir().display());
-    } else {
-        println!("Initialized balls in {}", store.root.display());
-    }
-    Ok(())
-}
-
 /// CLI inputs for `bl create`, bundled so the function stays under
 /// clippy's argument cap — mirrors `SyncArgs`. `main.rs` threads the
 /// clap flags through one struct.

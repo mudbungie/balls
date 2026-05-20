@@ -1,8 +1,9 @@
 //! Helpers for `Store::init`: state branch creation, state worktree
-//! setup, and main-checkout gitignore wiring. Extracted from `store.rs`
-//! to keep that file focused on the Store API.
+//! setup, main-checkout gitignore wiring, and the bare-hub bootstrap.
+//! Extracted from `store.rs` to keep that file focused on the Store API.
 
-use crate::error::Result;
+use crate::config::Config;
+use crate::error::{BallError, Result};
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -89,6 +90,65 @@ pub(crate) fn setup_state_branch(root: &Path, remote: &str, linked: bool) -> Res
         );
     }
     Ok(())
+}
+
+/// Bootstrap a bare central hub at `hubdir` from `source` (a git URL or
+/// path whose `main` already carries a balls-initialized project and
+/// whose `balls/tasks` orphan branch is published — README step 1).
+/// Mechanizes the by-hand README *Bootstrapping a bare hub from scratch*
+/// steps 2–3. Returns the resolved hub root.
+///
+/// Idempotent and self-healing, exactly like the working-tree
+/// `Store::init`: a present bare gitdir is reused (a non-bare `.git`
+/// there is refused, never clobbered), scaffolding `create_dir_all`s
+/// are no-ops when present, `config.json` is materialized only when
+/// missing, and the shared `setup_state_branch` already tolerates a
+/// pre-existing worktree/symlink. The working-tree-only work (the
+/// `balls: initialize` commit, main `.gitignore`, plugins `.gitkeep`)
+/// is *correctly* skipped: a bare root has no checkout to write it to.
+pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf> {
+    fs::create_dir_all(hubdir)?;
+    let hubdir = fs::canonicalize(hubdir).unwrap_or_else(|_| hubdir.to_path_buf());
+    let gitdir = hubdir.join(".git");
+
+    // Step 2: bare-clone into <hub>/.git. Reuse an existing bare gitdir;
+    // refuse to clobber a non-bare one (non-destructive, like bl init).
+    if gitdir.exists() {
+        if !crate::bare_squash::is_bare_repo(&hubdir).unwrap_or(false) {
+            return Err(BallError::Other(format!(
+                "{} exists and is not a bare repo; refusing to clobber it",
+                gitdir.display()
+            )));
+        }
+    } else {
+        git::git_clone_bare(source, &gitdir)?;
+    }
+    // Wire remote-tracking so origin/* refs stay current for bl sync.
+    git::git_config_set(&hubdir, "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")?;
+    let _ = git::git_fetch(&hubdir, "origin");
+    git::git_ensure_user(&hubdir)?;
+
+    // Step 3: reconstruct the loose store. Scaffold the per-hub dirs and
+    // materialize the main-tracked config.json (no checkout exists to
+    // copy it from at a bare root), then reuse the shared state wiring.
+    let balls = hubdir.join(".balls");
+    for d in ["plugins", "local/claims", "local/lock", "local/plugins"] {
+        fs::create_dir_all(balls.join(d))?;
+    }
+    let config_path = balls.join("config.json");
+    if !config_path.exists() {
+        let cfg = git_state::show_file(&hubdir, "main", ".balls/config.json")?.ok_or_else(|| {
+            BallError::Other(
+                "source's `main` has no .balls/config.json — run `bl init` in a \
+                 working clone and push first (README bootstrap step 1)"
+                    .into(),
+            )
+        })?;
+        fs::write(&config_path, cfg)?;
+    }
+    let cfg = Config::load(&config_path)?;
+    setup_state_branch(&hubdir, cfg.state_remote(), cfg.state_remote.is_some())?;
+    Ok(hubdir)
 }
 
 /// Seed the state worktree's task directory on first setup: create the
