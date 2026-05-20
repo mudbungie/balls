@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "closed",
-  "synced_at": {"github-issues":"2026-05-20T03:33:29.058503961Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-05-20T23:05:18.771228975Z"},
   "tags": [],
   "title": "Fix map_unwrap_or clippy lint on doctor.rs (rust 1.95) [bl-650b]",
   "type": "task",
-  "updated_at": "2026-05-20T03:33:29.058505704Z"
+  "updated_at": "2026-05-20T23:05:18.771230037Z"
 }
