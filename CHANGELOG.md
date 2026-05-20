@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/mudbungie/balls/compare/v0.4.0...v0.5.0) - 2026-05-20
+
+### Changes
+
+- Anchor [minor]/[major] regex at whitespace boundaries [bl-e093]
+- Suppress legacy-plugin clap 'unrecognized subcommand' on describe [bl-c343]
+- Skip parent staging in close when parent is archived [bl-a04f]
+- Legacy participant honors EventCtx::post for push events [bl-094b]
+- Vendor minimal SHA-1; drop sha1 + hex crates [bl-cb4e]
+- Auto-derive minor/major bumps from [minor]/[major] markers [bl-313a]
+- document the native plugin protocol [bl-c972]
+
 ## [0.4.0](https://github.com/mudbungie/balls/compare/v0.3.11...v0.4.0) - 2026-05-20
 
 ### Changes
