@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-16e9",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T23:04:09.972353626Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T23:04:11.651743361Z"},
   "tags": ["multi-repo","master_url"],
   "title": "master_url: sync state-leg gate runs against state-repo, not project root",
   "type": "bug",
-  "updated_at": "2026-05-20T23:04:11.651752158Z"
+  "updated_at": "2026-05-20T23:20:41.487436170Z"
 }
