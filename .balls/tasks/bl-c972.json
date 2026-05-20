@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c972",
+  "claimed_by": "Inflates",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-19T01:58:07.503706879Z",
@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T00:43:48.797812233Z"},
   "tags": ["docs","plugins"],
   "title": "README: document the native plugin protocol (describe/propose, projections, reject, create/drop, EventCtx)",
   "type": "task",
-  "updated_at": "2026-05-20T00:43:48.797823395Z"
+  "updated_at": "2026-05-20T01:32:15.508170316Z"
 }
