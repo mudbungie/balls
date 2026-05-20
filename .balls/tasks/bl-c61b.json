@@ -7,16 +7,16 @@
   "delivered_in": "ad764beb2cb73ec727daa8fb1348e818f22953e2",
   "depends_on": [],
   "description": "# Why\n\nbl-ffb4 introduced a second valid state-checkout layout: .balls/state-repo/ when master_url is set in committed config. bl doctor's drift checks all predate this and assume .balls/worktree/ — so on a master_url-configured repo with a missing/corrupt state-repo, doctor produces diagnostics that point at the wrong path (or report the absence of .balls/worktree/ as a problem when it's correctly absent).\n\nDoctor is the \"named reason this repo can't run bl\" tool. Wrong diagnostics here defeat its only job.\n\n# What needs to change\n\n- doctor.rs reads config first, branches on master_url to decide which checkout to inspect\n- the \"state worktree missing\" diagnostic names the right path (.balls/state-repo when applicable) and the right fixing command (bl prime auto-provisions in master_url mode; setup_state_branch is the legacy path)\n- a doctor check that's specific to master_url mode: does the state-repo's `origin` URL match committed master_url? A user-edited config field that diverges from the materialized clone is exactly the kind of drift doctor exists to surface\n\n# Scope guardrail\n\nRead-only, as doctor always is. Repair stays the only action verb (bl-ffb4's auto_provision_master handles the materialize-on-discover path; doctor just reports). Per the user's standing memory: `repair` is the only action verb in this surface.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":50,"source":"balls","state":"open","synced_at":"2026-05-20T23:33:39.411382026+00:00","url":"https://github.com/mudbungie/balls/issues/50"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":50,"source":"balls","state":"open","synced_at":"2026-05-20T23:50:05.591035273+00:00","url":"https://github.com/mudbungie/balls/issues/50"}}},
   "id": "bl-c61b",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-20T23:33:39.422355228Z"},
+  "synced_at": {"github-issues":"2026-05-20T23:50:05.613527749Z"},
   "tags": ["multi-repo","master_url","doctor"],
   "title": "bl doctor: teach it about .balls/state-repo (master_url mode)",
   "type": "task",
-  "updated_at": "2026-05-20T23:50:04.231258365Z"
+  "updated_at": "2026-05-20T23:50:05.613537778Z"
 }
