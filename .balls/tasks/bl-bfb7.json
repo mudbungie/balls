@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "The skill doc's \"Multi-repo: one project, many repos\" section covers the\nmechanics (state_remote knob, bl remaster onboarding, --detach to leave)\nbut leaves the day-to-day operational model unspecified. Agents working\nin a multi-repo setup have to guess at:\n\n- Which code repo a given ball \"belongs to\" when N code repos share one\n  task hub (no tag convention is suggested; no `repo` field exists).\n- Where bl claim places its worktree when the task's real code lives in\n  a sibling repo — claim creates under the current clone's\n  .balls-worktrees/, so claiming from the \"wrong\" clone silently puts\n  the worktree in the wrong place.\n- What the hub itself is (a bare repo holding just balls/tasks? a real\n  code repo doubling as the hub? both are valid; the doc doesn't say).\n- Whether `bl prime` in one participant shows tasks scoped to that\n  repo or every ball on the shared branch.\n- How a task that requires changes in two code repos is modeled — one\n  ball or two linked balls.\n\nBeyond filling those gaps, document the **tracker-proxy pattern**\nexplicitly: a multi-repo project frequently wants one external tracker\n(Jira, Linear, GitHub Issues) as the single source of truth for\n*humans*. The natural fit with balls is to wire the plugin (e.g.\ngithub-issues) into exactly one participating repo — the bridge — and\nlet the other code repos operate through the shared state branch as a\nproxy. They never need plugin credentials or hooks of their own; the\nbridge syncs in both directions, and a ball filed from any repo\nsurfaces on the external tracker via the bridge's next sync.\n\nWhy: this is the lowest-coordination way to keep external visibility\nwithout N copies of the plugin config (and N race conditions). It also\nkeeps the policy decision in one place — only one repo's plugin\ncontrols what gets mirrored outward.\n\nDeliverable: extend the Multi-repo section to:\n1. Suggest a tag-or-prefix convention for \"which repo\" (or\n   acknowledge none is enforced and recommend one).\n2. State the rule: claim from the clone whose code the ball touches;\n   the worktree lands under that clone.\n3. Describe the bridge / proxy pattern with a concrete example\n   (github-issues plugin enabled in repo A; repos B and C share the\n   hub; a ball filed from B appears as a GH issue via A's next sync).\n4. Clarify discovery scope (bl prime shows the whole shared branch).\n5. Note cross-cutting tasks: prefer one ball with a tag listing each\n   repo, or one umbrella parent with per-repo children.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":42,"source":"balls","state":"open","synced_at":"2026-05-20T17:55:06.036327783+00:00","url":"https://github.com/mudbungie/balls/issues/42"}}},
   "id": "bl-bfb7",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T17:55:06.044908197Z"},
   "tags": ["docs"],
   "title": "Document multi-repo operational model and tracker-proxy pattern",
   "type": "task",
-  "updated_at": "2026-05-20T17:55:04.752099337Z"
+  "updated_at": "2026-05-20T17:55:06.044913567Z"
 }
