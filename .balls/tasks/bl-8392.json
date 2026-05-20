@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-a2ea"],
   "description": "After bl-a2ea ships the projection-shape fix for github-issues sync, the existing duplicates need to be archived. Current bl list (43 open tasks) is almost entirely sync-create flood from the broken classifier:\n\n  - 6 copies of 'Fix all remaining map_unwrap_or clippy lints' (bl-9fb4, bl-d72e, bl-b9e7, bl-74ab, bl-9070, bl-50e3) — should map to delivered bl-2fe1\n  - 6 copies of 'Fix map_unwrap_or clippy lint on doctor.rs' (bl-dd53, bl-b80f, bl-0242, bl-4fee, bl-415e, bl-66af) — should map to delivered bl-650b\n  - 2 copies of each release chore from v0.2.1 through v0.4.0 — all already shipped (CHANGELOG, tags) and corresponding GH PRs already merged\n\nDo NOT just bulk-close. Verify each:\n  - The underlying [bl-xxxx] commit is in 'git log main' (release chores: check the corresponding tag exists).\n  - The mirrored GH issue is closed on GitHub (some, like #10, are already state:closed but the close-mirror update path is also broken by the same accessor bug — once the fix lands and a sync runs, KnownUpdate emissions should drive those to status=closed automatically without manual intervention).\n\nThen archive duplicates with 'bl update bl-xxxx status=closed --note \"dup of bl-yyyy\"' and a 'bl link add bl-xxxx duplicates bl-yyyy' so the relationship is discoverable.\n\nBlocked on bl-a2ea — don't run this until the projection fix lands and a clean sync confirms classify now produces KnownUpdate, otherwise the next sync poll will recreate the duplicates.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":29,"source":"balls","state":"open","synced_at":"2026-05-20T02:11:05.057992965+00:00","url":"https://github.com/mudbungie/balls/issues/29"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":33,"source":"balls","state":"open","synced_at":"2026-05-20T02:32:56.665725507+00:00","url":"https://github.com/mudbungie/balls/issues/33"}}},
   "id": "bl-8392",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-20T02:11:05.077296283Z"},
+  "synced_at": {"github-issues":"2026-05-20T02:32:56.681816156Z"},
   "tags": [],
   "title": "Clean up duplicate sync-created tasks polluting bl list",
   "type": "task",
-  "updated_at": "2026-05-20T02:32:55.684237908Z"
+  "updated_at": "2026-05-20T02:32:56.681828092Z"
 }
