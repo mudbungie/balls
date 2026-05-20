@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-20T03:11:26.309376563Z"},
+  "status": "closed",
+  "synced_at": {"github-issues":"2026-05-20T03:33:28.904772707Z"},
   "tags": [],
   "title": "Clean up duplicate sync-created tasks polluting bl list [bl-8392]",
   "type": "task",
-  "updated_at": "2026-05-20T03:11:26.309371984Z"
+  "updated_at": "2026-05-20T03:33:28.904774951Z"
 }
