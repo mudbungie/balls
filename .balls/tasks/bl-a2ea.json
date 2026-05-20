@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-a2ea",
+  "claimed_by": "kindling",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T02:10:48.629981657Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T02:10:49.611204835Z"},
   "tags": [],
   "title": "github-issues sync: SyncCreate.external is double-wrapped and accessor key mismatches participant name",
   "type": "bug",
-  "updated_at": "2026-05-20T02:10:49.611213591Z"
+  "updated_at": "2026-05-20T02:20:53.889126329Z"
 }
