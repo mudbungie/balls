@@ -31,6 +31,7 @@ pub(crate) fn write_relations(
         || delivery.sha.is_some()
         || t.branch.is_some()
         || t.repo.is_some()
+        || t.target_branch.is_some()
         || !t.external.is_empty();
     if !has_any {
         return;
@@ -43,6 +44,7 @@ pub(crate) fn write_relations(
     write_children(out, t, all);
     write_delivered(out, delivery, repo_root);
     write_branch(out, t);
+    write_target_branch(out, t);
     write_repo(out, t);
     write_external(out, t);
     if ready::is_dep_blocked(all, t) {
@@ -162,6 +164,12 @@ fn write_branch(out: &mut String, t: &Task) {
 fn write_repo(out: &mut String, t: &Task) {
     if let Some(r) = &t.repo {
         let _ = writeln!(out, "  repo:     {}", sanitize::inline(r));
+    }
+}
+
+fn write_target_branch(out: &mut String, t: &Task) {
+    if let Some(b) = &t.target_branch {
+        let _ = writeln!(out, "  target:   {}", sanitize::inline(b));
     }
 }
 

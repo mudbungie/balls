@@ -1,4 +1,3 @@
-use crate::error::{BallError, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -13,6 +12,9 @@ pub use crate::archived_child::ArchivedChild;
 pub use crate::link::{Link, LinkType};
 pub use crate::status::Status;
 pub use crate::task_type::TaskType;
+pub use crate::task_validate::{
+    parse_priority, validate_id, validate_priority, PRIORITY_MAX, PRIORITY_MIN,
+};
 
 /// Append-only note attached to a task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +75,16 @@ pub struct Task {
     /// Older `bl` round-trips it via `extra` (SPEC §13 / bl-d31c).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
+    /// Per-task override of the repo-level `config.target_branch`
+    /// (SPEC §6.2). When set, `bl review` squashes this task into
+    /// this branch, ignoring both the repo default and the
+    /// current-branch fallback — the smallest unit that expresses
+    /// git-flow's hotfix→main vs feature→develop split. Optional and
+    /// `skip_serializing_if` None, so existing task files stay
+    /// byte-identical and an older `bl` (no `deny_unknown_fields`)
+    /// silently round-trips it via `extra`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_branch: Option<String>,
     /// Forward-compat passthrough. Any top-level JSON field that the
     /// current struct doesn't name lands here on deserialize and
     /// round-trips back out on save. Lets an older `bl` load a task
@@ -105,52 +117,6 @@ impl Default for NewTaskOpts {
             tags: Vec::new(),
         }
     }
-}
-
-/// Inclusive range for task priority. `1` is highest urgency, `4`
-/// lowest. Centralized here so a future widening (e.g. to `1..=5`)
-/// touches exactly one place.
-pub const PRIORITY_MIN: u8 = 1;
-pub const PRIORITY_MAX: u8 = 4;
-
-/// Reject priorities outside `PRIORITY_MIN..=PRIORITY_MAX`. Used by
-/// the `bl create` path, which already receives a `u8` from clap.
-pub fn validate_priority(p: u8) -> Result<()> {
-    if !(PRIORITY_MIN..=PRIORITY_MAX).contains(&p) {
-        return Err(BallError::InvalidTask(format!(
-            "priority must be {PRIORITY_MIN}..={PRIORITY_MAX}"
-        )));
-    }
-    Ok(())
-}
-
-/// Parse a priority from a user-supplied string (e.g. the `value`
-/// half of `bl update priority=3`). Rejects non-integers and
-/// out-of-range values with a consistent error message.
-pub fn parse_priority(s: &str) -> Result<u8> {
-    let p: u8 = s
-        .parse()
-        .map_err(|_| BallError::InvalidTask(format!("priority not integer: {s}")))?;
-    validate_priority(p)?;
-    Ok(p)
-}
-
-/// Validate that a task ID is safe for use in file paths.
-///
-/// IDs must match `bl-[0-9a-fA-F]+`. `generate_id` only ever emits
-/// lowercase hex, but the loader accepts uppercase or mixed case so
-/// a future `bl` that changes its generator does not break older
-/// clients reading the same repo. The `bl-` prefix itself is
-/// deliberately strict: mixing `bl-` and `BL-` in one repo would
-/// fragment task filenames, so we surface that as a hard error.
-pub fn validate_id(id: &str) -> Result<()> {
-    let valid = id.starts_with("bl-")
-        && id.len() > 3
-        && id[3..].chars().all(|c| c.is_ascii_hexdigit());
-    if !valid {
-        return Err(BallError::InvalidTask(format!("invalid task id: {id}")));
-    }
-    Ok(())
 }
 
 impl Task {
@@ -187,6 +153,7 @@ impl Task {
             synced_at: BTreeMap::new(),
             delivered_in: None,
             repo: None,
+            target_branch: None,
             extra: BTreeMap::new(),
         }
     }

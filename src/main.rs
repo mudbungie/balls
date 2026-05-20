@@ -113,15 +113,17 @@ fn main() {
             dep,
             tag,
             description,
-        } => commands::cmd_create(
+            target_branch,
+        } => commands::cmd_create(commands::CreateArgs {
             title,
             priority,
             task_type,
-            normalize_opt(parent),
-            normalize_vec(dep),
+            parent: normalize_opt(parent),
+            dep: normalize_vec(dep),
             tag,
             description,
-        ),
+            target_branch: target_branch.filter(|b| !b.is_empty()),
+        }),
         Command::List {
             status,
             priority,

@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::BallError;
 use tempfile::TempDir;
 
 #[test]
