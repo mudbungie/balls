@@ -222,11 +222,13 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     let delivery = store
         .load_config()
         .and_then(|c| c.integration_branch_for(&store.root, task.target_branch.as_deref()))
-        .map(|b| balls::delivery::resolve(&store.root, &b, &task))
-        .unwrap_or(balls::delivery::Delivery {
-            sha: None,
-            hint_stale: false,
-        });
+        .map_or(
+            balls::delivery::Delivery {
+                sha: None,
+                hint_stale: false,
+            },
+            |b| balls::delivery::resolve(&store.root, &b, &task),
+        );
 
     if json {
         let blocked = ready::is_dep_blocked(&all, &task);

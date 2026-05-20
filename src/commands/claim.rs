@@ -67,8 +67,7 @@ fn resolve_claim_policy(store: &Store, sync: bool, no_sync: bool) -> Result<Clai
     };
     let repo_default = store
         .load_config()
-        .map(|c| c.require_remote_on_claim)
-        .unwrap_or(false);
+        .is_ok_and(|c| c.require_remote_on_claim);
     let local = LocalConfig::load(store)?;
     Ok(policy::resolve(repo_default, local.as_ref(), cli))
 }
