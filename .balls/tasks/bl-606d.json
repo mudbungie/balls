@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-20T03:11:26.325081584Z"},
+  "status": "closed",
+  "synced_at": {"github-issues":"2026-05-20T03:33:28.917621933Z"},
   "tags": [],
   "title": "github-issues sync: SyncCreate.external is double-wrapped and accessor key mismatches participant name [bl-a2ea]",
   "type": "task",
-  "updated_at": "2026-05-20T03:11:26.325075242Z"
+  "updated_at": "2026-05-20T03:33:28.917623756Z"
 }
