@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T01:32:17.283729478Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "\n\n\n## 🤖 New release\n\n* `balls`: 0.3.1 -> 0.3.2\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n## [0.3.2](https://github.com/mudbungie/balls/compare/v0.3.1...v0.3.2) - 2026-04-16\n\n### Changes\n\n- Record per-plugin synced_at on tasks [bl-5c42]\n- Add plugin diagnostics channel on FD 3 [bl-4758]\n- Pass --config to auth-check and auth-setup [bl-e5d1]\n- Pin uppercase-hex acceptance in validate_id [bl-9fd2]\n- Wire up Config.version as a schema-version gate [bl-2da0]\n- Consolidate priority validation into task::parse_priority [bl-8313]\n- Forward-compat passthrough on Task and Note structs [bl-f9db]\n- Lenient TaskType deserialization for forward compat [bl-fe19]\n- Lenient Status deserialization for forward compat [bl-23c8]\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with [release-plz](https://github.com/release-plz/release-plz/).",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":5,"source":"github","state":"closed","synced_at":"2026-05-20T01:32:17.137089917+00:00","url":"https://github.com/mudbungie/balls/pull/5"}}}},
+  "id": "bl-3909",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T01:32:17.283730400Z"},
+  "tags": [],
+  "title": "chore: release v0.3.2",
+  "type": "task",
+  "updated_at": "2026-05-20T01:32:17.283729478Z"
+}
