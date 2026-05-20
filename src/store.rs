@@ -220,6 +220,7 @@ impl Store {
     /// this method handles parent-side bookkeeping and file removal
     /// atomically under the state-worktree lock.
     pub fn close_and_archive(&self, task: &Task, commit_msg: &str) -> Result<()> {
+        let mut parent_resaved = false;
         if let Some(pid) = &task.parent {
             if let Ok(mut parent) = self.load_task(pid) {
                 parent.closed_children.push(task::ArchivedChild {
@@ -230,6 +231,7 @@ impl Store {
                 });
                 parent.touch();
                 self.save_task(&parent)?;
+                parent_resaved = true;
             }
         }
         if self.stealth {
@@ -240,11 +242,14 @@ impl Store {
         }
         let _g = state_worktree_flock(self)?;
         let dir = self.state_worktree_dir();
-        if let Some(pid) = &task.parent {
+        if let Some(pid) = task.parent.as_ref().filter(|_| parent_resaved) {
             // Stage the parent's notes sidecar alongside its json: it
-            // always exists post-`save_task` (mirrors `commit_task`),
-            // is a no-op stage when unchanged, and carries the reject
-            // note into this same commit on the deferred-reject path.
+            // exists post-`save_task` (mirrors `commit_task`), is a
+            // no-op stage when unchanged, and carries the reject note
+            // into this same commit on the deferred-reject path. We
+            // gate on `parent_resaved` because an already-archived
+            // parent leaves no file in the state worktree — staging
+            // it would abort close on a missing pathspec.
             let pj = PathBuf::from(format!(".balls/tasks/{pid}.json"));
             let pn = PathBuf::from(format!(".balls/tasks/{pid}.notes.jsonl"));
             git::git_add(&dir, &[pj.as_path(), pn.as_path()])?;
