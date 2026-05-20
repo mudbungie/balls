@@ -63,6 +63,7 @@ pub mod store;
 mod store_init;
 mod store_lock;
 mod store_paths;
+mod store_plugins;
 pub mod sync_resolve;
 pub mod task;
 pub mod task_id;
