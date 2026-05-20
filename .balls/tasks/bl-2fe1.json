@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Two more instances surfaced in CI after the doctor.rs fix: src/commands/basic.rs:222 and src/commands/claim.rs:68. Grep the source for all occurrences and convert each to is_ok_and / is_some_and / unwrap_or_default as appropriate.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":20,"source":"balls","state":"open","synced_at":"2026-05-20T00:51:21.381813044+00:00","url":"https://github.com/mudbungie/balls/issues/20"}}},
   "id": "bl-2fe1",
   "links": [],
   "parent": null,
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T00:51:21.401330533Z"},
   "tags": ["fix","clippy"],
   "title": "Fix all remaining map_unwrap_or clippy lints (rust 1.95)",
   "type": "task",
-  "updated_at": "2026-05-20T00:51:20.177026059Z"
+  "updated_at": "2026-05-20T00:51:21.401338819Z"
 }
