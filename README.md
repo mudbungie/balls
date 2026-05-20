@@ -110,9 +110,29 @@ for t in balls::ready::ready_queue(&store.all_tasks().unwrap()) {
 Releases to [crates.io](https://crates.io/crates/balls) are automated via [release-plz](https://release-plz.dev/) and GitHub Actions. The normal flow:
 
 1. Merge feature PRs to `main` using the project's usual commit style — a short title with a `[bl-xxxx]` trailer, optionally followed by a body. Every non-`balls:` commit is picked up by release-plz's changelog.
-2. On every push to `main`, `.github/workflows/release-plz.yml` opens (or updates) a **Release PR** that bumps `Cargo.toml`, regenerates `CHANGELOG.md`, and lists the commits going into the release. Because commits are not Conventional Commits, release-plz defaults to patch bumps — hand-edit the version in the Release PR if you want a minor or major bump.
+2. On every push to `main`, `.github/workflows/release-plz.yml` opens (or updates) a **Release PR** that bumps `Cargo.toml`, regenerates `CHANGELOG.md`, and lists the commits going into the release.
 3. Review the Release PR. CI (`.github/workflows/ci.yml`) runs `cargo test`, `cargo clippy`, line-length + 100% coverage checks, and `cargo publish --dry-run` against it.
 4. Merge the Release PR. release-plz tags `vX.Y.Z`, creates a GitHub release, and publishes to crates.io.
+
+### Bump signaling
+
+Source commits here aren't Conventional Commits, so release-plz can't infer minor/major from `feat:` or `fix:` prefixes. Instead, `release-plz.toml` configures bracketed markers (via `custom_minor_increment_regex` / `custom_major_increment_regex`) that compose with the existing `[bl-xxxx]` style:
+
+| Marker      | Bump  | When to use                                                                 |
+|-------------|-------|------------------------------------------------------------------------------|
+| `[major]`   | major | Breaking change — task file format, CLI flag removed, etc.                  |
+| `[minor]`   | minor | New user-visible capability — new command, new config option, new behavior. |
+| *(none)*    | patch | Default. Bugfix, refactor, doc, internal cleanup.                           |
+
+Put the marker anywhere in any commit's message that lands in the release window — release-plz matches the regex against the full commit text, so the subject (alongside `[bl-xxxx]`) or the body both work. The most prominent commit of the change is the natural place. If multiple commits in the window are marked, the highest bump wins.
+
+```
+bl review bl-abcd \
+  -m "Add forge-gated delivery mode [minor]" \
+  -m "Opt-in via delivery.mode = \"deferred\" in .balls/config.json…"
+```
+
+If you forget the marker and release-plz proposes a patch when you wanted minor/major, edit the Release PR's `Cargo.toml`/`Cargo.lock`/`CHANGELOG.md` and title before merging (the pre-0.4 hand-edit workflow is the escape hatch).
 
 Commit-parser and semver-check behavior is configured in `release-plz.toml` at the repo root.
 
