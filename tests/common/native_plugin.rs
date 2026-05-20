@@ -99,7 +99,7 @@ case "$CMD" in
     auth-setup) mkdir -p "$AUTH_DIR" && echo '{"token":"t"}' > "$AUTH_DIR/token.json"; exit 0 ;;
     push) cat - >/dev/null; printf '{"remote_key":"LEGACY-%s"}\n' "$TASK_ID"; exit 0 ;;
     sync) cat - >/dev/null; echo '{"created":[],"updated":[],"deleted":[]}'; exit 0 ;;
-    describe) exit 1 ;;
+    describe) printf "error: unrecognized subcommand 'describe'\n" >&2; exit 2 ;;
     propose) exit 1 ;;
     *) exit 1 ;;
 esac
