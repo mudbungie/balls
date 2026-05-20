@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-313a",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T01:11:55.067772061Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T01:11:56.267661055Z"},
   "tags": ["tooling","release"],
   "title": "Configure release-plz.toml so minor/major bumps don't require manual PR edits",
   "type": "task",
-  "updated_at": "2026-05-20T01:11:56.267665443Z"
+  "updated_at": "2026-05-20T01:32:20.188758270Z"
 }
