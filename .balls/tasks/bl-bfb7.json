@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-bfb7",
+  "claimed_by": "tent",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T17:55:04.752099337Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T17:55:06.044908197Z"},
   "tags": ["docs"],
   "title": "Document multi-repo operational model and tracker-proxy pattern",
   "type": "task",
-  "updated_at": "2026-05-20T17:55:06.044913567Z"
+  "updated_at": "2026-05-20T17:55:19.469681302Z"
 }
