@@ -56,21 +56,23 @@ fn uses_master_url(root: &Path) -> bool {
 
 /// Auto-provision the balls-owned state-repo on `discover` when committed
 /// config sets `master_url` but `.balls/state-repo/` doesn't yet exist —
-/// the fresh-`git clone` case bl-ffb4 closes. Best-effort: on any
-/// failure (config won't load, hub unreachable, write error) we stay
-/// silent and let the rest of discover surface the real diagnostic.
-pub(crate) fn auto_provision_master(root: &Path) {
+/// the fresh-`git clone` case bl-ffb4 closes. Errors are surfaced
+/// (bl-dcd3): a master_url that can't be reached for first-time setup
+/// stops the user from quietly drifting in an unlinked local orphan.
+/// A config that won't load isn't this path's concern — the caller's
+/// subsequent layout/discover steps surface that diagnostic.
+pub(crate) fn auto_provision_master(root: &Path) -> Result<()> {
     let path = root.join(".balls/config.json");
-    let Ok(cfg) = Config::load(&path) else { return };
-    let Some(url) = cfg.master_url() else { return };
+    let Ok(cfg) = Config::load(&path) else { return Ok(()) };
+    let Some(url) = cfg.master_url() else { return Ok(()) };
     if root
         .join(crate::state_repo::STATE_REPO_REL)
         .join(".git")
         .exists()
     {
-        return;
+        return Ok(());
     }
-    let _ = crate::state_repo::ensure(root, url);
+    crate::state_repo::ensure(root, url).map(|_| ())
 }
 
 /// Stealth/tasks-dir init leg. `master_url` is irrelevant in stealth

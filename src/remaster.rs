@@ -21,7 +21,7 @@ use crate::{git, git_state};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const STATE_BRANCH: &str = "balls/tasks";
 const TASKS_REL: &str = ".balls/tasks";
@@ -123,6 +123,48 @@ pub fn detach(store: &Store) -> Result<()> {
         STATE_BRANCH,
         "balls: remaster --detach (standalone)",
     )
+}
+
+/// Offline-friendly detach (bl-dcd3) for when `master_url` is set but
+/// the state-repo hasn't yet materialized — typically because the hub
+/// is unreachable and `state_repo::ensure` hard-failed first-time
+/// setup. The warm `detach` path can't run there: `Store::discover`
+/// re-hits the same hard-fail, so this is the deadlock breaker.
+///
+/// Returns `Ok(true)` when the cold path applied (caller should
+/// stop), `Ok(false)` when it doesn't apply and the caller should
+/// fall through to the warm `detach` flow. Strictly local — clears
+/// `master_url`/`state_remote` in committed config and re-initializes
+/// the legacy `.balls/worktree` layout on the project's own git, no
+/// network round-trip.
+pub fn try_cold_detach(from: &Path) -> Result<bool> {
+    let repo_root = project_root(from)?;
+    let config_path = repo_root.join(".balls/config.json");
+    let mut cfg = crate::config::Config::load(&config_path)?;
+    if cfg.master_url().is_none() {
+        return Ok(false);
+    }
+    if repo_root
+        .join(crate::state_repo::STATE_REPO_REL)
+        .join(".git")
+        .exists()
+    {
+        // Warm cache available: the regular `discover` + `detach`
+        // path can re-root the orphan and preserve task data.
+        return Ok(false);
+    }
+    cfg.master_url = None;
+    cfg.state_remote = None;
+    cfg.save(&config_path)?;
+    git::git_ensure_user(&repo_root)?;
+    crate::store_init::setup_state_branch(&repo_root, "origin", false)?;
+    Ok(true)
+}
+
+fn project_root(from: &Path) -> Result<PathBuf> {
+    crate::store_paths::require_git_repo(from)?;
+    let common = git::git_common_dir(from)?;
+    crate::store_paths::find_main_root(&common)
 }
 
 fn json_rel(id: &str) -> String {

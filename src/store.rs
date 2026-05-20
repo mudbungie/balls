@@ -46,9 +46,10 @@ impl Store {
         }
         // Auto-provision the balls-owned state-repo on first discover
         // after a fresh `git clone` of a master_url-configured project.
-        // Idempotent; offline-safe (failure leaves discover to surface
-        // its own diagnostic).
-        auto_provision_master(&main_root);
+        // Idempotent. An unreachable hub at first-time materialization
+        // hard-fails here (bl-dcd3) — the user must resolve access or
+        // `bl remaster --detach` before any other command will run.
+        auto_provision_master(&main_root)?;
         let (tasks_dir_path, stealth, state_worktree_path) = resolve_layout(&main_root);
         if !stealth && !tasks_dir_path.exists() {
             return Err(BallError::state_worktree_missing(&main_root, &tasks_dir_path));
