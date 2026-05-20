@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T02:32:47.864871280Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Background: v0.4.0 release-plz proposed 0.3.12 (patch) because none of the source commits use conventional-commit prefixes (feat:/fix:/...). The minor bump was applied manually via gh api PATCH on the release PR's title/body and a Cargo.toml/Cargo.lock/CHANGELOG.md amend on the bot's branch. Workable but error-prone.\n\nOptions to investigate:\n1. Adopt conventional-commit prefixes for source commits going forward (feat:/fix:/chore:/etc.). release-plz reads these out of the box. Cleanest semantically but requires discipline.\n2. release-plz.toml [[package]] config to drive bumps from a different signal — e.g. PR labels, or a custom commit_parsers rule for the bracketed-id [bl-xxxx] convention this project already uses.\n3. A pre-merge hook that derives the next version from the PR's own metadata and writes Cargo.toml before release-plz runs.\n\nACCEPTANCE: a subsequent release where the version bump is correct (patch vs minor vs major) without manual edits on the release PR. Documented in CONTRIBUTING.md (or README) so future maintainers know what triggers what.",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":25,"source":"github","state":"open","synced_at":"2026-05-20T02:32:47.774103218+00:00","url":"https://github.com/mudbungie/balls/issues/25"}}}},
+  "id": "bl-3ef8",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T02:32:47.864874477Z"},
+  "tags": [],
+  "title": "Configure release-plz.toml so minor/major bumps don't require manual PR edits [bl-313a]",
+  "type": "task",
+  "updated_at": "2026-05-20T02:32:47.864871280Z"
+}
