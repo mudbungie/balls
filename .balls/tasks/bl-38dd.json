@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-38dd",
+  "claimed_by": "Hybridize",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T23:04:21.694394504Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T23:04:22.874702563Z"},
   "tags": ["multi-repo","master_url"],
   "title": ".balls/tasks symlink not created in master_url mode",
   "type": "task",
-  "updated_at": "2026-05-20T23:04:22.874713103Z"
+  "updated_at": "2026-05-20T23:33:43.857889648Z"
 }
