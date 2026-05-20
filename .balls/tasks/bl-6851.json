@@ -12,10 +12,10 @@
   "links": [],
   "parent": null,
   "priority": 3,
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-20T03:11:26.388388454Z"},
+  "status": "closed",
+  "synced_at": {"github-issues":"2026-05-20T03:33:28.984271159Z"},
   "tags": [],
   "title": "Configure release-plz.toml so minor/major bumps don't require manual PR edits [bl-313a]",
   "type": "task",
-  "updated_at": "2026-05-20T03:11:26.388385148Z"
+  "updated_at": "2026-05-20T03:33:28.984272221Z"
 }
