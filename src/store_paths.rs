@@ -1,6 +1,7 @@
 //! Filesystem path resolution helpers for `Store`. Extracted from
 //! `store.rs` so that the main module stays focused on the Store API.
 
+use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
 use std::fs;
@@ -18,7 +19,75 @@ pub(crate) fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
             return (p, true);
         }
     }
-    (root.join(".balls/worktree/.balls/tasks"), false)
+    (state_worktree_for(root).join(".balls/tasks"), false)
+}
+
+/// Layout triple `(tasks_dir, stealth, state_worktree)` resolved once
+/// at Store construction. Single seam for the `master_url`
+/// project-worktree vs balls-owned-clone choice (bl-ffb4): every
+/// caller of `state_worktree_dir()` routes through the cached path so
+/// the model decision lives here.
+pub(crate) fn resolve_layout(root: &Path) -> (PathBuf, bool, PathBuf) {
+    let (tasks_dir_path, stealth) = resolve_tasks_dir(root);
+    (tasks_dir_path, stealth, state_worktree_for(root))
+}
+
+/// Resolve the state-worktree path for `root`. Reads the committed
+/// config to detect `master_url`; on any load failure (corrupt /
+/// missing config) silently falls back to the legacy worktree path
+/// so a freshly-`git clone`d repo whose `.balls/config.json` hasn't
+/// been read yet still resolves *some* path — the rest of init/
+/// discover will surface the real error.
+pub(crate) fn state_worktree_for(root: &Path) -> PathBuf {
+    if uses_master_url(root) {
+        root.join(crate::state_repo::STATE_REPO_REL)
+    } else {
+        root.join(".balls/worktree")
+    }
+}
+
+/// `true` when the committed config declares a `master_url`. Best-effort
+/// — a config that won't load is treated as "no master_url" and the
+/// caller falls through to legacy layout.
+fn uses_master_url(root: &Path) -> bool {
+    let path = root.join(".balls/config.json");
+    Config::load(&path).is_ok_and(|c| c.master_url().is_some())
+}
+
+/// Auto-provision the balls-owned state-repo on `discover` when committed
+/// config sets `master_url` but `.balls/state-repo/` doesn't yet exist —
+/// the fresh-`git clone` case bl-ffb4 closes. Best-effort: on any
+/// failure (config won't load, hub unreachable, write error) we stay
+/// silent and let the rest of discover surface the real diagnostic.
+pub(crate) fn auto_provision_master(root: &Path) {
+    let path = root.join(".balls/config.json");
+    let Ok(cfg) = Config::load(&path) else { return };
+    let Some(url) = cfg.master_url() else { return };
+    if root
+        .join(crate::state_repo::STATE_REPO_REL)
+        .join(".git")
+        .exists()
+    {
+        return;
+    }
+    let _ = crate::state_repo::ensure(root, url);
+}
+
+/// Stealth/tasks-dir init leg. `master_url` is irrelevant in stealth
+/// mode (no state branch), so the state-worktree path is just a
+/// sentinel — callers gate on `stealth` before consulting it.
+pub(crate) fn init_stealth_tasks(
+    repo_root: &Path,
+    local_dir: &Path,
+    tasks_dir: Option<String>,
+) -> Result<(PathBuf, bool, PathBuf)> {
+    let ext = match tasks_dir {
+        Some(td) => PathBuf::from(td),
+        None => stealth_tasks_dir(repo_root),
+    };
+    fs::create_dir_all(&ext)?;
+    fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
+    Ok((ext, true, repo_root.join(".balls/worktree")))
 }
 
 /// Generate a deterministic external path for stealth tasks.

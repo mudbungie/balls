@@ -52,6 +52,7 @@ fn write_config(store: &Store, plugins: BTreeMap<String, PluginEntry>) {
         require_remote_on_review: false,
         require_remote_on_close: false,
         state_remote: None,
+        master_url: None,
         target_branch: None,
         delivery: None,
         min_bl_version: None,

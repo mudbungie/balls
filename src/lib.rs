@@ -56,6 +56,7 @@ pub mod review;
 pub mod review_deferred;
 pub mod review_safety;
 pub mod sanitize;
+pub mod state_repo;
 pub mod status;
 pub mod store;
 mod store_init;
