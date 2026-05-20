@@ -1,6 +1,16 @@
 [workspace]
 semver_check = false
 
+# Bump signaling. release-plz defaults to patch when no Conventional Commit
+# prefixes are present, which is what every source commit here looks like
+# (short imperative subject + `[bl-xxxx]` trailer). To opt in to a non-patch
+# bump, include `[minor]` or `[major]` anywhere in any commit's message that
+# lands in the release window. For non-conventional messages release-plz
+# matches the regex against the full commit text, so the marker can sit in
+# the subject (alongside `[bl-xxxx]`) or in the body.
+custom_minor_increment_regex = '\[minor\]'
+custom_major_increment_regex = '\[major\]'
+
 [changelog]
 commit_parsers = [
     { message = "^balls:", skip = true },
