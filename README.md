@@ -822,6 +822,9 @@ Committed to main, shared across the team.
 | `BALLS_IDENTITY` | Worker identity for claims and notes | `$USER`, then `"unknown"` |
 | `BALLS_PLUGIN_TIMEOUT_SECS` | Wall-clock cap on any plugin invocation | 30 |
 | `BALLS_PLUGIN_MAX_STREAM_BYTES` | Max bytes buffered from a plugin's stdout/stderr | 1 MiB |
+| `BALLS_PLUGIN_ABS_MAX_STREAM_BYTES` | Absolute hard ceiling on bytes buffered from a plugin stream. Independent of (and never lifted by) a raised `BALLS_PLUGIN_MAX_STREAM_BYTES`, so loosening the stream cap for a large sync can't disable memory protection. Far above any real payload — only a runaway/abusive plugin hits it. | 64 MiB |
+| `BALLS_PLUGIN_MAX_SYNC_CREATES` | Flood backstop: max tasks created from one plugin sync. Excess is skipped with a warning, the rest of the sync still applies. Set in the thousands; a real tracker never reports this many new issues at once. | 5000 |
+| `BALLS_PLUGIN_MAX_SYNC_FIELD_BYTES` | Per-text-field byte ceiling on a synced title/description/note. An oversize field is truncated with a visible marker (never dropped, never rejected); siblings and the rest of the sync are unaffected. Absurdly generous — real fields are bytes to kilobytes. | 1 MiB |
 
 ---
 
@@ -943,6 +946,16 @@ All three arrays are optional. Empty arrays or omitted arrays mean nothing chang
 | `reason` | no | `"Deleted in remote tracker"` | Explanation appended as a note |
 
 Core sets the task status to `deferred` and appends the reason as a note. Tasks already `closed` are skipped. The task file is not deleted.
+
+### Ingest backstops
+
+Bidirectional sync makes every title, description, tag, note, and `external` blob in a sync report attacker-influenced — and each lands as a committed file on `balls/tasks`. Core does **not** police content: big titles, long descriptions, many tags, and fat `external` maps are all legitimate and pass through byte-unchanged. The only thing guarded against is pathological abuse that would OOM the process or wedge the repo, and every guard is a generous backstop set far above any plausible real payload, env-overridable, and warn-not-fail:
+
+- **Whole-stream memory** — a plugin's stdout is bounded by `BALLS_PLUGIN_MAX_STREAM_BYTES` (1 MiB) *and* an absolute `BALLS_PLUGIN_ABS_MAX_STREAM_BYTES` backstop (64 MiB) that a raised stream cap can never lift. Over the effective cap, the report is discarded with a warning naming the knob.
+- **Oversized field** — a title/description/note past `BALLS_PLUGIN_MAX_SYNC_FIELD_BYTES` (1 MiB) is truncated with a visible `[…balls truncated this field …]` marker and a diagnostic. The field's siblings and the rest of the sync still apply; nothing is rejected. `external` slices are *not* size-policed individually — they ride the whole-stream backstop only.
+- **Create flood** — more than `BALLS_PLUGIN_MAX_SYNC_CREATES` (5000) creates in one sync is treated as a flood: the excess is skipped with a warning and the rest applies. A real tracker never reports thousands of new issues at once; if yours legitimately does, raise the knob.
+
+If any of these ever bites a real repo, the limit is too tight — raise the corresponding environment variable (see [Environment overrides](#environment-overrides)).
 
 ### Sync stdin
 

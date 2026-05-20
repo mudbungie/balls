@@ -105,8 +105,8 @@ impl Plugin {
             return None;
         }
         if outcome.truncated {
-            let cap = limits::max_stream_bytes();
-            eprintln!("warning: plugin `{exe}` {op} exceeded {cap} bytes of stdout, discarding");
+            let cap = limits::effective_stream_cap();
+            eprintln!("warning: plugin `{exe}` {op} exceeded {cap} bytes of stdout, discarding (raise BALLS_PLUGIN_ABS_MAX_STREAM_BYTES if a real store is genuinely this large)");
             return None;
         }
         if !outcome.status.success() {
