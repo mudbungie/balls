@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T23:04:21.694394504Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\nbl-ffb4's master_url path bypasses setup_state_branch entirely, and that function is where ensure_tasks_symlink lives — so a master_url-configured repo never gets the convenience symlink .balls/tasks -> .balls/state-repo/.balls/tasks (the legacy mode points it at worktree/.balls/tasks).\n\nbl itself works because Store routes through tasks_dir_path (which resolves correctly to .balls/state-repo/.balls/tasks); the regression is purely the stock-tool ergonomic the README advertises:\n\n> An engineer on main can `ls .balls/tasks/`, `cat`, and `$EDITOR` files through this symlink without any balls-specific knowledge.\n\n# Concrete fix\n\nstate_repo::ensure() should create the symlink alongside seed() — same shape as ensure_tasks_symlink in store_init.rs but with the target swapped to state-repo/.balls/tasks. Keep the bl-init refusal-on-non-symlink guard.\n\n# Out of scope\n\nThe two layouts are mutually exclusive (master_url wins), so there's no \"both symlinks\" case to worry about. The legacy mode keeps using setup_state_branch's existing symlink.",
+  "external": {},
+  "id": "bl-38dd",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["multi-repo","master_url"],
+  "title": ".balls/tasks symlink not created in master_url mode",
+  "type": "task",
+  "updated_at": "2026-05-20T23:04:21.694394504Z"
+}
