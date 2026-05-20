@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T02:19:54.284711798Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "README.md's \"Plugin System\" section documents only the LEGACY interface (auth-setup/auth-check/push/sync + push/sync response schemas). The entire native-protocol line of work — describe/propose subcommands, field projections, structured conflict reporting, the reject veto branch, the create/drop lifecycle events, and the describe-gated EventCtx side channel (wants_context + --ctx-file) — is documented only in docs/SPEC-lifecycle-sync-participants.md, which is a design/contract spec, not plugin-author-facing onboarding docs.\n\nWHY THIS MATTERS: a plugin author reading README today cannot discover the native protocol at all; they'd write a legacy push/sync plugin and never learn they can declare projections, return structured conflicts, veto a transition, observe create/drop, or request EventCtx. The SPEC is authoritative but reads as internal architecture, not a how-to. README is where an integrator looks first.\n\nSCOPE: a new README subsection (or docs/PLUGINS.md linked from README) covering the native protocol as an author would consume it: the describe response shape (subscriptions, projection {owns/reads/external_prefixes}, retry_budget, wants_context), the propose request/response (ok/conflict/reject), the per-event semantics, create/drop gating rules (incl. required/gating-on-drop being a config error), and the EventCtx v1 schema delivered via --ctx-file. Cross-link the SPEC for the formal contract; do not duplicate it. This is a pre-existing documentation gap (predates epic bl-cc24 by several balls); bl-cc24 only extended the protocol the README never covered.",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":26,"source":"github","state":"open","synced_at":"2026-05-20T02:19:54.251596245+00:00","url":"https://github.com/mudbungie/balls/issues/26"}}}},
+  "id": "bl-12ad",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T02:19:54.284715585Z"},
+  "tags": [],
+  "title": "README: document the native plugin protocol (describe/propose, projections, reject, create/drop, EventCtx) [bl-c972]",
+  "type": "task",
+  "updated_at": "2026-05-20T02:19:54.284711798Z"
+}
