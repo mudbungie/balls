@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-dcd3",
+  "claimed_by": "Flailed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T20:18:53.556421558Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T20:18:54.837511481Z"},
   "tags": ["multi-repo","master-url"],
   "title": "Hard-fail bl prime when master_url is unreachable (no local-orphan fallback)",
   "type": "bug",
-  "updated_at": "2026-05-20T20:18:54.837517322Z"
+  "updated_at": "2026-05-20T21:34:16.308629436Z"
 }
