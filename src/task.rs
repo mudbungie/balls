@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 
 // `Status`, `LinkType`/`Link`, `TaskType`, and `ArchivedChild` live
@@ -124,15 +123,18 @@ impl Default for NewTaskOpts {
 
 impl Task {
     /// Task ids are persisted forever once minted, and id generation
-    /// must work in stealth/no-git mode. Same kept-exception rationale
-    /// as `store_paths::stealth_tasks_dir` — `git hash-object` is not a
-    /// value-compatible substitute and would not be available here.
+    /// must work in stealth/no-git mode. SHA-1 here is load-bearing
+    /// on-disk state, same shape as `store_paths::stealth_tasks_dir`:
+    /// the algorithm and its byte output are the on-disk contract, not
+    /// an implementation detail. Backed by the vendored in-tree
+    /// `crate::hash::sha1_hex` so the RustCrypto stack is not in the
+    /// dependency tree.
     pub fn generate_id(title: &str, ts: DateTime<Utc>, id_length: usize) -> String {
-        let mut hasher = Sha1::new();
-        hasher.update(title.as_bytes());
-        hasher.update(ts.to_rfc3339().as_bytes());
-        let digest = hasher.finalize();
-        let hex = hex::encode(digest);
+        let ts_str = ts.to_rfc3339();
+        let mut buf = Vec::with_capacity(title.len() + ts_str.len());
+        buf.extend_from_slice(title.as_bytes());
+        buf.extend_from_slice(ts_str.as_bytes());
+        let hex = crate::hash::sha1_hex(&buf);
         format!("bl-{}", &hex[..id_length])
     }
 
