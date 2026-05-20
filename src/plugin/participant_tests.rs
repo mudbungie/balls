@@ -130,6 +130,40 @@ fn protocol_for_push_event_returns_none_when_task_missing() {
 }
 
 #[test]
+fn protocol_for_close_uses_ctx_post_when_task_file_archived() {
+    // SPEC §5.1: `Event::Close` archives the task file before
+    // dispatch. The legacy participant must negotiate on
+    // `ctx.post` rather than re-loading from the store, otherwise
+    // push-on-close silently no-ops and the plugin's close-mirror
+    // never fires. Regression for the cascading bug observed
+    // during the bl-8392 cleanup: 120+ closes left every GH issue
+    // OPEN because load_task on an archived task returned Err.
+    let (_td, store) = stealth_store();
+    // Deliberately do NOT save the task to disk — mirrors the
+    // post-close-and-archive state.
+    let opts = NewTaskOpts {
+        title: "closed".into(),
+        task_type: TaskType::task(),
+        priority: 3,
+        parent: None,
+        depends_on: vec![],
+        description: String::new(),
+        tags: vec![],
+    };
+    let mut closed = Task::new(opts, "bl-c105".into());
+    closed.status = crate::task::Status::Closed;
+    let p = LegacyPluginParticipant::from_entry(&store, "x".into(), &entry(true), None);
+    let ctx = EventCtx::new(Event::Close, &store, "bl-c105", "alice")
+        .with_context(Some(&closed), None, None, &[]);
+    let Some(LegacyProtocol::Push { task, .. }) = p.protocol(Event::Close, ctx)
+    else {
+        panic!("expected Push variant with the in-hand closed task");
+    };
+    assert_eq!(task.id, "bl-c105");
+    assert!(matches!(task.status, crate::task::Status::Closed));
+}
+
+#[test]
 fn protocol_for_sync_event_returns_sync_variant() {
     let (_td, store) = stealth_store();
     save_task(&store, "bl-0001");

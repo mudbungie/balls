@@ -213,7 +213,17 @@ impl Participant for LegacyPluginParticipant {
                 report: None,
             });
         }
-        let task = ctx.store.load_task(ctx.task_id).ok()?;
+        // EventCtx::post (SPEC §5.1) carries the in-hand post-image
+        // the command holds. For `Event::Close`, `close_and_archive`
+        // removes the task file before dispatch, so load_task would
+        // return Err and push would silently no-op (the original bug
+        // that left every bl-close GH-side mirror open). Prefer post
+        // when populated; fall back to load_task only when callers
+        // construct a bare EventCtx (test fixtures).
+        let task = match ctx.post {
+            Some(t) => t.clone(),
+            None => ctx.store.load_task(ctx.task_id).ok()?,
+        };
         Some(LegacyProtocol::Push {
             plugin: &self.plugin,
             task: Box::new(task),
