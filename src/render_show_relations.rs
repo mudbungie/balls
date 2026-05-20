@@ -31,6 +31,7 @@ pub(crate) fn write_relations(
         || delivery.sha.is_some()
         || t.branch.is_some()
         || t.repo.is_some()
+        || t.delivered_repo.is_some()
         || t.target_branch.is_some()
         || !t.external.is_empty();
     if !has_any {
@@ -43,6 +44,7 @@ pub(crate) fn write_relations(
     write_parent(out, t, all);
     write_children(out, t, all);
     write_delivered(out, delivery, repo_root);
+    write_delivered_repo(out, t);
     write_branch(out, t);
     write_target_branch(out, t);
     write_repo(out, t);
@@ -164,6 +166,12 @@ fn write_branch(out: &mut String, t: &Task) {
 fn write_repo(out: &mut String, t: &Task) {
     if let Some(r) = &t.repo {
         let _ = writeln!(out, "  repo:     {}", sanitize::inline(r));
+    }
+}
+
+fn write_delivered_repo(out: &mut String, t: &Task) {
+    if let Some(r) = &t.delivered_repo {
+        let _ = writeln!(out, "  delivered repo: {}", sanitize::inline(r));
     }
 }
 

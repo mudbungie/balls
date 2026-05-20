@@ -29,6 +29,7 @@ fn make_task(id: &str) -> Task {
         sync_status: BTreeMap::new(),
         delivered_in: None,
         repo: None,
+        delivered_repo: None,
         target_branch: None,
         extra: BTreeMap::new(),
     }

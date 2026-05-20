@@ -51,6 +51,7 @@ pub mod render_show_relations;
 #[cfg(test)]
 mod render_show_test_support;
 pub mod render_show_text;
+pub mod repo_url;
 pub mod resolve;
 pub mod review;
 pub mod review_deferred;
