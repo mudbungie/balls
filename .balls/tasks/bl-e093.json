@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T07:46:23.244665801Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "WHY: release-plz.toml configures custom_minor_increment_regex = '\\[minor\\]' so a bracketed [minor] marker anywhere in a commit message bumps the minor version. The regex is too loose: bl-313a's own commit subject ('Auto-derive minor/major bumps from [minor]/[major] markers [bl-313a]') contains the literal string [minor] embedded in prose ('[minor]/[major] markers'), and self-matched. release-plz then proposed v0.5.0 for the post-0.4.0 window even though no commit intended a minor bump. v0.4.0 was already hand-edited away from release-plz's default; recurring that workflow defeats the point of bl-313a.\n\nSHAPE: keep the marker convention, tighten the regex to '(^|\\s)\\[minor\\](\\s|$)' and '(^|\\s)\\[major\\](\\s|$)' so the bracketed marker must sit at a word-boundary — start-of-string, preceded by whitespace, followed by whitespace, or end-of-string. Prose like '[minor]/[major]' (slash-joined, no surrounding whitespace) no longer matches; a real marker line like 'Adds the X feature [minor] [bl-xxxx]' still matches. Update the toml comment to reflect the boundary requirement.\n\nTEST: tests/release_plz_marker.rs (or a unit test if release-plz config validates these) exercises three strings against each regex: (a) 'foo [minor] bar' matches; (b) '[minor]/[major] markers' does NOT match; (c) 'foo [minor]' (trailing end-of-string) matches. Same for [major].\n\nOBSERVED: PR #30 (chore: release v0.5.0) is the immediate symptom — needs to be regenerated as v0.4.1 once this lands.",
+  "external": {},
+  "id": "bl-e093",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "release-plz [minor]/[major] regex must require standalone tokens",
+  "type": "bug",
+  "updated_at": "2026-05-20T07:46:23.244665801Z"
+}
