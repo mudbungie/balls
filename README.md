@@ -1203,6 +1203,157 @@ Record schema:
 
 Malformed lines produce a single warning and do not abort the rest of the stream. The channel is available on every subcommand (`auth-setup`, `auth-check`, `push`, `sync`) and is subject to the same stream-size cap as stdout/stderr.
 
+### Native plugin protocol (describe / propose)
+
+The push/sync interface above is the *legacy* protocol: a plugin announces nothing about itself, returns a single opaque blob per task, and can't signal conflicts, decline a transition, or observe `create`/`drop`. A plugin opts into the **native protocol** — the participant-model wire (`SPEC-lifecycle-sync-participants.md` §5) — by shipping two extra subcommands: `describe` and `propose`. Both are independent additions; legacy `push`/`sync`/`auth-*` keep working unchanged, and a plugin that doesn't implement `describe` is silently shimmed onto the legacy path (SPEC §12). The two protocols are not stacked: a plugin that ships `describe` is driven through native `propose` and the legacy `push` is no longer called for the subscribed events.
+
+The native protocol is what makes a plugin a real *participant*: it gets to declare what subset of `Task` it owns, return a structured conflict report that the negotiation primitive merges and retries (SPEC §7–§8), veto a transition outright (`reject`, §8.1), and observe `create`/`drop`. None of this is reachable from `push`/`sync`.
+
+#### `describe`: self-registration
+
+```
+balls-plugin-jira describe --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
+```
+
+Reads no stdin; writes a single JSON object to stdout (exit 0 on success). The response is parsed leniently per SPEC §13: unknown event names in `subscriptions` are dropped from the resolved set, the rest still take effect, and unknown top-level keys are ignored.
+
+```json
+{
+  "subscriptions": ["claim", "review", "close", "update", "create", "sync"],
+  "projection": {
+    "owns": ["external"],
+    "reads": ["id", "title", "status"],
+    "external_prefixes": ["jira"]
+  },
+  "retry_budget": 5,
+  "wants_context": false
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `subscriptions` | yes | Events the plugin participates in (`claim`, `review`, `close`, `update`, `create`, `drop`, `sync`). Per-event semantics below. Unknown event strings are dropped silently per SPEC §13. |
+| `projection.owns` | yes | Canonical `Task` field names this plugin authoritatively owns. Overlapping `owns` between two participants is a config-validation error (SPEC §5). Most plugins own only `external`. |
+| `projection.reads` | no | Canonical fields the plugin reads but does not own. Used by the merge composer to reason about disjointness; informational, not enforced. |
+| `projection.external_prefixes` | no | Prefixes within `task.external` this plugin owns (e.g. `["jira"]` ⇒ owns `task.external.jira.*`). Lets two plugins co-own `external` without colliding. |
+| `retry_budget` | no | Override for the negotiation retry cap on a recoverable `conflict`. Defaults to 5 (SPEC §7). |
+| `wants_context` | no | If true, every `propose` invocation receives `--ctx-file PATH` carrying an `EventCtx` document (§5.1, schema below). Absent/false ⇒ byte-identical stdin to today; no side channel. |
+
+#### `propose`: per-event negotiation
+
+For each (event, task) the plugin is subscribed to, core calls:
+
+```
+balls-plugin-jira propose --event claim [--ctx-file /tmp/balls-ctx-NNNN.json] \
+    --config .balls/plugins/jira.json --auth-dir .balls/local/plugins/jira/
+```
+
+Stdin: the post-image `Task` as JSON (same shape as `bl show --json`'s `task`). The `--event` flag names which lifecycle event is firing; the plugin uses it to branch its behavior. `--ctx-file` is present **only** when the plugin declared `wants_context: true`; the path is to a temp file balls writes before spawn and removes after the child exits.
+
+Stdout: a single JSON object with at most one of `ok`, `conflict`, or `reject` populated. Empty stdout (exit 0) or a response with none of the three set is treated as `Other` — wire failure, not a successful proposal. Unknown top-level keys are captured (not dropped) per SPEC §13 and degrade to `Other` with the variant named in the diagnostic.
+
+**`ok` — successful proposal.** The plugin returns the projection of `Task` it owns; balls folds those fields into the working task and continues the event.
+
+```json
+{
+  "ok": {
+    "task": {
+      "external": { "jira": { "remote_key": "PROJ-123", "synced_at": "2026-05-19T12:00:00Z" } }
+    },
+    "commit_policy": { "kind": "commit", "message": "mirror to PROJ-123" }
+  }
+}
+```
+
+`commit_policy` is optional and follows SPEC §10. Variants: `{"kind": "commit", "message": "..."}` (default; participant-supplied message is wrapped with a `plugin: <name>: ` prefix on the title), `{"kind": "batch", "tag": "..."}` (coalesce with other participants returning the same tag within the same event), or `{"kind": "suppress"}` (apply state, no commit — disallowed for required participants and rejected at apply time).
+
+**`conflict` — recoverable field clash.** The plugin saw a remote-side change since its last sync that invalidates this proposal. Balls folds `remote_view` into the working task and re-invokes `propose` up to `retry_budget` times. Legacy `push`-shim plugins cannot emit `conflict` — only native participants get the retry-on-conflict path (SPEC §8).
+
+```json
+{
+  "conflict": {
+    "fields": ["status", "external.jira.assignee"],
+    "remote_view": {
+      "status": "in_progress",
+      "external": { "jira": { "assignee": "bob" } }
+    },
+    "hint": "ticket was reassigned to bob in Jira since last sync"
+  }
+}
+```
+
+**`reject` — deliberate policy veto.** The plugin refuses the transition for a reason it states. *No* Task state, *no* retry, *no* merge. The failure policy (SPEC §9, configured per subscription in `.balls/config.json` — see *Participant enforcement* below) decides what the lifecycle event does about it:
+
+```json
+{ "reject": { "reason": "CI is red on this branch; close blocked" } }
+```
+
+- `required` ⇒ the event aborts; the Task is rolled back to its pre-event state; the plugin name and `reason` propagate verbatim to the caller.
+- `best-effort` ⇒ warn and continue; the event ships; the rejection is recorded in `task.sync_status.<plugin>`.
+- `gating` ⇒ stage for `bl sync --review`; the event proceeds in a pending-external state.
+
+A per-invocation override (`--skip=<plugin>`, or `--no-sync` for the git-remote participant) overrides a required `reject` and is logged in the state-branch commit subject (SPEC §11) — soft policy, hard primitives. A `reject` is **not** the same as a `conflict` (recoverable, retried) or a wire failure (`Other`); conflating them is a regression.
+
+#### Per-event semantics
+
+The events a plugin can subscribe to via `describe`:
+
+| Event | Fires on | Can affect outcome? | Notes |
+|---|---|---|---|
+| `create` | `bl create` | yes — same negotiation as the others | Describe-gated (SPEC §6.1): an old plugin that does not declare `create` is never invoked on it. Lets a tracker mirror new local tasks at birth instead of inferring them from a later `update`. |
+| `claim` | `bl claim` | yes | Subscribed for legacy shim plugins iff `sync_on_change`. |
+| `review` | `bl review` | yes | Subscribed for legacy shim plugins iff `sync_on_change`. |
+| `update` | `bl update` (non-closing) | yes | Subscribed for legacy shim plugins iff `sync_on_change`. |
+| `close` | `bl close`, `bl update status=closed` | yes | Subscribed for legacy shim plugins iff `sync_on_change`. |
+| `sync` | `bl sync`, `bl prime` | yes | The standalone bidirectional event; runs for every enabled plugin regardless of per-event subscriptions. |
+| `drop` | `bl drop` | **no — observe-only** (SPEC §6.2) | Best-effort notification; the propose response cannot block or alter the drop. Declaring `required` or `gating` on `drop` is a **config-validation error**: drop changes no durable Task, so there is nothing to roll back, gate, or stage. Only `best-effort` is legal. |
+
+`create` and `drop` are both purely additive: subscribing is opt-in via `describe`, and a plugin that does not list them in `subscriptions` is never called on either event (no observe-death-without-birth asymmetry, but also no surprise invocations on older plugins).
+
+#### `EventCtx` v1 (the describe-gated side channel)
+
+Bare `propose` stdin carries only the post-image Task. That is insufficient for any real policy — the plugin can't see *who* moved the task, *what it was before*, or *which overrides were in play*. A native plugin that sets `wants_context: true` in its describe response receives an additional document at the path passed via `--ctx-file`. The legacy stdin shape is byte-unchanged for plugins that don't opt in (SPEC §5.1).
+
+Schema (additive — unknown keys are ignored by a context-aware plugin, so a newer balls writing extra fields stays compatible with an older plugin):
+
+```json
+{
+  "schema_version": 1,
+  "event": "review",
+  "actor": "alice",
+  "repo": "git@github.com:example/repo.git",
+  "overrides": ["--no-sync"],
+  "task_before": { "...prior Task projection (the diff basis)..." },
+  "commit": "abc123def..."
+}
+```
+
+| Field | When set | Description |
+|---|---|---|
+| `schema_version` | always | Currently `1`. Bumped only on a breaking change; new keys are additive and do **not** bump it. |
+| `event` | always | Lowercase wire name (`claim`, `review`, `close`, `update`, `create`, `drop`, `sync`). Matches the `--event` flag. |
+| `actor` | always | The `BALLS_IDENTITY` / `--as` identity that invoked the command. |
+| `overrides` | always (may be empty) | Per-invocation flags that applied to this event — e.g. `["--no-sync"]`, `["--skip=jira"]`, `["--required=jira"]`. The state-branch commit subject carries the same list (SPEC §11) for post-hoc audit. |
+| `repo` | when known | Identity of the originating repo (for multi-repo hubs). |
+| `task_before` | when known | The pre-image Task as JSON — the diff basis the post-image on stdin should be compared against. |
+| `commit` | when known | The state-branch sha that recorded this event, once available. |
+
+The file is removed by balls once the child exits; treat the path as ephemeral and read it eagerly.
+
+#### Forward compatibility for plugin authors
+
+The participant model crosses three serde seams across version boundaries. **The rule is one-line: unknown = round-trip, never die** (SPEC §13). Concretely for a plugin author:
+
+- A newer balls may send `propose` an event name your plugin doesn't recognize. Don't crash — return `{}` (treated as `Other`) or skip the event silently if you don't handle it. Subscribing only to events you implement is the cleanest path.
+- A newer balls may add keys to `EventCtx` (or to a subsequent `propose` stdin). Ignore unknown keys; don't fail to parse the document.
+- An older balls may meet your `describe` response and not understand a new subscription or a new top-level key. Old balls drops the unknown from the subscription set or ignores the key, and the rest still works. You don't need to negotiate a version — just declare what you support.
+
+The `task.extra` catch-all (SPEC §13 seam 1) preserves unknown fields across reads/writes too, so a Task projection that names a field this build doesn't know is round-tripped through, not silently dropped.
+
+#### Where the formal contract lives
+
+This subsection is plugin-author orientation; the authoritative contract — projection algebra, retry budget bounds, commit-policy composition rules, the `reject` veto's exact override semantics, conformance test list — is `docs/SPEC-lifecycle-sync-participants.md`. Read this for "how do I write a plugin"; read the SPEC for "exactly what does balls guarantee about my plugin."
+
 ### Sync lifecycle
 
 When `sync_on_change` is true in config:
