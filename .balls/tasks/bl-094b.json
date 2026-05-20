@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T03:18:28.212771447Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Symptom: closing a balls task (via `bl close` or `bl update status=closed`) does not mirror the close to GitHub via the github-issues plugin. Over 120 closes during the bl-8392 cleanup left every corresponding GH issue OPEN (19 open issues on github.com/mudbungie/balls that should be closed; `bl list` shows 3 open tasks).\n\nROOT CAUSE\nTwo-line interaction at the balls-core layer:\n\n1. src/commands/update.rs:62 — when closing, `store.close_and_archive(&task, &msg)?` runs BEFORE `plugin::finish`. The task file is removed from `.balls/tasks/` as part of the close commit, atomically.\n\n2. src/plugin/participant.rs:217 — LegacyPluginParticipant::protocol() does:\n     let task = ctx.store.load_task(ctx.task_id).ok()?;\n   For Event::Close the file is gone, load_task returns Err, .ok()? collapses to None, protocol() returns None. The dispatcher treats that as inert and never invokes the plugin's `push` subcommand.\n\nThe EventCtx struct documents this exact case at src/participant.rs:170-172:\n    /// The post-image Task the command holds. A `close` archived the\n    /// task file before dispatch, so the protocol must negotiate on\n    /// this in-hand image rather than re-loading from the store.\n    pub post: Option<&'a Task>,\n\ndispatch.rs:91-95 populates ctx.post correctly via with_context(Some(task), ...). The legacy participant just doesn't honor the contract — it always uses load_task and silently no-ops on close.\n\n(Native participants do honor ctx.post — see plugin/native_participant.rs uses of `post`. So this defect is legacy-only, but both plugins shipped to balls today are legacy.)\n\nCASCADING SYMPTOMS\n- balls-plugin-github-issues: balls task closed → GH issue stays open (16 stale issues right now: #16, #17, #18, #19, #20, #21, #22, #23, #24, #25, #26, #27, #28, #29, #31, #32, plus #33 a phantom 2nd mirror of bl-8392)\n- balls-plugin-github (PR-side): if a deferred-mode review task closes, the PR mirror won't update either. Hasn't been observed because deferred-mode usage is light.\n- bl-a2ea's promise that close-mirror would 'drive those to status=closed automatically' was about pull-side close-mirror. This is the push-side, which is also broken but for a different reason.\n\nFIX\nOne change: in src/plugin/participant.rs::LegacyPluginParticipant::protocol, prefer ctx.post over load_task when post is provided:\n\n    let task = match ctx.post {\n        Some(t) => t.clone(),\n        None => ctx.store.load_task(ctx.task_id).ok()?,\n    };\n\nThe fallback to load_task is retained for safety but should not be reached for any push-shaped event after bl-bac2 (ctx.post is always populated by dispatch.rs::dispatch_push). Could equivalently be a hard `ctx.post?.clone()` if the fallback is provably dead.\n\nREGRESSION TEST\nA unit test against LegacyPluginParticipant::protocol with Event::Close, ctx.post=Some(task_with_status_closed), and an absent task file: protocol() must return Some(LegacyProtocol::Push{...task with status=closed}). Currently it returns None.\n\nOUT OF SCOPE / FOLLOW-UPS\n- After the fix lands, the 16 stale GH issues from the bl-8392 cleanup still need closing (no balls task left to drive them). Either do via `gh issue close` manually or via a one-shot `bl create` + `bl close` per issue. The cleanup of those is one-time; the fix prevents future drift.\n- bl-321d (pull-side close-mirror for born-closed issues) is unrelated. Both contributed to the OPEN-on-GH state we see today, but they live in different code paths.",
+  "external": {},
+  "id": "bl-094b",
+  "links": [],
+  "parent": null,
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Legacy participant ignores ctx.post on close — push-on-close never fires",
+  "type": "bug",
+  "updated_at": "2026-05-20T03:18:28.212771447Z"
+}
