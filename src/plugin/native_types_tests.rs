@@ -231,24 +231,44 @@ fn describe_wants_context_defaults_false_and_parses_true() {
 }
 
 // SPEC §5.1: the v1 wire shape. schema_version is pinned; repo rides
-// only when known; overrides is an explicit (currently empty) list.
+// only when known; the bl-fb4d additive keys (task_before, commit)
+// serialize when present and the override tokens carry through.
 #[test]
 fn event_ctx_wire_serializes_v1_shape() {
-    let json =
-        EventCtxWire::for_event("review", "alice", Some("git@h:p.git".into()))
-            .unwrap();
+    let before = crate::task::Task::new(
+        crate::task::NewTaskOpts {
+            title: "prior".into(),
+            ..Default::default()
+        },
+        "bl-1234".into(),
+    );
+    let overrides = vec!["--no-sync".to_string(), "--skip=jira".to_string()];
+    let json = EventCtxWire::for_event(
+        "review",
+        "alice",
+        Some("git@h:p.git".into()),
+        Some(&before),
+        Some("abc123"),
+        &overrides,
+    )
+    .unwrap();
     let v: Value = serde_json::from_str(&json).unwrap();
     assert_eq!(v["schema_version"], EVENT_CTX_SCHEMA_VERSION);
     assert_eq!(v["event"], "review");
     assert_eq!(v["actor"], "alice");
     assert_eq!(v["repo"], "git@h:p.git");
-    assert_eq!(v["overrides"], serde_json::json!([]));
+    assert_eq!(v["overrides"], serde_json::json!(["--no-sync", "--skip=jira"]));
+    assert_eq!(v["task_before"]["id"], "bl-1234");
+    assert_eq!(v["commit"], "abc123");
 }
 
 #[test]
-fn event_ctx_wire_omits_repo_when_absent() {
-    let json = EventCtxWire::for_event("create", "bob", None).unwrap();
+fn event_ctx_wire_omits_absent_optional_keys() {
+    let json = EventCtxWire::for_event("create", "bob", None, None, None, &[]).unwrap();
     let v: Value = serde_json::from_str(&json).unwrap();
     assert!(v.get("repo").is_none(), "absent repo must be omitted: {v}");
+    assert!(v.get("task_before").is_none(), "no prior on create: {v}");
+    assert!(v.get("commit").is_none(), "absent commit omitted: {v}");
     assert_eq!(v["actor"], "bob");
+    assert_eq!(v["overrides"], serde_json::json!([]));
 }

@@ -5,10 +5,28 @@
 
 use super::*;
 use crate::config::{Config, PluginEntry, CONFIG_SCHEMA_VERSION};
+use crate::error::Result;
 use crate::participant::Event;
+use crate::participant_config::InvocationOverrides;
 use crate::store::Store;
 use crate::task::{NewTaskOpts, Task, TaskType};
 use std::collections::BTreeMap;
+
+/// Minimal push: no pre-image, no overrides — the legacy-parity shape
+/// these dispatcher contract tests exercise.
+fn push(store: &Store, task: &Task, event: Event) -> Result<DispatchOutcome> {
+    let ov = InvocationOverrides::default();
+    dispatch_push(&DispatchInput {
+        store,
+        task_before: None,
+        task,
+        event,
+        identity: "alice",
+        commit: None,
+        overrides: &ov,
+        override_tokens: &[],
+    })
+}
 
 fn stealth_store() -> (tempfile::TempDir, Store) {
     let td = tempfile::tempdir().unwrap();
@@ -70,7 +88,7 @@ fn dispatch_push_with_no_plugins_is_ok() {
     let (_td, store) = stealth_store();
     write_config(&store, BTreeMap::new());
     let task = make_task(&store, "no plugins");
-    dispatch_push(&store, &task, Event::Claim, "alice").unwrap();
+    push(&store, &task, Event::Claim).unwrap();
 }
 
 #[test]
@@ -82,7 +100,7 @@ fn dispatch_push_skips_disabled_plugin() {
     plugins.insert("nope".into(), entry(false, true));
     write_config(&store, plugins);
     let task = make_task(&store, "disabled plugin");
-    dispatch_push(&store, &task, Event::Claim, "alice").unwrap();
+    push(&store, &task, Event::Claim).unwrap();
 }
 
 #[test]
@@ -94,7 +112,7 @@ fn dispatch_push_skips_when_event_not_subscribed() {
     plugins.insert("sync-only".into(), entry(true, false));
     write_config(&store, plugins);
     let task = make_task(&store, "sync only");
-    dispatch_push(&store, &task, Event::Claim, "alice").unwrap();
+    push(&store, &task, Event::Claim).unwrap();
 }
 
 #[test]
@@ -113,7 +131,7 @@ fn dispatch_push_propagates_config_load_error() {
         },
         "bl-1234".into(),
     );
-    let err = dispatch_push(&store, &task, Event::Update, "alice").unwrap_err();
+    let err = push(&store, &task, Event::Update).unwrap_err();
     let _ = format!("{err}");
 }
 

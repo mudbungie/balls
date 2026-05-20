@@ -46,6 +46,12 @@ pub struct NativeProtocol<'a> {
     /// SPEC §5.1 — deliver the EventCtx side channel; `identity` = actor.
     pub(crate) wants_context: bool,
     pub(crate) identity: String,
+    /// SPEC §5.1 side-channel keys, threaded from the command via
+    /// `EventCtx`: the pre-image (diff basis), the event's
+    /// state-branch sha, and the §11 override tokens that applied.
+    pub(crate) task_before: Option<Box<Task>>,
+    pub(crate) commit: Option<String>,
+    pub(crate) override_tokens: Vec<String>,
 }
 
 impl<'a> NativeProtocol<'a> {
@@ -53,6 +59,7 @@ impl<'a> NativeProtocol<'a> {
     /// the only prod call site (`Participant::protocol`); keeping the
     /// fields private behind this constructor is what lets the struct
     /// live in a module separate from that adapter.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         plugin: &'a Plugin,
         name: &'a str,
@@ -61,6 +68,9 @@ impl<'a> NativeProtocol<'a> {
         retry_budget: usize,
         wants_context: bool,
         identity: String,
+        task_before: Option<Box<Task>>,
+        commit: Option<String>,
+        override_tokens: Vec<String>,
     ) -> Self {
         Self {
             plugin,
@@ -72,6 +82,9 @@ impl<'a> NativeProtocol<'a> {
             retry_budget,
             wants_context,
             identity,
+            task_before,
+            commit,
+            override_tokens,
         }
     }
 }
@@ -93,6 +106,9 @@ impl Protocol for NativeProtocol<'_> {
                 event_subcommand_arg(self.event),
                 &self.identity,
                 self.task.repo.clone(),
+                self.task_before.as_deref(),
+                self.commit.as_deref(),
+                &self.override_tokens,
             )?)
         } else {
             None

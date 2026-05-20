@@ -2,7 +2,32 @@
 //! under the 300-line cap. Re-exported from `cli` so `main.rs`'s
 //! `use cli::{...}` is unaffected.
 
-use clap::{Subcommand, ValueEnum};
+use balls::participant_config::InvocationOverrides;
+use clap::{Args, Subcommand, ValueEnum};
+
+/// SPEC §11 per-invocation participant overrides, flattened into every
+/// lifecycle command. `--sync`/`--no-sync` stay per-command (they
+/// predate this and are git-remote-specific); these two cover the
+/// plugin participants. Repeatable. Applied tokens are logged in the
+/// state-branch commit message via `participant_config::override_log`.
+#[derive(Args, Debug, Default, Clone)]
+pub struct ParticipantFlags {
+    /// Drop participant NAME from this event's negotiation (SPEC §11).
+    #[arg(long = "skip", value_name = "NAME")]
+    pub skip: Vec<String>,
+    /// Force participant NAME to required for this event (SPEC §11).
+    #[arg(long = "required", value_name = "NAME")]
+    pub required: Vec<String>,
+}
+
+impl ParticipantFlags {
+    pub fn overrides(&self) -> InvocationOverrides {
+        InvocationOverrides {
+            skip: self.skip.iter().cloned().collect(),
+            required: self.required.iter().cloned().collect(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, ValueEnum)]
 pub enum ShellArg {

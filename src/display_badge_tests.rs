@@ -26,6 +26,7 @@ fn make_task(id: &str) -> Task {
         closed_children: vec![],
         external: BTreeMap::new(),
         synced_at: BTreeMap::new(),
+        sync_status: BTreeMap::new(),
         delivered_in: None,
         repo: None,
         target_branch: None,

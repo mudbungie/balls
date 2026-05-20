@@ -100,7 +100,7 @@ impl Participant for FakeParticipant {
 }
 
 fn ctx(store: &Store) -> EventCtx<'_> {
-    EventCtx { event: Event::Claim, store, task_id: "bl-7e57", identity: "alice" }
+    EventCtx::new(Event::Claim, store, "bl-7e57", "alice")
 }
 
 fn stealth_store() -> (tempfile::TempDir, Store) {

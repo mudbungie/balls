@@ -235,7 +235,7 @@ pub fn push_state_for(
         )));
     }
     let participant = GitRemoteParticipant::for_lifecycle(&[event]);
-    let ctx = EventCtx { event, store, task_id, identity };
+    let ctx = EventCtx::new(event, store, task_id, identity);
     participant::run_strict(&participant, event, ctx)
         .map_err(|e| BallError::Other(format!("{error_prefix}: {e}")))
 }

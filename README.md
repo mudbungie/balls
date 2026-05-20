@@ -1025,6 +1025,24 @@ When `sync_on_change` is true in config:
 
 Core calls `auth-check` before every push or sync. If auth is expired (exit 1), core prints a warning and skips that plugin. Local operations are never blocked by plugin auth failures.
 
+### Participant enforcement (SPEC §9/§11)
+
+Each subscribed plugin negotiates the event under a per-event failure policy (`.balls/config.json` → `plugins.<name>.participant.subscriptions.<event>.policy`, one of `required` / `best-effort` / `gating`; legacy `sync_on_change` maps to `best-effort`). What the lifecycle command does with the outcome:
+
+- **required** — a wire failure or a first-class `reject` (SPEC §8.1, a native `{"reject":{"reason":...}}`) **aborts the command**: the event's state-branch commit is rolled back so the task returns to its pre-event state, and `bl` exits non-zero with the plugin's reason verbatim. (`bl claim` rolls back by un-claiming; the review squash on `main` and the close worktree teardown are out of scope per the SPEC's staging.)
+- **best-effort** — warn and continue; the event ships and the verbatim reason is recorded in `task.sync_status.<plugin>` (cleared on the next success). Legacy-shim skips stay silent so unmodified configs are byte-identical.
+- **gating** — inert until the staging machinery lands (separate ball); the event ships, nothing is recorded.
+
+Per-invocation overrides (SPEC §11), valid on `claim`/`review`/`close`/`update`/`create`:
+
+| Flag | Effect |
+|---|---|
+| `--skip=NAME` | Drop participant `NAME` from this event — ships past a required veto. |
+| `--required=NAME` | Force participant `NAME` to `required` for this event. |
+| `--sync` / `--no-sync` | Force the git-remote participant on/off (as before). |
+
+Every applied override is logged in the event's state-branch commit subject (e.g. `balls: update bl-a1b2 - title [--skip=jira]`) so a post-hoc audit shows which negotiations ran without their required participants. A `wants_context` native plugin additionally receives the pre-image (`task_before`), the event's `commit` sha, and the `overrides` list on its describe-gated EventCtx side channel (SPEC §5.1).
+
 ### Sync with `--task` filtering
 
 `bl sync --task ID` passes the `--task` flag through to the plugin. The plugin filters its operations to just that item. The ID can be a local ball ID or a remote key — the plugin resolves which. Core processes the sync report the same way regardless of filtering.
