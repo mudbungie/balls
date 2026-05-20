@@ -94,6 +94,15 @@ impl Plugin {
             return Ok(None);
         }
         let outcome = self.spawn_and_run("describe", &[], &[])?;
+        // A clap-built legacy plugin rejects `describe` with
+        // `error: unrecognized subcommand 'describe'` and exits non-zero.
+        // The fall-through is intentional per SPEC §12, so don't let
+        // parse_outcome leak a misleading "describe failed" warning.
+        if !outcome.status.success()
+            && String::from_utf8_lossy(&outcome.stderr).contains("unrecognized subcommand")
+        {
+            return Ok(None);
+        }
         Ok(self.parse_outcome::<DescribeResponse>("describe", outcome))
     }
 
