@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Symptom: after bl-a2ea (projection-shape + accessor key fix) landed and was installed, a fresh sync correctly created 28 single-wrapped canonical balls tasks. Of those, 12 were release-chore issues already state=closed on GH (v0.3.1 through v0.4.0 — all PRs merged, all tags shipped) and 15 were trackers whose underlying work has shipped on main as [bl-c972]/[bl-2fe1]/[bl-650b]/[bl-313a] or in balls-github-plugin as [bl-a2ea] but whose GH issues were never closed.\n\nbl-a2ea's writeup promised: 'once the fix lands and a sync runs, KnownUpdate emissions should drive those to status=closed automatically without manual intervention'. That did not happen across two post-install syncs. All 27 stayed at status=open and had to be archived by hand (see closing notes on bl-6d9e bl-98bc bl-c2ef bl-5068 bl-9c5f bl-677a bl-bca0 bl-7b04 bl-4615 bl-4a90 bl-e6f8 bl-bbea for the release-chore set and bl-495d bl-0552 bl-ccfb bl-5ebe bl-3608 bl-052e bl-73a4 bl-26e3 bl-8c43 bl-e85a bl-782f bl-98cc bl-7f56 bl-085f bl-7614 for the tracker set).\n\nHypothesis: pull::classify only emits KnownUpdate when the GH issue's state DIFFERS from the last_synced_status recorded on the task. For a SyncCreate that was born from a state=closed issue, last_synced_status is set to 'closed' at creation. On the next sync, GH state is still 'closed' and last_synced_status is still 'closed' — no transition, no KnownUpdate, no close-mirror drives the balls task from open to closed.\n\nThe original projection bug (bl-a2ea) just masked this: every poll auto-created a fresh duplicate, so close-mirror's failure mode was indistinguishable from the broader breakage. Now that classify works, this hole is the only thing preventing 'create from a closed GH issue' from yielding a closed balls task.\n\nFix shape: at SyncCreate time, if the incoming projection's issue.state == 'closed', either (a) set the new task's status=closed immediately during apply_created in balls-core, or (b) have pull_emit emit both a SyncCreate AND an immediate KnownUpdate{status=closed} for the same task in the same SyncReport. (a) is simpler and avoids the special case where last_synced_status==state. Whichever path: add a regression test where pull observes a state=closed issue not yet in balls and verifies the resulting balls task is created at status=closed.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":34,"source":"balls","state":"open","synced_at":"2026-05-20T03:01:08.120662030+00:00","url":"https://github.com/mudbungie/balls/issues/34"}}},
   "id": "bl-321d",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T03:01:08.139383363Z"},
   "tags": [],
   "title": "github-issues: close-mirror doesn't fire for born-closed GH issues",
   "type": "bug",
-  "updated_at": "2026-05-20T03:01:07.184365480Z"
+  "updated_at": "2026-05-20T03:01:08.139395467Z"
 }
