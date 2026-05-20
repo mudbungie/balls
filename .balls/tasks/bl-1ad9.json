@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T06:46:56.776994939Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "WHY: close_and_archive in src/store.rs has a two-block parent-bookkeeping pattern that breaks when the parent task has already been archived from the state branch. The first block guards correctly: `if let Ok(mut parent) = self.load_task(pid)` silently skips when load fails because the parent JSON is gone. But the second block, after the state-worktree lock is taken, unconditionally runs `git_add` on the parent's JSON+notes paths. If the parent file does not exist in the state worktree, git add fails with pathspec did not match and the entire close aborts.\n\nREPRO: child task whose `parent` field points at an epic id that has already been closed (its JSON archived from balls/tasks). Running `bl close <child>` from the repo root fails on the parent's missing JSON, even though the delivery commit is already on main; only the archival step is stuck. Workaround: `bl update <child> parent=` to detach the dead parent, then `bl close`.\n\nSHAPE: tie the two blocks together so the post-lock `git_add` only stages parent files when the parent actually loaded (and was re-saved). When the parent is archived, there is nowhere to record closed_children anyway, so silently skipping parent bookkeeping is the right behavior. The accompanying source comment that claims the parent file 'always exists post-`save_task`' should be tightened: it is true conditional on the load succeeding.\n\nTEST: add a regression in tests/close_drop.rs (or sibling) — create parent epic + child, close the parent, then close the child; assert the child close succeeds and the child's task file is archived.\n\nOBSERVED: bl-9e8a (child of bl-41ee, both delivered) tripped this. f4f827e was already on main.",
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":38,"source":"github","state":"closed","synced_at":"2026-05-20T06:46:56.758293591+00:00","url":"https://github.com/mudbungie/balls/issues/38"}}},
+  "id": "bl-1ad9",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T06:46:56.776998966Z"},
+  "tags": [],
+  "title": "bl close fails when child's --parent epic is archived [bl-a04f]",
+  "type": "task",
+  "updated_at": "2026-05-20T06:46:56.776994939Z"
+}
