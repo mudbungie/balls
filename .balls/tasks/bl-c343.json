@@ -7,16 +7,16 @@
   "delivered_in": "173bd203f9b3cbf2a10c0691a130aa8950513312",
   "depends_on": [],
   "description": "Symptom: every `bl` command prints two warnings to stderr:\n\n    warning: plugin `balls-plugin-github` describe failed: error: unrecognized subcommand 'describe'\n    warning: plugin `balls-plugin-github-issues` describe failed: error: unrecognized subcommand 'describe'\n\nCause: balls-core src/plugin/runner.rs::Runner::describe() (introduced under bl-8b71 per the doc comment) invokes `<plugin-bin> describe` to detect native-protocol plugins per SPEC §5.2. Both sibling plugins in balls-github-plugin (crates balls-plugin-github and balls-plugin-github-issues) only expose the legacy subcommands (auth-setup/auth-check/push/sync for github, plus the issues-side equivalents) and clap rejects 'describe' as an unrecognized subcommand. Core treats the failure as 'silent fall-through to the legacy shim' per the doc comment but still leaks the clap error to stderr as a warning.\n\nTwo options:\n\n(a) Implement the describe subcommand in both plugins. Returns the DescribeResponse the plugin would emit (projection schema, event subscriptions). This is the right direction long-term (per the SPEC §5.2 native protocol bl-8b71 introduced) and removes the warning by giving core what it asked for. Plugin-side change.\n\n(b) Make balls-core's Runner::describe() suppress the clap 'unrecognized subcommand' error specifically. The fall-through is intentional, so the warning is misleading — it implies something's broken when nothing is. Core-side change, smaller blast radius.\n\nRecommend (b) immediately for noise relief, and (a) as a follow-up if/when the native protocol's projections give the issues plugin meaningful upside.\n\nTest: a sync against a legacy plugin should not produce 'describe failed' warnings on stderr.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":35,"source":"balls","state":"open","synced_at":"2026-05-20T06:47:32.316306987+00:00","url":"https://github.com/mudbungie/balls/issues/35"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":35,"source":"balls","state":"open","synced_at":"2026-05-20T06:56:37.080998632+00:00","url":"https://github.com/mudbungie/balls/issues/35"}}},
   "id": "bl-c343",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-20T06:47:32.335217793Z"},
+  "synced_at": {"github-issues":"2026-05-20T06:56:37.092687914Z"},
   "tags": [],
   "title": "plugins missing native protocol 'describe' subcommand — warning noise on every bl invocation",
   "type": "bug",
-  "updated_at": "2026-05-20T06:56:35.781686932Z"
+  "updated_at": "2026-05-20T06:56:37.092695338Z"
 }
