@@ -62,12 +62,10 @@ fn check_uninitialized(cwd: &Path, err: &str) -> Vec<Finding> {
 
 fn docs_reference_bl(cwd: &Path) -> bool {
     DOC_FILES.iter().any(|name| {
-        fs::read_to_string(cwd.join(name))
-            .map(|c| {
-                let lc = c.to_lowercase();
-                BL_NEEDLES.iter().any(|n| lc.contains(n))
-            })
-            .unwrap_or(false)
+        fs::read_to_string(cwd.join(name)).is_ok_and(|c| {
+            let lc = c.to_lowercase();
+            BL_NEEDLES.iter().any(|n| lc.contains(n))
+        })
     })
 }
 
