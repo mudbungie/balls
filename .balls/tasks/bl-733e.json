@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-7523 made `bl review` (local-squash) and `bl close` (deferred /\n`--delivered <sha>`) auto-tag `delivered_repo` with the current\nclone's origin URL. That's the right default — the operator usually\nruns the command from the clone that produced the sha — but it\nsilently lies when the operator explicitly points at a sha that lives\nelsewhere.\n\nConcrete case: the bridge clone in a multi-repo project (the proxy\npattern, README §Bridging to an external tracker) is where forge\nplugins run sync. A forge merge produces a sha on client A's main;\nthe bridge clone (often a *different* code repo, or no code at all)\nruns `bl close --delivered <sha>` from a sync hook. Today\n`delivered_repo` gets set to the bridge's origin, not client A's.\nThe sha is then advertised against the wrong repo.\n\n# Scope\n\n- Add `--delivered-repo <url>` to `bl close`. When set, it overrides\n  the auto-tagged provenance the same way `--delivered <sha>`\n  overrides the tag scan.\n- Behavior: pure parameter pair. `--delivered-repo` without\n  `--delivered` is a no-op for the sha and only writes the\n  provenance; `--delivered` without `--delivered-repo` keeps current\n  behavior (use the local clone's origin). Both together fully\n  describe a cross-repo delivery.\n- Plumb through `delivery::populate_on_close` — same signature\n  extension as the existing `manual: Option<String>` arg.\n\n# Why now\n\nThe bl-7523 maintainer pass flagged this as a real footgun: the\nlocal-as-default is fine, but an operator should always be able to\ntell the tool the truth. The fix is small (one new optional flag,\none threaded arg) and bounds the surface area of bl-7523's\nauto-tagging.\n\n# Out of scope\n\n- `bl review --delivered-repo`: review's provenance comes from the\n  current clone by construction (the squash happens here). Not the\n  same case.\n- A `clients` registry mapping short tags → URLs (Option 2 from\n  bl-7523's design): independent feature; file separately if\n  warranted.\n\n# Origin\n\nFootgun #3 from the bl-7523 review pass.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":53,"source":"balls","state":"open","synced_at":"2026-05-20T23:32:22.535513603+00:00","url":"https://github.com/mudbungie/balls/issues/53"}}},
   "id": "bl-733e",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T23:32:22.542365395Z"},
   "tags": ["multi-repo","schema","master-url"],
   "title": "bl close --delivered-repo: operator override for delivery provenance",
   "type": "task",
-  "updated_at": "2026-05-20T23:32:21.311805127Z"
+  "updated_at": "2026-05-20T23:32:22.542375243Z"
 }
