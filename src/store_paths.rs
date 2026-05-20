@@ -34,6 +34,7 @@ pub(crate) fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
 ///      not `sha1(content)`. The value differs, and this hash *is*
 ///      the store directory: changing it silently orphans every
 ///      existing stealth store. It is a persisted on-disk contract.
+///
 /// So `sha1`+`hex` is a deliberate, bounded kept exception — same
 /// shape as the plugin/libc line: small, well-understood, clearly
 /// demarcated, with no primitive substitute. The only remaining

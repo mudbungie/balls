@@ -5,5 +5,16 @@
   "auto_fetch_on_ready": true,
   "worktree_dir": ".balls-worktrees",
   "protected_main": false,
-  "plugins": {}
+  "plugins": {
+    "github": {
+      "enabled": true,
+      "sync_on_change": false,
+      "config_file": ".balls/plugins/github.json"
+    },
+    "github-issues": {
+      "enabled": true,
+      "sync_on_change": true,
+      "config_file": ".balls/plugins/github-issues.json"
+    }
+  }
 }
