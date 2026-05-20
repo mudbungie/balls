@@ -219,6 +219,44 @@ fn close_child_updates_parent_closed_children() {
 }
 
 #[test]
+fn close_child_succeeds_when_parent_already_archived() {
+    // Regression: close_and_archive used to unconditionally stage the
+    // parent's JSON+notes, which aborted with "pathspec did not match"
+    // when the parent had already been archived from the state branch.
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "parent");
+    let child = create_task(repo.path(), "child");
+    bl(repo.path())
+        .args(["update", &child, &format!("parent={parent}")])
+        .assert()
+        .success();
+
+    // Archive the parent first.
+    bl_as(repo.path(), "alice")
+        .args(["claim", &parent])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["close", &parent])
+        .assert()
+        .success();
+    assert!(!repo.path().join(".balls/tasks").join(format!("{parent}.json")).exists());
+
+    // Closing the child must still succeed even though its `parent`
+    // field points at an archived task whose file is gone.
+    bl_as(repo.path(), "alice")
+        .args(["claim", &child])
+        .assert()
+        .success();
+    bl_as(repo.path(), "alice")
+        .args(["close", &child])
+        .assert()
+        .success();
+    assert!(!repo.path().join(".balls/tasks").join(format!("{child}.json")).exists());
+}
+
+#[test]
 fn close_prints_cd_path() {
     let repo = new_repo();
     init_in(repo.path());
