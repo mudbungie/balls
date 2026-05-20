@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c61b",
+  "claimed_by": "poultry",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T23:04:34.810609456Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T23:04:36.389359065Z"},
   "tags": ["multi-repo","master_url","doctor"],
   "title": "bl doctor: teach it about .balls/state-repo (master_url mode)",
   "type": "task",
-  "updated_at": "2026-05-20T23:04:36.389365147Z"
+  "updated_at": "2026-05-20T23:33:38.078914890Z"
 }
