@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-20T02:19:54.534692399Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "\n\n\n## 🤖 New release\n\n* `balls`: 0.3.0 -> 0.3.1\n\n<details><summary><i><b>Changelog</b></i></summary><p>\n\n<blockquote>\n\n## [0.3.1](https://github.com/mudbungie/balls/compare/v0.3.0...v0.3.1) - 2026-04-14\n\n### Changes\n\n- release v0.3.0\n</blockquote>\n\n\n</p></details>\n\n---\nThis PR was generated with [release-plz](https://github.com/release-plz/release-plz/).",
+  "external": {"github-issues":{"github_issues":{"issue":{"last_synced_status":"open","number":3,"source":"github","state":"closed","synced_at":"2026-05-20T02:19:54.251663057+00:00","url":"https://github.com/mudbungie/balls/pull/3"}}}},
+  "id": "bl-f4bd",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "status": "open",
+  "synced_at": {"github-issues":"2026-05-20T02:19:54.534696547Z"},
+  "tags": [],
+  "title": "chore: release v0.3.1",
+  "type": "task",
+  "updated_at": "2026-05-20T02:19:54.534692399Z"
+}
