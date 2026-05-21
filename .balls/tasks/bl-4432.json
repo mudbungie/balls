@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-4432",
+  "claimed_by": "huskiest",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:10:21.526398694Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T01:10:23.649609308Z"},
   "tags": ["multi-repo","master_url"],
   "title": "commit_init: detect federated mode via master_url, not the .balls/plugins symlink",
   "type": "bug",
-  "updated_at": "2026-05-21T01:10:23.649613105Z"
+  "updated_at": "2026-05-21T01:22:45.706904124Z"
 }
