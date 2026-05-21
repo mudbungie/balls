@@ -102,3 +102,10 @@ fn close_resolver_cli_overrides_repo_and_local() {
     let p = resolve_close(true, Some(&local), SyncOverride::NoSync);
     assert!(!p.require_remote);
 }
+
+#[test]
+fn sync_override_from_flags_decodes_the_pair() {
+    assert_eq!(SyncOverride::from_flags(true, false), SyncOverride::Sync);
+    assert_eq!(SyncOverride::from_flags(false, true), SyncOverride::NoSync);
+    assert_eq!(SyncOverride::from_flags(false, false), SyncOverride::Unset);
+}

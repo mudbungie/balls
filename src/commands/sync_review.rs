@@ -7,8 +7,7 @@
 use super::sync_report::apply_sync_report;
 use super::{default_identity, discover};
 use balls::error::Result;
-use balls::store::Store;
-use balls::{human_gate, plugin};
+use balls::human_gate;
 use std::fs;
 
 /// Run the standalone sync event with staging instead of apply: each
@@ -20,23 +19,13 @@ pub fn stage_sync_event(remote: &str, task_filter: Option<&str>) -> Result<()> {
     let _ = remote; // remote round-trip is intentionally suppressed in --review
     let store = discover()?;
     let ident = default_identity();
-    dispatch_and_stage(&store, task_filter, &ident);
-    eprintln!("sync complete");
-    Ok(())
-}
-
-fn dispatch_and_stage(store: &Store, task_filter: Option<&str>, ident: &str) {
-    match plugin::dispatch_sync(store, task_filter, ident) {
-        Ok(reports) => {
-            for (plugin_name, report) in reports {
-                match human_gate::stage_sync(store, &plugin_name, &report) {
-                    Ok(id) => eprintln!("staged plugin {plugin_name} sync report at {id}"),
-                    Err(e) => eprintln!("warning: stage {plugin_name} failed: {e}"),
-                }
-            }
+    super::plumbing::dispatch_sync_each(&store, task_filter, &ident, &mut |name, report| {
+        match human_gate::stage_sync(&store, name, report) {
+            Ok(id) => eprintln!("staged plugin {name} sync report at {id}"),
+            Err(e) => eprintln!("warning: stage {name} failed: {e}"),
         }
-        Err(e) => eprintln!("warning: plugin sync failed: {e}"),
-    }
+    });
+    Ok(())
 }
 
 /// Apply a previously staged report by id. Replays it through the

@@ -97,6 +97,20 @@ pub enum SyncOverride {
     NoSync,
 }
 
+impl SyncOverride {
+    /// Decode the `--sync` / `--no-sync` flag pair. clap declares the
+    /// two flags `conflicts_with` each other, so both-set never
+    /// reaches here — it folds harmlessly into `Unset` alongside the
+    /// neither-set default.
+    pub fn from_flags(sync: bool, no_sync: bool) -> Self {
+        match (sync, no_sync) {
+            (true, false) => SyncOverride::Sync,
+            (false, true) => SyncOverride::NoSync,
+            _ => SyncOverride::Unset,
+        }
+    }
+}
+
 /// Resolved claim-time policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClaimPolicy {
