@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\n`bl remaster --commit <url>` and the per-clone `bl remaster <url>` form\nboth flip a repo onto a master_url hub. Both route through\n`commands::remaster::commit_master_url`, which calls `state_repo::ensure`\nand nothing else. Unlike the legacy name-based `bl remaster <name>`\npath, the URL path never runs `remaster::reconcile`.\n\n`reconcile` is the machinery that replays a clone's local-only tasks\nonto the adopted hub history (renaming id clashes on the way). The URL\nflip skips it entirely. So when a standalone repo that already has tasks\nflips to a hub:\n\n- the standalone tasks live on the project git's `balls/tasks`, checked\n  out at `.balls/worktree`;\n- `state_repo::ensure` materializes a fresh `.balls/state-repo` tracking\n  the hub's `balls/tasks`, which does not contain those tasks;\n- the `.balls/tasks` symlink is repointed to `state-repo/.balls/tasks`.\n\nThe standalone tasks are now stranded on the orphaned `.balls/worktree`:\ninvisible to every `bl` command, silently — no warning, no error, no\nmigration. bl-f440's detach fix force-overwrites `balls/tasks` with the\nfederated state-repo content, so a later `remaster --detach` does not\nrecover them either. Silent data loss on a routine transition.\n\n# Scope / design\n\nFlipping onto a hub is 'adopt an existing shared store', not 'merge my\nstore into someone else's'. Carrying arbitrary local tasks into a hub is\nambiguous (ownership, id clashes) and is exactly what the name-path\n`reconcile` exists for; the URL path has deliberately never done it. So\nrather than silently strand: fail hard.\n\n- The URL flip aborts if the local store has any open tasks, *before*\n  `state_repo::ensure` runs — no `.balls/state-repo` materialized, no\n  config written, clean to retry.\n- The error names the two recommended remedies: close all open tasks\n  first, or discard the local task store so there is nothing to strand\n  (start clean against the hub).\n- A `--force` flag proceeds anyway, accepting that the open local tasks\n  are abandoned on `.balls/worktree`.\n\nOpen design questions:\n- 'Open tasks' — any non-closed task (open / in_progress / review /\n  deferred), or any local task at all? The strand hits all of them;\n  archived ones matter less but still vanish from view.\n- Guard the URL path only, or also gate the name path? Lean: URL path\n  only — `reconcile` already carries the name path's tasks correctly by\n  design, so it needs no guard.\n\n# Origin\n\nFound reviewing bl-f440 (warm `bl remaster --detach`), 2026-05-20. The\ndetach side of master_url got its worktree-transplant fix there; this is\nthe *flip* side — the inbound transition has no task-carry path and\nloses data silently. Sibling of bl-692b (the orphaned `.balls/state-repo`\nclone left by detach); both surfaced auditing the master_url lifecycle.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":92,"source":"balls","state":"open","synced_at":"2026-05-21T03:38:47.394088191+00:00","url":"https://github.com/mudbungie/balls/issues/92"}}},
   "id": "bl-20ad",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T03:38:47.401803404Z"},
   "tags": ["multi-repo","master_url","bug"],
   "title": "remaster --commit to a hub silently strands local tasks",
   "type": "bug",
-  "updated_at": "2026-05-21T03:38:45.971050296Z"
+  "updated_at": "2026-05-21T03:38:47.401812561Z"
 }
