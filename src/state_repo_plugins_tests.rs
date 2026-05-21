@@ -70,6 +70,26 @@ fn ensure_plugins_symlink_repoints_stale_target() {
 }
 
 #[test]
+fn ensure_config_symlink_repoints_stale_target() {
+    // bl-82a4: a `.balls/config.json` symlink left pointing at the
+    // legacy worktree layout must be repointed at the state-repo.
+    let hub = hub_repo();
+    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
+    let root = TempDir::new().unwrap();
+    fs::create_dir_all(root.path().join(".balls")).unwrap();
+    std::os::unix::fs::symlink(
+        PathBuf::from("worktree/.balls/config.json"),
+        root.path().join(".balls/config.json"),
+    )
+    .unwrap();
+
+    ensure(root.path(), &url).unwrap();
+
+    let target = fs::read_link(root.path().join(".balls/config.json")).unwrap();
+    assert_eq!(target, Path::new("state-repo/.balls/config.json"));
+}
+
+#[test]
 fn ensure_plugins_drops_gitkeep_only_placeholder() {
     // A standalone-initted repo whose user runs `bl remaster --commit <url>`
     // has `.balls/plugins/.gitkeep` from bl init. ensure must replace

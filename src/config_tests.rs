@@ -200,7 +200,9 @@ fn drop_with_best_effort_policy_is_accepted() {
 #[test]
 fn legacy_config_without_state_remote_loads_and_defaults() {
     // A config written before this field existed has no state_remote
-    // key; serde default keeps it loadable and it resolves to origin.
+    // key; serde default keeps it loadable. The pointer-default for
+    // `state_remote` resolves to origin (asserted in master_pointer
+    // tests); the canonical retains its `None` regardless.
     let dir = TempDir::new().unwrap();
     let p = write_cfg(
         &dir,
@@ -208,5 +210,4 @@ fn legacy_config_without_state_remote_loads_and_defaults() {
     );
     let cfg = Config::load(&p).unwrap();
     assert_eq!(cfg.state_remote, None);
-    assert_eq!(cfg.state_remote(), "origin");
 }

@@ -113,16 +113,16 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
 
 /// Resolve the remote the `balls/tasks` branch negotiates against.
 /// Falls back to the code remote (`code_remote`) on an unset
-/// `state_remote` *or* a config that won't load — sync stays resilient
-/// to a corrupt `.balls/config.json` the same way the plugin leg does
-/// (it warns, it doesn't abort), so a config a hub can't be read from
-/// degrades to single-repo behavior rather than failing the command.
+/// `state_remote` *or* a pointer that won't load — sync stays
+/// resilient to a corrupt `.balls/master.json` the same way the
+/// plugin leg does (it warns, it doesn't abort), so a federation
+/// pointer balls can't read from degrades to single-repo behavior
+/// rather than failing the command.
 fn resolve_state_remote(store: &Store, code_remote: &str) -> String {
-    let Ok(cfg) = store.load_config() else {
-        return code_remote.to_string();
-    };
+    let pointer = balls::master_pointer::MasterPointer::load(&store.root).unwrap_or_default();
     let local = policy::LocalConfig::load(store).ok().flatten();
-    policy::state_remote_opt(&cfg, local.as_ref()).unwrap_or_else(|| code_remote.to_string())
+    policy::state_remote_opt(&pointer, local.as_ref())
+        .unwrap_or_else(|| code_remote.to_string())
 }
 
 /// Fetch + merge + push a single branch in `dir`. Retries once on push

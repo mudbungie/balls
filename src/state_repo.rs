@@ -1,22 +1,14 @@
 //! Balls-owned state checkout under `.balls/state-repo/` (bl-ffb4).
 //!
-//! The legacy `state_remote` (name) field stores a project-side git
-//! remote, which means a fresh `git clone` of the project can't resolve
-//! the hub — the remote name lives in per-clone `.git/config` and is
-//! not tracked. `master_url` closes that gap by storing the hub URL
-//! directly in committed config and materializing balls's own git
-//! clone here, completely separate from the project's `.git/`. Every
-//! state-branch op routes through this clone via the existing
-//! `state_worktree_dir()` seam; the project's git is untouched.
+//! `master_url` stores the hub URL in the committed `.balls/master.json`
+//! pointer (bl-82a4) and materializes balls's own git clone here,
+//! separate from the project's `.git/`. Every state-branch op routes
+//! through this clone via the `state_worktree_dir()` seam.
 //!
-//! Hard-fail on first-time unreachable hub (bl-dcd3). A balls client
-//! with `master_url` set is a pure pointer to a shared hub: if first
-//! materialization can't reach the hub, the only safe outcome is to
-//! stop. Silently dropping to a local orphan would let the user
-//! accumulate task changes that diverge from the rest of the team —
-//! the exact failure mode the cross-repo model exists to prevent.
-//! A pre-existing local clone (warm cache) keeps working from cache
-//! when offline; only the first-time-materialization path is fatal.
+//! Hard-fail on first-time unreachable hub (bl-dcd3): silently dropping
+//! to a local orphan would let task changes drift from the team. A
+//! warm cache keeps working offline; only first-time materialization
+//! is fatal.
 
 use crate::error::{BallError, Result};
 use crate::{git, git_state};
@@ -33,18 +25,9 @@ const STATE_BRANCH: &str = "balls/tasks";
 
 /// Materialize `.balls/state-repo/` as a balls-owned git clone whose
 /// `origin` is `url`, with `balls/tasks` checked out. Idempotent.
-///
-/// **Hard-fail on first-time unreachable hub** (bl-dcd3). When the
-/// local clone has not yet seen the hub's `balls/tasks` (no warm
-/// cache) and a fetch from `url` fails, returns `Err` naming the URL,
-/// the underlying fetch failure, and the three resolution paths. The
-/// just-initialized scaffold is torn down so the next invocation
-/// remains a clean first-time attempt rather than a half-built cache.
-///
-/// **Soft-fail on warm-cache offline.** When `balls/tasks` already
-/// exists locally from a prior successful materialization, an offline
-/// fetch is acceptable — the user works from cache, mirroring normal
-/// git semantics. A note is printed and the call returns `Ok`.
+/// Hard-fails first-time when the hub is unreachable (no warm cache),
+/// tearing down the scaffold; soft-fails offline once a warm cache
+/// exists (bl-dcd3).
 pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
     let dir = root.join(STATE_REPO_REL);
     let first_time = !dir.join(".git").exists();
@@ -92,6 +75,10 @@ pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
     // resolve through the project root without any code-side branching
     // on master_url. Two parallel symlinks (a), not an umbrella path.
     ensure_plugins_symlink(root, "state-repo/.balls/plugins")?;
+    // bl-82a4: same for `.balls/config.json` — the canonical config is
+    // the hub's. A fresh `git clone` carries only `.balls/master.json`;
+    // this materializes the symlink so `Config::load` resolves.
+    ensure_config_symlink(root, "state-repo/.balls/config.json")?;
 
     if !online {
         eprintln!(
@@ -104,12 +91,8 @@ pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
 }
 
 /// Capture success and stderr from `git fetch origin` in `dir`. The
-/// stderr is folded into the hard-fail diagnostic so the user can
-/// distinguish "host unreachable" from "permission denied" from
-/// "ref not found" without re-running git by hand. Spawn-level
-/// failures propagate as `BallError::Git`, separate from the friendly
-/// hub-unreachable path — those mean git itself is broken, not the
-/// hub.
+/// stderr is folded into the hard-fail diagnostic so the user can tell
+/// "host unreachable" from "permission denied" from "ref not found".
 fn fetch_origin(dir: &Path) -> Result<(bool, String)> {
     let out = git::run_git_in(dir, &["fetch", "origin"])?;
     Ok(if out.status.success() {
@@ -126,7 +109,7 @@ fn unreachable_hub_err(url: &str, fetch_err: &str) -> BallError {
          silently dropping to a local orphan would let your task \
          changes drift away from the rest of the project. Options:\n  \
          - Fix access (credentials, VPN, URL typo) and re-run.\n  \
-         - Edit .balls/config.json to point master_url at a hub you can reach.\n  \
+         - Edit .balls/master.json to point master_url at a hub you can reach.\n  \
          - Run `bl remaster --detach` to drop the hub link and work standalone."
     ))
 }
@@ -167,9 +150,7 @@ fn run_at(dir: &Path, args: &[&str]) -> Result<()> {
 }
 
 /// Seed `.balls/tasks/` scaffolding (mirrors `setup_state_branch`'s
-/// `seed_state_worktree`). Pulled out here so `state_repo::ensure` can
-/// stay self-contained — `store_init`'s helper is private to that
-/// module and serving a different code path.
+/// `seed_state_worktree`), kept here so `ensure` stays self-contained.
 fn seed(state_repo: &Path) -> Result<()> {
     let tasks = state_repo.join(".balls/tasks");
     fs::create_dir_all(&tasks)?;
@@ -223,11 +204,10 @@ fn ssh_shorthand(s: &str) -> bool {
 
 /// Materialize `.balls/plugins` as a symlink to `target` (relative to
 /// `<root>/.balls/`) so per-plugin config files resolve through the
-/// project root in federated mode (bl-1098 option a). Symmetric with
-/// `ensure_tasks_symlink`. Idempotent; repoints a stale symlink. An
-/// existing real `.balls/plugins/` is removed if `.gitkeep`-only;
-/// refused if it carries config files the master-wins rule would
-/// silently shadow.
+/// project root in federated mode (bl-1098). Idempotent; repoints a
+/// stale symlink. A real `.balls/plugins/` is removed if `.gitkeep`-
+/// only, refused if it carries config files (the migration is
+/// `bl remaster`'s job).
 pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
     let link = root.join(".balls/plugins");
     let want = PathBuf::from(target);
@@ -238,6 +218,27 @@ pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
         fs::remove_file(&link)?;
     } else if link.exists() {
         drop_placeholder_plugins_dir(&link)?;
+    }
+    std::os::unix::fs::symlink(&want, &link)?;
+    Ok(())
+}
+
+/// Materialize `.balls/config.json` as a symlink to `target` (the
+/// hub's canonical) — bl-82a4. Idempotent; repoints a stale symlink. A
+/// *real* `.balls/config.json` is left untouched (standalone, or a
+/// legacy federated repo `bl remaster` migrates). The case this
+/// materializes is the fresh clone — no canonical, only the committed
+/// `.balls/master.json`.
+pub(crate) fn ensure_config_symlink(root: &Path, target: &str) -> Result<()> {
+    let link = root.join(".balls/config.json");
+    let want = PathBuf::from(target);
+    if link.is_symlink() {
+        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
+            return Ok(());
+        }
+        fs::remove_file(&link)?;
+    } else if link.exists() {
+        return Ok(()); // real file: standalone or legacy — leave it
     }
     std::os::unix::fs::symlink(&want, &link)?;
     Ok(())

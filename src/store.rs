@@ -101,14 +101,14 @@ impl Store {
         let (tasks_dir_path, is_stealth, state_worktree_path) = if use_stealth {
             init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?
         } else {
-            // master_url overrides the project-worktree leg entirely:
-            // balls owns its own clone, project's `.git/config` stays
-            // untouched (bl-ffb4).
-            let cfg = Config::load(&config_path)?;
-            let wt = if let Some(url) = cfg.master_url() {
+            // `master_url` (in the pointer) overrides the project-worktree
+            // leg entirely: balls owns its own clone, project's
+            // `.git/config` stays untouched (bl-ffb4 + bl-82a4).
+            let pointer = crate::master_pointer::MasterPointer::load(&repo_root)?;
+            let wt = if let Some(url) = pointer.master_url() {
                 crate::state_repo::ensure(&repo_root, url)?
             } else {
-                setup_state_branch(&repo_root, cfg.state_remote(), cfg.state_remote.is_some())?;
+                setup_state_branch(&repo_root, pointer.state_remote(), pointer.state_remote.is_some())?;
                 repo_root.join(".balls/worktree")
             };
             (wt.join(".balls/tasks"), false, wt)
@@ -167,7 +167,10 @@ impl Store {
     }
 
     pub fn load_config(&self) -> Result<Config> {
-        crate::store_plugins::load_layered(&self.config_path(), &self.state_worktree_path, &self.root)
+        let has_master = crate::master_pointer::MasterPointer::load_or_empty(&self.root)
+            .master_url()
+            .is_some();
+        crate::store_plugins::load_effective(&self.config_path(), &self.state_worktree_path, has_master)
     }
 
     pub fn plugin_config_root(&self) -> PathBuf {
@@ -203,9 +206,6 @@ impl Store {
         task.save(&self.task_path(&task.id)?)
     }
 
-    /// Remove a task's files from disk and (non-stealth) from the
-    /// state branch's index. Unified replacement for the previous
-    /// `delete_task_file` + `rm_task_git` pair.
     /// Stage and commit a task file change on the state branch. No-op
     /// in stealth mode. Stages the sibling notes file too (always
     /// present after a `Task::save`). Holds the store-wide

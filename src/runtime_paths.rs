@@ -55,10 +55,14 @@ pub(crate) const RUNTIME_PATHS: &[RuntimePath] = &[
     RuntimePath { rel: ".balls/code-refs", in_stealth: true, backstop: true, federated_only: false },
     RuntimePath { rel: ".balls/state-repo", in_stealth: true, backstop: true, federated_only: false },
     RuntimePath { rel: ".balls-worktrees", in_stealth: true, backstop: false, federated_only: false },
-    // Federated-only: a squash backstop would wrongly strip a
-    // standalone repo's deliverable plugin config, so `backstop` is
-    // false — gitignoring it under `master_url` is the whole defense.
+    // Federated-only (bl-ebae / bl-82a4): `.balls/plugins` and
+    // `.balls/config.json` are real, committed paths in a standalone
+    // repo, but the federated flip turns each into a symlink into the
+    // hub clone. A squash backstop would wrongly strip a standalone
+    // repo's deliverable config/plugins, so `backstop` is false —
+    // gitignoring them under `master_url` is the whole defense.
     RuntimePath { rel: ".balls/plugins", in_stealth: true, backstop: false, federated_only: true },
+    RuntimePath { rel: ".balls/config.json", in_stealth: true, backstop: false, federated_only: true },
 ];
 
 /// Paths the `bl review` squash backstop strips and rejects — the
