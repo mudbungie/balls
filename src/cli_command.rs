@@ -198,7 +198,7 @@ pub enum Command {
         sub: LinkCmd,
     },
 
-    /// Manage the effective plugins map: enable, disable, list.
+    /// Manage the effective plugins map (enable/disable/list/policy/show).
     Plugin {
         #[command(subcommand)]
         sub: PluginCmd,

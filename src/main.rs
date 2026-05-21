@@ -101,6 +101,26 @@ fn handle_completions(shell: Option<ShellArg>, install: bool, uninstall: bool) -
     }
 }
 
+fn dispatch_plugin(sub: PluginCmd) -> balls::error::Result<()> {
+    match sub {
+        PluginCmd::Enable {
+            name,
+            config_file,
+            sync_on_change,
+        } => commands::cmd_plugin_enable(name, config_file, sync_on_change),
+        PluginCmd::Disable { name } => commands::cmd_plugin_disable(name),
+        PluginCmd::List { json } => commands::cmd_plugin_list(json),
+        PluginCmd::Policy {
+            name,
+            set,
+            rm,
+            clear,
+            no_legacy,
+        } => commands::cmd_plugin_policy(name, set, rm, clear, no_legacy),
+        PluginCmd::Show { name, json } => commands::cmd_plugin_show(name, json),
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
     balls::display::init(cli.plain);
@@ -152,13 +172,7 @@ fn main() {
         }
         Command::Dep { sub } => commands::cmd_dep(normalize_dep(sub)),
         Command::Link { sub } => commands::cmd_link(normalize_link(sub)),
-        Command::Plugin { sub } => match sub {
-            PluginCmd::Enable { name, config_file, sync_on_change } => {
-                commands::cmd_plugin_enable(name, config_file, sync_on_change)
-            }
-            PluginCmd::Disable { name } => commands::cmd_plugin_disable(name),
-            PluginCmd::List { json } => commands::cmd_plugin_list(json),
-        },
+        Command::Plugin { sub } => dispatch_plugin(sub),
         Command::Sync {
             remote,
             task,
