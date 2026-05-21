@@ -181,8 +181,8 @@ impl Config {
 
     /// Reject `worktree_dir` values that would escape the repo root,
     /// and refuse configs written with a schema version newer than
-    /// this binary understands.
-    fn validate(&self) -> Result<()> {
+    /// this binary understands. `pub` so bl-32e5's admin surface re-runs the gate before persisting.
+    pub fn validate(&self) -> Result<()> {
         if self.version > CONFIG_SCHEMA_VERSION {
             return Err(BallError::Other(format!(
                 "config schema version {} is newer than this bl (supports up to {}); \
