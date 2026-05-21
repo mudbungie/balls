@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T02:25:46.373742273Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\n`git::git_ensure_user(dir)` reads `git config user.email` and, if that\nreturns anything non-empty, skips setting a local identity. A value can\ncome from the developer's global `~/.gitconfig` — so balls' state-branch\ncommits (`balls: seed state branch`, etc.) silently depend on ambient\nglobal git config being present and readable.\n\nConsequence: in a genuinely HOME-less environment — a minimal CI runner,\na container, a process with HOME unset for any legitimate reason —\n`state_repo::ensure` fails its `seed()` commit with:\n\n  Author identity unknown\n  *** Please tell me who you are.\n  fatal: unable to auto-detect email address (got '<user>@<host>.(none)')\n\nThis is the same failure bl-bfa8 chased, but bl-bfa8 only removed the\n*test-induced* HOME race (a sibling test's `env::remove_var(\"HOME\")`).\nThe underlying fragility — balls' own commits depending on the user's\nglobal git config — is still there and would bite a real HOME-less run.\n\n# Scope\n\nMake `state_repo`'s git commits self-sufficient: they should not depend\non ambient/global git identity.\n\nDesign question (discuss-first):\n- Option A: `git_ensure_user` always sets a *local* user.name/user.email\n  on the balls-owned `.balls/state-repo/` clone (it is balls-internal;\n  arguably balls should author its own state commits as itself anyway).\n  Changes commit authorship: state-branch commits become `balls` instead\n  of the developer.\n- Option B: pass `-c user.name=... -c user.email=...` on the specific\n  commits `state_repo` makes, leaving `git_ensure_user` untouched.\n- Either way, do NOT change identity handling for the *project* repo's\n  commits — only the balls-owned state clone.\n\nPick A or B with the maintainer; the authorship change in A is the only\nreal trade-off.\n\n# Origin\n\nSurfaced reviewing bl-bfa8 (the HOME-race flake fix, main a70997a). The\ntest race was the trigger that exposed it, but the dependency on global\ngit config is a standalone latent bug, filed separately so bl-bfa8 could\nstay a surgical test-only fix.",
+  "external": {},
+  "id": "bl-a35b",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["state-repo"],
+  "title": "state_repo::ensure depends on ambient git identity (~/.gitconfig)",
+  "type": "bug",
+  "updated_at": "2026-05-21T02:25:46.373742273Z"
+}
