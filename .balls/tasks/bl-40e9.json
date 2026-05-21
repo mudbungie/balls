@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Rewrite docs/SPEC-federated-state.md around the unified tracker model (see parent bl-e118), and amend docs/SPEC-orphan-branch-state.md to stay consistent. SPEC/docs only -- no code; implementation is the sibling refactor balls.\n\nScope:\n\n1. Rewrite the federated SPEC: retire the 'federated mode' framing entirely. One model -- the tracker address (state_url, state_branch), always present with an implicit default, materialized as a clone at .balls/state-repo universally. Standalone vs federated is just the address value. Document config ownership split (config.json repo-owned, project.json project-owned on the tracker branch, project wins on overlap), the retirement of the master.json pointer, plugin config as project config, and the tracker/workspace terminology. Rename the file to SPEC-tracker-state.md -- 'federated' is no longer a mode. Carry the design rationale from the review conversation into a 'Why' section. Honest, prescriptive conformance section: the current code is mid-migration; the tests gate the refactors.\n\n2. Amend SPEC-orphan-branch-state.md #4: the tracker branch carries the project's shared state -- task files AND project config (project.json, plugins/) -- not 'tasks and nothing else'.\n\n3. Amend SPEC-orphan-branch-state.md #5: de-hedge. Drop 'if we find dep churn, split them too' -- deps stay in the task file, decided, no sidecar. Reconcile requirement 5 with requirement 1: the invariant is one compact single-line value per top-level field (verified against src/task.rs serialization); disjoint-field edits never collide; same-field edits are a genuine conflict for the resolver; nested objects are permitted when the whole field is one self-contained line. No conditional/provisional language.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":109,"source":"balls","state":"open","synced_at":"2026-05-21T07:04:06.964925639+00:00","url":"https://github.com/mudbungie/balls/issues/109"}}},
   "id": "bl-40e9",
   "links": [],
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T07:04:06.986337334Z"},
   "tags": [],
   "title": "SPEC sweep: rewrite for the unified tracker model",
   "type": "task",
-  "updated_at": "2026-05-21T07:04:05.684676193Z"
+  "updated_at": "2026-05-21T07:04:06.986347624Z"
 }
