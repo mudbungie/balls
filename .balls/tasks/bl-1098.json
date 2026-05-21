@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T00:08:31.991387991Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\nSub-question of bl-82a4 (symlink-based config symmetry). That ball makes `.balls/config.json` a regular file in standalone mode and a symlink to the state-repo's view in federated mode. The plugins map travels via that symlink, but per-plugin config files live in `.balls/plugins/<name>.json` — a separate directory, so the canonical-config symlink alone doesn't carry them. We need the per-plugin files to follow the same master-wins rule (bl-a7d9), which means the directory needs the same symlink treatment.\n\nSplitting this out of bl-82a4 because the resolution is largely independent of the rest of that ball's design (pointer location, migration, etc.) and the user wants it captured as its own concern.\n\n# Open design question\n\nTwo viable shapes:\n\n(a) **Two parallel symlinks**:\n  - `.balls/config.json` → `.balls/state-repo/.balls/config.json`\n  - `.balls/plugins/` → `.balls/state-repo/.balls/plugins/`\n  Two things to set up at remaster time; two things to flip at detach time.\n\n(b) **Umbrella symlink** at a new path:\n  - `.balls/canonical/` → `.balls/state-repo/.balls/` in federated mode\n  - `.balls/canonical/` is a real directory in standalone mode\n  One symlink to maintain. But callers everywhere have to learn the new path, and existing code paths reading `.balls/config.json` and `.balls/plugins/*` have to be retargeted.\n\nOther knobs that bear on the choice:\n- Atomicity of \\\"flip\\\" — replacing a directory with a symlink isn't a single syscall on most filesystems; need an order-of-operations design.\n- Discoverability — option (b) hides the canonical layout behind one path; option (a) keeps current paths working.\n\n# Concrete deliverable\n\n- Pick one of (a)/(b) after design discussion.\n- Implement so bl callers that currently read `.balls/plugins/<name>.json` continue to work (or get a one-shot migration).\n- Tests covering: standalone (real dir), federated (symlink resolves), detach (symlink reverts to real dir).\n\n# Out of scope\n\n- The pointer-file vs canonical-file design at the top level — that's bl-82a4.\n- bl plugin enable/disable tooling — that's bl-32e5; it composes orthogonally with whichever layout this ball picks.\n\n# Origin\n\nbl-a7d9 close-out (2026-05-20). User on the discussion-items list: \\\"3: file it.\\\" Referring to the granularity question (one symlink vs umbrella) for .balls/plugins/.",
+  "external": {},
+  "id": "bl-1098",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["multi-repo","master_url","config","plugins","discuss-first"],
+  "title": ".balls/plugins/ symlink granularity under config symmetry",
+  "type": "task",
+  "updated_at": "2026-05-21T00:08:31.991387991Z"
+}
