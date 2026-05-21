@@ -31,7 +31,9 @@ pub use dep_link::{cmd_dep, cmd_link};
 pub use doctor::cmd_doctor;
 pub use claim::cmd_claim;
 pub use lifecycle::{cmd_close, cmd_drop, cmd_review};
-pub use plugin::{cmd_plugin_disable, cmd_plugin_enable, cmd_plugin_list};
+pub use plugin::{
+    cmd_plugin_disable, cmd_plugin_enable, cmd_plugin_list, cmd_plugin_policy, cmd_plugin_show,
+};
 pub use ready_cmd::cmd_ready;
 pub use remaster::cmd_remaster;
 pub use repair::cmd_repair;
