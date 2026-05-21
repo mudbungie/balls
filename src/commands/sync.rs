@@ -8,7 +8,7 @@ use super::{default_identity, discover};
 use balls::error::Result;
 use balls::store::Store;
 use balls::task::{Status, Task};
-use balls::{git, plugin, policy, ready, resolve, sanitize, sync_resolve};
+use balls::{git, policy, ready, resolve, sanitize, sync_resolve};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -46,15 +46,9 @@ fn cmd_sync_run(remote: &str, task_filter: Option<&str>) -> Result<()> {
         sync_with_remote(&store, remote)?;
     }
     let ident = default_identity();
-    match plugin::dispatch_sync(&store, task_filter, &ident) {
-        Ok(reports) => {
-            for (plugin_name, report) in reports {
-                apply_sync_report(&store, &plugin_name, &report);
-            }
-        }
-        Err(e) => eprintln!("warning: plugin sync failed: {e}"),
-    }
-    eprintln!("sync complete");
+    super::plumbing::dispatch_sync_each(&store, task_filter, &ident, &mut |name, report| {
+        apply_sync_report(&store, name, report);
+    });
     Ok(())
 }
 

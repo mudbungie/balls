@@ -103,7 +103,7 @@ impl Protocol for NativeProtocol<'_> {
         // gets the side channel; everyone else is byte-identical.
         let ctx_json = if self.wants_context {
             Some(EventCtxWire::for_event(
-                event_subcommand_arg(self.event),
+                &event_subcommand_arg(self.event),
                 &self.identity,
                 self.task.repo.clone(),
                 self.task_before.as_deref(),
