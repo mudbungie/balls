@@ -33,16 +33,6 @@ fn master_url_repo() -> (common::Repo, common::Repo, String) {
         .arg("--commit")
         .assert()
         .success();
-    // Repoint the convenience symlink the legacy init dropped: until
-    // bl-773e teaches `ensure_tasks_symlink` to repoint on remaster,
-    // the legacy `worktree/.balls/tasks` target survives the flip and
-    // doctor (correctly) flags it. Tests modelling a *healthy*
-    // master_url repo need the post-bl-773e state.
-    let link = repo.path().join(".balls/tasks");
-    if link.is_symlink() {
-        fs::remove_file(&link).unwrap();
-    }
-    std::os::unix::fs::symlink("state-repo/.balls/tasks", &link).unwrap();
     (repo, hub, hub_url)
 }
 
