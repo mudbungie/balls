@@ -262,6 +262,32 @@ ref retargets. The code remote is never disturbed.
   is unreachable and the state-repo never materialized, detach is
   the escape hatch, so it never requires network access.
 
+### Plugin precedence under `master_url`: master wins
+
+When `master_url` is set, **plugin policy is owned by the hub**.
+The effective `plugins` map and the `.balls/plugins/*` config files
+come from the materialized state-repo (`.balls/state-repo/.balls/`
+on disk — i.e. the hub's `balls/tasks` branch). The project repo's
+own `plugins` map and `.balls/plugins/` directory are ignored.
+
+This is the natural composition with the bridge/proxy pattern below:
+plugin secrets, sync schedules, and mirroring policy live in **one**
+place across an N-clone federation, so client repos can't drift them.
+
+- **Where to edit plugin config on the hub:** `cd .balls/state-repo`
+  on any clone (or directly on the hub if it has a working tree).
+  Edit `.balls/config.json` and `.balls/plugins/*.json` there,
+  commit on `balls/tasks`, and push. Every client's next
+  `bl prime` (or any state-branch op) picks up the change.
+- **Drift warning.** A `master_url`-configured clone that still
+  has a project-side `plugins` map or non-placeholder
+  `.balls/plugins/*` files emits a one-shot "master wins" warning
+  on stderr per process. Those files are inert until you remove
+  them — they no longer affect dispatch.
+- **Standalone repos are unchanged.** Without `master_url`, plugin
+  config keeps living on the project's integration branch alongside
+  the code, exactly as before.
+
 ### Working in a multi-repo hub
 
 `bl` does not track which code repo a ball "belongs to" — the shared

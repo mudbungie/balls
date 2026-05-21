@@ -167,7 +167,11 @@ impl Store {
     }
 
     pub fn load_config(&self) -> Result<Config> {
-        Config::load(&self.config_path())
+        crate::store_plugins::load_layered(&self.config_path(), &self.state_worktree_path, &self.root)
+    }
+
+    pub fn plugin_config_root(&self) -> PathBuf {
+        crate::store_plugins::plugin_config_root_for_store(self)
     }
 
     pub fn worktrees_root(&self) -> Result<PathBuf> {
