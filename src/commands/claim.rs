@@ -3,13 +3,13 @@
 //! Split out of `lifecycle.rs` to keep that file under the 300-line
 //! cap; re-exported from `commands` so callers stay byte-stable.
 
+use super::plumbing::sync_inputs;
 use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::participant::Event;
 use balls::participant_config::{override_tokens, InvocationOverrides};
 use balls::plugin::{self, Rollback};
-use balls::policy::{self, ClaimPolicy, LocalConfig, SyncOverride};
-use balls::store::Store;
+use balls::policy;
 use balls::worktree;
 
 pub fn cmd_claim(
@@ -27,7 +27,12 @@ pub fn cmd_claim(
             "no git repo: use `bl claim --no-worktree` to claim without a worktree".into(),
         ));
     }
-    let claim_policy = resolve_claim_policy(&store, sync, no_sync)?;
+    let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
+    let claim_policy = policy::resolve(
+        cfg.as_ref().is_some_and(|c| c.require_remote_on_claim),
+        local.as_ref(),
+        cli,
+    );
     if no_worktree {
         worktree::claim_no_worktree(&store, &id, &ident, claim_policy)?;
         println!("claimed {id} (no worktree)");
@@ -57,17 +62,4 @@ pub fn cmd_claim(
         println!("{}", path.display());
     }
     Ok(())
-}
-
-fn resolve_claim_policy(store: &Store, sync: bool, no_sync: bool) -> Result<ClaimPolicy> {
-    let cli = match (sync, no_sync) {
-        (true, false) => SyncOverride::Sync,
-        (false, true) => SyncOverride::NoSync,
-        _ => SyncOverride::Unset,
-    };
-    let repo_default = store
-        .load_config()
-        .is_ok_and(|c| c.require_remote_on_claim);
-    let local = LocalConfig::load(store)?;
-    Ok(policy::resolve(repo_default, local.as_ref(), cli))
 }

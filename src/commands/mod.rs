@@ -13,6 +13,7 @@ pub mod init;
 mod half_push;
 pub mod lifecycle;
 pub mod plugin;
+mod plumbing;
 mod prime_status;
 pub mod ready_cmd;
 pub mod remaster;
