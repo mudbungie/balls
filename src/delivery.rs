@@ -140,10 +140,11 @@ fn local_resolve(repo_root: &Path, main_branch: &str, task: &Task, tag: &str) ->
 /// unaffected.
 ///
 /// `manual_repo` (`bl close --delivered-repo <url>`, bl-733e) is the
-/// parallel override for `delivered_repo`. The auto-tag default —
-/// "the current clone's `origin`" — is correct for any operator
-/// running close in the clone that produced the sha. A bridge clone
-/// running close from a sync hook on behalf of *another* repo
+/// parallel override for `delivered_repo`. The auto-tag default is
+/// the repo the sha was *resolved through* (bl-6816): the current
+/// clone's `origin` for a local hit or a hand-supplied sha, the
+/// source URL for a `--resolve-remote` cross-repo hit. A bridge
+/// clone running close from a sync hook on behalf of *another* repo
 /// (README §Bridging) needs to declare the true source: this flag
 /// does that. It always wins over the auto-tag and can be set with
 /// or without `--delivered`. Setting it on a task with no sha
@@ -159,7 +160,12 @@ fn local_resolve(repo_root: &Path, main_branch: &str, task: &Task, tag: &str) ->
 /// Off by default — fetches from arbitrary forge URLs need operator
 /// opt-in, same policy as the show path. Deferred-mode is set
 /// implicitly upstream so a bridge running deferred close from a
-/// sync hook gets resolution without a flag.
+/// sync hook gets resolution without a flag. A remote hit also
+/// carries the source URL into `delivered_repo` (bl-6816): the
+/// closing clone is not the delivering repo, so auto-tagging its
+/// own `origin` would aim a later `--resolve-remote` read at a hub
+/// that holds no `[bl-xxxx]` tag — the flag would destroy the
+/// provenance it exists to recover.
 ///
 /// Returns `true` iff anything changed, so the close path knows to
 /// persist the task to the state branch before archiving it (the
@@ -173,17 +179,28 @@ pub fn populate_on_close(
     resolve_remote: bool,
 ) -> bool {
     // bl-7523: whenever we *set* `delivered_in` we also tag the
-    // local repo as the delivery's source so a reader on a hub (or a
-    // sibling client) can resolve the sha. bl-733e: an operator can
-    // override that auto-tag via `manual_repo`, which always wins.
-    let new_sha = if let Some(sha) = manual_sha {
-        Some(sha)
+    // delivery's source repo so a reader on a hub (or a sibling
+    // client) can resolve the sha. bl-6816: the source is the repo
+    // the sha was *resolved through* — `repo_url::current` for a
+    // local hit or a hand-supplied sha (the operator has it locally,
+    // so bl-7523's same-clone assumption holds), the source URL for
+    // a `--resolve-remote` cross-repo hit. bl-733e: `manual_repo`
+    // overrides whatever we pick.
+    let new_delivery = if let Some(sha) = manual_sha {
+        Some((sha, crate::repo_url::current(repo_root)))
     } else if task.delivered_in.is_some() {
         None
-    } else if let Some(sha) =
-        resolve_with(repo_root, target_branch, task, ResolveOpts { remote: resolve_remote }).sha
-    {
-        Some(sha)
+    } else if let Delivery {
+        sha: Some(sha),
+        resolved_repo: Some(repo),
+        ..
+    } = resolve_with(
+        repo_root,
+        target_branch,
+        task,
+        ResolveOpts { remote: resolve_remote },
+    ) {
+        Some((sha, repo))
     } else {
         eprintln!(
             "warning: no [{id}] commit reachable on {target_branch}; closing \
@@ -194,9 +211,9 @@ pub fn populate_on_close(
         None
     };
     let mut changed = false;
-    if let Some(sha) = new_sha {
+    if let Some((sha, repo)) = new_delivery {
         task.delivered_in = Some(sha);
-        task.delivered_repo = Some(crate::repo_url::current(repo_root));
+        task.delivered_repo = Some(repo);
         changed = true;
     }
     if let Some(url) = manual_repo {
