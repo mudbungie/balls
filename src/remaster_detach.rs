@@ -16,13 +16,12 @@
 //! path transplants it onto `.balls/worktree` (bl-f440).
 
 use crate::error::Result;
+use crate::git_state::STATE_BRANCH;
 use crate::store::Store;
 use crate::store_init::STATE_WORKTREE_REL;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const STATE_BRANCH: &str = "balls/tasks";
 
 /// Sever shared history: re-root `balls/tasks` as a fresh local
 /// orphan carrying its current tasks. The config half (clearing

@@ -128,7 +128,7 @@ fn unfederate_materializes_canonical_back_and_drops_pointer() {
 
     unfederate(root).unwrap();
     let project_cfg = root.join(".balls/config.json");
-    assert!(!is_symlink(&project_cfg), "canonical restored as a real file");
+    assert!(!project_cfg.is_symlink(), "canonical restored as a real file");
     assert!(project_cfg.is_file());
     assert!(MasterPointer::load(root).unwrap().is_empty(), "pointer cleared");
 }

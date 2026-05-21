@@ -4,11 +4,10 @@
 
 use crate::config::Config;
 use crate::error::{BallError, Result};
+use crate::git_state::STATE_BRANCH;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-pub(crate) const STATE_BRANCH: &str = "balls/tasks";
 
 /// Relative path (from the repo root) of the state worktree's checkout.
 pub(crate) const STATE_WORKTREE_REL: &str = ".balls/worktree";
@@ -70,7 +69,7 @@ pub(crate) fn setup_state_branch(root: &Path, remote: &str, linked: bool) -> Res
         git_state::worktree_add_existing(root, &state_wt, STATE_BRANCH)?;
     }
 
-    seed_state_worktree(&state_wt)?;
+    seed_tasks_dir(&state_wt)?;
     ensure_tasks_symlink(root, "worktree/.balls/tasks")?;
 
     // Publish the seed commit if we made one above and the branch is
@@ -156,12 +155,14 @@ pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf>
     Ok(hubdir)
 }
 
-/// Seed the state worktree's task directory on first setup: create the
-/// `.balls/tasks/` directory, drop in the `.gitattributes` rule that
-/// activates git's built-in union merge driver for notes sidecars, and
-/// commit anything new so the state branch has a valid HEAD.
-fn seed_state_worktree(state_wt: &Path) -> Result<()> {
-    let tasks = state_wt.join(".balls/tasks");
+/// Seed a state-branch checkout's task directory: create `.balls/tasks/`,
+/// drop in the `.gitattributes` rule that activates git's built-in union
+/// merge driver for notes sidecars and a `.gitkeep` anchor, then commit
+/// anything new so the branch has a valid HEAD. Shared by both bootstrap
+/// paths — the legacy worktree (`setup_state_branch`) and the master_url
+/// state-repo clone (`state_repo::ensure`).
+pub(crate) fn seed_tasks_dir(checkout: &Path) -> Result<()> {
+    let tasks = checkout.join(".balls/tasks");
     fs::create_dir_all(&tasks)?;
 
     let attrs = tasks.join(".gitattributes");
@@ -179,9 +180,9 @@ fn seed_state_worktree(state_wt: &Path) -> Result<()> {
         fs::write(&keep, "")?;
     }
 
-    if git::has_uncommitted_changes(state_wt)? {
-        git::git_add_all(state_wt)?;
-        git::git_commit(state_wt, "balls: seed state branch")?;
+    if git::has_uncommitted_changes(checkout)? {
+        git::git_add_all(checkout)?;
+        git::git_commit(checkout, "balls: seed state branch")?;
     }
     Ok(())
 }
@@ -193,38 +194,21 @@ fn seed_state_worktree(state_wt: &Path) -> Result<()> {
 /// main can `ls .balls/tasks/`, `cat`, and `$EDITOR` files through this
 /// symlink without any balls-specific knowledge.
 ///
-/// A pre-existing symlink with a different target is repointed (bl-773e):
-/// a repo flipped from legacy to master_url via `bl remaster --commit`
-/// otherwise keeps a symlink to the deleted `.balls/worktree/`, silently
-/// dangling. Matching targets are still no-ops, so the idempotent path
-/// is unchanged.
+/// A pre-existing symlink with a different target is repointed (bl-773e);
+/// matching targets are no-ops. A pre-existing real directory or file at
+/// the path is ambiguous — refuse rather than risk clobbering
+/// uncommitted tasks the operator put there by hand.
 pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
-    let link = root.join(".balls/tasks");
-    let want = PathBuf::from(target);
-    if link.is_symlink() {
-        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
-            return Ok(());
-        }
-        fs::remove_file(&link)?;
-    } else if link.exists() {
-        // Pre-existing directory or file at the symlink path is ambiguous:
-        // refuse to overwrite to avoid clobbering uncommitted tasks.
-        return Err(crate::error::BallError::Other(format!(
-            "unexpected non-symlink at {}; remove it and re-run `bl init`",
-            link.display()
-        )));
-    }
-    #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(&want, &link)?;
-    }
-    #[cfg(not(unix))]
-    {
-        return Err(crate::error::BallError::Other(
-            "symlink-mode bl init requires a POSIX filesystem; use stealth mode".into(),
-        ));
-    }
-    Ok(())
+    crate::state_repo_symlinks::materialize_symlink(
+        &root.join(".balls/tasks"),
+        target,
+        &|link| {
+            Err(BallError::Other(format!(
+                "unexpected non-symlink at {}; remove it and re-run `bl init`",
+                link.display()
+            )))
+        },
+    )
 }
 
 /// Commit the init-time files (.gitignore, config.json, plugins .gitkeep)
