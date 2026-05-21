@@ -85,6 +85,7 @@ fn delivered_line_renders_when_sha_present() {
     let d = Delivery {
         sha: Some("abcdef0".into()),
         hint_stale: true,
+        ..Delivery::default()
     };
     let out = render(&t, std::slice::from_ref(&t), &d, Path::new("."), &ctx_for());
     assert!(out.contains("delivered: abcdef0"));
