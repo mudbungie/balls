@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "README lines 605 and 607 both read '### Reject (reviewer requests rework)' -- the heading is emitted twice consecutively, the second immediately followed by the code block. A copy-paste artifact; delete one. Cosmetic but visible in any rendered view (GitHub, docs site) as an empty duplicated section. Audited 2026-05-20.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":103,"source":"balls","state":"open","synced_at":"2026-05-21T04:17:13.774510052+00:00","url":"https://github.com/mudbungie/balls/issues/103"}}},
   "id": "bl-0d09",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T04:17:13.795198790Z"},
   "tags": [],
   "title": "README: duplicate '### Reject' header in Worktree Lifecycle",
   "type": "bug",
-  "updated_at": "2026-05-21T04:17:11.941937082Z"
+  "updated_at": "2026-05-21T04:17:13.795206185Z"
 }
