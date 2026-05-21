@@ -93,6 +93,56 @@ fn delivered_line_renders_when_sha_present() {
 }
 
 #[test]
+fn delivered_repo_alone_renders_without_resolved_via_line() {
+    let mut t = mk("bl-1", "t");
+    t.delivered_repo = Some("git@x:o/r.git".into());
+    let out = render(&t, std::slice::from_ref(&t), &empty_delivery(), Path::new("."), &ctx_for());
+    assert!(out.contains("delivered repo: git@x:o/r.git"));
+    assert!(!out.contains("resolved via:"));
+}
+
+#[test]
+fn resolved_via_omitted_when_resolved_matches_static_delivered_repo() {
+    let mut t = mk("bl-1", "t");
+    t.delivered_repo = Some("git@x:o/r.git".into());
+    let d = Delivery {
+        sha: Some("abcdef0".into()),
+        resolved_repo: Some("git@x:o/r.git".into()),
+        ..Delivery::default()
+    };
+    let out = render(&t, std::slice::from_ref(&t), &d, Path::new("."), &ctx_for());
+    assert!(out.contains("delivered repo: git@x:o/r.git"));
+    assert!(!out.contains("resolved via:"));
+}
+
+#[test]
+fn resolved_via_line_renders_when_resolved_repo_differs() {
+    let mut t = mk("bl-1", "t");
+    t.delivered_repo = Some("git@x:o/r.git".into());
+    let d = Delivery {
+        sha: Some("abcdef0".into()),
+        resolved_repo: Some("git@x:o/sibling.git".into()),
+        ..Delivery::default()
+    };
+    let out = render(&t, std::slice::from_ref(&t), &d, Path::new("."), &ctx_for());
+    assert!(out.contains("delivered repo: git@x:o/r.git"));
+    assert!(out.contains("resolved via:   git@x:o/sibling.git"));
+}
+
+#[test]
+fn resolved_via_line_renders_alone_when_static_delivered_repo_missing() {
+    let t = mk("bl-1", "t");
+    let d = Delivery {
+        sha: Some("abcdef0".into()),
+        resolved_repo: Some("git@x:o/synth.git".into()),
+        ..Delivery::default()
+    };
+    let out = render(&t, std::slice::from_ref(&t), &d, Path::new("."), &ctx_for());
+    assert!(!out.contains("delivered repo:"));
+    assert!(out.contains("resolved via:   git@x:o/synth.git"));
+}
+
+#[test]
 fn branch_line_renders_when_branch_set() {
     let mut t = mk("bl-1", "t");
     t.branch = Some("work/bl-1".into());
