@@ -4,29 +4,17 @@
 //! their failure paths so coverage stays at 100%.
 
 use super::*;
+use crate::git_test_support::{git_run, git_stdout};
 use crate::store::Store;
 use std::path::Path;
-use std::process::Command;
 use tempfile::tempdir;
 
-fn raw_git(path: &Path, args: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(path).args(args);
-    for var in crate::git::GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    cmd.output().expect("spawn git")
-}
-
 fn init_repo(path: &Path) {
-    let run = |args: &[&str]| {
-        assert!(raw_git(path, args).status.success());
-    };
-    run(&["init", "-q", "-b", "main"]);
-    run(&["config", "user.email", "test@example.com"]);
-    run(&["config", "user.name", "test"]);
-    run(&["config", "commit.gpgsign", "false"]);
-    run(&["commit", "--allow-empty", "-m", "init"]);
+    git_run(path, &["init", "-q", "-b", "main"]);
+    git_run(path, &["config", "user.email", "test@example.com"]);
+    git_run(path, &["config", "user.name", "test"]);
+    git_run(path, &["config", "commit.gpgsign", "false"]);
+    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
 }
 
 #[test]
@@ -35,8 +23,7 @@ fn add_user_changes_stages_normal_files() {
     init_repo(td.path());
     std::fs::write(td.path().join("a.txt"), "hi").unwrap();
     add_user_changes(td.path()).unwrap();
-    let staged =
-        String::from_utf8(raw_git(td.path(), &["diff", "--cached", "--name-only"]).stdout).unwrap();
+    let staged = git_stdout(td.path(), &["diff", "--cached", "--name-only"]);
     assert!(staged.contains("a.txt"), "got: {staged}");
 }
 
@@ -52,8 +39,7 @@ fn add_user_changes_excludes_balls_runtime_paths() {
     std::fs::write(td.path().join(".balls/worktree/x"), "x").unwrap();
     std::fs::write(td.path().join("user.txt"), "ok").unwrap();
     add_user_changes(td.path()).unwrap();
-    let staged =
-        String::from_utf8(raw_git(td.path(), &["diff", "--cached", "--name-only"]).stdout).unwrap();
+    let staged = git_stdout(td.path(), &["diff", "--cached", "--name-only"]);
     assert!(staged.contains("user.txt"), "got: {staged}");
     for p in crate::runtime_paths::backstop_paths() {
         assert!(
@@ -69,14 +55,9 @@ fn commit_touches_runtime_flags_runtime_paths() {
     init_repo(td.path());
     std::fs::create_dir_all(td.path().join(".balls/local")).unwrap();
     std::fs::write(td.path().join(".balls/local/lock"), "x").unwrap();
-    assert!(raw_git(td.path(), &["add", "-A"]).status.success());
-    assert!(raw_git(td.path(), &["commit", "-m", "bad"])
-        .status
-        .success());
-    let sha = String::from_utf8(raw_git(td.path(), &["rev-parse", "HEAD"]).stdout)
-        .unwrap()
-        .trim()
-        .to_string();
+    git_run(td.path(), &["add", "-A"]);
+    git_run(td.path(), &["commit", "-m", "bad"]);
+    let sha = git_stdout(td.path(), &["rev-parse", "HEAD"]);
     let hits = commit_touches_runtime(td.path(), &sha).unwrap();
     assert_eq!(hits, vec![".balls/local/lock".to_string()]);
 }
@@ -92,14 +73,9 @@ fn commit_touches_runtime_flags_code_refs_cache() {
     init_repo(td.path());
     std::fs::create_dir_all(td.path().join(".balls/code-refs/foo.git")).unwrap();
     std::fs::write(td.path().join(".balls/code-refs/foo.git/HEAD"), "ref: x").unwrap();
-    assert!(raw_git(td.path(), &["add", "-A"]).status.success());
-    assert!(raw_git(td.path(), &["commit", "-m", "bad"])
-        .status
-        .success());
-    let sha = String::from_utf8(raw_git(td.path(), &["rev-parse", "HEAD"]).stdout)
-        .unwrap()
-        .trim()
-        .to_string();
+    git_run(td.path(), &["add", "-A"]);
+    git_run(td.path(), &["commit", "-m", "bad"]);
+    let sha = git_stdout(td.path(), &["rev-parse", "HEAD"]);
     let hits = commit_touches_runtime(td.path(), &sha).unwrap();
     assert_eq!(hits, vec![".balls/code-refs/foo.git/HEAD".to_string()]);
 }
@@ -120,14 +96,9 @@ fn commit_touches_runtime_flags_state_repo_clone() {
         "{}",
     )
     .unwrap();
-    assert!(raw_git(td.path(), &["add", "-A"]).status.success());
-    assert!(raw_git(td.path(), &["commit", "-m", "bad"])
-        .status
-        .success());
-    let sha = String::from_utf8(raw_git(td.path(), &["rev-parse", "HEAD"]).stdout)
-        .unwrap()
-        .trim()
-        .to_string();
+    git_run(td.path(), &["add", "-A"]);
+    git_run(td.path(), &["commit", "-m", "bad"]);
+    let sha = git_stdout(td.path(), &["rev-parse", "HEAD"]);
     let hits = commit_touches_runtime(td.path(), &sha).unwrap();
     assert_eq!(
         hits,
@@ -140,12 +111,9 @@ fn commit_touches_runtime_empty_for_clean_commit() {
     let td = tempdir().unwrap();
     init_repo(td.path());
     std::fs::write(td.path().join("ok.txt"), "x").unwrap();
-    assert!(raw_git(td.path(), &["add", "-A"]).status.success());
-    assert!(raw_git(td.path(), &["commit", "-m", "ok"]).status.success());
-    let sha = String::from_utf8(raw_git(td.path(), &["rev-parse", "HEAD"]).stdout)
-        .unwrap()
-        .trim()
-        .to_string();
+    git_run(td.path(), &["add", "-A"]);
+    git_run(td.path(), &["commit", "-m", "ok"]);
+    let sha = git_stdout(td.path(), &["rev-parse", "HEAD"]);
     let hits = commit_touches_runtime(td.path(), &sha).unwrap();
     assert!(hits.is_empty(), "expected empty, got {hits:?}");
 }
@@ -166,15 +134,12 @@ fn commit_squash_and_flip_rewinds_main_when_squash_carries_runtime() {
     // Build a work branch off main with a single commit that tracks
     // a runtime path. Bypasses `add_user_changes`, which is exactly
     // the scenario the post-squash check is the backstop for.
-    let run = |args: &[&str]| {
-        assert!(raw_git(td.path(), args).status.success(), "git {args:?}");
-    };
-    run(&["checkout", "-q", "-b", "work/bl-test"]);
+    git_run(td.path(), &["checkout", "-q", "-b", "work/bl-test"]);
     std::fs::create_dir_all(td.path().join(".balls/local")).unwrap();
     std::fs::write(td.path().join(".balls/local/x"), "x").unwrap();
-    run(&["add", "-f", ".balls/local/x"]);
-    run(&["commit", "-m", "runtime"]);
-    run(&["checkout", "-q", "main"]);
+    git_run(td.path(), &["add", "-f", ".balls/local/x"]);
+    git_run(td.path(), &["commit", "-m", "runtime"]);
+    git_run(td.path(), &["checkout", "-q", "main"]);
 
     let err = commit_squash_and_flip(
         &store,
@@ -210,14 +175,11 @@ fn rewind_main_uses_update_ref_on_bare_layout() {
     let store = Store::init(td.path(), false, None).unwrap();
     let pre = git::git_resolve_sha(td.path(), "HEAD").unwrap();
 
-    let run = |args: &[&str]| {
-        assert!(raw_git(td.path(), args).status.success(), "git {args:?}");
-    };
-    run(&["commit", "--allow-empty", "-m", "advance"]);
+    git_run(td.path(), &["commit", "--allow-empty", "-m", "advance"]);
     let advanced = git::git_resolve_sha(td.path(), "HEAD").unwrap();
     assert_ne!(pre, advanced, "sanity: HEAD advanced");
 
-    run(&["config", "core.bare", "true"]);
+    git_run(td.path(), &["config", "core.bare", "true"]);
     rewind_main(&store, "main", &pre).unwrap();
     let after = git::git_resolve_sha(td.path(), "refs/heads/main").unwrap();
     assert_eq!(pre, after, "bare rewind must move main back via update-ref");

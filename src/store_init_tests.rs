@@ -4,19 +4,8 @@
 //! create that symlink, only the config that drives the choice.
 
 use super::*;
-use std::process::Command;
+use crate::git_test_support::{git_run, git_stdout};
 use tempfile::TempDir;
-
-/// Run git with the inherited author/committer env stripped, mirroring
-/// `crate::git`'s own invocations so test commits are deterministic.
-fn git(path: &Path, args: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(path).args(args);
-    for var in crate::git::GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    cmd.output().expect("spawn git")
-}
 
 fn init_repo(path: &Path) {
     for args in [
@@ -26,7 +15,7 @@ fn init_repo(path: &Path) {
         &["config", "commit.gpgsign", "false"],
         &["commit", "--allow-empty", "-m", "init", "--no-verify"],
     ] {
-        assert!(git(path, args).status.success(), "git {args:?}");
+        git_run(path, args);
     }
 }
 
@@ -39,14 +28,11 @@ fn scaffold(root: &Path, master_url: Option<&str>) {
 }
 
 fn tracked(root: &Path) -> String {
-    String::from_utf8(git(root, &["ls-files"]).stdout).unwrap()
+    git_stdout(root, &["ls-files"])
 }
 
 fn last_subject(root: &Path) -> String {
-    String::from_utf8(git(root, &["log", "-1", "--format=%s"]).stdout)
-        .unwrap()
-        .trim()
-        .to_string()
+    git_stdout(root, &["log", "-1", "--format=%s"])
 }
 
 #[test]

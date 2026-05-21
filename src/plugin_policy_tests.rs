@@ -4,26 +4,16 @@
 
 use super::*;
 use crate::config::Config;
-use std::path::Path;
-use std::process::Command;
+use crate::git_test_support::git_run;
 use tempfile::tempdir;
-
-fn raw_git(path: &Path, args: &[&str]) {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(path).args(args);
-    for var in crate::git::GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    assert!(cmd.status().expect("spawn git").success(), "git {args:?}");
-}
 
 fn standalone_store() -> (tempfile::TempDir, Store) {
     let td = tempdir().unwrap();
-    raw_git(td.path(), &["init", "-q", "-b", "main"]);
-    raw_git(td.path(), &["config", "user.email", "t@example.com"]);
-    raw_git(td.path(), &["config", "user.name", "t"]);
-    raw_git(td.path(), &["config", "commit.gpgsign", "false"]);
-    raw_git(td.path(), &["commit", "--allow-empty", "-m", "init"]);
+    git_run(td.path(), &["init", "-q", "-b", "main"]);
+    git_run(td.path(), &["config", "user.email", "t@example.com"]);
+    git_run(td.path(), &["config", "user.name", "t"]);
+    git_run(td.path(), &["config", "commit.gpgsign", "false"]);
+    git_run(td.path(), &["commit", "--allow-empty", "-m", "init"]);
     let store = Store::init(td.path(), false, None).unwrap();
     (td, store)
 }
