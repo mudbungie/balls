@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-a35b",
-  "claimed_by": "Motorway",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T02:25:46.373742273Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-21T02:32:49.144040759Z"},
   "tags": ["state-repo"],
   "title": "state_repo::ensure depends on ambient git identity (~/.gitconfig)",
   "type": "bug",
-  "updated_at": "2026-05-21T02:32:49.144048714Z"
+  "updated_at": "2026-05-21T03:32:26.650292855Z"
 }
