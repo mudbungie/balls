@@ -263,23 +263,21 @@ pub enum Command {
     },
 
     /// Re-point this repo's task state branch at TARGET (a configured
-    /// git remote) and reconcile local-only tasks onto it. The link
-    /// is per-clone unless `--commit`. `--detach` instead forks the
-    /// current branch into a fresh local orphan and goes standalone.
+    /// tracker URL) and reconcile local-only tasks onto it, writing
+    /// the address to `.balls/config.json`. `--commit` also commits
+    /// that change. `--detach` instead clears the address and returns
+    /// the workspace to standalone (the implicit code `origin`).
     Remaster {
-        /// Git remote whose `balls/tasks` becomes authoritative.
+        /// Tracker URL whose `balls/tasks` becomes authoritative.
         /// Omit only with `--detach`.
         target: Option<String>,
-        /// Write the link to committed config, not the per-clone override.
+        /// Also `git commit` the `config.json` address change so a
+        /// fresh clone carries it.
         #[arg(long, conflicts_with = "detach")]
         commit: bool,
         /// Sever shared history and the link: go standalone again.
         #[arg(long)]
         detach: bool,
-        /// Federate onto the hub even though local tasks would be
-        /// stranded — the URL flip has no task-carry path.
-        #[arg(long)]
-        force: bool,
     },
 
     /// Print the agent skill guide (SKILL.md).

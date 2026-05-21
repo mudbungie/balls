@@ -74,10 +74,10 @@ fn show_resolve_remote_falls_back_via_delivered_repo() {
     // to read.
     let reader = new_repo();
     init_in(reader.path());
-    let state_parent = git(code.path(), &["rev-parse", "balls/tasks~1"])
+    let state_parent = git_state(code.path(), &["rev-parse", "balls/tasks~1"])
         .trim()
         .to_string();
-    let mut content_json: serde_json::Value = serde_json::from_str(&git(
+    let mut content_json: serde_json::Value = serde_json::from_str(&git_state(
         code.path(),
         &["show", &format!("{state_parent}:.balls/tasks/{id}.json")],
     ))

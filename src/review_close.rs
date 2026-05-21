@@ -106,7 +106,7 @@ pub fn close_worktree(
         // Captured before `close_and_archive` to avoid the same
         // HEAD~1 race that bites review's path under concurrent state
         // advances.
-        let state_dir = store.state_worktree_dir();
+        let state_dir = store.state_repo_dir();
         let pre_state_sha =
             (policy.require_remote && !store.stealth)
                 .then(|| git::git_resolve_sha(&state_dir, "HEAD"))

@@ -15,24 +15,27 @@ use std::process::Stdio;
 /// a site (it had already drifted to a bare literal in `federate`).
 pub(crate) const STATE_BRANCH: &str = "balls/tasks";
 
-/// Check out an existing branch into a new worktree.
-pub fn worktree_add_existing(dir: &Path, path: &Path, branch: &str) -> Result<()> {
-    run_git_ok(
-        dir,
-        &["worktree", "add", &path.to_string_lossy(), branch],
-    )?;
+/// Resolved fetch URL of remote `remote` in `dir`, or `None` when no
+/// such remote exists. Works in a bare repo (reads `.git/config`).
+pub fn remote_url(dir: &Path, remote: &str) -> Option<String> {
+    let url = run_git_ok(dir, &["remote", "get-url", remote]).ok()?;
+    let url = url.trim();
+    (!url.is_empty()).then(|| url.to_string())
+}
+
+/// Point remote `remote` in `dir` at `url` — add it if absent,
+/// re-point it if present.
+pub fn set_remote(dir: &Path, remote: &str, url: &str) -> Result<()> {
+    let verb = if crate::git::git_has_remote(dir, remote) { "set-url" } else { "add" };
+    run_git_ok(dir, &["remote", verb, remote, url])?;
     Ok(())
 }
 
-/// Fetch `branch` from the git repo at `source` into `dir`'s repo,
-/// force-updating `dir`'s local `refs/heads/<branch>` to match it.
-/// Used by warm `bl remaster --detach` to transplant the detached
-/// task history out of the balls-owned `.balls/state-repo` clone onto
-/// the project git, where a post-detach `discover` resolves it.
-pub fn fetch_into_branch(dir: &Path, source: &Path, branch: &str) -> Result<()> {
-    let refspec = format!("+{branch}:refs/heads/{branch}");
-    run_git_ok(dir, &["fetch", &source.to_string_lossy(), &refspec])?;
-    Ok(())
+/// Remove remote `remote` from `dir`. A missing remote is a no-op.
+pub fn remove_remote(dir: &Path, remote: &str) {
+    if crate::git::git_has_remote(dir, remote) {
+        let _ = run_git_ok(dir, &["remote", "remove", remote]);
+    }
 }
 
 /// Drop git's worktree registry entries whose checkout dir no longer
@@ -202,5 +205,25 @@ mod tests {
 
         let ids = ls_task_ids(p, "HEAD").unwrap();
         assert_eq!(ids.into_iter().collect::<Vec<_>>(), vec!["bl-aaaa"]);
+    }
+
+    #[test]
+    fn remote_url_set_remote_and_remove_remote_round_trip() {
+        let dir = TempDir::new().unwrap();
+        let p = dir.path();
+        git(p, &["init", "-q"]);
+
+        // No remote yet.
+        assert_eq!(remote_url(p, "origin"), None);
+        // set_remote adds it when absent...
+        set_remote(p, "origin", "https://a/x.git").unwrap();
+        assert_eq!(remote_url(p, "origin").as_deref(), Some("https://a/x.git"));
+        // ...and re-points it when present.
+        set_remote(p, "origin", "https://b/y.git").unwrap();
+        assert_eq!(remote_url(p, "origin").as_deref(), Some("https://b/y.git"));
+        // remove_remote drops it; a second call is a silent no-op.
+        remove_remote(p, "origin");
+        assert_eq!(remote_url(p, "origin"), None);
+        remove_remote(p, "origin");
     }
 }

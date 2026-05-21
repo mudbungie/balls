@@ -1,104 +1,147 @@
-//! Balls-owned state checkout under `.balls/state-repo/` (bl-ffb4).
+//! The unified state checkout — `.balls/state-repo/` (SPEC-tracker-state §6).
 //!
-//! `master_url` stores the hub URL in the committed `.balls/master.json`
-//! pointer (bl-82a4) and materializes balls's own git clone here,
-//! separate from the project's `.git/`. Every state-branch op routes
-//! through this clone via the `state_worktree_dir()` seam.
+//! Every workspace, standalone or federated, resolves ONE checkout:
+//! a balls-owned git clone of the tracker address at
+//! `.balls/state-repo/`. `Store` materializes it from the resolved
+//! `Address` (`tracker_address::resolve`); there is no mode flag and
+//! no second layout. "Standalone" is just the case where the address
+//! is the code repo's own `origin`.
 //!
-//! Hard-fail on first-time unreachable hub (bl-dcd3): silently dropping
-//! to a local orphan would let task changes drift from the team. A
-//! warm cache keeps working offline; only first-time materialization
-//! is fatal.
+//! Reachability (§9): first contact with an unreachable *explicit*
+//! tracker hard-fails — silently dropping to a local orphan would let
+//! task changes drift from the project. The implicit default (no
+//! `state_url`) falls back to a local `git init`; a warm checkout
+//! soft-fails offline.
+//!
+//! Migration: a legacy standalone repo whose `balls/tasks` lives in
+//! its own git (with a `.balls/worktree` checkout) is migrated in
+//! place — the branch is fetched into the new `.balls/state-repo` and
+//! the legacy worktree retired.
 
 use crate::error::{BallError, Result};
-use crate::git_state::STATE_BRANCH;
+use crate::tracker_address::Address;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-// The `.balls/` symlink materializers live in `state_repo_symlinks` to
-// keep this file under the 300-line cap. Re-exported so `ensure` below
-// and `crate::state_repo::restore_plugins_dir` callers are unchanged.
-pub(crate) use crate::state_repo_symlinks::{
-    ensure_config_symlink, ensure_plugins_symlink, restore_plugins_dir,
-};
+// The `.balls/plugins` symlink materializer lives in
+// `state_repo_symlinks`; re-exported so callers are unchanged.
+pub(crate) use crate::state_repo_symlinks::ensure_plugins_symlink;
 
 /// Relative path (from the repo root) of the balls-owned state clone.
-/// Distinct from `STATE_WORKTREE_REL` (`.balls/worktree`, the legacy
-/// project-worktree path) so a config can flip between models without
-/// the two layouts stomping on each other.
 pub(crate) const STATE_REPO_REL: &str = ".balls/state-repo";
 
-/// Materialize `.balls/state-repo/` as a balls-owned git clone whose
-/// `origin` is `url`, with `balls/tasks` checked out. Idempotent.
-/// Hard-fails first-time when the hub is unreachable (no warm cache),
-/// tearing down the scaffold; soft-fails offline once a warm cache
-/// exists (bl-dcd3).
-pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
+/// The legacy project-worktree checkout retired by the unified model.
+const LEGACY_WORKTREE_REL: &str = ".balls/worktree";
+
+/// Materialize `.balls/state-repo/` for `addr`. Idempotent: a warm
+/// checkout is reused with no network round-trip; a missing one is
+/// built (clone, local-fallback, or in-place legacy migration).
+pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
     let dir = root.join(STATE_REPO_REL);
-    let first_time = !dir.join(".git").exists();
-    if first_time {
-        init_with_origin(&dir, url)?;
+    if dir.join(".git").exists() {
+        warm(&dir, addr)?;
     } else {
-        // Origin may have been re-pointed by a later remaster --commit;
-        // keep the recorded URL authoritative.
-        let _ = git::git_config_set(&dir, "remote.origin.url", url);
+        first_contact(root, &dir, addr)?;
     }
-    git::git_ensure_user(&dir)?;
-
-    let (online, fetch_err) = fetch_origin(&dir)?;
-    let warm_cache = git_state::branch_exists(&dir, STATE_BRANCH);
-
-    if !online && !warm_cache {
-        if first_time {
-            // Roll back the just-created scaffold so the next attempt
-            // is a clean first-time, not a partial-cache soft-fail.
-            let _ = fs::remove_dir_all(&dir);
-        }
-        return Err(unreachable_hub_err(url, &fetch_err));
-    }
-
-    if !warm_cache {
-        if git_state::has_remote_branch(&dir, "origin", STATE_BRANCH) {
-            git_state::create_tracking_branch(&dir, STATE_BRANCH, "origin")?;
-        } else {
-            git_state::create_orphan_branch(&dir, STATE_BRANCH, "balls state")?;
-            // Best-effort first publish; a divergent hub rejects
-            // (non-force) and we stay safe-but-unlinked.
-            let _ = git::git_push(&dir, "origin", STATE_BRANCH);
-        }
-        checkout(&dir, STATE_BRANCH)?;
-    }
-
-    crate::store_init::seed_tasks_dir(&dir)?;
-    // Expose .balls/state-repo/.balls/tasks at the convenience path
-    // .balls/tasks (mirrors the legacy `worktree`-mode symlink). The
-    // legacy path is created in setup_state_branch; the master_url path
-    // bypasses that helper entirely, so without this call the README's
-    // "ls/$EDITOR .balls/tasks" ergonomic is missing on master_url repos.
+    seed(&dir)?;
     crate::store_init::ensure_tasks_symlink(root, "state-repo/.balls/tasks")?;
-    // bl-1098: parallel `.balls/plugins/` symlink so plugin config reads
-    // resolve through the project root without any code-side branching
-    // on master_url. Two parallel symlinks (a), not an umbrella path.
     ensure_plugins_symlink(root, "state-repo/.balls/plugins")?;
-    // bl-82a4: same for `.balls/config.json` — the canonical config is
-    // the hub's. A fresh `git clone` carries only `.balls/master.json`;
-    // this materializes the symlink so `Config::load` resolves.
-    ensure_config_symlink(root, "state-repo/.balls/config.json")?;
-
-    if !online {
-        eprintln!(
-            "note: could not reach state hub `{url}`; continuing from the \
-             local cache. Re-run `bl prime` (or `bl sync`) once the hub \
-             is reachable."
-        );
-    }
     Ok(dir)
 }
 
-/// Capture success and stderr from `git fetch origin` in `dir`. The
-/// stderr is folded into the hard-fail diagnostic so the user can tell
-/// "host unreachable" from "permission denied" from "ref not found".
+/// Warm path: the checkout already exists. Keep `origin` aligned with
+/// the address (a hand-edited `state_url`) but never fetch — discover
+/// stays offline-fast; `bl sync`/`bl prime` do the network round-trip.
+fn warm(dir: &Path, addr: &Address) -> Result<()> {
+    git::git_ensure_user(dir)?;
+    if let Some(url) = &addr.url {
+        if git::git_has_remote(dir, "origin") {
+            let _ = git::git_config_set(dir, "remote.origin.url", url);
+        } else {
+            let _ = run_at(dir, &["remote", "add", "origin", url]);
+        }
+    }
+    Ok(())
+}
+
+/// First contact: no `.balls/state-repo` yet. Adopt a legacy worktree
+/// in place, clone the tracker, or `git init` a local orphan.
+fn first_contact(root: &Path, dir: &Path, addr: &Address) -> Result<()> {
+    // Migration: a legacy standalone repo carries `balls/tasks` in its
+    // own git. Adopt it locally — offline, no clone — onto the freshly
+    // `init`-ed (unborn) state branch, and retire `.balls/worktree`.
+    if git_state::branch_exists(root, &addr.branch) {
+        init_repo(dir, &addr.branch, addr.url.as_deref())?;
+        run_at(dir, &["fetch", &root.to_string_lossy(), &addr.branch])?;
+        git::git_reset_hard(dir, "FETCH_HEAD")?;
+        retire_legacy_worktree(root, &addr.branch);
+        return Ok(());
+    }
+    if let Some(url) = &addr.url {
+        return clone_from_url(dir, addr, url);
+    }
+    // Implicit default with no `origin`: a solo offline repo.
+    init_repo(dir, &addr.branch, None)?;
+    git_state::create_orphan_branch(dir, &addr.branch, "balls state")?;
+    checkout(dir, &addr.branch)
+}
+
+/// Materialize from a tracker URL. Online: track the remote branch, or
+/// create+publish an orphan if the tracker has none. Offline: hard-fail
+/// an explicit address, local-fallback an implicit one (§9).
+fn clone_from_url(dir: &Path, addr: &Address, url: &str) -> Result<()> {
+    init_repo(dir, &addr.branch, Some(url))?;
+    let (online, fetch_err) = fetch_origin(dir)?;
+    if !online {
+        if addr.explicit {
+            // Roll the scaffold back so a retry is a clean first contact.
+            let _ = fs::remove_dir_all(dir);
+            return Err(unreachable_tracker_err(url, &fetch_err));
+        }
+        git_state::create_orphan_branch(dir, &addr.branch, "balls state")?;
+        return checkout(dir, &addr.branch);
+    }
+    if git_state::has_remote_branch(dir, "origin", &addr.branch) {
+        git_state::create_tracking_branch(dir, &addr.branch, "origin")?;
+    } else {
+        git_state::create_orphan_branch(dir, &addr.branch, "balls state")?;
+        // Best-effort first publish; a divergent tracker rejects the
+        // non-force push and we stay safe-but-unlinked.
+        let _ = git::git_push(dir, "origin", &addr.branch);
+    }
+    checkout(dir, &addr.branch)
+}
+
+/// `git init` the state clone, with `origin` wired to `url` if given.
+fn init_repo(dir: &Path, branch: &str, url: Option<&str>) -> Result<()> {
+    fs::create_dir_all(dir)?;
+    run_at(
+        dir.parent().unwrap_or(dir),
+        &["init", "-q", "--initial-branch", branch, &dir.to_string_lossy()],
+    )?;
+    if let Some(u) = url {
+        run_at(dir, &["remote", "add", "origin", u])?;
+    }
+    git::git_ensure_user(dir)
+}
+
+/// Retire the legacy `.balls/worktree`: drop the linked worktree, its
+/// registry entry, and the project git's now-adopted `balls/tasks`
+/// branch. Entirely best-effort — migration succeeds on the clone.
+fn retire_legacy_worktree(root: &Path, branch: &str) {
+    let wt = root.join(LEGACY_WORKTREE_REL);
+    let _ = git::git_worktree_remove(root, &wt, true);
+    let _ = git_state::worktree_prune(root);
+    if wt.exists() {
+        let _ = fs::remove_dir_all(&wt);
+    }
+    let _ = git::git_branch_delete(root, branch, true);
+}
+
+/// Capture success and stderr from `git fetch origin`. The stderr is
+/// folded into the hard-fail diagnostic so the user can tell "host
+/// unreachable" from "permission denied" from "ref not found".
 fn fetch_origin(dir: &Path) -> Result<(bool, String)> {
     let out = git::run_git_in(dir, &["fetch", "origin"])?;
     Ok(if out.status.success() {
@@ -108,44 +151,63 @@ fn fetch_origin(dir: &Path) -> Result<(bool, String)> {
     })
 }
 
-fn unreachable_hub_err(url: &str, fetch_err: &str) -> BallError {
+fn unreachable_tracker_err(url: &str, fetch_err: &str) -> BallError {
     BallError::Other(format!(
-        "could not reach state hub `{url}`\n  underlying error: {fetch_err}\n  \
-         A balls master_url is required for first-time setup — \
-         silently dropping to a local orphan would let your task \
-         changes drift away from the rest of the project. Options:\n  \
+        "could not reach state tracker `{url}`\n  underlying error: {fetch_err}\n  \
+         A configured state_url must be reachable for first-time setup — \
+         silently dropping to a local orphan would let your task changes \
+         drift away from the rest of the project. Options:\n  \
          - Fix access (credentials, VPN, URL typo) and re-run.\n  \
-         - Edit .balls/master.json to point master_url at a hub you can reach.\n  \
-         - Run `bl remaster --detach` to drop the hub link and work standalone."
+         - Edit state_url in .balls/config.json to point at a tracker you can reach.\n  \
+         - Run `bl remaster --detach` to drop the tracker link and work standalone."
     ))
 }
 
-fn init_with_origin(dir: &Path, url: &str) -> Result<()> {
-    fs::create_dir_all(dir)?;
-    // `git init` with the state branch as initial branch keeps the
-    // first orphan commit on the right ref without a separate checkout.
-    git::run_git_ok(
-        dir.parent().unwrap_or(dir),
-        &[
-            "init",
-            "-q",
-            "--initial-branch",
-            STATE_BRANCH,
-            &dir.to_string_lossy(),
-        ],
-    )?;
-    git::run_git_ok(dir, &["remote", "add", "origin", url])?;
-    Ok(())
-}
-
 fn checkout(dir: &Path, branch: &str) -> Result<()> {
-    git::run_git_ok(dir, &["checkout", "-q", branch])?;
+    run_at(dir, &["checkout", "-q", branch])
+}
+
+fn run_at(dir: &Path, args: &[&str]) -> Result<()> {
+    let status = git::clean_git_command(dir)
+        .args(args)
+        .status()
+        .map_err(|e| BallError::Git(format!("git {}: {e}", args.join(" "))))?;
+    if !status.success() {
+        return Err(BallError::Git(format!("git {} exited with {status}", args.join(" "))));
+    }
     Ok(())
 }
 
-/// Detect URL-shaped remaster targets so `bl remaster --commit <X>` can
-/// auto-route a URL to `master_url` and a bare name to legacy
-/// `state_remote`. Conservative: anything ambiguous stays a name.
+/// Seed `.balls/tasks/` scaffolding and the `.balls/plugins/` dir on
+/// the state branch, committing anything new so the branch has a HEAD.
+fn seed(state_repo: &Path) -> Result<()> {
+    let tasks = state_repo.join(".balls/tasks");
+    fs::create_dir_all(&tasks)?;
+    let attrs = tasks.join(".gitattributes");
+    let need_attrs = match fs::read_to_string(&attrs) {
+        Ok(s) => !s.contains("*.notes.jsonl merge=union"),
+        Err(_) => true,
+    };
+    if need_attrs {
+        fs::write(&attrs, "*.notes.jsonl merge=union\n")?;
+    }
+    for keep in [tasks.join(".gitkeep"), state_repo.join(".balls/plugins/.gitkeep")] {
+        if let Some(parent) = keep.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if !keep.exists() {
+            fs::write(&keep, "")?;
+        }
+    }
+    if git::has_uncommitted_changes(state_repo)? {
+        git::git_add_all(state_repo)?;
+        git::git_commit(state_repo, "balls: seed state branch")?;
+    }
+    Ok(())
+}
+
+/// Detect URL-shaped `bl remaster` targets so a bare git-remote name
+/// can be resolved against the project's `.git/config` instead.
 pub fn looks_like_url(s: &str) -> bool {
     s.contains("://")
         || s.starts_with('/')
@@ -155,9 +217,6 @@ pub fn looks_like_url(s: &str) -> bool {
 }
 
 fn ssh_shorthand(s: &str) -> bool {
-    // `user@host:path` — a single colon, non-empty user/host/path, and
-    // not also a URL scheme. Conservative on `host:port`-only strings
-    // to avoid false positives against `origin:1234` style names.
     let Some((host, path)) = s.split_once(':') else {
         return false;
     };
@@ -174,6 +233,3 @@ mod test_support;
 #[cfg(test)]
 #[path = "state_repo_tests.rs"]
 mod tests;
-#[cfg(test)]
-#[path = "state_repo_plugins_tests.rs"]
-mod plugins_tests;

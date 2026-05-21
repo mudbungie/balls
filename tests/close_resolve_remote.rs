@@ -55,7 +55,7 @@ fn code_repo_with_delivery(id: &str) -> (Repo, String) {
 /// Flip `id` into a closeable cross-repo `review` state: status
 /// `review`, `delivered_repo` pointing at `code`, `delivered_in` left
 /// null. The edit is committed on the state branch (the
-/// `.balls/worktree` checkout of `balls/tasks`) so a later `bl show`
+/// `.balls/state-repo` checkout of `balls/tasks`) so a later `bl show`
 /// on the archived task reconstructs the injected provenance from
 /// history, not the `bl create` original.
 fn link_delivery(repo: &Path, id: &str, code: &Path) {
@@ -67,7 +67,7 @@ fn link_delivery(repo: &Path, id: &str, code: &Path) {
         serde_json::Value::String(code.to_string_lossy().into_owned());
     fs::write(&file, serde_json::to_string(&task).unwrap()).unwrap();
 
-    let state = repo.join(".balls/worktree");
+    let state = repo.join(".balls/state-repo");
     git(&state, &["add", &format!(".balls/tasks/{id}.json")]);
     git(
         &state,

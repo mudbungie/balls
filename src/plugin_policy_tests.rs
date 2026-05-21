@@ -165,13 +165,12 @@ fn apply_rejects_invalid_name_and_unknown_plugin() {
 fn apply_persists_policy_to_effective_config() {
     let (_td, store) = standalone_store();
     plugin_admin::enable(&store, "watcher", None, false).unwrap();
-    let report = apply(
+    apply(
         &store,
         "watcher",
         PolicyOp::Set(vec![(Event::Create, PolicyKind::Required)]),
     )
     .unwrap();
-    assert_eq!(report.source, Source::Project);
 
     let cfg = Config::load(&store.config_path()).unwrap();
     let subs = &cfg.plugins["watcher"].participant.as_ref().unwrap().subscriptions;

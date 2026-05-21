@@ -34,35 +34,64 @@ fn uninitialized_without_docs_just_reports_discovery() {
 }
 
 #[test]
-fn state_worktree_git_pointer_malformed() {
+fn state_checkout_with_a_file_gitdir_is_flagged() {
+    // The unified state checkout is a full clone — `.git` must be a
+    // directory. A `.git` *file* (a stray worktree pointer) is drift.
     let repo = new_repo();
     init_in(repo.path());
-    fs::write(repo.path().join(".balls/worktree/.git"), "garbage\n").unwrap();
+    let gitdir = repo.path().join(".balls/state-repo/.git");
+    fs::remove_dir_all(&gitdir).unwrap();
+    fs::write(&gitdir, "garbage\n").unwrap();
     let out = doctor(repo.path());
-    assert!(out.contains("not a valid linked git worktree"));
-    // Mirror master_url's "remove ... and re-run `bl prime`" shape:
-    // legacy layout is fixed by `bl init`, not `bl repair`.
-    assert!(out.contains("bl init"));
+    assert!(out.contains("not a valid git clone"), "{out}");
+    assert!(out.contains("bl prime"), "{out}");
     assert!(!out.contains("bl repair"));
 }
 
 #[test]
-fn state_worktree_git_pointer_missing() {
+fn state_checkout_with_no_head_is_flagged() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::remove_file(repo.path().join(".balls/worktree/.git")).unwrap();
-    assert!(doctor(repo.path()).contains("not a valid linked git worktree"));
+    fs::remove_file(repo.path().join(".balls/state-repo/.git/HEAD")).unwrap();
+    assert!(doctor(repo.path()).contains("not a valid git clone"));
 }
 
 #[test]
-fn legacy_worktree_rebuild_via_doctors_hint() {
-    // The hint says "remove ... and re-run `bl init`". Doing exactly
-    // that must self-heal — including pruning git's stale worktree
-    // registry, which would otherwise block the re-add.
+fn missing_tasks_symlink_is_flagged() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::remove_dir_all(repo.path().join(".balls/worktree")).unwrap();
-    bl(repo.path()).arg("init").assert().success();
+    std::fs::remove_file(repo.path().join(".balls/tasks")).unwrap();
+    assert!(doctor(repo.path()).contains("convenience symlink is missing"));
+}
+
+#[test]
+fn stray_non_symlink_at_tasks_path_is_flagged() {
+    let repo = new_repo();
+    init_in(repo.path());
+    std::fs::remove_file(repo.path().join(".balls/tasks")).unwrap();
+    std::fs::create_dir(repo.path().join(".balls/tasks")).unwrap();
+    assert!(doctor(repo.path()).contains("not a symlink"));
+}
+
+#[test]
+fn stale_tasks_symlink_target_is_flagged() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let link = repo.path().join(".balls/tasks");
+    std::fs::remove_file(&link).unwrap();
+    std::os::unix::fs::symlink("worktree/.balls/tasks", &link).unwrap();
+    let out = doctor(repo.path());
+    assert!(out.contains("points to") && out.contains("expected"), "{out}");
+}
+
+#[test]
+fn deleted_state_checkout_rebuilds_via_doctors_hint() {
+    // `.balls/state-repo` is re-materializable runtime state — the
+    // doctor hint says re-run `bl prime`, and doing so self-heals.
+    let repo = new_repo();
+    init_in(repo.path());
+    fs::remove_dir_all(repo.path().join(".balls/state-repo")).unwrap();
+    bl(repo.path()).arg("prime").assert().success();
     assert!(doctor(repo.path()).contains("no problems detected"));
 }
 

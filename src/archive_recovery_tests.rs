@@ -72,7 +72,7 @@ fn git_out_spawn_failure_is_none() {
 fn git_out_success_and_nonzero() {
     let td = tempdir().unwrap();
     let store = init_store(td.path());
-    let sw = store.state_worktree_dir();
+    let sw = store.state_repo_dir();
     assert!(git_out(&sw, &["rev-parse", "HEAD"]).is_some());
     assert!(git_out(&sw, &["cat-file", "-e", "deadbeefdeadbeef"]).is_none());
 }
@@ -145,7 +145,7 @@ fn task_at_predeletion_bogus_sha_is_none() {
     let store = init_store(td.path());
     let zero = "0".repeat(40);
     assert!(
-        task_at_predeletion(&store.state_worktree_dir(), "bl-aaaa", &zero, Utc::now())
+        task_at_predeletion(&store.state_repo_dir(), "bl-aaaa", &zero, Utc::now())
             .is_none()
     );
 }
@@ -189,7 +189,7 @@ fn recover_all_lists_closed_and_drops_unparseable() {
     archive(&store, "bl-bbbb", "B");
     // A non-JSON archived file: parse_deletions yields it, but
     // task_at_predeletion fails to parse, so filter_map drops it.
-    let sw = store.state_worktree_dir();
+    let sw = store.state_repo_dir();
     std::fs::write(sw.join(".balls/tasks/bl-junk.json"), "not json").unwrap();
     raw_git(&sw, &["add", ".balls/tasks/bl-junk.json"]);
     raw_git(&sw, &["commit", "-m", "add junk", "--no-verify"]);
