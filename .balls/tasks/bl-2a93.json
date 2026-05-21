@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "The command-reference sections drifted from src/cli_sub.rs CloseArgs and the Show command:\n\n- 'bl close' gained --delivered SHA, --delivered-repo URL, and --resolve-remote (bl-87ea / bl-733e / bl-e454, shipped 0.4.0). README's '### bl close' section and SKILL.md's command-table row for bl close mention only --sync/--no-sync; the three delivery-resolution flags appear in neither.\n- 'bl show' gained --resolve-remote (bl-f37b). README's '### bl show' section and SKILL.md's table row do not mention it.\n\nBoth are real user-facing clap flags with help text. A command reference that omits half a command's options is inaccurate-by-incompleteness -- a reader treats the section as exhaustive. Add the flags to README's bl close / bl show sections and SKILL.md's command table.\n\nSame class of drift as bl-9c17 (Task schema) and bl-7cea (config). Audited 2026-05-20.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":104,"source":"balls","state":"open","synced_at":"2026-05-21T04:17:41.899672579+00:00","url":"https://github.com/mudbungie/balls/issues/104"}}},
   "id": "bl-2a93",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T04:17:41.925346478Z"},
   "tags": [],
   "title": "README/SKILL: bl close and bl show command refs omit newer flags",
   "type": "bug",
-  "updated_at": "2026-05-21T04:17:40.392600388Z"
+  "updated_at": "2026-05-21T04:17:41.925351297Z"
 }
