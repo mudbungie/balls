@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-773e",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:02:45.878932764Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T00:02:47.740891214Z"},
   "tags": ["multi-repo","master_url","remaster"],
   "title": "Stale .balls/tasks symlink survives legacy → master_url remaster",
   "type": "bug",
-  "updated_at": "2026-05-21T00:02:47.740901444Z"
+  "updated_at": "2026-05-21T00:12:51.211751520Z"
 }
