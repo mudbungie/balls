@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "bl-8a9a added the state_branch config field; tracker_address::resolve folds it into Address.branch and state_repo::ensure materializes that branch name in .balls/state-repo. But git_state::STATE_BRANCH and every claim/review/close/sync push+fetch path hardcode 'balls/tasks'. A non-default state_branch therefore materializes a mismatched local branch while all state-branch traffic still targets balls/tasks — a half-wired feature, and no SS16 conformance test exercises a non-default value. SPEC §5 says state_branch 'lets one tracker host several projects on distinct branches'. Decide and act: if full plumbing is in intent, fix it and add a conformance test for a non-default branch; if it is deferred, make a non-default state_branch hard-error with a clear message rather than silently half-working. A field that looks supported but isn't is worse than an honest 'not yet'.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":114,"source":"balls","state":"open","synced_at":"2026-05-21T20:03:15.337347004+00:00","url":"https://github.com/mudbungie/balls/issues/114"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":114,"source":"balls","state":"open","synced_at":"2026-05-21T20:14:15.898269616+00:00","url":"https://github.com/mudbungie/balls/issues/114"}}},
   "id": "bl-022c",
   "links": [{"link_type":"relates_to","target":"bl-3f59"}],
   "parent": "bl-dc79",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-21T20:03:15.355322244Z"},
+  "synced_at": {"github-issues":"2026-05-21T20:14:15.913695141Z"},
   "tags": [],
   "title": "Verify or gate state_branch — it materializes but push/sync hardcode balls/tasks",
   "type": "task",
-  "updated_at": "2026-05-21T20:14:13.534693142Z"
+  "updated_at": "2026-05-21T20:14:15.913705624Z"
 }
