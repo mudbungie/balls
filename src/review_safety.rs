@@ -91,12 +91,21 @@ pub fn rewind_main(store: &Store, main_branch: &str, pre_main_sha: &str) -> Resu
 /// Same wording in tests and at the review site so the caller can
 /// match on it without duplicating the message.
 pub fn runtime_in_squash_error(id: &str, paths: &[String]) -> BallError {
+    // The example subpaths derive from the same `backstop_paths()`
+    // table the rejection itself uses (bl-228d/bl-0151), so a new
+    // sidecar can never leave this prose stale. Every backstop path is
+    // a `.balls/` subpath, with that prefix factored into the sentence.
+    let names: Vec<String> = crate::runtime_paths::backstop_paths()
+        .iter()
+        .map(|&p| format!("`{}`", p.strip_prefix(".balls/").unwrap_or(p)))
+        .collect();
+    let last = names.len() - 1;
+    let subpaths = format!("{}, or {}", names[..last].join(", "), names[last]);
     BallError::Other(format!(
         "bl review {id} aborted: squash would deliver balls runtime path{plural} {list}. \
-         The work branch has tracked a `.balls/` subpath (`local`, `tasks`, `worktree`, or \
-         `code-refs`) — these are internal state, not deliverables. Run `bl init` in the repo \
-         to refresh `.gitignore`, then `git rm --cached` the offending paths on the work branch \
-         and retry.",
+         The work branch has tracked a `.balls/` subpath ({subpaths}) — these are internal \
+         state, not deliverables. Run `bl init` in the repo to refresh `.gitignore`, then \
+         `git rm --cached` the offending paths on the work branch and retry.",
         plural = if paths.len() == 1 { "" } else { "s" },
         list = paths.join(", "),
     ))
