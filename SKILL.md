@@ -235,6 +235,77 @@ code remote is untouched; only the orphan ref retargets.
   fresh local orphan and clears the link — the repo is standalone
   again.
 
+### Working in a multi-repo hub
+
+`bl` does not track which code repo a ball "belongs to" — the shared
+`balls/tasks` branch is flat and `bl prime` lists everything. The
+rules that fill that gap:
+
+- **Claim from the clone whose code the ball touches.** Worktrees
+  land under the current clone's `.balls-worktrees/`, so claiming
+  from the wrong clone puts your edits in a tree that doesn't have
+  the right source. Read the ball before claiming if it isn't
+  obvious which repo it targets.
+- **Mark the target repo on the ball.** There is no `repo` field,
+  so pick a convention — a tag (`repo:api`, `repo:frontend`) or a
+  stable title prefix — and apply it on every ball. Agents filter
+  on it when scanning `bl ready`.
+- **Cross-cutting work: parent + per-repo children.** A change
+  spanning two code repos becomes one umbrella ball (`-t epic`)
+  plus one child per repo, each tagged with its target and claimed
+  in its own clone.
+- **The hub itself.** Most projects make the hub a bare repo that
+  carries *only* the `balls/tasks` ref — no working tree, no code,
+  just a remote every participant can push/fetch the orphan ref
+  to. A real code repo can double as the hub when one of the
+  participants is already the natural source of truth.
+
+### Bridging to an external tracker (the proxy pattern)
+
+A multi-repo project usually wants one external system (Jira,
+Linear, GitHub Issues) as the human-facing record. The intended
+shape with balls is to wire the plugin into **one** participating
+clone — the **bridge** — and let the other code repos operate
+through the shared state branch as a proxy. They never install the
+plugin, never hold its credentials, and never run its sync.
+
+```text
+       ┌────────────────┐
+       │    tracker     │   (Jira / GH Issues / Linear)
+       └────────▲───────┘
+                │  plugin sync (bidirectional)
+       ┌────────┴───────┐
+       │  bridge clone  │
+       │ (plugin here)  │
+       └────────▲───────┘
+                │
+       ┌────────┴───────┐
+       │   state hub    │   shared balls/tasks
+       └────▲───────▲───┘
+            │       │
+       ┌────┴───┐ ┌─┴──────┐
+       │ repo B │ │ repo C │   no plugin — just push/fetch
+       └────────┘ └────────┘
+```
+
+A ball filed from repo B lands on the shared branch; the bridge
+sees it on its next sync and mirrors it outward. A ticket filed
+externally arrives on the shared branch the same way and shows up
+in `bl ready` in every participant. Repos B and C are unaware of
+the tracker — they only ever talk to the state hub.
+
+Why one bridge rather than per-repo plugins: external-tracker
+plugins store credentials and run scheduled sync. Putting them on
+every participant means N copies of the secret, N concurrent sync
+races, and N places where mirroring policy ("should this ball go
+out?") can drift. One bridge keeps secret, schedule, and policy in
+one place.
+
+The bridge's `BALLS_IDENTITY` should be stable — its name appears
+on every mirrored ball and on every reply written back from the
+tracker. Treat the bridge as a long-running participant, not a
+transient claim.
+
 ## Creating Tasks
 
 If you discover work that needs doing:
