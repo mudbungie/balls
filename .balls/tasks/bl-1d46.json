@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-8a9a"],
   "description": "Per docs/SPEC-tracker-state.md (bl-40e9). Best done after the config split lands (sibling under bl-e118).\n\n- Rename master / hub / federated-mode in code, CLI help text, and docs to tracker / workspace. Reserve 'external tracker' for Jira / Linear / GitHub Issues so the word is unambiguous.\n- Rewrite the README multi-repo section and SKILL.md to the unified model: one tracker address, no mode, the config-ownership split. Supersedes bl-7cea (document master_url) -- master_url is being retired, so that ball's premise is obsolete.\n- Final check: every SPEC SS16 conformance test passes once bl-8a9a + the config-split ball + this have landed.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":112,"source":"balls","state":"open","synced_at":"2026-05-21T07:17:52.853722554+00:00","url":"https://github.com/mudbungie/balls/issues/112"}}},
   "id": "bl-1d46",
   "links": [],
   "parent": "bl-e118",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T07:17:52.871539989Z"},
   "tags": [],
   "title": "Terminology + docs sweep: tracker / workspace",
   "type": "task",
-  "updated_at": "2026-05-21T07:17:51.579814970Z"
+  "updated_at": "2026-05-21T07:17:52.871544398Z"
 }
