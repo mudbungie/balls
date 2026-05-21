@@ -458,9 +458,12 @@ Each task is a single JSON file at `.balls/tasks/<id>.json`.
   "links": [{"link_type": "relates_to", "target": "bl-z7w6"}],
   "closed_children": [],
   "external": {},
-  "delivered_in": null
+  "delivered_in": null,
+  "repo": "git@github.com:you/project.git"
 }
 ```
+
+The fields with no value here are *omitted* from the file rather than written as `null`/`{}`: `synced_at`, `sync_status`, `delivered_repo`, `target_branch`, and any `extra` passthrough keys appear only once set, and `repo` is likewise omitted when the task's code origin is unknown. The block above is a freshly-created task; see the table below for every field a task file can carry.
 
 Notes live in a sibling file `<id>.notes.jsonl` rather than in the task.json. That split is an architectural invariant — see Text-Mergeable Schema below.
 
@@ -485,7 +488,13 @@ Notes live in a sibling file `<id>.notes.jsonl` rather than in the task.json. Th
 | `links` | object[] | Typed relationships: `{"link_type": "relates_to\|duplicates\|supersedes\|replies_to", "target": "bl-XXXX"}` |
 | `closed_children` | object[] | Archived child tasks: `{"id": "...", "title": "...", "closed_at": "..."}`. Populated when a child task is closed and archived. |
 | `external` | object | Plugin-managed foreign keys. e.g., `{"jira": {"key": "PROJ-123", "synced_at": "..."}}`. Core never reads this; plugins own it. |
+| `synced_at` | object | Per-plugin timestamp of the last applied sync response: `{"<plugin>": "ISO 8601"}`. Plugins compare it against their remote's `updated_at` for bidirectional conflict resolution. A missing key means that plugin has never synced the task. Omitted from the file when empty. |
+| `sync_status` | object | Per-plugin verbatim reason the last native sync negotiation was skipped or failed: `{"<plugin>": "reason"}`. Set on skip, cleared on the next success. Omitted from the file when empty. |
 | `delivered_in` | string? | SHA of the main-branch squash commit that delivered this task. Written by `bl review`. Performance hint only — ground truth is the `[bl-xxxx]` tag in the commit subject. See Delivery Link. |
+| `repo` | string? | Code-home provenance: the code repo this task's work belongs to, as a fetchable `origin` URL. Stamped by `bl create`, re-anchored to the claiming clone by `bl claim`. Only a real URL is auto-written, so null/omitted means "origin unknown," not "single-repo." |
+| `delivered_repo` | string? | Delivery provenance: the code repo whose history contains `delivered_in`. Set wherever `delivered_in` is. Distinct from `repo` when a task is created in one clone and delivered from another on a shared hub. Null/omitted means the locally checked-out repo. |
+| `target_branch` | string? | Per-task override of the repo-level `target_branch` config. When set, `bl review` squashes this task into this branch, ignoring the repo default and current-branch fallback. Omitted when unset. |
+| `extra` | object | Forward-compat passthrough. Any top-level JSON key the current `bl` doesn't recognize lands here on load and round-trips back out on save, so an older `bl` won't silently drop a field a newer one wrote. Flattened into the top-level object — not nested under an `extra` key — and omitted when empty. |
 
 ### Text-mergeable schema
 
