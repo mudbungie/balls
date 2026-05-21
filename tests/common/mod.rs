@@ -35,13 +35,6 @@ pub fn tmp() -> TempDir {
         .expect("tempdir")
 }
 
-/// Environment variables that git sets during hooks. Must be cleared so
-/// tests using temp repos are fully isolated from the parent repo. The
-/// canonical list — and the `git` command builder below — come straight
-/// from the production `balls::git` path, so the test harness scrubs
-/// exactly what `bl` itself does.
-pub use balls::git::GIT_ENV_VARS;
-
 pub fn git(cwd: &Path, args: &[&str]) -> String {
     let out = clean_git_command(cwd).args(args).output().expect("git");
     assert!(
@@ -134,9 +127,6 @@ pub fn bl(cwd: &Path) -> Command {
     let mut c = Command::cargo_bin("bl").unwrap();
     c.current_dir(cwd);
     c.env("BALLS_IDENTITY", "test-user");
-    for var in GIT_ENV_VARS {
-        c.env_remove(var);
-    }
     c
 }
 
@@ -144,9 +134,6 @@ pub fn bl_as(cwd: &Path, identity: &str) -> Command {
     let mut c = Command::cargo_bin("bl").unwrap();
     c.current_dir(cwd);
     c.env("BALLS_IDENTITY", identity);
-    for var in GIT_ENV_VARS {
-        c.env_remove(var);
-    }
     c
 }
 

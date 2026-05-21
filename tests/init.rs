@@ -3,6 +3,11 @@
 
 mod common;
 
+// The raw `git` subprocesses in `fresh_install_no_git_identity` bypass
+// `clean_git_command`, so they must scrub the inherited git env themselves.
+// The `bl` binary needs no such scrub — it routes every git subprocess
+// through `clean_git_command`, which clears these on the production path.
+use balls::git::GIT_ENV_VARS;
 use common::*;
 use predicates::prelude::*;
 
@@ -118,9 +123,6 @@ fn fresh_install_no_git_identity() {
             .env("HOME", home.path())
             .env("GIT_CONFIG_GLOBAL", "/dev/null")
             .env("GIT_CONFIG_SYSTEM", "/dev/null");
-        for var in GIT_ENV_VARS {
-            c.env_remove(var);
-        }
         c
     };
 
