@@ -124,7 +124,7 @@ Source commits here aren't Conventional Commits, so release-plz can't infer mino
 | `[minor]`   | minor | New user-visible capability — new command, new config option, new behavior. |
 | *(none)*    | patch | Default. Bugfix, refactor, doc, internal cleanup.                           |
 
-Put the marker anywhere in any commit's message that lands in the release window — release-plz matches the regex against the full commit text, so the subject (alongside `[bl-xxxx]`) or the body both work. The most prominent commit of the change is the natural place. If multiple commits in the window are marked, the highest bump wins.
+Put the marker anywhere in any commit's message that lands in the release window — release-plz matches the regex against the full commit text, so the subject (alongside `[bl-xxxx]`) or the body both work. The marker must be a standalone bracketed token (preceded by start-of-string or whitespace, followed by end-of-string or whitespace), so prose mentions like `[minor]/[major]` describing the convention don't self-trigger a bump. The most prominent commit of the change is the natural place. If multiple commits in the window are marked, the highest bump wins.
 
 ```
 bl review bl-abcd \
