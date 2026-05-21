@@ -105,6 +105,37 @@ fn commit_touches_runtime_flags_code_refs_cache() {
 }
 
 #[test]
+fn commit_touches_runtime_flags_state_repo_clone() {
+    // bl-c439: master_url mode materializes a balls-owned clone of the
+    // task hub at `.balls/state-repo/`. It shares the shape of the
+    // other runtime paths — a deep file under it (here a task JSON in
+    // the hub clone's checked-out tree) must be recognized as runtime
+    // so a stale-gitignore repo cannot squash the entire hub clone into
+    // the integration branch.
+    let td = tempdir().unwrap();
+    init_repo(td.path());
+    std::fs::create_dir_all(td.path().join(".balls/state-repo/.balls/tasks")).unwrap();
+    std::fs::write(
+        td.path().join(".balls/state-repo/.balls/tasks/bl-9999.json"),
+        "{}",
+    )
+    .unwrap();
+    assert!(raw_git(td.path(), &["add", "-A"]).status.success());
+    assert!(raw_git(td.path(), &["commit", "-m", "bad"])
+        .status
+        .success());
+    let sha = String::from_utf8(raw_git(td.path(), &["rev-parse", "HEAD"]).stdout)
+        .unwrap()
+        .trim()
+        .to_string();
+    let hits = commit_touches_runtime(td.path(), &sha).unwrap();
+    assert_eq!(
+        hits,
+        vec![".balls/state-repo/.balls/tasks/bl-9999.json".to_string()]
+    );
+}
+
+#[test]
 fn commit_touches_runtime_empty_for_clean_commit() {
     let td = tempdir().unwrap();
     init_repo(td.path());
