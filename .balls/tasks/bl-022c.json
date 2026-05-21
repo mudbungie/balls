@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-022c",
+  "claimed_by": "Appraises",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T19:45:25.116367621Z",
@@ -13,10 +13,10 @@
   "parent": "bl-dc79",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T19:45:27.369837203Z"},
   "tags": [],
   "title": "Verify or gate state_branch — it materializes but push/sync hardcode balls/tasks",
   "type": "task",
-  "updated_at": "2026-05-21T19:45:27.369847967Z"
+  "updated_at": "2026-05-21T20:03:14.051456513Z"
 }
