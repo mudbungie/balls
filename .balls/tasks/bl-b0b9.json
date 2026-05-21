@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T19:45:46.423823114Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "bl-8a9a leaves the plugins MAP in the workspace-owned .balls/config.json (committed to the code branch) but moves per-plugin config FILES onto the tracker branch — plugin_admin::commit_change now commits .balls/plugins/* inside .balls/state-repo unconditionally, and the Source hub-vs-project enum was deleted. This split is a deliberate interim state: SPEC §7 and SS16 tests 5–6 (the project.json config-ownership split) will move the map onto the tracker too, but that is a separate child of bl-e118. Verify the interim split is coherent end to end: a federated bl plugin enable -> bl sync -> bl plugin disable cycle works, a fresh git clone inherits the plugin config files through the .balls/plugins symlink, plugin auth under .balls/local/plugins stays per-workspace, and nothing here blocks or contradicts the future project.json ball. Flag anything the project.json ball must reconcile.",
+  "external": {},
+  "id": "bl-b0b9",
+  "links": [],
+  "parent": "bl-dc79",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Verify the interim plugin-config split (map on code branch, files on tracker) is coherent",
+  "type": "task",
+  "updated_at": "2026-05-21T19:45:46.423823114Z"
+}
