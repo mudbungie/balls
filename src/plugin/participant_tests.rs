@@ -8,6 +8,7 @@ use super::*;
 use crate::config::PluginEntry;
 use crate::negotiation::{AttemptClass, FailurePolicy, NegotiationResult, Protocol};
 use crate::participant::{self, Event, EventCtx, Participant};
+use crate::plugin::runner::test_seam::ExecutableOverride;
 use crate::store::Store;
 use crate::task::{NewTaskOpts, Task, TaskType};
 
@@ -193,18 +194,11 @@ fn run_through_participant_primitive_absorbs_unreachable_as_skipped() {
     // breaks.
     let (_td, store) = stealth_store();
     save_task(&store, "bl-7e57");
+    // Unresolvable executable => auth_check fails => Other => Skipped.
+    let _exe = ExecutableOverride::unresolvable(&store.root);
     let p = LegacyPluginParticipant::from_entry(&store, "ghost".into(), &entry(true), None);
     let ctx = EventCtx::new(Event::Claim, &store, "bl-7e57", "alice");
-    let saved = std::env::var_os("PATH");
-    unsafe {
-        std::env::remove_var("PATH");
-    }
     let result = participant::run(&p, Event::Claim, ctx).unwrap();
-    if let Some(p) = saved {
-        unsafe {
-            std::env::set_var("PATH", p);
-        }
-    }
     assert!(
         matches!(&result, NegotiationResult::Skipped(s) if s.contains("auth check failed")),
         "expected Skipped from BestEffort policy, got {result:?}",
@@ -213,18 +207,16 @@ fn run_through_participant_primitive_absorbs_unreachable_as_skipped() {
 
 #[test]
 fn dispatch_propose_via_outer_protocol_unreachable_executable() {
-    // Drives `LegacyProtocol::propose` for both branches by stripping
-    // PATH so auth_check fails. Push and Sync both collapse to
-    // AttemptClass::Other; the dispatcher's BestEffort policy will
-    // absorb that, but here we exercise the protocol directly.
+    // Drives `LegacyProtocol::propose` for both branches with an
+    // unresolvable executable so auth_check fails. Push and Sync both
+    // collapse to AttemptClass::Other; the dispatcher's BestEffort
+    // policy will absorb that, but here we exercise the protocol
+    // directly.
     let (_td, store) = stealth_store();
     save_task(&store, "bl-0001");
+    let _exe = ExecutableOverride::unresolvable(&store.root);
     let p = LegacyPluginParticipant::from_entry(&store, "x".into(), &entry(true), None);
     let ctx = EventCtx::new(Event::Claim, &store, "bl-0001", "alice");
-    let saved = std::env::var_os("PATH");
-    unsafe {
-        std::env::remove_var("PATH");
-    }
     let mut push_proto = p.protocol(Event::Claim, ctx).unwrap();
     let push_class = push_proto.propose().unwrap();
     let push_outcome = push_proto.pushed();
@@ -236,11 +228,6 @@ fn dispatch_propose_via_outer_protocol_unreachable_executable() {
     let sync_outcome = sync_proto.pushed();
     let sync_budget = sync_proto.retry_budget();
     sync_proto.fetch_remote_view().unwrap();
-    if let Some(p) = saved {
-        unsafe {
-            std::env::set_var("PATH", p);
-        }
-    }
     assert!(matches!(push_class, AttemptClass::Other(_)));
     assert!(matches!(sync_class, AttemptClass::Other(_)));
     assert!(matches!(push_outcome, LegacyOutcome::Push(None)));
