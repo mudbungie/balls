@@ -9,7 +9,7 @@
   "description": "# Why\n\n`scripts/install-hooks.sh` symlinks `<git-common-dir>/hooks/pre-commit`\nat `<git-common-dir>/../scripts/pre-commit` — the `scripts/` dir of a\npresumed *main checkout* sitting beside `.git`. In the recommended\nbare-hub deployment there is no main checkout: `scripts/` exists only\ninside the ephemeral `.balls-worktrees/<id>/` worktrees. The symlink\ntarget never exists, so `.git/hooks/pre-commit` is a permanently\ndangling symlink — `test -x` fails on it, git treats the hook as\nabsent (`git hook run pre-commit` => \"cannot find a hook named\npre-commit\"), and every `git commit` from a worktree silently bypasses\nthe clippy / line-length / test / coverage gates.\n\n# Scope\n\n`install-hooks.sh` installs a self-contained stub into the shared hooks\ndir instead of symlinking a fixed checkout. The stub resolves the\n*committing* worktree at commit time (`git rev-parse --show-toplevel`)\nand execs that worktree's own `scripts/pre-commit`. Worktrees with no\n`scripts/pre-commit` (the `balls/tasks` state-branch worktree) commit\nungated, as before. Correct for bare hubs and ordinary clones alike;\na removed worktree never re-dangles the hook. Re-point the live\ndangling `.git/hooks/pre-commit` by running the fixed installer.\n\n# Relationship\n\nSibling of bl-1f38 (configurable pre-squash gate in `bl review`).\nbl-1f38 Q5 names this dangling-symlink bug and defers it to a sibling\nball. This fixes the hook for manual worktree commits; bl-1f38 owns the\ndeeper \"bl review squash bypasses the gates\" problem.\n\n# Out of scope\n\nWhether install-hooks.sh should be retired once bl review gates — that\ndecision belongs to bl-1f38.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":82,"source":"balls","state":"open","synced_at":"2026-05-21T01:58:18.608499504+00:00","url":"https://github.com/mudbungie/balls/issues/82"}}},
   "id": "bl-38c5",
-  "links": [],
+  "links": [{"link_type":"relates_to","target":"bl-1f38"}],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
@@ -18,5 +18,5 @@
   "tags": ["hygiene"],
   "title": "install-hooks.sh: pre-commit hook dangles in a bare hub",
   "type": "task",
-  "updated_at": "2026-05-21T01:58:18.629029236Z"
+  "updated_at": "2026-05-21T01:58:25.224847334Z"
 }
