@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-81e0",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T04:09:41.650966155Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T04:09:42.988172473Z"},
   "tags": [],
   "title": "SPEC the federated multi-repo state model",
   "type": "task",
-  "updated_at": "2026-05-21T04:09:42.988182913Z"
+  "updated_at": "2026-05-21T04:09:59.976381765Z"
 }
