@@ -62,6 +62,7 @@ pub mod review;
 mod review_close;
 pub mod review_deferred;
 pub mod review_safety;
+mod runtime_paths;
 pub mod sanitize;
 pub mod state_repo;
 pub mod status;
