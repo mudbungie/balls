@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\n`Task.repo` (src/task.rs) is provenance: \"the code repo this task\nwas created in (`origin` URL, else repo path). Set at create.\"\n\nTwo weaknesses in \"set at create\":\n\n1. Create anchors on *where the ball was filed*, not where its code\n   lives. A ball filed from the bare hub, or mirrored in by a\n   forge-sync bridge (README \"Bridging to an external tracker\"),\n   gets `repo` = the hub / the bridge — not the code repo. The\n   clone that is *definitionally* the code home is the one that runs\n   `bl claim`; SKILL.md already says \"claim from the clone whose\n   code the ball touches.\"\n\n2. `repo_url::current` falls back to the repo-root *basename* when a\n   clone has no `origin` (see tests/delivery_remote.rs — a fresh\n   test repo resolves to its dir basename). A create from such a\n   clone stamps `repo` with a non-URL basename string nobody can\n   fetch.\n\n# Scope\n\n- Stamp / backfill `repo` at `bl claim`: the claiming clone's\n  `origin` is the authoritative code home. If `repo` is unset, or\n  was create-stamped to a clone that is not the claimer, refine it\n  at claim time.\n- Guard the `repo_url::current` basename fallback on any auto-write\n  path: do not persist a bare basename as `repo` — leave it null\n  rather than write a value that cannot be fetched.\n- \"Freeze\" means *implicitly*: after claim, no lifecycle step\n  re-stamps `repo` on its own. It is NOT a locked field — an\n  explicit `bl update <id> repo=<url>` must still work, for fixups\n  when a task is escalated, reassigned, or abandoned and its home\n  repo changes. The invariant is \"nothing updates it behind your\n  back,\" not \"nobody may update it.\"\n\n# Why not re-stamp on every update\n\nThe tempting symmetry — stamp `repo_url::current` on every status\nupdate — is wrong. The clone running the *last* update is typically\nthe hub or a sibling doing `bl close`: the least authoritative\nlocation. Last-writer-wins makes the field track the closer, not\nthe code. This is exactly the bl-6816 clobber: `populate_on_close`\nrecomputes `repo_url::current` and overwrites `delivered_repo` with\nthe closing clone's URL. Set-once-then-implicitly-frozen is the\ndeliberate counter to that.\n\n# Origin\n\nDesign discussion closing bl-4fbc. Pairs with bl-6816 (same\nclobber-class on the sibling field `delivered_repo`).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":84,"source":"balls","state":"open","synced_at":"2026-05-21T02:03:46.188747936+00:00","url":"https://github.com/mudbungie/balls/issues/84"}}},
   "id": "bl-8994",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T02:03:46.211969884Z"},
   "tags": ["multi-repo","schema","provenance"],
   "title": "Anchor Task.repo at claim, not create; guard the basename fallback",
   "type": "task",
-  "updated_at": "2026-05-21T02:03:44.920812655Z"
+  "updated_at": "2026-05-21T02:03:46.211976476Z"
 }
