@@ -117,11 +117,19 @@ pub(crate) fn stealth_tasks_dir(root: &Path) -> PathBuf {
     PathBuf::from(base).join("tasks")
 }
 
+/// Base directory for a stealth/no-git store. Reads `HOME` once and
+/// delegates to the pure `dirs_base_for`, which is where the actual
+/// branch lives so it can be tested without an `env::remove_var` —
+/// that mutation is process-global and races every concurrent test
+/// that shells out to git (bl-bfa8).
 pub(crate) fn dirs_base(hash: &str) -> String {
-    if let Ok(home) = std::env::var("HOME") {
-        format!("{}/.local/share/balls/{}", home, &hash[..12])
-    } else {
-        format!("/tmp/balls-stealth-{}", &hash[..12])
+    dirs_base_for(std::env::var("HOME").ok().as_deref(), hash)
+}
+
+fn dirs_base_for(home: Option<&str>, hash: &str) -> String {
+    match home {
+        Some(home) => format!("{home}/.local/share/balls/{}", &hash[..12]),
+        None => format!("/tmp/balls-stealth-{}", &hash[..12]),
     }
 }
 
@@ -168,14 +176,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dirs_base_no_home() {
-        let saved = std::env::var("HOME").ok();
-        std::env::remove_var("HOME");
-        let result = dirs_base("abcdef123456789");
-        if let Some(h) = saved {
-            std::env::set_var("HOME", h);
-        }
-        assert!(result.starts_with("/tmp/balls-stealth-"));
+    fn dirs_base_for_falls_back_to_tmp_without_home() {
+        assert!(dirs_base_for(None, "abcdef123456789").starts_with("/tmp/balls-stealth-"));
+    }
+
+    #[test]
+    fn dirs_base_for_uses_xdg_data_dir_under_home() {
+        assert_eq!(
+            dirs_base_for(Some("/home/u"), "abcdef123456789"),
+            "/home/u/.local/share/balls/abcdef123456"
+        );
+    }
+
+    #[test]
+    fn dirs_base_reads_home_from_env() {
+        // Wrapper coverage: the test environment always has HOME set,
+        // so this exercises the env read + Some delegation without
+        // mutating any process-global state.
+        assert!(dirs_base("abcdef123456789").contains("/.local/share/balls/"));
     }
 
     #[test]
