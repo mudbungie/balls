@@ -6,37 +6,18 @@
 use super::*;
 use crate::config::Config;
 use crate::error::BallError;
+use crate::git_test_support::git_run;
 use std::path::Path;
-use std::process::Command;
 use tempfile::tempdir;
 
-/// Scrub git environment variables that a parent process (e.g. a
-/// pre-commit hook running these tests) may have leaked. Without
-/// this, a freshly-spawned `git init` inside a tempdir resolves to
-/// the parent repo's gitdir and the test bombs.
-fn raw_git(path: &Path, args: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(path).args(args);
-    for var in crate::git::GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    cmd.output().expect("spawn git")
-}
-
 /// Initialize a fresh non-bare repo at `path` with a configured user
-/// and an initial commit on `main`. Errors short-circuit the test
-/// downstream rather than producing a custom assertion message — the
-/// extra format args otherwise show up as uncovered "panic-branch"
-/// lines in tarpaulin's line coverage.
+/// and an initial commit on `main`.
 fn init_repo(path: &Path) {
-    let run = |args: &[&str]| {
-        assert!(raw_git(path, args).status.success());
-    };
-    run(&["init", "-q", "-b", "main"]);
-    run(&["config", "user.email", "test@example.com"]);
-    run(&["config", "user.name", "test"]);
-    run(&["config", "commit.gpgsign", "false"]);
-    run(&["commit", "--allow-empty", "-m", "init"]);
+    git_run(path, &["init", "-q", "-b", "main"]);
+    git_run(path, &["config", "user.email", "test@example.com"]);
+    git_run(path, &["config", "user.name", "test"]);
+    git_run(path, &["config", "commit.gpgsign", "false"]);
+    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
 }
 
 #[test]
@@ -50,9 +31,7 @@ fn is_bare_repo_false_on_regular_repo() {
 fn is_bare_repo_true_when_core_bare_flag_set() {
     let td = tempdir().unwrap();
     init_repo(td.path());
-    assert!(raw_git(td.path(), &["config", "core.bare", "true"])
-        .status
-        .success());
+    git_run(td.path(), &["config", "core.bare", "true"]);
     assert!(is_bare_repo(td.path()).unwrap());
 }
 
@@ -115,12 +94,7 @@ fn scrub_path_removes_registered_worktree() {
     init_repo(td.path());
     let wt = td.path().join("live-wt");
     let wt_str = wt.to_string_lossy().to_string();
-    assert!(raw_git(
-        td.path(),
-        &["worktree", "add", "--detach", &wt_str, "HEAD"]
-    )
-    .status
-    .success());
+    git_run(td.path(), &["worktree", "add", "--detach", &wt_str, "HEAD"]);
     scrub_path(td.path(), &wt);
     assert!(!wt.exists(), "scrub_path should remove registered worktree");
 }
@@ -160,9 +134,7 @@ fn squashes_in_place_false_on_bare_repo() {
     let td = tempdir().unwrap();
     init_repo(td.path());
     let store = Store::init(td.path(), false, None).unwrap();
-    assert!(raw_git(td.path(), &["config", "core.bare", "true"])
-        .status
-        .success());
+    git_run(td.path(), &["config", "core.bare", "true"]);
     assert!(!squashes_in_place(&store, "main").unwrap());
 }
 
