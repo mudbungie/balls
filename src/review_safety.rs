@@ -30,10 +30,15 @@ use std::path::Path;
 /// Runtime paths inside `.balls/` that are bl's internal state and
 /// must never travel through a squash to the integration branch.
 /// Kept in sync with `store_init::ensure_main_gitignore`.
-pub(crate) const RUNTIME_PATHS: &[&str] = &[".balls/local", ".balls/tasks", ".balls/worktree"];
+pub(crate) const RUNTIME_PATHS: &[&str] = &[
+    ".balls/local",
+    ".balls/tasks",
+    ".balls/worktree",
+    ".balls/code-refs",
+];
 
 /// `git add -A` for the worker's worktree, followed by a defensive
-/// `git rm --cached --ignore-unmatch` on the three runtime paths.
+/// `git rm --cached --ignore-unmatch` on every entry in `RUNTIME_PATHS`.
 /// Pathspec-based exclusion (`:(exclude).balls/...`) is rejected by
 /// git's `add` when the paths are gitignored, so we stage first then
 /// unstage the runtime paths. This works whether the runtime paths
@@ -96,9 +101,10 @@ pub fn rewind_main(store: &Store, main_branch: &str, pre_main_sha: &str) -> Resu
 pub fn runtime_in_squash_error(id: &str, paths: &[String]) -> BallError {
     BallError::Other(format!(
         "bl review {id} aborted: squash would deliver balls runtime path{plural} {list}. \
-         The work branch has tracked `.balls/local`, `.balls/tasks`, or `.balls/worktree` — \
-         these are internal state, not deliverables. Run `bl init` in the repo to refresh \
-         `.gitignore`, then `git rm --cached` the offending paths on the work branch and retry.",
+         The work branch has tracked a `.balls/` subpath (`local`, `tasks`, `worktree`, or \
+         `code-refs`) — these are internal state, not deliverables. Run `bl init` in the repo \
+         to refresh `.gitignore`, then `git rm --cached` the offending paths on the work branch \
+         and retry.",
         plural = if paths.len() == 1 { "" } else { "s" },
         list = paths.join(", "),
     ))
