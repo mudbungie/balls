@@ -94,7 +94,17 @@ fn link_add(store: &Store, task: String, link_type: String, target: String) -> R
     let lt = LinkType::parse(&link_type)?;
     let all = store.all_tasks()?;
     if !all.iter().any(|t| t.id == target) {
-        return Err(BallError::TaskNotFound(target));
+        // `gates` is the one type whose semantics break against a
+        // closed target — a closed gate target is a no-op blocker, so
+        // it stays rejected. Other types (relates_to / duplicates /
+        // supersedes / replies_to) are non-blocking metadata; fall
+        // back to archive recovery so retrospective cross-refs to a
+        // just-closed ball still record on the open side.
+        if matches!(lt, LinkType::Gates)
+            || balls::archive_recovery::recover_one(store, &target).is_none()
+        {
+            return Err(BallError::TaskNotFound(target));
+        }
     }
     let lt_str = lt.as_str().to_string();
     let _g = task_lock(store, &task)?;
