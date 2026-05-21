@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:33:38.790080291Z",
-  "delivered_in": null,
+  "delivered_in": "9adb0e685611b959cb94700e7e6cc7d642447faf",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\nbl-f37b made `bl show --resolve-remote` route through `delivered_repo`\nwhen the local tag scan misses. The parallel gap on the *write* side\nremains: `delivery::populate_on_close` still calls the local-only\n`resolve(repo_root, target_branch, task)` (see src/delivery.rs:170 on\nmain 86bf8f7), so a `bl close` running on a hub or sibling clone whose\nhistory doesn't carry the `[bl-xxxx]` squash silently archives the task\nwith `delivered_in: null` — even though `delivered_repo` is sitting\nright there in the task file and *would* resolve via the bl-f37b\nmachinery.\n\nThis matters most for the bridging pattern (README §Bridging): the\nbridge clone's `sync` hook closes a task that landed in repo B, and the\nbridge clone has no copy of B's main. Without remote resolution on\nclose, the archived task loses its sha provenance. The bl-733e\n`--delivered-repo` override patches part of this for the operator who\nalready knows the sha, but the unattended-sync case still drops it.\n\n# Scope\n\n- `populate_on_close`: when the hint-and-local-scan miss and the task\n  has `delivered_repo` set, opt into `resolve_with(..., ResolveOpts {\n  remote: true })` (or an equivalent call to `delivery_remote::resolve`).\n- New opt-in surface: either a `bl close --resolve-remote` flag mirroring\n  `bl show --resolve-remote`, a config knob, or an internal default\n  routed through the sync path (since sync hooks are the primary\n  driver). Probably the flag — the bridge can opt in from its hook and\n  human operators stay quiet.\n- Tests: hub or sibling clone whose state branch knows a delivered_repo\n  pointing at a fetchable URL with the `[bl-xxxx]` commit. Confirm\n  `bl close` writes the sha into the archived task. Soft-fail when the\n  URL is unreachable — same warn-once policy as the show path.\n\n# Open questions\n\n- Whether to also auto-engage on the deferred-mode `bl close` path\n  (where the gate child closes a delivery the closer has never seen).\n  Probably yes — the deferred-mode `bl close` is exactly the case where\n  the local clone may not be the one that produced the squash.\n- Whether to expose the resolution outcome (e.g. a note on the close\n  commit) or just write it silently.\n\n# Origin\n\nBl-f37b review pass — flagged as the symmetric gap to the read-side\nresolver and deferred so the bl-f37b ball stayed scoped to `bl show`.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":67,"source":"balls","state":"open","synced_at":"2026-05-21T00:38:36.571026678+00:00","url":"https://github.com/mudbungie/balls/issues/67"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T00:38:36.591907103Z"},
   "tags": ["multi-repo","schema","master-url"],
   "title": "bl close: resolve delivered_in via delivered_repo on local miss",
   "type": "task",
-  "updated_at": "2026-05-21T00:38:36.591912924Z"
+  "updated_at": "2026-05-21T00:52:04.199557658Z"
 }
