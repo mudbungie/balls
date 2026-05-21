@@ -4,14 +4,17 @@
 //! as a subprocess. A typical multi-dev scenario uses a bare "remote" and
 //! two cloned working repos as Dev A and Dev B.
 
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 
+mod config_seed;
 pub mod forge;
 pub mod human_gate;
 pub mod multidev;
 pub mod native_plugin;
 pub mod plugin;
 pub mod tracker;
+
+pub use config_seed::{seed_config, set_project_plugins};
 
 use assert_cmd::Command;
 use balls::git::clean_git_command;
@@ -270,22 +273,5 @@ pub fn show_json(repo: &Path, id: &str) -> serde_json::Value {
     serde_json::from_slice(&out.stdout).unwrap()
 }
 
-/// Write a minimal valid `.balls/config.json` before `bl init`, with
-/// `extra` string-valued keys merged into the base object. Use this
-/// instead of hand-rolling the config JSON literal per test — see
-/// `common::forge::seed` for the deferred-delivery variant.
-pub fn seed_config(repo: &Path, extra: &[(&str, &str)]) {
-    let mut cfg = serde_json::json!({
-        "version": 1,
-        "id_length": 4,
-        "stale_threshold_seconds": 60,
-        "worktree_dir": ".balls-worktrees",
-    });
-    let obj = cfg.as_object_mut().unwrap();
-    for (key, val) in extra {
-        obj.insert((*key).into(), serde_json::Value::String((*val).into()));
-    }
-    let balls = repo.join(".balls");
-    std::fs::create_dir_all(&balls).unwrap();
-    std::fs::write(balls.join("config.json"), cfg.to_string()).unwrap();
-}
+// `seed_config` / `set_project_plugins` live in `config_seed` (line-cap
+// split) and are re-exported above.

@@ -182,7 +182,9 @@ fn apply_failure_for_unknown_task_propagates_per_existing_policy() {
 fn review_with_corrupt_config_warns_and_exits_clean() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::write(repo.path().join(".balls/config.json"), "not json").unwrap();
+    // Plugin dispatch reads the project config (SPEC §7); a corrupt
+    // `.balls/project.json` is what makes the sync degrade gracefully.
+    fs::write(repo.path().join(".balls/project.json"), "not json").unwrap();
     let out = bl(repo.path())
         .args(["sync", "--review"])
         .output()

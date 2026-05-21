@@ -1,34 +1,25 @@
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::participant_config::ParticipantConfig;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 // The nested config blocks live in `config_blocks.rs` (line-cap split,
 // bl-1f38); re-exported here so `config::Delivery` etc. are unchanged.
 pub use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
+// `PluginEntry` is project config (SPEC §7) and lives in
+// `project_config`; re-exported so `config::PluginEntry` still resolves
+// for the callers that predate the split.
+pub use crate::project_config::PluginEntry;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginEntry {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub sync_on_change: bool,
-    pub config_file: String,
-    /// SPEC §11 — optional per-event participant policy. Absent on
-    /// legacy configs; the resolver falls through to the
-    /// `sync_on_change` mapping when this is `None`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub participant: Option<ParticipantConfig>,
-}
-
+/// Workspace-owned configuration (SPEC-tracker-state §7): how *this*
+/// repo builds, integrates, and where its task state lives. A real,
+/// never-symlinked `.balls/config.json`, committed to the code branch.
+/// The project-owned half — schema version, id width, plugin map — is
+/// `ProjectConfig` (`.balls/project.json`, on the tracker branch).
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub version: u32,
-    pub id_length: usize,
     pub stale_threshold_seconds: u64,
     #[serde(default = "default_true")]
     pub auto_fetch_on_ready: bool,
@@ -97,16 +88,6 @@ pub struct Config {
     /// untouched config stays byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review: Option<ReviewConfig>,
-    /// Advisory minimum `bl` version (SPEC §5 / §10). `None` (the
-    /// default, and every config written before this field) is silent.
-    /// When set, a client below it warns on load; older clients drop
-    /// the unknown field entirely. Advisory only — no engineering
-    /// prevention; see `min_version`. Skipped when unset so an
-    /// untouched config stays byte-identical.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_bl_version: Option<String>,
-    #[serde(default)]
-    pub plugins: BTreeMap<String, PluginEntry>,
 }
 
 fn default_true() -> bool {
@@ -116,8 +97,6 @@ fn default_true() -> bool {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: CONFIG_SCHEMA_VERSION,
-            id_length: 4,
             stale_threshold_seconds: 60,
             auto_fetch_on_ready: true,
             worktree_dir: ".balls-worktrees".to_string(),
@@ -132,18 +111,9 @@ impl Default for Config {
             target_branch: None,
             delivery: None,
             review: None,
-            min_bl_version: None,
-            plugins: BTreeMap::new(),
         }
     }
 }
-
-pub const ID_LENGTH_MIN: usize = 4;
-pub const ID_LENGTH_MAX: usize = 32;
-/// On-disk schema version for `.balls/config.json`. Older clients
-/// reject a higher number with a clear "bl is too old" error. New
-/// fields carry serde defaults so older configs load unchanged.
-pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
@@ -151,48 +121,25 @@ impl Config {
             std::io::ErrorKind::NotFound => BallError::config_missing(path),
             _ => BallError::Io(e),
         })?;
-        let mut c: Config = serde_json::from_str(&s)?;
-        c.sanitize();
+        let c: Config = serde_json::from_str(&s)?;
         c.validate()?;
-        crate::min_version::warn_if_below(c.min_bl_version.as_deref());
         Ok(c)
     }
 
-    /// Clamp `id_length` into the supported range, warning on clamp.
-    /// id_length = 0 would otherwise infinite-loop id generation; very large
-    /// values waste hex space without colliding any less.
-    fn sanitize(&mut self) {
-        if !(ID_LENGTH_MIN..=ID_LENGTH_MAX).contains(&self.id_length) {
-            let original = self.id_length;
-            self.id_length = self.id_length.clamp(ID_LENGTH_MIN, ID_LENGTH_MAX);
-            eprintln!(
-                "warning: id_length {} out of range [{}, {}]; clamped to {}",
-                original, ID_LENGTH_MIN, ID_LENGTH_MAX, self.id_length
-            );
-        }
-    }
-
     /// Reject `worktree_dir` values that would escape the repo root,
-    /// configs written with a schema version newer than this binary
-    /// understands, and a tracker address this `bl` cannot honor
-    /// (`tracker_address::ensure_supported`). `pub` so bl-32e5's admin
-    /// surface re-runs the gate before persisting.
+    /// and a tracker address this `bl` cannot honor
+    /// (`tracker_address::ensure_supported`, bl-022c). `pub` so bl-32e5's
+    /// admin surface re-runs the gate before persisting. The
+    /// schema-version and plugin-policy gates moved to
+    /// `ProjectConfig::validate` with their fields (SPEC §7).
     pub fn validate(&self) -> Result<()> {
-        if self.version > CONFIG_SCHEMA_VERSION {
-            return Err(BallError::Other(format!(
-                "config schema version {} is newer than this bl (supports up to {}); \
-                 upgrade bl to read this repo's config",
-                self.version, CONFIG_SCHEMA_VERSION
-            )));
-        }
         if self.worktree_dir.starts_with('/') || self.worktree_dir.contains("..") {
             return Err(BallError::Other(format!(
                 "invalid config: worktree_dir {:?} must be a relative path with no '..' segments",
                 self.worktree_dir
             )));
         }
-        crate::tracker_address::ensure_supported(self)?;
-        validate_drop_policies(&self.plugins)
+        crate::tracker_address::ensure_supported(self)
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
@@ -252,27 +199,6 @@ impl Config {
     pub fn review_pre_check(&self) -> Option<&str> {
         self.review.as_ref().and_then(|r| r.pre_check.as_deref())
     }
-}
-
-/// SPEC §6.2: `drop` is observe-only — only `best-effort` is legal.
-/// Lifted out of `validate()` to keep `config.rs` under the 300-line cap.
-fn validate_drop_policies(plugins: &BTreeMap<String, PluginEntry>) -> Result<()> {
-    for (name, entry) in plugins {
-        let Some(ep) = entry
-            .participant
-            .as_ref()
-            .and_then(|p| p.subscriptions.get(&crate::participant::Event::Drop))
-        else {
-            continue;
-        };
-        if !matches!(ep.policy, crate::participant_config::PolicyKind::BestEffort) {
-            return Err(BallError::Other(format!(
-                "invalid config: plugin {name:?} subscribes to `drop` with a \
-                 non-best-effort policy; drop is observe-only (SPEC §6.2)"
-            )));
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

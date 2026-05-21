@@ -2,7 +2,7 @@
 //! override, per-invocation `--skip` / `--required` shadowing.
 
 use super::*;
-use crate::config::{Config, PluginEntry};
+use crate::project_config::{PluginEntry, ProjectConfig};
 use crate::participant::Event;
 
 fn legacy_entry(sync_on_change: bool) -> PluginEntry {
@@ -204,9 +204,9 @@ fn invocation_overrides_default_is_empty() {
 
 #[test]
 fn participant_config_round_trip_through_full_config() {
-    // Full Config carrying a participant block round-trips through
+    // Full ProjectConfig carrying a participant block round-trips through
     // serde_json without losing the per-event policy.
-    let mut cfg = Config::default();
+    let mut cfg = ProjectConfig::default();
     cfg.plugins.insert(
         "jira".into(),
         entry_with(one_event(Event::Close, PolicyKind::Required)),
@@ -214,7 +214,7 @@ fn participant_config_round_trip_through_full_config() {
     let s = serde_json::to_string(&cfg).unwrap();
     assert!(s.contains("\"participant\""));
     assert!(s.contains("\"close\""));
-    let back: Config = serde_json::from_str(&s).unwrap();
+    let back: ProjectConfig = serde_json::from_str(&s).unwrap();
     let plug = back.plugins.get("jira").unwrap();
     let part = plug.participant.as_ref().unwrap();
     assert_eq!(
@@ -240,7 +240,7 @@ fn legacy_config_without_participant_block_round_trips() {
             }
         }
     }"#;
-    let cfg: Config = serde_json::from_str(s).unwrap();
+    let cfg: ProjectConfig = serde_json::from_str(s).unwrap();
     let entry = cfg.plugins.get("jira").unwrap();
     assert!(entry.participant.is_none());
     let resolved = effective_subscriptions(

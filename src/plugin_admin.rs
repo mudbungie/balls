@@ -1,13 +1,13 @@
 //! `bl plugin enable/disable/list` — first-class plugin management
-//! (bl-32e5). The `plugins` map lives in the workspace-owned
-//! `.balls/config.json`; per-plugin config files live in the state
-//! checkout (`.balls/plugins` symlinks into it). `enable`/`disable`
-//! update the map in place and commit the touched config *files* onto
-//! the state branch — the `config.json` map change stays for the
-//! operator to commit, mirroring `bl remaster`'s `--commit` shape.
+//! (bl-32e5). The `plugins` map is project config (SPEC §7): it lives
+//! in `.balls/project.json` on the tracker branch, reached through the
+//! `.balls/project.json` symlink, alongside the per-plugin config
+//! files under `.balls/plugins/`. `enable`/`disable` update the map in
+//! place and `commit_change` commits both `project.json` and the
+//! touched config files onto the tracker branch in one step.
 
-use crate::config::{Config, PluginEntry};
 use crate::error::{BallError, NotInitKind, Result};
+use crate::project_config::{PluginEntry, ProjectConfig};
 use crate::git;
 use crate::store::Store;
 use crate::store_lock;
@@ -15,11 +15,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Where the effective plugins map lives. Routes through the same seam
-/// as `Plugin::resolve`'s config-file lookup (`store.plugin_config_root`)
-/// so the admin surface and the runtime always agree.
+/// Where the effective plugins map lives — `.balls/project.json`, the
+/// project config on the tracker branch (SPEC §7). The single seam the
+/// admin surface and `load_effective` route through.
 pub fn effective_config_path(store: &Store) -> PathBuf {
-    store.plugin_config_root().join(".balls/config.json")
+    store.project_config_path()
 }
 
 pub fn effective_plugins_dir(store: &Store) -> PathBuf {
@@ -142,10 +142,12 @@ pub struct DisableReport {
     pub config_path: PathBuf,
 }
 
-pub(crate) fn load_or_default(path: &Path) -> Result<Config> {
-    match Config::load(path) {
+pub(crate) fn load_or_default(path: &Path) -> Result<ProjectConfig> {
+    match ProjectConfig::load(path) {
         Ok(c) => Ok(c),
-        Err(BallError::NotInitialized(NotInitKind::ConfigMissing(_))) => Ok(Config::default()),
+        Err(BallError::NotInitialized(NotInitKind::ConfigMissing(_))) => {
+            Ok(ProjectConfig::default())
+        }
         Err(e) => Err(e),
     }
 }
@@ -157,11 +159,11 @@ fn ensure_parent(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Commit the plugin config *files* the change touched onto the state
-/// branch — `.balls/plugins/*` lives in the state checkout. The
-/// `.balls/config.json` plugins map is workspace-owned (committed to
-/// the code branch by the operator, as for `bl remaster --commit`). A
-/// stealth repo has no state checkout — a no-op.
+/// Commit the change onto the tracker branch — `.balls/project.json`
+/// (the plugins map) and the touched `.balls/plugins/*` config files
+/// both live in the state checkout, so one `git add -A` + commit
+/// publishes the whole change. A stealth repo has no state checkout —
+/// a no-op; the operator commits its loose `.balls/` themselves.
 pub(crate) fn commit_change(store: &Store, message: &str) -> Result<()> {
     if store.stealth {
         return Ok(());
