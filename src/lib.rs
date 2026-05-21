@@ -27,6 +27,8 @@ pub mod commit_policy;
 pub mod config;
 pub mod delivery;
 pub mod delivery_remote;
+#[cfg(test)]
+pub(crate) mod delivery_test_support;
 pub mod display;
 pub mod doctor;
 mod doctor_symlink;
@@ -57,6 +59,7 @@ pub mod render_show_text;
 pub mod repo_url;
 pub mod resolve;
 pub mod review;
+mod review_close;
 pub mod review_deferred;
 pub mod review_safety;
 pub mod sanitize;

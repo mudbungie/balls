@@ -138,7 +138,7 @@ fn main() {
         Command::Close { id, args } => {
             commands::cmd_close(
                 normalize_id(id), args.message, args.identity,
-                args.delivered, args.delivered_repo,
+                args.delivered, args.delivered_repo, args.resolve_remote,
                 args.sync, args.no_sync, args.participant.overrides(),
             )
         }
