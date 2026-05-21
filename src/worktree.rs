@@ -44,6 +44,24 @@ pub(crate) fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
     Ok(store.worktrees_root()?.join(id))
 }
 
+/// Anchor `task.repo` — code-home provenance — to the clone running
+/// `bl claim`. That clone is definitionally the code home: the skill
+/// guide says "claim from the clone whose code the ball touches,"
+/// whereas `bl create` only knows where the ball was *filed*, which
+/// on a bare hub or a forge-sync bridge is not a code repo at all. So
+/// claim, not create, is where `repo` gets its authoritative value.
+///
+/// Only a fetchable `origin` URL is written; a clone with no `origin`
+/// leaves `repo` untouched rather than clobber a good create-stamp
+/// with a bare basename nobody can fetch. After claim no lifecycle
+/// step re-stamps `repo` on its own — last-writer-wins would track
+/// the closing clone (typically the hub), not the code (bl-8994).
+fn anchor_repo(store: &Store, task: &mut task::Task) {
+    if let Some(url) = crate::repo_url::origin_url(&store.root) {
+        task.repo = Some(url);
+    }
+}
+
 pub fn create_worktree(
     store: &Store,
     id: &str,
@@ -87,6 +105,7 @@ pub fn create_worktree(
         task.status = Status::InProgress;
         task.claimed_by = Some(identity.to_string());
         task.branch = Some(branch.clone());
+        anchor_repo(store, &mut task);
         task.touch();
 
         store.save_task(&task)?;
@@ -197,6 +216,7 @@ pub fn claim_no_worktree(
         }
         task.status = Status::InProgress;
         task.claimed_by = Some(identity.to_string());
+        anchor_repo(store, &mut task);
         task.touch();
         store.save_task(&task)?;
         store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
