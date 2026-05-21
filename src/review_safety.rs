@@ -151,6 +151,14 @@ pub fn commit_squash_and_flip(
         None
     };
     t.status = Status::Review;
+    if had_delivery {
+        // bl-7523: tag the delivery's source repo so a reader on the
+        // master hub (or a sibling client) can still resolve the sha
+        // back to a repo it can fetch from. Only set when there was
+        // an actual squash — a no-code checkpoint review has nothing
+        // to attach provenance to.
+        t.delivered_repo = Some(crate::repo_url::current(&store.root));
+    }
     t.delivered_in = delivered_sha;
     t.touch();
     t.save(&task_path)?;

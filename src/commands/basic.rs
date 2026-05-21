@@ -8,7 +8,7 @@ use balls::participant_config::{override_tokens, InvocationOverrides};
 use balls::plugin::{self, Rollback};
 use balls::ready;
 use balls::render_list;
-use balls::store::{task_lock, Store};
+use balls::store::task_lock;
 use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 
@@ -68,7 +68,7 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
     // validated above.
 
     let mut task = Task::new(opts, id.clone());
-    task.repo = Some(repo_identity(&store));
+    task.repo = Some(balls::repo_url::current(&store.root));
     task.target_branch = target_branch;
     let rb = plugin::state_head(&store)?;
     {
@@ -95,33 +95,6 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
 
     println!("{id}");
     Ok(())
-}
-
-/// Provenance string for tasks created here: the code repo's `origin`
-/// URL when there is one (stable across clones — the right key once
-/// many repos share a hub), otherwise the repo path.
-fn repo_identity(store: &Store) -> String {
-    identity_from(git_origin_url(&store.root), &store.root)
-}
-
-fn git_origin_url(root: &std::path::Path) -> Option<String> {
-    let out = balls::git::clean_git_command(root)
-        .args(["remote", "get-url", "origin"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!url.is_empty()).then_some(url)
-}
-
-/// Pure choice: `origin` URL if present, else the repo's directory
-/// name, else the full path. Split out so every branch is unit-tested
-/// without spawning git.
-fn identity_from(url: Option<String>, root: &std::path::Path) -> String {
-    url.or_else(|| root.file_name().map(|s| s.to_string_lossy().into_owned()))
-        .unwrap_or_else(|| root.to_string_lossy().into_owned())
 }
 
 pub fn cmd_list(
@@ -266,24 +239,3 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::identity_from;
-    use std::path::Path;
-
-    #[test]
-    fn identity_prefers_url() {
-        let got = identity_from(Some("git@h:proj.git".into()), Path::new("/x/y"));
-        assert_eq!(got, "git@h:proj.git");
-    }
-
-    #[test]
-    fn identity_falls_back_to_basename() {
-        assert_eq!(identity_from(None, Path::new("/x/myrepo")), "myrepo");
-    }
-
-    #[test]
-    fn identity_falls_back_to_path_when_no_basename() {
-        assert_eq!(identity_from(None, Path::new("/")), "/");
-    }
-}
