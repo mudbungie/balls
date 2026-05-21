@@ -8,7 +8,6 @@
 //! `repair` stays the only action verb; doctor only ever suggests.
 
 use crate::doctor_symlink::check_tasks_symlink;
-use crate::git;
 use crate::store::Store;
 use crate::task::Status;
 use std::fs;
@@ -75,7 +74,7 @@ fn check_store(store: &Store) -> Vec<Finding> {
     let mut out = Vec::new();
     check_config(store, &mut out);
     check_tasks_dir_override(store, &mut out);
-    check_state_worktree(store, &mut out);
+    check_state_repo(store, &mut out);
     check_stale_claims(store, &mut out);
     check_orphan_worktrees(store, &mut out);
     out
@@ -108,123 +107,33 @@ fn check_tasks_dir_override(store: &Store, out: &mut Vec<Finding>) {
     }
 }
 
-/// Validate the state checkout. Two layouts in play (bl-ffb4): in
-/// `master_url` mode this is a balls-owned full clone at
-/// `.balls/state-repo/`; otherwise it's a linked git worktree of the
-/// project at `.balls/worktree/`. Different shape on disk, different
-/// fix command — branch on which one this repo is configured for.
-fn check_state_worktree(store: &Store, out: &mut Vec<Finding>) {
+/// Validate the unified state checkout (SPEC-tracker-state §4):
+/// `.balls/state-repo` is a full git clone — a `.git` *directory*
+/// with a HEAD — and the `.balls/tasks` convenience symlink resolves
+/// into it. Stealth repos have no state checkout, nothing to check.
+fn check_state_repo(store: &Store, out: &mut Vec<Finding>) {
     if store.stealth {
         return;
     }
-    let dir = store.state_worktree_dir();
-    match master_url(store) {
-        Some(url) => {
-            check_state_repo(&dir, &url, out);
-            check_tasks_symlink(&store.root, "state-repo/.balls/tasks", out);
-        }
-        None => check_legacy_worktree(&dir, out),
-    }
-}
-
-fn master_url(store: &Store) -> Option<String> {
-    crate::master_pointer::MasterPointer::load_or_empty(&store.root)
-        .master_url
-        .clone()
-}
-
-fn check_legacy_worktree(dir: &Path, out: &mut Vec<Finding>) {
-    if !linked_worktree_ok(dir) {
+    let dir = store.state_repo_dir();
+    if !state_repo_ok(&dir) {
         out.push(Finding::flag(
+            format!("state checkout at {} is not a valid git clone", dir.display()),
             format!(
-                "state worktree at {} is not a valid linked git worktree",
-                dir.display()
-            ),
-            format!(
-                "remove {} and re-run `bl init` to re-materialize the state worktree",
-                dir.display()
-            ),
-        ));
-    }
-}
-
-/// `master_url` mode: state-repo is a full clone, not a linked
-/// worktree, so its `.git` must be a directory. A missing or broken
-/// clone is repaired by `bl prime`, which re-runs `state_repo::ensure`
-/// against the committed `master_url` (auto-provisioning); doctor's
-/// suggested fix is to remove the broken dir so prime can re-materialize.
-///
-/// Also surfaces master_url-vs-origin drift: if a user hand-edited
-/// `master_url` in `.balls/master.json` after the clone was already
-/// materialized, the recorded URL and the materialized clone disagree
-/// — exactly the kind of drift doctor exists to name.
-fn check_state_repo(dir: &Path, master_url: &str, out: &mut Vec<Finding>) {
-    if !state_repo_ok(dir) {
-        out.push(Finding::flag(
-            format!("state-repo at {} is not a valid git clone", dir.display()),
-            format!(
-                "remove {} and re-run `bl prime` to re-materialize from master_url",
+                "remove {} and re-run `bl prime` to re-materialize it from \
+                 the tracker address",
                 dir.display()
             ),
         ));
         return;
     }
-    match read_origin_url(dir) {
-        Some(origin) if origin != master_url => out.push(Finding::flag(
-            format!(
-                "state-repo origin `{origin}` does not match \
-                 committed master_url `{master_url}`"
-            ),
-            "edit master_url in .balls/master.json, or run \
-             `bl remaster <hub-url> --commit` to repoint",
-        )),
-        None => out.push(Finding::flag(
-            format!(
-                "state-repo at {} has no `origin` remote (committed \
-                 master_url is `{master_url}`)",
-                dir.display()
-            ),
-            format!(
-                "remove {} and re-run `bl prime` to re-materialize",
-                dir.display()
-            ),
-        )),
-        _ => {}
-    }
+    check_tasks_symlink(&store.root, "state-repo/.balls/tasks", out);
 }
 
-/// A linked worktree's `.git` is a *file* whose `gitdir:` target still
-/// exists. Checking the pointer directly avoids being fooled by the
-/// enclosing repo, which a `git -C` probe would just walk up into.
-fn linked_worktree_ok(dir: &Path) -> bool {
-    let Ok(content) = fs::read_to_string(dir.join(".git")) else {
-        return false;
-    };
-    let Some(rest) = content.trim().strip_prefix("gitdir:") else {
-        return false;
-    };
-    Path::new(rest.trim()).exists()
-}
-
-/// State-repo is a full clone; `.git` must be a directory with a HEAD.
-/// A `.git` file would be a linked-worktree pointer — wrong layout for
-/// the `master_url` model.
+/// The state checkout is a full clone; `.git` must be a directory
+/// with a HEAD (a `.git` file would be a stray linked-worktree pointer).
 fn state_repo_ok(dir: &Path) -> bool {
     dir.join(".git").is_dir() && dir.join(".git/HEAD").exists()
-}
-
-fn read_origin_url(dir: &Path) -> Option<String> {
-    let out = git::clean_git_command(dir)
-        .args(["remote", "get-url", "origin"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    // `git remote get-url origin` either errors (no such remote) or
-    // prints the URL — it never succeeds with an empty value, so
-    // success implies a usable string here.
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 fn check_stale_claims(store: &Store, out: &mut Vec<Finding>) {

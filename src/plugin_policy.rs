@@ -19,9 +19,9 @@ use crate::config::PluginEntry;
 use crate::error::{BallError, Result};
 use crate::participant::Event;
 use crate::participant_config::{legacy_subscriptions, EventPolicy, ParticipantConfig, PolicyKind};
-use crate::plugin_admin::{self, Source};
+use crate::plugin_admin;
 use crate::store::Store;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// One participant-policy mutation. The four variants are mutually
 /// exclusive — [`parse_op`] builds exactly one and the CLI ArgGroup
@@ -44,10 +44,9 @@ pub enum PolicyOp {
 }
 
 /// Outcome of [`apply`], carrying what the command layer needs to
-/// print the source-specific follow-up hint.
+/// print the follow-up hint.
 #[derive(Debug)]
 pub struct PolicyReport {
-    pub source: Source,
     pub config_path: PathBuf,
 }
 
@@ -56,7 +55,6 @@ pub struct PolicyReport {
 #[derive(Debug)]
 pub struct PluginView {
     pub entry: PluginEntry,
-    pub source: Source,
     /// `true` when the entry carries an explicit `participant` block;
     /// `false` when `resolved` was derived from the legacy mapping.
     pub explicit: bool,
@@ -175,15 +173,8 @@ pub fn apply(store: &Store, name: &str, op: PolicyOp) -> Result<PolicyReport> {
     apply_to_entry(entry, op)?;
     cfg.validate()?;
     cfg.save(&cfg_path)?;
-    let source = Source::from_store(store);
-    plugin_admin::commit_change(
-        store,
-        source,
-        &[Path::new(".balls/config.json")],
-        &format!("balls: plugin policy {name}"),
-    )?;
-    let report = PolicyReport { source, config_path: cfg_path };
-    Ok(report)
+    plugin_admin::commit_change(store, &format!("balls: plugin policy {name}"))?;
+    Ok(PolicyReport { config_path: cfg_path })
 }
 
 /// The pure mutation, split out so it is unit-testable without a
@@ -220,7 +211,7 @@ fn apply_to_entry(entry: &mut PluginEntry, op: PolicyOp) -> Result<()> {
 /// for `bl plugin show`.
 pub fn describe(store: &Store, name: &str) -> Result<PluginView> {
     plugin_admin::validate_name(name)?;
-    let (plugins, source) = plugin_admin::load_effective(store)?;
+    let plugins = plugin_admin::load_effective(store)?;
     let entry = plugins.get(name).cloned().ok_or_else(|| {
         BallError::Other(format!("no plugin named {name:?} in the effective config"))
     })?;
@@ -229,8 +220,7 @@ pub fn describe(store: &Store, name: &str) -> Result<PluginView> {
         .participant
         .clone()
         .unwrap_or_else(|| legacy_subscriptions(entry.sync_on_change));
-    let view = PluginView { entry, source, explicit, resolved };
-    Ok(view)
+    Ok(PluginView { entry, explicit, resolved })
 }
 
 #[cfg(test)]

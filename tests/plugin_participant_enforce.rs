@@ -23,7 +23,7 @@ use common::*;
 use std::path::Path;
 
 fn state_subject(repo: &Path) -> String {
-    git(repo, &["log", "-1", "--format=%s", "balls/tasks"])
+    git_state(repo, &["log", "-1", "--format=%s", "balls/tasks"])
 }
 
 const REJECT: &str = r#"

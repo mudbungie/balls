@@ -184,7 +184,7 @@ fn no_worktree_claim_also_syncs() {
         .success();
 
     // The claim commit must be reachable from origin/balls/tasks.
-    let s = git(alice.path(), &["log", "--format=%s", "origin/balls/tasks"]);
+    let s = git_state(alice.path(), &["log", "--format=%s", "origin/balls/tasks"]);
     assert!(
         s.lines().any(|l| l.contains(&format!("balls: claim {id}"))),
         "expected claim commit on origin/balls/tasks, got:\n{s}"

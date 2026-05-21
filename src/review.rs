@@ -167,7 +167,7 @@ pub fn review_worktree(
         // integration branch == checkout) `rev-parse <branch>` and
         // `rev-parse HEAD` resolve the same sha — byte-identical.
         let pre_main_sha = git::git_resolve_sha(&store.root, &main_branch)?;
-        let state_dir = store.state_worktree_dir();
+        let state_dir = store.state_repo_dir();
         let pre_state_sha =
             (policy.require_remote && !store.stealth)
                 .then(|| git::git_resolve_sha(&state_dir, "HEAD"))

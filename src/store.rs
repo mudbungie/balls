@@ -1,11 +1,10 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::store_init::{bootstrap_bare_hub, commit_init, setup_state_branch};
-use crate::store_paths::{
-    auto_provision_master, find_balls_root, find_main_root, init_stealth_tasks, resolve_layout,
-};
+use crate::store_init::{bootstrap_bare_hub, commit_init};
+use crate::store_paths::{find_balls_root, find_main_root, init_stealth_tasks, stealth_tasks_override};
 use crate::task::{self, Task};
+use crate::tracker_address;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -20,9 +19,10 @@ pub struct Store {
     /// True when no git repository is available. Implies stealth.
     pub no_git: bool,
     tasks_dir_path: PathBuf,
-    /// Where state-branch git ops run. `.balls/state-repo` under
-    /// `master_url`, `.balls/worktree` otherwise (bl-ffb4 seam).
-    state_worktree_path: PathBuf,
+    /// Where state-branch git ops run — the unified `.balls/state-repo`
+    /// checkout for every non-stealth repo. A meaningless sentinel in
+    /// stealth mode; callers branch on `stealth` first.
+    state_repo_path: PathBuf,
 }
 
 impl Store {
@@ -42,27 +42,57 @@ impl Store {
         if !main_root.join(".balls").exists() {
             return Err(BallError::git_repo_no_balls(&main_root));
         }
-        // Auto-provision the balls-owned state-repo on first discover
-        // after a fresh `git clone` of a master_url-configured project.
-        // Idempotent. An unreachable hub at first-time materialization
-        // hard-fails here (bl-dcd3) — the user must resolve access or
-        // `bl remaster --detach` before any other command will run.
-        auto_provision_master(&main_root)?;
-        let (tasks_dir_path, stealth, state_worktree_path) = resolve_layout(&main_root);
-        if !stealth && !tasks_dir_path.exists() {
+        git::git_ensure_user(&main_root)?;
+        if let Some(tasks_dir_path) = stealth_tasks_override(&main_root) {
+            let state_repo_path = main_root.join(crate::state_repo::STATE_REPO_REL);
+            return Ok(Store {
+                root: main_root,
+                stealth: true,
+                no_git: false,
+                tasks_dir_path,
+                state_repo_path,
+            });
+        }
+        // The unified model resolves ONE checkout, `.balls/state-repo`,
+        // for every repo — materialized from the tracker address on
+        // first discover after a fresh `git clone` (and migrated in
+        // place from a legacy `.balls/worktree`). An unreachable
+        // explicit tracker hard-fails here (SPEC §9).
+        let state_repo_path = Self::ensure_state_repo(&main_root)?;
+        let tasks_dir_path = state_repo_path.join(".balls/tasks");
+        if !tasks_dir_path.exists() {
             return Err(BallError::state_worktree_missing(&main_root, &tasks_dir_path));
         }
-        git::git_ensure_user(&main_root)?;
-        Ok(Store { root: main_root, stealth, no_git: false, tasks_dir_path, state_worktree_path })
+        Ok(Store { root: main_root, stealth: false, no_git: false, tasks_dir_path, state_repo_path })
+    }
+
+    /// Materialize `.balls/state-repo` if absent, returning its path.
+    /// A warm checkout is returned untouched — no network round-trip.
+    fn ensure_state_repo(root: &Path) -> Result<PathBuf> {
+        let dir = root.join(crate::state_repo::STATE_REPO_REL);
+        if dir.join(".git").exists() {
+            return Ok(dir);
+        }
+        let cfg = Config::load(&root.join(".balls/config.json"))?;
+        let addr = tracker_address::resolve(root, &cfg);
+        crate::state_repo::ensure(root, &addr)
     }
 
     fn discover_no_git(from: &Path) -> Result<Self> {
         let root = find_balls_root(from)?;
-        let (tasks_dir_path, stealth, state_worktree_path) = resolve_layout(&root);
-        if !stealth || !tasks_dir_path.exists() {
-            return Err(BallError::no_git_store_unusable(&root, &tasks_dir_path, stealth));
+        let tasks_dir = stealth_tasks_override(&root);
+        if let Some(p) = tasks_dir.as_ref().filter(|p| p.exists()) {
+            return Ok(Store {
+                state_repo_path: root.join(crate::state_repo::STATE_REPO_REL),
+                tasks_dir_path: p.clone(),
+                root,
+                stealth: true,
+                no_git: true,
+            });
         }
-        Ok(Store { root, stealth, no_git: true, tasks_dir_path, state_worktree_path })
+        let had = tasks_dir.is_some();
+        let shown = tasks_dir.unwrap_or_else(|| root.join(".balls/tasks"));
+        Err(BallError::no_git_store_unusable(&root, &shown, had))
     }
 
     pub fn init(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
@@ -86,7 +116,13 @@ impl Store {
         let balls_dir = repo_root.join(".balls");
         let local_dir = balls_dir.join("local");
         let already = balls_dir.join("config.json").exists();
-        fs::create_dir_all(balls_dir.join("plugins"))?;
+        // On a non-stealth repo `.balls/plugins` becomes a symlink into
+        // the state checkout; a re-init must not `create_dir_all`
+        // through that symlink (it dangles until `ensure` rebuilds).
+        let plugins = balls_dir.join("plugins");
+        if !plugins.is_symlink() {
+            fs::create_dir_all(&plugins)?;
+        }
         fs::create_dir_all(local_dir.join("claims"))?;
         fs::create_dir_all(local_dir.join("lock"))?;
         fs::create_dir_all(local_dir.join("plugins"))?;
@@ -96,34 +132,32 @@ impl Store {
         }
 
         let use_stealth = stealth || tasks_dir.is_some();
-        let (tasks_dir_path, is_stealth, state_worktree_path) = if use_stealth {
-            init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?
+        let (tasks_dir_path, state_repo_path) = if use_stealth {
+            let td = init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?;
+            (td, repo_root.join(crate::state_repo::STATE_REPO_REL))
         } else {
-            // `master_url` (in the pointer) overrides the project-worktree
-            // leg entirely: balls owns its own clone, project's
-            // `.git/config` stays untouched (bl-ffb4 + bl-82a4).
-            let pointer = crate::master_pointer::MasterPointer::load(&repo_root)?;
-            let wt = if let Some(url) = pointer.master_url() {
-                crate::state_repo::ensure(&repo_root, url)?
-            } else {
-                setup_state_branch(&repo_root, pointer.state_remote(), pointer.state_remote.is_some())?;
-                repo_root.join(".balls/worktree")
-            };
-            (wt.join(".balls/tasks"), false, wt)
+            // The unified checkout: `state_repo::ensure` materializes
+            // `.balls/state-repo` from the resolved tracker address
+            // (the code `origin` by default).
+            let cfg = Config::load(&config_path)?;
+            let addr = tracker_address::resolve(&repo_root, &cfg);
+            let sr = crate::state_repo::ensure(&repo_root, &addr)?;
+            (sr.join(".balls/tasks"), sr)
         };
 
         if !no_git {
-            commit_init(&repo_root, is_stealth, already)?;
+            commit_init(&repo_root, use_stealth, already)?;
         }
-        Ok(Store { root: repo_root, stealth: is_stealth, no_git, tasks_dir_path, state_worktree_path })
+        Ok(Store { root: repo_root, stealth: use_stealth, no_git, tasks_dir_path, state_repo_path })
     }
 
     /// Bootstrap a bare central hub at `hubdir` from `source` and open
     /// a Store rooted there. Heavy lifting is in `bootstrap_bare_hub`.
     pub fn init_bare(source: &str, hubdir: &Path) -> Result<Self> {
         let root = bootstrap_bare_hub(source, hubdir)?;
-        let (tasks_dir_path, _, state_worktree_path) = resolve_layout(&root);
-        Ok(Store { root, stealth: false, no_git: false, tasks_dir_path, state_worktree_path })
+        let state_repo_path = root.join(crate::state_repo::STATE_REPO_REL);
+        let tasks_dir_path = state_repo_path.join(".balls/tasks");
+        Ok(Store { root, stealth: false, no_git: false, tasks_dir_path, state_repo_path })
     }
 
     pub fn balls_dir(&self) -> PathBuf {
@@ -134,14 +168,12 @@ impl Store {
         self.tasks_dir_path.clone()
     }
 
-    /// Directory where git operations against task state should run.
-    /// In non-stealth mode this is the resolved state checkout —
-    /// `.balls/state-repo/` when `master_url` is set (balls-owned clone,
-    /// bl-ffb4) or `.balls/worktree/` otherwise (legacy worktree of
-    /// project repo). In stealth mode the concept is meaningless —
-    /// callers branch on `stealth` first.
-    pub fn state_worktree_dir(&self) -> PathBuf {
-        self.state_worktree_path.clone()
+    /// Directory where git operations against task state run — the
+    /// unified `.balls/state-repo/` checkout (SPEC-tracker-state §4).
+    /// In stealth mode the concept is meaningless — callers branch on
+    /// `stealth` first.
+    pub fn state_repo_dir(&self) -> PathBuf {
+        self.state_repo_path.clone()
     }
 
     pub fn local_dir(&self) -> PathBuf {
@@ -164,15 +196,18 @@ impl Store {
         self.balls_dir().join("config.json")
     }
 
+    /// The workspace's config. `config.json` is a real, never-symlinked
+    /// workspace file under the unified model (SPEC §7), so the load
+    /// is a plain read with no federation layering.
     pub fn load_config(&self) -> Result<Config> {
-        let has_master = crate::master_pointer::MasterPointer::load_or_empty(&self.root)
-            .master_url()
-            .is_some();
-        crate::store_plugins::load_effective(&self.config_path(), &self.state_worktree_path, has_master)
+        Config::load(&self.config_path())
     }
 
+    /// Root that a plugin's `config_file` path is joined against. The
+    /// `.balls/plugins` symlink redirects into the state checkout, so
+    /// the workspace root always works.
     pub fn plugin_config_root(&self) -> PathBuf {
-        crate::store_plugins::plugin_config_root_for_store(self)
+        self.root.clone()
     }
 
     pub fn worktrees_root(&self) -> Result<PathBuf> {

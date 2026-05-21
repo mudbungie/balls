@@ -234,7 +234,6 @@ fn show_json_carries_entry_and_resolved() {
     assert!(out.status.success());
     let parsed: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(parsed["explicit"], Value::Bool(true));
-    assert_eq!(parsed["source"], "project");
     assert_eq!(
         parsed["resolved"]["subscriptions"]["sync"]["policy"],
         "required"

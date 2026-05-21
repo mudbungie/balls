@@ -90,7 +90,7 @@ fn log_overrides_noop_in_stealth() {
 #[test]
 fn log_overrides_amends_state_subject() {
     let (_td, store) = git_store();
-    let sd = store.state_worktree_dir();
+    let sd = store.state_repo_dir();
     log_overrides(&store, &["--no-sync".into(), "--skip=jira".into()]).unwrap();
     let subj = git_stdout(&sd, &["log", "-1", "--format=%s"]);
     assert!(subj.contains("[--no-sync] [--skip=jira]"), "got: {subj}");
@@ -102,7 +102,7 @@ fn log_overrides_errors_when_amend_fails() {
     // `git commit --amend` returns non-zero and the `!st.success()`
     // guard fires.
     let (_td, store) = git_store();
-    let sd = store.state_worktree_dir();
+    let sd = store.state_repo_dir();
     git_run(&sd, &["checkout", "--orphan", "void"]);
     let err = log_overrides(&store, &["--skip=jira".into()]).unwrap_err();
     assert!(format!("{err}").contains("override log"), "got: {err}");
@@ -134,7 +134,7 @@ fn finish_rolls_state_back_on_dispatch_error() {
     let rb = state_head(&store).unwrap();
     // Advance the state branch so a rewind to `rb` is observable,
     // then break config so `dispatch_push` errors at config load.
-    let sd = store.state_worktree_dir();
+    let sd = store.state_repo_dir();
     git_run(&sd, &["commit", "--allow-empty", "-m", "advance"]);
     std::fs::write(store.config_path(), "not json").unwrap();
     let err = finish(

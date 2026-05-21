@@ -10,7 +10,7 @@ use common::*;
 
 fn assert_no_runtime_paths(repo_root: &std::path::Path, ref_: &str) {
     let changed = git(repo_root, &["show", "--name-only", "--format=", ref_]);
-    for p in [".balls/local", ".balls/tasks", ".balls/worktree"] {
+    for p in [".balls/local", ".balls/tasks", ".balls/state-repo"] {
         assert!(
             !changed.lines().any(|l| l.starts_with(p)),
             "runtime path {p} leaked into commit {ref_}:\n{changed}"

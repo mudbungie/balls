@@ -95,7 +95,7 @@ fn create_failure_is_warned_not_fatal() {
     configure_plugin(repo.path());
     create_mock_auth(repo.path());
 
-    let tasks_dir = repo.path().join(".balls/worktree/.balls/tasks");
+    let tasks_dir = repo.path().join(".balls/state-repo/.balls/tasks");
     let saved = fs::metadata(&tasks_dir).unwrap().permissions();
     let mut ro = saved.clone();
     ro.set_mode(0o555);

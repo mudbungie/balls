@@ -136,7 +136,7 @@ fn review_sync_retries_through_negotiation_when_state_branch_advanced() {
     assert_eq!(j["status"], "review");
 
     // Origin records both bob's claim of B and alice's review of A.
-    let origin_log = git(alice.path(), &["log", "--format=%s", "origin/balls/tasks"]);
+    let origin_log = git_state(alice.path(), &["log", "--format=%s", "origin/balls/tasks"]);
     assert!(
         origin_log
             .lines()

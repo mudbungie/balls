@@ -52,7 +52,7 @@ fn main_log_stays_clean_through_task_lifecycle() {
     );
 
     // The state branch has all the bookkeeping.
-    let state_log = git(repo.path(), &["log", "--oneline", "balls/tasks"]);
+    let state_log = git_state(repo.path(), &["log", "--oneline", "balls/tasks"]);
     assert!(state_log.contains("create"));
     assert!(state_log.contains("close"));
 }
@@ -63,7 +63,7 @@ fn main_log_stays_clean_through_task_lifecycle() {
 fn bl_init_is_idempotent() {
     let repo = new_repo();
     init_in(repo.path());
-    let state_sha_1 = git(
+    let state_sha_1 = git_state(
         repo.path(),
         &["rev-parse", "refs/heads/balls/tasks"],
     )
@@ -73,7 +73,7 @@ fn bl_init_is_idempotent() {
     // Running init again must not advance the state branch or break
     // the symlink.
     init_in(repo.path());
-    let state_sha_2 = git(
+    let state_sha_2 = git_state(
         repo.path(),
         &["rev-parse", "refs/heads/balls/tasks"],
     )
@@ -84,7 +84,7 @@ fn bl_init_is_idempotent() {
         "second bl init must not advance the state branch"
     );
     assert!(repo.path().join(".balls/tasks").is_symlink());
-    assert!(repo.path().join(".balls/worktree").exists());
+    assert!(repo.path().join(".balls/state-repo").exists());
 }
 
 /// §14.15 — `bl init` self-heals a missing symlink or worktree. If a
@@ -115,20 +115,36 @@ fn bl_init_refuses_when_tasks_path_is_not_a_symlink() {
         .stderr(predicate::str::contains("unexpected non-symlink"));
 }
 
-/// If the state worktree is missing in a non-stealth repo,
-/// `Store::discover` must fail with NotInitialized instead of
-/// silently returning an empty store.
+/// `.balls/state-repo` is gitignored, re-materializable runtime state
+/// (SPEC-tracker-state §4): deleting it is not fatal — the next
+/// command rebuilds the checkout from the tracker address.
+/// A `.balls/state-repo` git clone whose `.balls/tasks` tree is gone
+/// is a broken checkout, not a missing one: discover keeps the warm
+/// clone and surfaces the breakage rather than silently rebuilding.
 #[test]
-fn bl_list_fails_when_state_worktree_missing() {
+fn bl_fails_when_state_checkout_lacks_its_tasks_dir() {
     let repo = new_repo();
     init_in(repo.path());
-    let _ = std::fs::remove_file(repo.path().join(".balls/tasks"));
-    let _ = std::fs::remove_dir_all(repo.path().join(".balls/worktree"));
+    std::fs::remove_dir_all(repo.path().join(".balls/state-repo/.balls/tasks")).unwrap();
     bl(repo.path())
         .arg("list")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not initialized"));
+        .stderr(predicate::str::contains("task state is"));
+}
+
+#[test]
+fn missing_state_checkout_is_re_materialized() {
+    let repo = new_repo();
+    init_in(repo.path());
+    let _ = std::fs::remove_file(repo.path().join(".balls/tasks"));
+    std::fs::remove_dir_all(repo.path().join(".balls/state-repo")).unwrap();
+
+    bl(repo.path()).arg("list").assert().success();
+    assert!(
+        repo.path().join(".balls/state-repo/.git").exists(),
+        "discover must re-materialize the deleted state checkout"
+    );
 }
 
 /// Bl worktrees created by `bl claim` inherit the state symlink so a

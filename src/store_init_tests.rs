@@ -1,26 +1,18 @@
-//! Unit coverage for `commit_init`'s federated-mode decision (bl-4432).
-//! The decision must come from `master_url` in config, not from probing
-//! for the `.balls/plugins` symlink — so these tests deliberately never
-//! create that symlink, only the config that drives the choice.
+//! Unit coverage for `commit_init`: the workspace-checkout commit at
+//! `bl init`. Non-stealth commits `.gitignore` and the workspace-owned
+//! `.balls/config.json`; the state checkout's symlinks are gitignored
+//! runtime state. Stealth has no state checkout, so it additionally
+//! owns a real `.balls/plugins/` with a `.gitkeep`.
 
 use super::*;
 use crate::git_test_support::{git_stdout, init_repo};
 use tempfile::TempDir;
 
 /// Scaffold the `.balls/` layout `commit_init` expects: a real plugins
-/// directory, a canonical config, and — for the federated case — the
-/// `.balls/master.json` pointer (bl-82a4) carrying the `master_url`.
-fn scaffold(root: &Path, master_url: Option<&str>) {
+/// directory and a workspace `config.json`.
+fn scaffold(root: &Path) {
     fs::create_dir_all(root.join(".balls/plugins")).unwrap();
     Config::default().save(&root.join(".balls/config.json")).unwrap();
-    if let Some(url) = master_url {
-        crate::master_pointer::MasterPointer {
-            master_url: Some(url.to_string()),
-            state_remote: None,
-        }
-        .save(root)
-        .unwrap();
-    }
 }
 
 fn tracked(root: &Path) -> String {
@@ -32,50 +24,42 @@ fn last_subject(root: &Path) -> String {
 }
 
 #[test]
-fn standalone_seeds_and_stages_gitkeep() {
+fn non_stealth_commits_config_and_gitignore() {
     let td = TempDir::new().unwrap();
     init_repo(td.path());
-    scaffold(td.path(), None);
+    scaffold(td.path());
 
     commit_init(td.path(), false, false).unwrap();
 
-    assert!(td.path().join(".balls/plugins/.gitkeep").exists());
     let files = tracked(td.path());
-    assert!(files.contains(".balls/plugins/.gitkeep"), "{files}");
     assert!(files.contains(".balls/config.json"), "{files}");
     assert!(files.contains(".gitignore"), "{files}");
+    assert!(
+        !files.contains(".gitkeep"),
+        "the state checkout's plugins dir is a gitignored symlink: {files}"
+    );
     assert_eq!(last_subject(td.path()), "balls: initialize");
 }
 
 #[test]
-fn federated_skips_gitkeep_even_without_symlink() {
-    // The bl-4432 deliverable: a master_url repo must skip the project
-    // `.gitkeep` purely on config — with no `.balls/plugins` symlink
-    // present, which is the ordering the old probe silently relied on.
+fn stealth_seeds_and_stages_the_plugins_gitkeep() {
+    // Stealth has no state checkout, so `.balls/plugins/` stays a real
+    // committed directory with a placeholder.
     let td = TempDir::new().unwrap();
     init_repo(td.path());
-    scaffold(td.path(), Some("https://hub.example/tasks.git"));
-    assert!(!td.path().join(".balls/plugins").is_symlink());
+    scaffold(td.path());
 
-    commit_init(td.path(), false, false).unwrap();
+    commit_init(td.path(), true, false).unwrap();
 
-    assert!(
-        !td.path().join(".balls/plugins/.gitkeep").exists(),
-        "federated mode must not seed a project-owned .gitkeep"
-    );
-    let files = tracked(td.path());
-    assert!(!files.contains(".gitkeep"), "{files}");
-    // bl-82a4: in federated mode the canonical is a gitignored symlink;
-    // the committed federation artifact is the master.json pointer.
-    assert!(!files.contains(".balls/config.json"), "{files}");
-    assert!(files.contains(".balls/master.json"), "{files}");
+    assert!(td.path().join(".balls/plugins/.gitkeep").exists());
+    assert!(tracked(td.path()).contains(".balls/plugins/.gitkeep"));
 }
 
 #[test]
 fn reinitialize_uses_reinitialize_subject() {
     let td = TempDir::new().unwrap();
     init_repo(td.path());
-    scaffold(td.path(), None);
+    scaffold(td.path());
 
     commit_init(td.path(), false, true).unwrap();
 
@@ -83,29 +67,14 @@ fn reinitialize_uses_reinitialize_subject() {
 }
 
 #[test]
-fn existing_gitkeep_is_left_intact() {
+fn stealth_leaves_an_existing_gitkeep_intact() {
     let td = TempDir::new().unwrap();
     init_repo(td.path());
-    scaffold(td.path(), None);
+    scaffold(td.path());
     let keep = td.path().join(".balls/plugins/.gitkeep");
     fs::write(&keep, "sentinel").unwrap();
 
-    commit_init(td.path(), false, false).unwrap();
-
-    // A pre-existing placeholder is staged but never rewritten.
-    assert_eq!(fs::read_to_string(&keep).unwrap(), "sentinel");
-    assert!(tracked(td.path()).contains(".balls/plugins/.gitkeep"));
-}
-
-#[test]
-fn stealth_owns_gitkeep_even_with_master_url_in_config() {
-    // Stealth never runs `state_repo::ensure`, so it always owns the
-    // placeholder — a stray `master_url` in config must not flip that.
-    let td = TempDir::new().unwrap();
-    init_repo(td.path());
-    scaffold(td.path(), Some("https://hub.example/tasks.git"));
-
     commit_init(td.path(), true, false).unwrap();
 
-    assert!(td.path().join(".balls/plugins/.gitkeep").exists());
+    assert_eq!(fs::read_to_string(&keep).unwrap(), "sentinel");
 }

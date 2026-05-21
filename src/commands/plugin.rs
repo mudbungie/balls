@@ -4,8 +4,8 @@
 
 use super::discover;
 use balls::error::Result;
-use balls::plugin_admin::{self, DisableReport, EnableReport, Source};
-use balls::plugin_policy::{self, PluginView, PolicyReport};
+use balls::plugin_admin::{self, EnableReport};
+use balls::plugin_policy::{self, PluginView};
 use serde_json::json;
 
 pub fn cmd_plugin_enable(
@@ -27,29 +27,23 @@ pub fn cmd_plugin_enable(
 
 pub fn cmd_plugin_disable(name: String) -> Result<()> {
     let store = discover()?;
-    let report = plugin_admin::disable(&store, &name)?;
-    print_disable(&name, &report);
+    plugin_admin::disable(&store, &name)?;
+    println!("disabled {name} (config file kept)");
+    follow_up_hint(&[".balls/config.json"]);
     Ok(())
 }
 
 pub fn cmd_plugin_list(json_mode: bool) -> Result<()> {
     let store = discover()?;
-    let (plugins, source) = plugin_admin::load_effective(&store)?;
+    let plugins = plugin_admin::load_effective(&store)?;
     if json_mode {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "source": source.as_str(),
-                "plugins": plugins,
-            }))?
-        );
+        println!("{}", serde_json::to_string_pretty(&json!({ "plugins": plugins }))?);
         return Ok(());
     }
     if plugins.is_empty() {
-        println!("no plugins enabled (source: {})", source.as_str());
+        println!("no plugins enabled");
         return Ok(());
     }
-    println!("source: {}", source.as_str());
     for (name, entry) in &plugins {
         let on = if entry.enabled { "on" } else { "off" };
         let sync = if entry.sync_on_change { "+sync" } else { "" };
@@ -71,38 +65,21 @@ pub fn cmd_plugin_list(json_mode: bool) -> Result<()> {
 }
 
 fn print_enable(name: &str, r: &EnableReport) {
-    let where_ = match r.source {
-        Source::Hub => "hub (state-repo, balls/tasks)",
-        Source::Project => "project",
-    };
-    println!("enabled {name} on {where_}");
+    println!("enabled {name}");
     if r.file_created {
         println!("  created {}", r.file_path.display());
     } else {
         println!("  using existing {}", r.file_path.display());
     }
-    follow_up_hint(r.source, &[".balls/config.json"]);
+    follow_up_hint(&[".balls/config.json"]);
 }
 
-fn print_disable(name: &str, r: &DisableReport) {
-    let where_ = match r.source {
-        Source::Hub => "hub (state-repo, balls/tasks)",
-        Source::Project => "project",
-    };
-    println!("disabled {name} on {where_} (config file kept)");
-    follow_up_hint(r.source, &[".balls/config.json"]);
-}
-
-fn follow_up_hint(source: Source, paths: &[&str]) {
-    match source {
-        Source::Hub => {
-            println!("  run `bl sync` to publish to the hub");
-        }
-        Source::Project => {
-            let joined = paths.join(" ");
-            println!("  commit to publish: git add {joined} && git commit");
-        }
-    }
+/// The `plugins` map lives in the workspace `config.json` — committed
+/// to the code branch by the operator. (The plugin config *files* in
+/// the state checkout are committed for them by `plugin_admin`.)
+fn follow_up_hint(paths: &[&str]) {
+    let joined = paths.join(" ");
+    println!("  commit to publish: git add {joined} && git commit");
 }
 
 pub fn cmd_plugin_policy(
@@ -114,39 +91,31 @@ pub fn cmd_plugin_policy(
 ) -> Result<()> {
     let store = discover()?;
     let op = plugin_policy::parse_op(&set, &rm, clear, no_legacy)?;
-    let report = plugin_policy::apply(&store, &name, op)?;
-    print_policy(&name, &set, &rm, clear, no_legacy, &report);
+    plugin_policy::apply(&store, &name, op)?;
+    print_policy(&name, &set, &rm, clear, no_legacy);
     Ok(())
 }
 
-fn print_policy(
-    name: &str,
-    set: &[String],
-    rm: &[String],
-    clear: bool,
-    no_legacy: bool,
-    r: &PolicyReport,
-) {
-    let where_ = r.source.as_str();
+fn print_policy(name: &str, set: &[String], rm: &[String], clear: bool, no_legacy: bool) {
     if clear {
-        println!("cleared participant block for {name} ({where_})");
+        println!("cleared participant block for {name}");
         println!("  {name} now falls back to the legacy sync_on_change mapping");
     } else if no_legacy {
-        println!("set {name} to explicit empty subscriptions ({where_})");
+        println!("set {name} to explicit empty subscriptions");
         println!("  legacy fallback suppressed — {name} participates in no events");
     } else if !rm.is_empty() {
         println!(
-            "dropped {n} subscription(s) for {name} ({where_}): {events}",
+            "dropped {n} subscription(s) for {name}: {events}",
             n = rm.len(),
             events = rm.join(", ")
         );
     } else {
         println!(
-            "updated participant policy for {name} ({where_}): {tokens}",
+            "updated participant policy for {name}: {tokens}",
             tokens = set.join(", ")
         );
     }
-    follow_up_hint(r.source, &[".balls/config.json"]);
+    follow_up_hint(&[".balls/config.json"]);
 }
 
 pub fn cmd_plugin_show(name: String, json_mode: bool) -> Result<()> {
@@ -157,7 +126,6 @@ pub fn cmd_plugin_show(name: String, json_mode: bool) -> Result<()> {
             "{}",
             serde_json::to_string_pretty(&json!({
                 "name": name,
-                "source": view.source.as_str(),
                 "explicit": view.explicit,
                 "entry": &view.entry,
                 "resolved": &view.resolved,
@@ -170,7 +138,7 @@ pub fn cmd_plugin_show(name: String, json_mode: bool) -> Result<()> {
 }
 
 fn print_show(name: &str, v: &PluginView) {
-    println!("plugin {name} (source: {})", v.source.as_str());
+    println!("plugin {name}");
     println!("  enabled:        {}", v.entry.enabled);
     println!("  sync_on_change: {}", v.entry.sync_on_change);
     println!("  config_file:    {}", v.entry.config_file);

@@ -1,34 +1,6 @@
 use super::*;
 
 #[test]
-fn state_remote_opt_precedence() {
-    let mut pointer = MasterPointer::default();
-    // Neither set → None (caller applies its own default).
-    assert_eq!(state_remote_opt(&pointer, None), None);
-    // Committed only → committed.
-    pointer.state_remote = Some("committed".into());
-    assert_eq!(
-        state_remote_opt(&pointer, None).as_deref(),
-        Some("committed")
-    );
-    // A local override with no state_remote falls through.
-    let bare = LocalConfig::default();
-    assert_eq!(
-        state_remote_opt(&pointer, Some(&bare)).as_deref(),
-        Some("committed")
-    );
-    // Per-clone override wins over committed.
-    let local = LocalConfig {
-        state_remote: Some("local".into()),
-        ..Default::default()
-    };
-    assert_eq!(
-        state_remote_opt(&pointer, Some(&local)).as_deref(),
-        Some("local")
-    );
-}
-
-#[test]
 fn cli_sync_overrides_everything() {
     let p = resolve(false, None, SyncOverride::Sync);
     assert!(p.require_remote);

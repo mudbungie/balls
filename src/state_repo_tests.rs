@@ -1,171 +1,190 @@
-//! Unit tests for `state_repo`. Materialization tests stand up a
-//! one-shot hub via a bare local repo so the codepath exercises the
-//! online branch (`origin/balls/tasks` exists and gets tracked) and
-//! the offline fallback (unreachable URL → safe-but-unlinked) without
-//! a network dependency.
+//! Unit tests for the unified `state_repo` materializer. Trackers are
+//! bare local repos so every branch — online clone, offline fallback,
+//! hard-fail, and in-place legacy migration — runs without a network.
 
-use super::test_support::hub_repo;
+use super::test_support::{empty_hub, explicit, hub_repo, hub_url, implicit, implicit_url, legacy_project};
 use super::*;
 use crate::git;
-use tempfile::TempDir;
 
 #[test]
-fn ensure_clones_from_reachable_hub_and_tracks_balls_tasks() {
+fn ensure_clones_from_reachable_tracker_and_tracks_state_branch() {
     let hub = hub_repo();
-    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
-    let root = TempDir::new().unwrap();
+    let root = tempfile::TempDir::new().unwrap();
+    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
 
-    let dir = ensure(root.path(), &url).unwrap();
     assert!(dir.join(".git").exists());
     assert!(git_state::branch_exists(&dir, "balls/tasks"));
     assert!(git_state::has_remote_branch(&dir, "origin", "balls/tasks"));
     assert!(dir.join(".balls/tasks/.gitattributes").exists());
-    assert!(dir.join(".balls/tasks/.gitkeep").exists());
-    assert_eq!(
-        git::git_current_branch(&dir).unwrap(),
-        "balls/tasks",
-        "state-repo must have balls/tasks checked out"
+    assert!(dir.join(".balls/plugins/.gitkeep").exists());
+    assert_eq!(git::git_current_branch(&dir).unwrap(), "balls/tasks");
+}
+
+#[test]
+fn ensure_implicit_default_no_url_inits_a_local_orphan() {
+    // A solo repo with no `origin` is offline-bootstrappable (§9).
+    let root = tempfile::TempDir::new().unwrap();
+    let dir = ensure(root.path(), &implicit()).unwrap();
+    assert!(dir.join(".git").exists());
+    assert!(git_state::branch_exists(&dir, "balls/tasks"));
+    assert!(!git::git_has_remote(&dir, "origin"));
+}
+
+#[test]
+fn ensure_explicit_unreachable_tracker_hard_fails() {
+    let root = tempfile::TempDir::new().unwrap();
+    let url = "/no/such/explicit/tracker.git";
+    let err = ensure(root.path(), &explicit(url)).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains(url), "names the URL: {msg}");
+    assert!(msg.contains("could not reach state tracker"), "{msg}");
+    assert!(msg.contains("remaster --detach"), "offers the escape hatch: {msg}");
+    assert!(msg.contains("state_url"), "names the config field: {msg}");
+    assert!(
+        !root.path().join(".balls/state-repo").exists(),
+        "a hard-fail leaves no partial checkout"
     );
 }
 
 #[test]
-fn ensure_creates_root_tasks_symlink_in_master_url_mode() {
-    // bl-38dd: the legacy `setup_state_branch` leg drops a
-    // `.balls/tasks -> worktree/.balls/tasks` symlink so engineers on
-    // main can `ls .balls/tasks/` without any balls-specific knowledge.
-    // The master_url leg bypasses that helper, so the symlink has to be
-    // recreated here with the target swapped to the state-repo layout.
-    let hub = hub_repo();
-    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
-    let root = TempDir::new().unwrap();
-
-    ensure(root.path(), &url).unwrap();
-
-    let link = root.path().join(".balls/tasks");
-    assert!(link.is_symlink(), "ensure must materialize the convenience symlink");
-    let target = std::fs::read_link(&link).unwrap();
-    assert_eq!(
-        target,
-        Path::new("state-repo/.balls/tasks"),
-        "symlink target must reach the state-repo's tasks dir"
-    );
-    // Resolving through the symlink must hit the seeded tasks directory.
-    assert!(link.join(".gitkeep").exists());
+fn ensure_implicit_unreachable_falls_back_to_a_local_orphan() {
+    // A legacy `state_remote` / implicit origin that is unreachable
+    // stays safe-but-unlinked rather than hard-failing.
+    let root = tempfile::TempDir::new().unwrap();
+    let dir = ensure(root.path(), &implicit_url("/no/such/tracker.git")).unwrap();
+    assert!(git_state::branch_exists(&dir, "balls/tasks"));
 }
 
 #[test]
-fn ensure_repoints_stale_legacy_symlink_after_remaster() {
-    // bl-773e: a repo initialized in legacy mode lands a
-    // `.balls/tasks -> worktree/.balls/tasks` symlink. `bl remaster
-    // --commit <url>` flips it to master_url mode and `state_repo::ensure`
-    // must repoint the symlink at `state-repo/.balls/tasks`; otherwise
-    // the link silently dangles once `.balls/worktree/` is gone and the
-    // README-advertised `ls .balls/tasks/` ergonomic breaks.
+fn ensure_seeds_an_orphan_when_the_tracker_has_no_state_branch() {
+    let hub = empty_hub();
+    let root = tempfile::TempDir::new().unwrap();
+    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    assert!(git_state::branch_exists(&dir, "balls/tasks"));
+    assert!(dir.join(".balls/tasks/.gitattributes").exists());
+}
+
+#[test]
+fn ensure_migrates_a_legacy_worktree_in_place() {
+    let project = legacy_project();
+    let root = project.path();
+    let dir = ensure(root, &implicit()).unwrap();
+
+    // The legacy task survived into the new checkout.
+    assert!(dir.join(".balls/tasks/bl-legacytask.json").exists());
+    // The legacy `.balls/worktree` and the project's own branch are gone.
+    assert!(!root.join(".balls/worktree").exists());
+    assert!(!git_state::branch_exists(root, "balls/tasks"));
+    // The convenience symlink points at the new checkout.
+    let target = std::fs::read_link(root.join(".balls/tasks")).unwrap();
+    assert_eq!(target, Path::new("state-repo/.balls/tasks"));
+}
+
+#[test]
+fn ensure_is_idempotent_and_warm_path_skips_the_network() {
     let hub = hub_repo();
-    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
-    let root = TempDir::new().unwrap();
+    let root = tempfile::TempDir::new().unwrap();
+    let dir1 = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let sha1 = git::git_resolve_sha(&dir1, "balls/tasks").unwrap();
+    // Drop the tracker — a warm checkout must not need it again.
+    drop(hub);
+    let dir2 = ensure(root.path(), &implicit()).unwrap();
+    assert_eq!(dir1, dir2);
+    assert_eq!(sha1, git::git_resolve_sha(&dir2, "balls/tasks").unwrap());
+}
+
+#[test]
+fn ensure_warm_repoints_origin_at_the_address_url() {
+    let root = tempfile::TempDir::new().unwrap();
+    ensure(root.path(), &implicit()).unwrap(); // no origin
+    let hub = hub_repo();
+    let url = hub_url(&hub);
+    let dir = ensure(root.path(), &explicit(&url)).unwrap();
+    assert_eq!(git_state::remote_url(&dir, "origin").as_deref(), Some(url.as_str()));
+}
+
+#[test]
+fn ensure_materializes_the_tasks_and_plugins_symlinks() {
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
+    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let balls = root.path().join(".balls");
+    assert!(balls.join("tasks").is_symlink());
+    assert!(balls.join("plugins").is_symlink());
+    assert_eq!(
+        std::fs::read_link(balls.join("tasks")).unwrap(),
+        Path::new("state-repo/.balls/tasks")
+    );
+    assert!(balls.join("tasks/.gitkeep").exists(), "symlink resolves into the checkout");
+}
+
+#[test]
+fn ensure_repoints_a_stale_legacy_tasks_symlink() {
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls")).unwrap();
     std::os::unix::fs::symlink(
         PathBuf::from("worktree/.balls/tasks"),
         root.path().join(".balls/tasks"),
     )
     .unwrap();
-
-    ensure(root.path(), &url).unwrap();
-
-    let target = fs::read_link(root.path().join(".balls/tasks")).unwrap();
+    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
     assert_eq!(
-        target,
-        Path::new("state-repo/.balls/tasks"),
-        "stale legacy symlink must be repointed at the state-repo layout"
+        fs::read_link(root.path().join(".balls/tasks")).unwrap(),
+        Path::new("state-repo/.balls/tasks")
     );
 }
 
 #[test]
-fn ensure_refuses_pre_existing_non_symlink_at_tasks_path() {
-    // The bl-init guard against clobbering a stray `.balls/tasks` dir
-    // applies in master_url mode too — silently adopting it could
-    // shadow uncommitted task files an operator put there by hand.
+fn ensure_repoints_a_stale_plugins_symlink() {
     let hub = hub_repo();
-    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
-    let root = TempDir::new().unwrap();
+    let root = tempfile::TempDir::new().unwrap();
+    fs::create_dir_all(root.path().join(".balls")).unwrap();
+    std::os::unix::fs::symlink(
+        PathBuf::from("old-stale-target"),
+        root.path().join(".balls/plugins"),
+    )
+    .unwrap();
+    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    assert_eq!(
+        fs::read_link(root.path().join(".balls/plugins")).unwrap(),
+        Path::new("state-repo/.balls/plugins")
+    );
+}
+
+#[test]
+fn ensure_migration_clears_a_stray_unregistered_worktree_dir() {
+    // The legacy `.balls/worktree` lingers as a plain directory that
+    // git no longer tracks as a worktree — `git worktree remove`
+    // fails, so the filesystem fallback clears it.
+    let project = legacy_project();
+    let root = project.path();
+    crate::git_test_support::git_run(root, &["worktree", "remove", "--force", ".balls/worktree"]);
+    fs::create_dir_all(root.join(".balls/worktree/stray")).unwrap();
+    ensure(root, &implicit()).unwrap();
+    assert!(!root.join(".balls/worktree").exists(), "the stray worktree dir is cleared");
+}
+
+#[test]
+fn ensure_refuses_a_pre_existing_non_symlink_at_the_tasks_path() {
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls/tasks")).unwrap();
-
-    let err = ensure(root.path(), &url).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("unexpected non-symlink"), "guard message must surface: {msg}");
+    let err = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap_err();
+    assert!(err.to_string().contains("unexpected non-symlink"), "{err}");
 }
 
 #[test]
-fn ensure_is_idempotent() {
+fn ensure_absorbs_a_real_plugins_dir_into_the_checkout() {
     let hub = hub_repo();
-    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
-    let root = TempDir::new().unwrap();
-
-    let dir1 = ensure(root.path(), &url).unwrap();
-    let sha1 = git::git_resolve_sha(&dir1, "balls/tasks").unwrap();
-    let dir2 = ensure(root.path(), &url).unwrap();
-    let sha2 = git::git_resolve_sha(&dir2, "balls/tasks").unwrap();
-    assert_eq!(dir1, dir2);
-    assert_eq!(sha1, sha2, "re-running ensure must not re-root the branch");
-}
-
-#[test]
-fn ensure_first_time_unreachable_hub_hard_fails(
-) {
-    // bl-dcd3: a cross-repo client with `master_url` set is a pure
-    // pointer to the hub. If first-time setup can't reach it, the
-    // only safe outcome is to stop — silently dropping to a local
-    // orphan would let the user accumulate task changes that diverge
-    // from the team. The error names the URL, the underlying fetch
-    // failure, and the three resolution paths.
-    let root = TempDir::new().unwrap();
-    let url = "/this/path/does/not/exist/hub.git";
-
-    let err = ensure(root.path(), url).unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains(url), "error must name the URL: {msg}");
-    assert!(
-        msg.contains("could not reach state hub"),
-        "error must call out the unreachable hub: {msg}"
-    );
-    assert!(
-        msg.contains("remaster --detach"),
-        "error must mention the standalone escape hatch: {msg}"
-    );
-    assert!(
-        msg.contains("master_url"),
-        "error must name the config field to edit: {msg}"
-    );
-    // Scaffold rolled back so the next attempt is a clean first-time,
-    // not a half-built cache that would soft-fail.
-    assert!(
-        !root.path().join(".balls/state-repo").exists(),
-        "first-time failure must leave no partial state-repo behind"
-    );
-}
-
-#[test]
-fn ensure_warm_cache_offline_soft_fails() {
-    // Once a state-repo has been successfully materialized, a later
-    // offline invocation continues from the local cache — parity with
-    // normal git, and the only soft-fail path the cross-repo model
-    // accepts. bl-dcd3.
-    let hub = hub_repo();
-    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
-    let root = TempDir::new().unwrap();
-
-    // Warm the cache against a reachable hub.
-    let dir = ensure(root.path(), &url).unwrap();
-    let sha = git::git_resolve_sha(&dir, "balls/tasks").unwrap();
-
-    // Drop the hub: subsequent invocations must keep working from the
-    // local cache rather than re-erroring.
-    drop(hub);
-    let dir2 = ensure(root.path(), &url).unwrap();
-    assert_eq!(dir, dir2);
-    let sha2 = git::git_resolve_sha(&dir2, "balls/tasks").unwrap();
-    assert_eq!(sha, sha2, "warm cache offline must not lose history");
+    let root = tempfile::TempDir::new().unwrap();
+    let plugins = root.path().join(".balls/plugins");
+    fs::create_dir_all(&plugins).unwrap();
+    fs::write(plugins.join("github.json"), "{}\n").unwrap();
+    fs::write(plugins.join(".gitkeep"), "").unwrap();
+    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    assert!(plugins.is_symlink(), "real plugins dir replaced by a symlink");
+    assert!(dir.join(".balls/plugins/github.json").exists(), "config absorbed");
 }
 
 #[test]
@@ -182,8 +201,15 @@ fn looks_like_url_recognizes_common_forms() {
 fn looks_like_url_rejects_bare_remote_names() {
     assert!(!looks_like_url("origin"));
     assert!(!looks_like_url("hub"));
-    assert!(!looks_like_url("upstream"));
-    // host:port style is a name we won't second-guess.
     assert!(!looks_like_url("anything:1234"));
 }
 
+#[test]
+fn run_at_propagates_non_zero_git_exit() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let err = run_at(dir.path(), &["rev-parse", "--show-toplevel"]).unwrap_err();
+    match err {
+        BallError::Git(msg) => assert!(msg.contains("exited with") || msg.contains("rev-parse"), "{msg}"),
+        other => panic!("expected Git error, got {other:?}"),
+    }
+}

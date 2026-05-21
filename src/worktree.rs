@@ -152,8 +152,8 @@ fn link_shared_state(store: &Store, wt_path: &std::path::Path) -> Result<()> {
     fs::create_dir_all(&wt_balls)?;
     link_state_path(store.local_dir(), &wt_balls.join("local"))?;
     if !store.stealth {
-        link_state_path(store.state_worktree_dir(), &wt_balls.join("worktree"))?;
-        link_state_path(PathBuf::from("worktree/.balls/tasks"), &wt_balls.join("tasks"))?;
+        link_state_path(store.state_repo_dir(), &wt_balls.join("state-repo"))?;
+        link_state_path(PathBuf::from("state-repo/.balls/tasks"), &wt_balls.join("tasks"))?;
     }
     Ok(())
 }

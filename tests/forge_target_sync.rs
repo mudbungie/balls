@@ -27,7 +27,7 @@ fn subject(repo: &Path, refname: &str) -> String {
 
 /// Subjects of the local state branch, newest first.
 fn state_log(repo: &Path) -> String {
-    git(repo, &["log", "balls/tasks", "--format=%s"])
+    git_state(repo, &["log", "balls/tasks", "--format=%s"])
 }
 
 fn create_with_target(repo: &Path, title: &str, branch: &str) -> String {
