@@ -35,6 +35,7 @@ pub(crate) const RUNTIME_PATHS: &[&str] = &[
     ".balls/tasks",
     ".balls/worktree",
     ".balls/code-refs",
+    ".balls/state-repo",
 ];
 
 /// `git add -A` for the worker's worktree, followed by a defensive
