@@ -27,19 +27,9 @@ use crate::task::{Status, Task};
 use crate::task_io;
 use std::path::Path;
 
-/// Runtime paths inside `.balls/` that are bl's internal state and
-/// must never travel through a squash to the integration branch.
-/// Kept in sync with `store_init::ensure_main_gitignore`.
-pub(crate) const RUNTIME_PATHS: &[&str] = &[
-    ".balls/local",
-    ".balls/tasks",
-    ".balls/worktree",
-    ".balls/code-refs",
-    ".balls/state-repo",
-];
-
 /// `git add -A` for the worker's worktree, followed by a defensive
-/// `git rm --cached --ignore-unmatch` on every entry in `RUNTIME_PATHS`.
+/// `git rm --cached --ignore-unmatch` on every backstop path
+/// (`runtime_paths::backstop_paths`).
 /// Pathspec-based exclusion (`:(exclude).balls/...`) is rejected by
 /// git's `add` when the paths are gitignored, so we stage first then
 /// unstage the runtime paths. This works whether the runtime paths
@@ -51,7 +41,7 @@ pub(crate) const RUNTIME_PATHS: &[&str] = &[
 pub fn add_user_changes(wt: &Path) -> Result<()> {
     git::run_git_ok(wt, &["add", "-A"])?;
     let mut args: Vec<&str> = vec!["rm", "--cached", "--ignore-unmatch", "-r", "--"];
-    args.extend(RUNTIME_PATHS.iter().copied());
+    args.extend(crate::runtime_paths::backstop_paths());
     git::run_git_ok(wt, &args)?;
     Ok(())
 }
@@ -63,10 +53,11 @@ pub fn add_user_changes(wt: &Path) -> Result<()> {
 /// when the bare-repo path lands the commit in a detached worktree.
 pub fn commit_touches_runtime(repo: &Path, sha: &str) -> Result<Vec<String>> {
     let out = git::run_git_ok(repo, &["show", "--name-only", "--format=", sha])?;
+    let backstop = crate::runtime_paths::backstop_paths();
     Ok(out
         .lines()
         .filter(|p| {
-            RUNTIME_PATHS
+            backstop
                 .iter()
                 .any(|r| *p == *r || p.starts_with(&format!("{r}/")))
         })
