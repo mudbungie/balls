@@ -78,15 +78,22 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     // main push fails after the state push lands on the remote, the
     // next sync's half-push detector (below) surfaces the orphaned
     // state commit so the main push can be retried.
+    //
+    // The state-leg presence gate runs against `state_worktree_dir()`,
+    // not the project root (bl-16e9). In `master_url` mode the state
+    // checkout is `.balls/state-repo/` — a balls-owned clone whose
+    // `origin` is the hub — and the project root carries only the
+    // user's code remotes (or none at all in the bridge-clone proxy
+    // pattern). Asking the project root about the state remote would
+    // silently skip the push in exactly the topology `master_url` was
+    // built to enable. In legacy mode `state_worktree_dir()` is the
+    // project's own `.balls/worktree`, a worktree that shares
+    // `.git/config` with the project root, so the answer is identical
+    // — the redirect is a strict superset of the old behavior.
     let mut state_synced = false;
     if !store.stealth {
         let state_remote = resolve_state_remote(store, remote);
-        let state_present = if state_remote == remote {
-            code_present
-        } else {
-            git::git_has_remote(&store.root, &state_remote)
-        };
-        if state_present {
+        if git::git_has_remote(&store.state_worktree_dir(), &state_remote) {
             sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
             state_synced = true;
         }
