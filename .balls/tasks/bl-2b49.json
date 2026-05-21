@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T19:45:27.390337764Z",
-  "delivered_in": null,
+  "delivered_in": "b72bdb3f5f76bae8d45128268ceaf0af944f2e35",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "SPEC §16 test 13 ('old-bl caveat') intends a fixture: a pre-spec bl binary on a workspace with state_url set resolves its OWN git's balls/tasks, not the tracker — exercising the §12 accepted backwards-compat caveat. The shipped tests/conformance_model.rs t13_state_url_routes_to_tracker_not_local_worktree instead asserts the NEW bl routes to the tracker; it exists and fails-then-passes correctly, but never runs an old binary, so the §12 caveat is asserted by prose, not by test. Verify: is asserting the new-side behaviour an adequate stand-in, or should a real fixture be built — pin a pre-bl-8a9a commit, build that bl, run it against a state_url workspace, assert it ignores state_url. Decide, then either document the deviation in the test or build the fixture.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":115,"source":"balls","state":"open","synced_at":"2026-05-21T19:58:27.789806168+00:00","url":"https://github.com/mudbungie/balls/issues/115"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-dc79",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T19:58:27.799754674Z"},
   "tags": [],
   "title": "Conformance test 13 asserts new-bl behaviour, not the pre-spec-bl fixture SPEC 16.13 intends",
   "type": "task",
-  "updated_at": "2026-05-21T19:58:27.799763880Z"
+  "updated_at": "2026-05-21T20:24:32.167343073Z"
 }
