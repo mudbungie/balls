@@ -9,7 +9,7 @@
   "description": "`bl plugin enable <name>` stores `config_file` as a path relative to .balls/plugins/, but `Plugin::resolve` (src/plugin/runner.rs:25) joins `config_file` against the repo ROOT. The two disagree on the base, so the --config path handed to the plugin subprocess does not exist.\n\nRepro (verified empirically, debug build of main 87fdd38):\n  bl plugin enable github      # stores config_file:\"github.json\", writes file to .balls/plugins/github.json\n  # task event dispatch invokes:  balls-plugin-github push --config <ROOT>/github.json --auth-dir <ROOT>/.balls/local/plugins/github\n  # but the file is at <ROOT>/.balls/plugins/github.json  -> --config points at a nonexistent path\n\nenable() default is format!(\"{name}.json\") (src/plugin_admin.rs:81) and it writes the file via effective_plugins_dir().join(config_file) = <root>/.balls/plugins/<name>.json (src/plugin_admin.rs:25). An explicit --config-file VALUE is broken the same way. There is NO input to `bl plugin enable` that yields a runtime-resolvable entry: the only form Plugin::resolve accepts is a root-relative `.balls/plugins/<name>.json`, and passing that makes enable double the prefix.\n\nSeverity: (a) every `bl plugin enable` produces a non-functional plugin; (b) re-running `bl plugin enable github` on a correctly hand-configured repo OVERWRITES a working `config_file` (e.g. the live repo's `.balls/plugins/github.json`) back to the broken `github.json`. The dogfooded balls repo works today only because its .balls/config.json was hand-written with the root-relative form.\n\nTest gap: tests/plugin_admin.rs::enable_standalone_inserts_entry_and_creates_file asserts config_file==\"github.json\" and that the FILE exists, but never asserts the runtime can resolve it -- the bug is encoded as expected behaviour, suite stays green.\n\nPre-existing in bl-32e5 (predates bl-8a9a); surfaced by the bl-b0b9 audit of the interim plugin-config split. Fix: pick one base. Either Plugin::resolve joins config_file against effective_plugins_dir(), or enable stores+writes a root-relative path -- one of the two, consistently. NOTE bl-e609 is in progress and rewrites plugin_admin to write into project.json; coordinate so the fix is not lost.",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":119,"source":"balls","state":"open","synced_at":"2026-05-21T20:07:56.506033819+00:00","url":"https://github.com/mudbungie/balls/issues/119"}}},
   "id": "bl-1d81",
-  "links": [],
+  "links": [{"link_type":"relates_to","target":"bl-b0b9"}],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
@@ -18,5 +18,5 @@
   "tags": ["plugins"],
   "title": "bl plugin enable writes a config_file the plugin runtime cannot resolve",
   "type": "bug",
-  "updated_at": "2026-05-21T20:07:56.524636834Z"
+  "updated_at": "2026-05-21T20:08:03.826676368Z"
 }
