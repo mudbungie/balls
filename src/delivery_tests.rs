@@ -68,6 +68,24 @@ fn populate_on_close_scan_miss_leaves_hint_null() {
 }
 
 #[test]
+fn populate_on_close_local_hit_auto_tags_current_repo() {
+    // bl-6816 regression: a null-hint close that resolves the sha via
+    // the *local* tag scan still auto-tags `delivered_repo` with the
+    // closing clone — `resolved_repo` equals `repo_url::current` on a
+    // local hit, so threading it through is byte-identical to the
+    // pre-bl-6816 behavior. Only the remote-hit path changes.
+    let (dir, sha) = local_repo_with_tag("bl-abcd");
+    let mut t = empty_task();
+    let changed = populate_on_close(dir.path(), "main", &mut t, None, None, false);
+    assert!(changed);
+    assert_eq!(t.delivered_in.as_deref(), Some(sha.as_str()));
+    assert_eq!(
+        t.delivered_repo.as_deref(),
+        Some(crate::repo_url::current(dir.path()).as_str())
+    );
+}
+
+#[test]
 fn populate_on_close_manual_repo_overrides_auto_tag() {
     // bl-733e: `--delivered <sha> --delivered-repo <url>` writes
     // both fields verbatim — the operator's declared source wins

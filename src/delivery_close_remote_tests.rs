@@ -31,12 +31,13 @@ fn populate_on_close_remote_off_ignores_delivered_repo() {
 #[test]
 fn populate_on_close_remote_on_resolves_via_delivered_repo() {
     // bl-e454: the write-side parallel to bl-f37b. Local clone has no
-    // history and no `[id]` commit; opting in to remote resolution with
-    // a fetchable delivered_repo writes the sha into the task. The
-    // auto-tag of `delivered_repo` from `repo_url::current` is the
-    // local clone's value, NOT the source URL — `populate_on_close`'s
-    // auto-tag policy is "this clone produced it" by default. The
-    // task already carried the source URL before close.
+    // history and no `[id]` commit; opting in to remote resolution
+    // with a fetchable delivered_repo writes the sha into the task.
+    // bl-6816: a remote hit also keeps `delivered_repo` pointing at
+    // the *source* URL the sha was resolved through — NOT the closing
+    // clone's `origin`. Auto-tagging the hub here would aim a later
+    // `--resolve-remote` read at a repo with no `[id]` tag and lose
+    // the provenance the flag exists to recover.
     let (src, sha) = local_repo_with_tag("bl-abcd");
     let url = src.path().to_string_lossy().into_owned();
     let local_root = TempDir::new().unwrap();
@@ -46,16 +47,7 @@ fn populate_on_close_remote_on_resolves_via_delivered_repo() {
     let changed = populate_on_close(local_root.path(), "main", &mut t, None, None, true);
     assert!(changed);
     assert_eq!(t.delivered_in.as_deref(), Some(sha.as_str()));
-    // populate_on_close overwrites delivered_repo with the current
-    // clone whenever it sets delivered_in — but here the current
-    // clone's `repo_url::current(local_root)` is the bridge/hub, not
-    // the source URL. The source URL is still recoverable from the
-    // pre-close state on the state branch; the auto-tag policy is
-    // documented in bl-7523 and stays consistent.
-    assert_eq!(
-        t.delivered_repo.as_deref(),
-        Some(crate::repo_url::current(local_root.path()).as_str())
-    );
+    assert_eq!(t.delivered_repo.as_deref(), Some(url.as_str()));
 }
 
 #[test]
