@@ -9,7 +9,7 @@
   "description": "# Why\n\nSKILL.md section \"Working in a multi-repo hub\" tells agents:\n\n  \"There is no `repo` field, so pick a convention — a tag\n   (`repo:api`, `repo:frontend`) or a stable title prefix\"\n\nThat is false. `Task` carries `repo: Option<String>` (src/task.rs),\ndocumented in-code as \"the code repo this task was created in\n(`origin` URL, else repo path). Set at create; legible on a shared\nhub.\" Every task already shows it — `bl show` prints a `repo:` line.\n\nThe stale text actively misleads: an agent following it invents a\ntag convention to hand-duplicate a field that already exists and is\nalready populated. The lead sentence \"bl does not track which code\nrepo a ball belongs to\" (line 326) is the same error.\n\n# Scope\n\n- Rewrite the \"Mark the target repo on the ball\" bullet: the `repo`\n  field exists, is auto-set at create from the creating clone's\n  origin, and is the thing to filter `bl ready` on for per-repo\n  triage.\n- Soften line 326: bl *does* record an origin repo per ball; the\n  honest caveat is that it is create-anchored (see the linked\n  provenance ball), not that the field is absent.\n- The tag convention is still a fine manual *override* for the\n  cross-cutting case — keep it, just stop presenting it as the only\n  option.\n\n# Origin\n\nNoticed closing bl-4fbc (the `--resolve-remote` integration test):\nthe skill guide contradicts the schema. The `repo` field was added\nafter that SKILL.md section was written.",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":83,"source":"balls","state":"open","synced_at":"2026-05-21T02:03:34.528059985+00:00","url":"https://github.com/mudbungie/balls/issues/83"}}},
   "id": "bl-4f29",
-  "links": [],
+  "links": [{"link_type":"relates_to","target":"bl-8994"}],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
@@ -18,5 +18,5 @@
   "tags": ["docs","multi-repo"],
   "title": "SKILL.md: the 'no repo field' multi-repo guidance is stale",
   "type": "task",
-  "updated_at": "2026-05-21T02:03:34.543378111Z"
+  "updated_at": "2026-05-21T02:04:05.395945888Z"
 }
