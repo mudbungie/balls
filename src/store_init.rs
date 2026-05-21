@@ -150,8 +150,9 @@ pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf>
         })?;
         fs::write(&config_path, cfg)?;
     }
-    let cfg = Config::load(&config_path)?;
-    setup_state_branch(&hubdir, cfg.state_remote(), cfg.state_remote.is_some())?;
+    let _ = Config::load(&config_path)?;
+    let pointer = crate::master_pointer::MasterPointer::load(&hubdir)?;
+    setup_state_branch(&hubdir, pointer.state_remote(), pointer.state_remote.is_some())?;
     Ok(hubdir)
 }
 
@@ -230,31 +231,35 @@ pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
 /// to the main branch. Extracted from Store::init so the no-git path
 /// can skip it without duplicating the line-budget in store.rs.
 ///
-/// bl-1098/bl-4432: in master_url mode `.balls/plugins` is a hub-owned
-/// symlink, not a project directory — there is no project-owned
-/// `.gitkeep` to seed or stage. Read that from `master_url` in config,
-/// not by probing the symlink (which couples to `Store::init` order).
-///
-/// bl-ebae: that federated case also gitignores `.balls/plugins` and
-/// drops any standalone-era `.gitkeep` still tracked from a pre-flip
-/// `bl init`, so a fresh-cloned federated repo has a clean tree.
+/// bl-1098/bl-4432/bl-82a4: in master_url mode `.balls/plugins` *and*
+/// `.balls/config.json` are hub-owned symlinks gitignored under the
+/// `federated` runtime-paths set — there is no project-owned
+/// `.gitkeep` or canonical to seed or stage. The federation signal is
+/// the `MasterPointer` (`.balls/master.json`), not a probe of the
+/// symlinks (which couples to `Store::init` order).
 pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Result<()> {
-    // `state_repo::ensure` only materializes the symlink in non-stealth
-    // master_url mode, so that is exactly the condition that owns no
-    // project `.gitkeep` — stated here from config, order-independent.
-    let config_path = root.join(".balls/config.json");
-    let federated = !is_stealth && Config::load(&config_path)?.master_url().is_some();
+    // `state_repo::ensure` only materializes the symlinks in non-stealth
+    // master_url mode, so that is exactly the federated condition.
+    let federated = !is_stealth
+        && crate::master_pointer::MasterPointer::load_or_empty(root)
+            .master_url()
+            .is_some();
     crate::gitignore::ensure_main_gitignore(root, is_stealth, federated)?;
     let keep_rel = Path::new(".balls/plugins/.gitkeep");
-    let mut paths: Vec<&Path> = vec![Path::new(".balls/config.json"), Path::new(".gitignore")];
+    let mut paths: Vec<&Path> = vec![Path::new(".gitignore")];
     if federated {
-        git::git_rm_cached(root, &[keep_rel])?;
+        // The canonical + gitkeep are gitignored hub-owned state now.
+        git::git_rm_cached(root, &[keep_rel, Path::new(".balls/config.json")])?;
+        if root.join(".balls/master.json").exists() {
+            paths.push(Path::new(".balls/master.json"));
+        }
     } else {
         let abs_keep = root.join(keep_rel);
         if !abs_keep.exists() {
             fs::write(&abs_keep, "")?;
         }
         paths.push(keep_rel);
+        paths.push(Path::new(".balls/config.json"));
     }
     git::git_add(root, &paths)?;
     let msg = if already { "balls: reinitialize" } else { "balls: initialize" };

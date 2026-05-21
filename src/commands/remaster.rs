@@ -1,18 +1,18 @@
-//! `bl remaster` — re-point this repo's task state branch and
-//! reconcile, or `--detach` back to standalone. The reconcile/detach
-//! mechanics live in `balls::remaster`; this is arg handling, the
-//! state_remote write (per-clone by default, committed with
-//! `--commit`), and user-facing messaging.
+//! `bl remaster` — join a hub, re-point a legacy `state_remote`, or
+//! detach back to standalone. Reconcile/detach mechanics live in
+//! `balls::remaster`; the URL-shaped federation path delegates to
+//! `balls::federate`. This module owns arg handling, the project-git
+//! hygiene of the federated flip (gitignore + untrack), and messaging.
 //!
-//! bl-ffb4: `--commit <URL>` auto-routes a URL-shaped target to the
-//! new `master_url` field (committed hub URL + balls-owned checkout)
-//! instead of the legacy `state_remote` name field. A bare remote
-//! name still writes `state_remote` — old single-repo-shared-hub
-//! setups keep working byte-identically.
+//! bl-82a4: a URL target is the federation entry point and works on a
+//! non-initted repo too. The committed federation artifact is the
+//! `.balls/master.json` pointer; `.balls/config.json` + `.balls/plugins`
+//! are gitignored symlinks recreated by `state_repo::ensure` (bl-ebae).
 
 use super::discover;
-use balls::config::Config;
 use balls::error::{BallError, Result};
+use balls::federate::{self, FederateReport};
+use balls::master_pointer::MasterPointer;
 use balls::policy::LocalConfig;
 use balls::remaster::{self, Reconciled};
 use balls::store::Store;
@@ -26,11 +26,6 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
         ));
     }
 
-    // Detach must work offline (bl-dcd3). When `master_url` is set but
-    // the state-repo never materialized — an unreachable hub blocking
-    // first-time setup — `discover()` re-hits the same hard-fail, so
-    // the warm detach path can't run. Try the cold path first; it
-    // returns Ok(false) when the warm path is the right answer.
     if detach {
         let cwd = std::env::current_dir()?;
         if remaster::try_cold_detach(&cwd)? {
@@ -43,6 +38,17 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
         }
     }
 
+    // URL-shaped target on a non-initted repo: bootstrap directly,
+    // without `discover()` (which errors on a missing `.balls/`).
+    if let Some(t) = target.as_deref() {
+        if state_repo::looks_like_url(t) && !detach {
+            let cwd = std::env::current_dir()?;
+            if !cwd.join(".balls").exists() {
+                return bootstrap_url(&cwd, t, commit);
+            }
+        }
+    }
+
     let store = discover()?;
     if store.no_git || store.stealth {
         return Err(BallError::Other(
@@ -51,126 +57,108 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
     }
 
     if detach {
-        // Captured before `detach` swaps the symlink for a real dir:
-        // it tells us whether the federated git hygiene needs reversing.
-        let was_federated = store.root.join(".balls/plugins").is_symlink();
-        remaster::detach(&store)?;
-        set_local_state_remote(&store, "origin")?;
-        clear_master_url(&store)?;
-        if was_federated {
-            detach_gitignore_hygiene(&store)?;
-        }
-        println!(
-            "detached: balls/tasks re-rooted as a standalone local store; \
-             state_remote cleared to `origin`"
-        );
-        return Ok(());
+        return detach_path(&store);
     }
 
     let target = target.ok_or_else(|| {
         BallError::Other("remaster needs a TARGET remote (or use --detach)".into())
     })?;
 
-    // URL-shaped target: route to the new master_url + balls-owned
-    // checkout path. Materialize the state-repo *before* reconcile so
-    // the shared `remaster::reconcile` plumbing sees a real
-    // `origin/balls/tasks` to fast-forward onto (bl-ffb4).
     if state_repo::looks_like_url(&target) {
-        return commit_master_url(&store, &target, commit);
+        return federate_url(&store, &target, commit);
     }
 
-    // Reconcile first: on failure the link is untouched and the
-    // command is safe to retry.
     let outcome = remaster::reconcile(&store, &target)?;
-
-    if commit {
-        let path = store.config_path();
-        let mut cfg = Config::load(&path)?;
-        cfg.state_remote = Some(target.clone());
-        cfg.save(&path)?;
-        println!(
-            "wrote state_remote=`{target}` to committed .balls/config.json \
-             — commit it to share the project link"
-        );
-    } else {
-        set_local_state_remote(&store, &target)?;
-        println!("set per-clone state_remote=`{target}` (.balls/local/config.json)");
-    }
-
-    match outcome {
-        Reconciled::AlreadyUpToDate => {
-            println!("already up to date with `{target}`");
-        }
-        Reconciled::Joined { replayed, renamed } => {
-            println!(
-                "joined `{target}`: {replayed} task(s) replayed, {renamed} renamed"
-            );
-        }
-    }
+    write_state_remote(&store, &target, commit)?;
+    print_reconciled(&target, outcome);
     Ok(())
 }
 
-fn set_local_state_remote(store: &Store, remote: &str) -> Result<()> {
-    let mut local = LocalConfig::load(store)?.unwrap_or_default();
-    local.state_remote = Some(remote.to_string());
-    local.save(store)
-}
-
-/// URL-shaped remaster target: materialize the balls-owned state-repo
-/// and (when `--commit`) write the URL to committed config. Without
-/// `--commit` we still materialize so the local checkout is usable
-/// immediately; the per-clone link is the materialized state-repo
-/// itself, no parallel config field needed (the legacy per-clone
-/// override is for the *name* field).
-fn commit_master_url(store: &Store, url: &str, commit: bool) -> Result<()> {
-    state_repo::ensure(&store.root, url)?;
-    if commit {
-        let path = store.config_path();
-        let mut cfg = Config::load(&path)?;
-        cfg.master_url = Some(url.to_string());
-        // Clearing legacy `state_remote` on commit removes the
-        // ambiguity over which knob is authoritative — a fresh clone
-        // would otherwise still try to resolve the name field too.
-        cfg.state_remote = None;
-        cfg.save(&path)?;
-        commit_federated_flip(store, url)?;
-    } else {
-        println!(
-            "materialized .balls/state-repo/ from `{url}` (per-clone, \
-             not committed). Re-run with --commit to share the link."
-        );
+fn detach_path(store: &Store) -> Result<()> {
+    // Captured before `detach`/`unfederate` undo the federated shape.
+    let was_federated = federate::is_federated(&store.root);
+    remaster::detach(store)?;
+    federate::unfederate(&store.root)?;
+    remaster::scrub_legacy_canonical(&store.root)?;
+    set_local_state_remote(store, "origin")?;
+    if was_federated {
+        detach_gitignore_hygiene(store)?;
     }
-    Ok(())
-}
-
-/// bl-ebae: leave the federated flip with a clean `git status`.
-/// `state_repo::ensure` already swapped `.balls/plugins/` for a symlink
-/// into the hub clone; here we (1) gitignore the balls-owned federated
-/// paths so a careless `git add -A` can't bake them into the shared
-/// repo, (2) drop the now-symlink-shadowed `.gitkeep` from the index,
-/// and (3) commit the whole transition alongside the config change.
-fn commit_federated_flip(store: &Store, url: &str) -> Result<()> {
-    gitignore::ensure_main_gitignore(&store.root, false, true)?;
-    git::git_rm_cached(&store.root, &[Path::new(".balls/plugins/.gitkeep")])?;
-    git::git_add(
-        &store.root,
-        &[Path::new(".balls/config.json"), Path::new(".gitignore")],
-    )?;
-    git::git_commit(&store.root, "balls: remaster to federated hub")?;
     println!(
-        "remastered to federated hub `{url}`: master_url committed, \
-         .balls/state-repo + .balls/plugins gitignored"
+        "detached: balls/tasks re-rooted as a standalone local store; \
+         master.json cleared, state_remote local override set to `origin`"
     );
     Ok(())
 }
 
-/// bl-ebae: reverse `commit_federated_flip`. Detach turned the plugins
-/// symlink back into a real directory (`remaster::detach`), so it must
-/// leave the ignore list and its restored contents be re-tracked. The
-/// whole standalone shape is committed so detach, too, leaves a clean
-/// tree. `.balls/state-repo` stays ignored — the clone is still on disk.
+/// `bl remaster <url>` on an initialized repo. `--commit` runs the
+/// federated flip and commits it; without it, only the per-clone
+/// state-repo materializes.
+fn federate_url(store: &Store, url: &str, commit: bool) -> Result<()> {
+    if !commit {
+        state_repo::ensure(&store.root, url)?;
+        println!(
+            "materialized .balls/state-repo/ from `{url}` (per-clone, \
+             not committed). Re-run with --commit to share the link."
+        );
+        return Ok(());
+    }
+    if federate::is_federated(&store.root) {
+        MasterPointer {
+            master_url: Some(url.to_string()),
+            state_remote: None,
+        }
+        .save(&store.root)?;
+        println!("already federated to `{url}` (.balls/master.json refreshed)");
+        return Ok(());
+    }
+    let report = federate::federate(&store.root, url)?;
+    commit_federated_flip(&store.root, url)?;
+    print_federation(url, &report);
+    Ok(())
+}
+
+/// `bl remaster <url>` on a fresh git clone with no `.balls/`.
+fn bootstrap_url(root: &Path, url: &str, commit: bool) -> Result<()> {
+    if !commit {
+        return Err(BallError::Other(
+            "remaster <url> on a non-initted repo needs --commit (the \
+             federation pointer must be tracked by git for `git clone` \
+             to carry it)".into(),
+        ));
+    }
+    let report = federate::bootstrap_non_initted(root, url)?;
+    commit_federated_flip(root, url)?;
+    print_federation(url, &report);
+    Ok(())
+}
+
+/// Project-git hygiene for the federated flip (bl-ebae + bl-82a4):
+/// gitignore the runtime sidecars, untrack the now-gitignored
+/// canonical + plugins `.gitkeep`, and commit the `.balls/master.json`
+/// pointer + `.gitignore` so the transition leaves a clean `git status`.
+fn commit_federated_flip(root: &Path, url: &str) -> Result<()> {
+    gitignore::ensure_main_gitignore(root, false, true)?;
+    git::git_rm_cached(
+        root,
+        &[Path::new(".balls/config.json"), Path::new(".balls/plugins/.gitkeep")],
+    )?;
+    git::git_add(root, &[Path::new(".balls/master.json"), Path::new(".gitignore")])?;
+    git::git_commit(root, "balls: remaster to federated hub")?;
+    println!(
+        "remastered to federated hub `{url}`: master.json committed, \
+         .balls/config.json + .balls/plugins + .balls/state-repo gitignored"
+    );
+    Ok(())
+}
+
+/// Reverse `commit_federated_flip` on detach: drop the federated-only
+/// gitignore entries (so `.balls/config.json` + `.balls/plugins`, now
+/// real again, are re-tracked), untrack the removed pointer, and
+/// commit the standalone shape.
 fn detach_gitignore_hygiene(store: &Store) -> Result<()> {
     gitignore::remove_federated_entries(&store.root)?;
+    git::git_rm_cached(&store.root, &[Path::new(".balls/master.json")])?;
     git::git_add(
         &store.root,
         &[
@@ -183,14 +171,46 @@ fn detach_gitignore_hygiene(store: &Store) -> Result<()> {
     Ok(())
 }
 
-/// Detach also clears any committed `master_url` so the project drops
-/// the hub link cleanly. No-op when the field was never set.
-fn clear_master_url(store: &Store) -> Result<()> {
-    let path = store.config_path();
-    let mut cfg = Config::load(&path)?;
-    if cfg.master_url.is_some() {
-        cfg.master_url = None;
-        cfg.save(&path)?;
+fn write_state_remote(store: &Store, target: &str, commit: bool) -> Result<()> {
+    if commit {
+        let mut pointer = MasterPointer::load(&store.root)?;
+        pointer.state_remote = Some(target.to_string());
+        pointer.save(&store.root)?;
+        println!(
+            "wrote state_remote=`{target}` to committed .balls/master.json \
+             — commit it to share the project link"
+        );
+    } else {
+        set_local_state_remote(store, target)?;
+        println!("set per-clone state_remote=`{target}` (.balls/local/config.json)");
     }
     Ok(())
+}
+
+fn set_local_state_remote(store: &Store, remote: &str) -> Result<()> {
+    let mut local = LocalConfig::load(store)?.unwrap_or_default();
+    local.state_remote = Some(remote.to_string());
+    local.save(store)
+}
+
+fn print_federation(url: &str, report: &FederateReport) {
+    println!("federated to `{url}` — .balls/state-repo/ owns task state");
+    if !report.promoted_plugins.is_empty() {
+        println!("  promoted plugins to hub: {}", report.promoted_plugins.join(", "));
+    }
+    if !report.discarded_plugins.is_empty() {
+        println!(
+            "  discarded project-side plugin entries (hub wins): {}",
+            report.discarded_plugins.join(", ")
+        );
+    }
+}
+
+fn print_reconciled(target: &str, outcome: Reconciled) {
+    match outcome {
+        Reconciled::AlreadyUpToDate => println!("already up to date with `{target}`"),
+        Reconciled::Joined { replayed, renamed } => {
+            println!("joined `{target}`: {replayed} task(s) replayed, {renamed} renamed");
+        }
+    }
 }

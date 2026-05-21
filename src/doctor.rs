@@ -128,10 +128,9 @@ fn check_state_worktree(store: &Store, out: &mut Vec<Finding>) {
 }
 
 fn master_url(store: &Store) -> Option<String> {
-    store
-        .load_config()
-        .ok()
-        .and_then(|c| c.master_url().map(String::from))
+    crate::master_pointer::MasterPointer::load_or_empty(&store.root)
+        .master_url
+        .clone()
 }
 
 fn check_legacy_worktree(dir: &Path, out: &mut Vec<Finding>) {
@@ -156,7 +155,7 @@ fn check_legacy_worktree(dir: &Path, out: &mut Vec<Finding>) {
 /// suggested fix is to remove the broken dir so prime can re-materialize.
 ///
 /// Also surfaces master_url-vs-origin drift: if a user hand-edited
-/// `master_url` in committed config after the clone was already
+/// `master_url` in `.balls/master.json` after the clone was already
 /// materialized, the recorded URL and the materialized clone disagree
 /// — exactly the kind of drift doctor exists to name.
 fn check_state_repo(dir: &Path, master_url: &str, out: &mut Vec<Finding>) {
@@ -176,7 +175,7 @@ fn check_state_repo(dir: &Path, master_url: &str, out: &mut Vec<Finding>) {
                 "state-repo origin `{origin}` does not match \
                  committed master_url `{master_url}`"
             ),
-            "edit master_url in .balls/config.json, or run \
+            "edit master_url in .balls/master.json, or run \
              `bl remaster <hub-url> --commit` to repoint",
         )),
         None => out.push(Finding::flag(

@@ -1,18 +1,10 @@
-//! `bl remaster` reconcile/detach core (bl-2057).
-//!
-//! Recovery must be a first-class verb, not manual git surgery: an
-//! unaware `bl init` is only *safe* (bl-8e8f) if there is a
-//! non-destructive path back INTO a project afterwards. That path is
-//! `reconcile`: adopt the hub's `balls/tasks` history, then replay
-//! the tasks only this repo has on top of it, so the local branch
-//! becomes a descendant of the hub and a normal `bl sync` can push.
-//!
-//! Disjoint task files coexist trivially (one file per id). The one
-//! hazard is an id *clash* — the same `bl-xxxx` naming two different
-//! tasks (independent offline creation). Reconcile renames the local
-//! one to a fresh id and rewrites in-repo references to it, so no
-//! task is silently merged into another. No CLI or printing here;
-//! that is `commands::remaster`.
+//! `bl remaster` reconcile/detach core (bl-2057). Recovery must be a
+//! first-class verb, not manual git surgery: an unaware `bl init` is
+//! only safe (bl-8e8f) if there is a non-destructive path back INTO
+//! a project afterwards. `reconcile` adopts the hub's `balls/tasks`
+//! history, replays local-only tasks on top, and renames any id
+//! clashes (independent offline creation under the same `bl-xxxx`).
+//! No CLI or printing here; that is `commands::remaster`.
 
 use crate::error::{BallError, Result};
 use crate::store::Store;
@@ -26,7 +18,7 @@ use std::path::Path;
 // `bl remaster --detach` lives in its own module; re-exported here so
 // the public path `balls::remaster::{detach, try_cold_detach}` — and
 // the conceptual home of "remaster" — is unchanged.
-pub use crate::remaster_detach::{detach, try_cold_detach};
+pub use crate::remaster_detach::{detach, scrub_legacy_canonical, try_cold_detach};
 
 const STATE_BRANCH: &str = "balls/tasks";
 const TASKS_REL: &str = ".balls/tasks";
