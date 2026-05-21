@@ -270,14 +270,16 @@ pub enum Command {
         /// Git remote whose `balls/tasks` becomes authoritative.
         /// Omit only with `--detach`.
         target: Option<String>,
-        /// Write the link to the committed `.balls/config.json`
-        /// (project-wide) instead of the per-clone local override.
+        /// Write the link to committed config, not the per-clone override.
         #[arg(long, conflicts_with = "detach")]
         commit: bool,
-        /// Sever shared history and clear the link: the repo becomes
-        /// a standalone local task store again.
+        /// Sever shared history and the link: go standalone again.
         #[arg(long)]
         detach: bool,
+        /// Federate onto the hub even though local tasks would be
+        /// stranded — the URL flip has no task-carry path.
+        #[arg(long)]
+        force: bool,
     },
 
     /// Print the agent skill guide (SKILL.md).
