@@ -68,7 +68,11 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
     // validated above.
 
     let mut task = Task::new(opts, id.clone());
-    task.repo = Some(balls::repo_url::current(&store.root));
+    // Only a fetchable `origin` URL — never a bare basename. Create
+    // anchors on where the ball was *filed*, which on a bare hub or a
+    // forge-sync bridge is not the code repo; `bl claim` re-anchors
+    // `repo` to the authoritative code home (bl-8994).
+    task.repo = balls::repo_url::origin_url(&store.root);
     task.target_branch = target_branch;
     let rb = plugin::state_head(&store)?;
     {
