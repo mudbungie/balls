@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T02:03:53.057487377Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\nThree plugin test functions strip `PATH` from the process environment to\nforce a plugin executable to be unresolvable:\n\n- src/plugin/participant_tests.rs (run_through_participant_primitive_absorbs_unreachable_as_skipped, dispatch_propose_via_outer_protocol_unreachable_executable)\n- src/plugin/dispatch_tests.rs (two tests)\n- src/plugin/native_participant_describe_tests.rs (one test)\n\n`env::remove_var(\"PATH\")` is process-global. While PATH is unset, any\nconcurrent test that spawns a subprocess via `Command::new(\"git\")` /\n`Command::new(<plugin>)` can fail to spawn (\"No such file or directory\").\nSame bug class as bl-bfa8 (the HOME race), which was the confirmed cause\nof the state_repo plugin-symlink flake.\n\nNot yet observed flaking anything (~30 full-parallel runs clean after\nbl-bfa8's fix), but it is a latent race: the windows are short and the\nPATH tests don't spawn subprocesses themselves, so overlap is rare —\nnot impossible.\n\n# Scope\n\nEliminate the global PATH mutation. The tests want a plugin whose\nexecutable is unresolvable; do that without touching the process env —\ne.g. give the plugin an absolute path to a guaranteed-nonexistent file\nthrough a test seam on Plugin::resolve / LegacyPluginParticipant, so\n`which()`/spawn fails deterministically with PATH untouched.\n\n# Origin\n\nFound while fixing bl-bfa8: grep for env::set_var/remove_var across the\nsuite turned up these three files alongside the HOME mutation. bl-bfa8\nfixed only HOME (the confirmed state_repo flake); PATH is the same\npattern, filed separately to keep that fix surgical.",
+  "external": {},
+  "id": "bl-ad4b",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["testing","flaky"],
+  "title": "Flaky risk: plugin tests strip global PATH via env::remove_var",
+  "type": "bug",
+  "updated_at": "2026-05-21T02:03:53.057487377Z"
+}
