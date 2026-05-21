@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:49:37.999206812Z",
-  "delivered_in": null,
+  "delivered_in": "cce4f6e5f100a69b03549de4a3e5364e451d1a00",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\nbl-228d unified bl's two hand-maintained `.balls/` runtime-path lists into one\ncanonical table (`runtime_paths::RUNTIME_PATHS`, derived by `backstop_paths()`\nand `gitignore_paths()`). One enumeration of those same paths was deliberately\nleft behind, out of that ball's scope: `review_safety::runtime_in_squash_error`\nbuilds its user-facing help text with a hardcoded literal —\n\n    The work branch has tracked a `.balls/` subpath (`local`, `tasks`,\n    `worktree`, or `code-refs`) ...\n\nIt is already stale: bl-c439 added `.balls/state-repo` to the backstop set, but\nthis string was never updated, so a state-repo rejection prints help text whose\nexample list omits `state-repo`. More to the point, it is the exact \"manual\nsync, standing invitation to drift\" pattern bl-228d set out to eliminate — just\nexpressed in prose instead of a `const`. The fix that ball shipped is only\ncomplete once this last enumeration also derives from the table.\n\nThis is cosmetic, not a behavior bug: the error already interpolates the actual\noffending `{list}` of paths that triggered the rejection; the stale literal is\nonly the explanatory parenthetical.\n\n# Scope\n\n- `review_safety::runtime_in_squash_error`: build the parenthetical example\n  list from `runtime_paths::backstop_paths()` instead of the literal.\n- Note for the implementer: `backstop_paths()` returns fully-qualified paths\n  (`.balls/local`, ...), while the current prose reads \"a `.balls/` subpath\n  (`local`, ...)\" with the prefix factored into the sentence. Either strip the\n  `.balls/` prefix when rendering, or rephrase the sentence — don't leave a\n  doubled `.balls/.balls/local`. Every backstop path is a `.balls/` subpath\n  (`.balls-worktrees` is gitignore-only, backstop:false), so the framing holds.\n- `runtime_in_squash_error_pluralizes_correctly` should still pass; extend it\n  if the table-derivation needs coverage for the 100% gate.\n\n# Out of scope\n\nThe rejection logic itself — it is already table-derived (`commit_touches_runtime`\nvia `backstop_paths()`) and correct. This ball is only the human-readable string.\n\n# Origin\n\nFlagged in the bl-228d close-out (2026-05-20): the refactor unified the two path\n*lists* but left one path *enumeration* sitting in an error string. Small,\nindependently shippable.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":81,"source":"balls","state":"open","synced_at":"2026-05-21T01:54:35.528513306+00:00","url":"https://github.com/mudbungie/balls/issues/81"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T01:54:35.537148496Z"},
   "tags": ["hygiene"],
   "title": "runtime_in_squash_error: derive its path list from the runtime_paths table",
   "type": "task",
-  "updated_at": "2026-05-21T01:54:35.537154878Z"
+  "updated_at": "2026-05-21T02:06:27.366226566Z"
 }
