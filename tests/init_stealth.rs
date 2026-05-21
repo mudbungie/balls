@@ -117,6 +117,21 @@ fn tasks_dir_rejects_relative_path() {
 }
 
 #[test]
+fn stealth_init_gitignores_code_refs_cache() {
+    // `.balls/code-refs` is materialized by `--resolve-remote`
+    // regardless of mode, so stealth init must gitignore it too —
+    // the non-stealth-only `.balls/tasks`/`.balls/worktree` gating
+    // does not apply to it.
+    let repo = new_repo();
+    bl(repo.path())
+        .args(["init", "--stealth"])
+        .assert()
+        .success();
+    let gi = std::fs::read_to_string(repo.path().join(".gitignore")).unwrap();
+    assert!(gi.contains(".balls/code-refs"), "stealth .gitignore: {gi}");
+}
+
+#[test]
 fn stealth_list_returns_empty_when_external_dir_gone() {
     let repo = new_repo();
     bl(repo.path())
