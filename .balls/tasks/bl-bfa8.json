@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-bfa8",
+  "claimed_by": "Mines",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:47:46.588246139Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T01:47:47.882970823Z"},
   "tags": ["testing","flaky","state-repo"],
   "title": "Flaky: state_repo plugin-symlink tests race under parallel cargo test",
   "type": "bug",
-  "updated_at": "2026-05-21T01:47:47.882974880Z"
+  "updated_at": "2026-05-21T01:54:28.728798175Z"
 }
