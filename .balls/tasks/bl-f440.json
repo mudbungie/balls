@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\n`bl remaster --detach` (the warm path, `remaster::detach`) re-roots the\n`balls/tasks` orphan inside `store.state_worktree_dir()` — which, while\n`master_url` is still set, resolves to `.balls/state-repo`. It then clears\n`master_url` from config. But every subsequent `Store::discover` resolves the\nlayout fresh: with `master_url` gone, `state_worktree_for` returns\n`.balls/worktree` — a path the detach never created or migrated to.\n\nConfirmed 2026-05-20 with a `bl` built from main:\n\n- standalone-init -> `remaster --commit <url>` -> `remaster --detach`:\n  `.balls/worktree` still exists as a stale pre-flip leftover, so `discover`\n  silently reads THAT branch. Tasks created while federated live on the\n  re-rooted `.balls/state-repo` branch and go invisible — `bl prime` shows an\n  empty Ready list. Silent data divergence.\n- seeded-federated `bl init` -> `remaster --detach`: `.balls/worktree` never\n  existed, so `discover` hard-fails ('task state is missing\n  .balls/worktree/.balls/tasks'). The repo is bricked until `bl repair`.\n\nThe cold path (`try_cold_detach`, bl-dcd3) gets this right — it re-inits\n`.balls/worktree` explicitly. The warm path does not.\n\n# Scope\n\n- After `remaster::detach` re-roots the orphan, leave the post-detach layout\n  as the one `discover` will resolve: migrate the re-rooted branch into\n  `.balls/worktree` (mirroring `try_cold_detach`'s `setup_state_branch`), or\n  run detach against `.balls/worktree` from the start.\n- A standalone repo with a stale `.balls/worktree` must not be left reading it\n  instead of the detached state.\n- Test: warm detach of (a) a standalone-then-flipped repo and (b) a\n  seeded-federated repo — a `bl prime`/`bl create` after detach must see the\n  detached task set, not error and not silently read a stale branch.\n\n# Relation\n\nComposes with bl-82a4 (symlink-based config symmetry); if that lands a single\ncanonical state path this collapses. But it is an independently-shippable\ncorrectness bug (a bricked repo) and should not wait.\n\n# Origin\n\nFound while delivering bl-ebae (federated-flip git hygiene), 2026-05-20.\nbl-ebae's detach test only checks .gitignore/git-status shape, not a\npost-detach lifecycle command, so it did not surface this. Out of bl-ebae's\nscope — that ball is purely git hygiene.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":86,"source":"balls","state":"open","synced_at":"2026-05-21T02:04:01.661163656+00:00","url":"https://github.com/mudbungie/balls/issues/86"}}},
   "id": "bl-f440",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T02:04:01.680938189Z"},
   "tags": ["multi-repo","master_url","bug"],
   "title": "Warm bl remaster --detach leaves the repo on the wrong state worktree",
   "type": "bug",
-  "updated_at": "2026-05-21T02:04:00.594315744Z"
+  "updated_at": "2026-05-21T02:04:01.680941876Z"
 }
