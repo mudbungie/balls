@@ -26,6 +26,7 @@ pub mod commit_msg;
 pub mod commit_policy;
 pub mod config;
 pub mod delivery;
+pub mod delivery_remote;
 pub mod display;
 pub mod doctor;
 pub mod error;

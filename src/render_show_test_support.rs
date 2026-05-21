@@ -24,7 +24,7 @@ pub(crate) fn ctx_for<'a>() -> Ctx<'a> {
 }
 
 pub(crate) fn empty_delivery() -> Delivery {
-    Delivery { sha: None, hint_stale: false }
+    Delivery::default()
 }
 
 pub(crate) fn mk(id: &str, title: &str) -> Task {

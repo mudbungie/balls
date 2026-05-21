@@ -14,7 +14,7 @@ use crate::task::Task;
 use std::path::Path;
 
 /// Output of a delivery-link resolution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Delivery {
     /// SHA of the delivering commit on main, if one could be resolved.
     pub sha: Option<String>,
@@ -23,6 +23,14 @@ pub struct Delivery {
     /// Callers that intend to persist corrections can check this to
     /// decide whether to rewrite the task file.
     pub hint_stale: bool,
+    /// Identifier of the code repo whose history yielded `sha` (bl-f37b).
+    /// Always `Some` whenever `sha` is `Some`. Local hits report
+    /// `repo_url::current(repo_root)` so tooling on a sibling clone or
+    /// hub knows the resolution came from this clone; remote hits
+    /// (cross-repo lookup via `delivered_repo`) report the task's
+    /// `delivered_repo` value verbatim. Callers thread this back to
+    /// the JSON contract as `delivered_in_resolved_repo`.
+    pub resolved_repo: Option<String>,
 }
 
 /// Resolve the delivering commit for `task`. Consults the hint first,
@@ -33,20 +41,67 @@ pub struct Delivery {
 /// state can't be queried (e.g., `repo_root` isn't a git repo, or the
 /// branch doesn't exist).
 pub fn resolve(repo_root: &Path, main_branch: &str, task: &Task) -> Delivery {
+    resolve_with(repo_root, main_branch, task, ResolveOpts::default())
+}
+
+/// Caller-side knobs for [`resolve_with`]. `remote` opts in to the
+/// cross-repo fallback (bl-f37b): on a local miss with `delivered_repo`
+/// set, fetch a balls-owned cache of that repo and re-run the tag scan.
+/// Off by default so single-repo callers and the legacy `resolve`
+/// surface stay byte-identical.
+#[derive(Debug, Clone, Default)]
+pub struct ResolveOpts {
+    pub remote: bool,
+}
+
+/// Same contract as [`resolve`] with optional cross-repo fallback. The
+/// local-only path is unchanged; the remote path engages only when the
+/// local scan returns no sha *and* the task carries a `delivered_repo`
+/// that names something we can fetch. A remote miss is soft — `sha`
+/// stays `None`, `hint_stale` is set from the local scan, and the
+/// command proceeds.
+pub fn resolve_with(
+    repo_root: &Path,
+    main_branch: &str,
+    task: &Task,
+    opts: ResolveOpts,
+) -> Delivery {
     let tag = format!("[{}]", task.id);
+    let local = local_resolve(repo_root, main_branch, task, &tag);
+    if local.sha.is_some() {
+        return Delivery {
+            resolved_repo: Some(crate::repo_url::current(repo_root)),
+            ..local
+        };
+    }
+    let Some(url) = task.delivered_repo.as_deref().filter(|_| opts.remote) else {
+        return local;
+    };
+    match crate::delivery_remote::resolve(repo_root, url, task) {
+        Some(sha) => Delivery {
+            sha: Some(sha),
+            hint_stale: local.hint_stale,
+            resolved_repo: Some(url.to_string()),
+        },
+        None => local,
+    }
+}
+
+fn local_resolve(repo_root: &Path, main_branch: &str, task: &Task, tag: &str) -> Delivery {
     if let Some(hint) = &task.delivered_in {
         if git::git_is_ancestor(repo_root, hint, main_branch)
             && git::git_commit_subject(repo_root, hint)
-                .is_some_and(|s| s.contains(&tag))
+                .is_some_and(|s| s.contains(tag))
         {
             return Delivery {
                 sha: Some(hint.clone()),
                 hint_stale: false,
+                resolved_repo: None,
             };
         }
         // Hint doesn't verify — fall through to the tag scan. Mark
         // stale only if the tag scan finds a *different* answer.
-        let resolved = git::git_log_find_subject(repo_root, main_branch, &tag);
+        let resolved = git::git_log_find_subject(repo_root, main_branch, tag);
         let stale = match (&resolved, hint) {
             (Some(sha), h) => sha != h,
             (None, _) => true,
@@ -54,11 +109,13 @@ pub fn resolve(repo_root: &Path, main_branch: &str, task: &Task) -> Delivery {
         return Delivery {
             sha: resolved,
             hint_stale: stale,
+            resolved_repo: None,
         };
     }
     Delivery {
-        sha: git::git_log_find_subject(repo_root, main_branch, &tag),
+        sha: git::git_log_find_subject(repo_root, main_branch, tag),
         hint_stale: false,
+        resolved_repo: None,
     }
 }
 
@@ -147,144 +204,5 @@ pub fn describe(repo_root: &Path, sha: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::task::{NewTaskOpts, Task};
-    use tempfile::TempDir;
-
-    fn empty_task() -> Task {
-        Task::new(
-            NewTaskOpts {
-                title: "t".into(),
-                ..Default::default()
-            },
-            "bl-abcd".into(),
-        )
-    }
-
-    #[test]
-    fn resolve_returns_empty_when_not_a_git_repo() {
-        // Not a git repo: every git query fails, so resolve yields an
-        // empty, non-stale result regardless of the branch passed.
-        let dir = TempDir::new().unwrap();
-        let d = resolve(dir.path(), "main", &empty_task());
-        assert!(d.sha.is_none());
-        assert!(!d.hint_stale);
-    }
-
-    #[test]
-    fn populate_on_close_manual_override_wins_unconditionally() {
-        // `bl close --delivered <sha>` skips the scan and sets the
-        // hint even when one is already present (forge rebase-merge).
-        // Without `--delivered-repo`, `delivered_repo` auto-tags with
-        // the current repo (bl-7523).
-        let dir = TempDir::new().unwrap();
-        let mut t = empty_task();
-        t.delivered_in = Some("oldsha".into());
-        let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()), None);
-        assert!(changed);
-        assert_eq!(t.delivered_in.as_deref(), Some("forced"));
-        assert_eq!(
-            t.delivered_repo.as_deref(),
-            Some(crate::repo_url::current(dir.path()).as_str())
-        );
-    }
-
-    #[test]
-    fn populate_on_close_is_noop_when_hint_already_set() {
-        // Local-squash mode wrote the hint in `review`; close must
-        // not touch it (no scan, byte-identical archived task). The
-        // bl-7523 provenance the review path already wrote stays put.
-        let dir = TempDir::new().unwrap();
-        let mut t = empty_task();
-        t.delivered_in = Some("fromreview".into());
-        t.delivered_repo = Some("git@h:from-review.git".into());
-        let changed = populate_on_close(dir.path(), "main", &mut t, None, None);
-        assert!(!changed);
-        assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
-        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:from-review.git"));
-    }
-
-    #[test]
-    fn populate_on_close_scan_miss_leaves_hint_null() {
-        // Null hint, no `[id]` commit reachable (not a git repo, so
-        // the tag scan finds nothing): warn and proceed with null —
-        // no sha, no provenance.
-        let dir = TempDir::new().unwrap();
-        let mut t = empty_task();
-        let changed = populate_on_close(dir.path(), "main", &mut t, None, None);
-        assert!(!changed);
-        assert!(t.delivered_in.is_none());
-        assert!(t.delivered_repo.is_none());
-    }
-
-    #[test]
-    fn populate_on_close_manual_repo_overrides_auto_tag() {
-        // bl-733e: `--delivered <sha> --delivered-repo <url>` writes
-        // both fields verbatim — the operator's declared source
-        // wins over the local clone's `origin` auto-tag.
-        let dir = TempDir::new().unwrap();
-        let mut t = empty_task();
-        let changed = populate_on_close(
-            dir.path(),
-            "main",
-            &mut t,
-            Some("forced".into()),
-            Some("git@h:client-a.git".into()),
-        );
-        assert!(changed);
-        assert_eq!(t.delivered_in.as_deref(), Some("forced"));
-        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:client-a.git"));
-    }
-
-    #[test]
-    fn populate_on_close_manual_repo_alone_updates_only_provenance() {
-        // bl-733e: `--delivered-repo <url>` without `--delivered`
-        // corrects the source repo on a task that already has a sha
-        // (typical bridge-clone sync hook case). delivered_in stays
-        // untouched; delivered_repo gets the new value.
-        let dir = TempDir::new().unwrap();
-        let mut t = empty_task();
-        t.delivered_in = Some("fromreview".into());
-        t.delivered_repo = Some("git@h:wrong.git".into());
-        let changed = populate_on_close(
-            dir.path(),
-            "main",
-            &mut t,
-            None,
-            Some("git@h:right.git".into()),
-        );
-        assert!(changed);
-        assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
-        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:right.git"));
-    }
-
-    #[test]
-    fn populate_on_close_manual_repo_writes_even_when_no_sha_resolves() {
-        // bl-733e: declaring a source repo on a task with no sha
-        // (scan miss, no manual sha) is allowed — the operator
-        // opted in explicitly. delivered_in stays null; we still
-        // return true so the caller persists the provenance.
-        let dir = TempDir::new().unwrap();
-        let mut t = empty_task();
-        let changed = populate_on_close(
-            dir.path(),
-            "main",
-            &mut t,
-            None,
-            Some("git@h:c.git".into()),
-        );
-        assert!(changed);
-        assert!(t.delivered_in.is_none());
-        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:c.git"));
-    }
-
-    #[test]
-    fn describe_falls_back_to_short_sha_when_no_subject() {
-        // A tempdir isn't a git repo, so both subject and short-sha
-        // lookups return None — describe falls back to the raw sha.
-        let dir = TempDir::new().unwrap();
-        let out = describe(dir.path(), "deadbeef");
-        assert_eq!(out, "deadbeef");
-    }
-}
+#[path = "delivery_tests.rs"]
+mod tests;
