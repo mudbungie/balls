@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-8a9a"],
   "description": "Per docs/SPEC-tracker-state.md SS7 (bl-40e9). Depends on the unified checkout (bl-8a9a).\n\n- Introduce .balls/project.json on the tracker branch, project-owned: version, id_length, min_bl_version, plugins. config.json keeps the workspace-owned fields: the tracker address, target_branch, delivery, review, worktree_dir, protected_main, require_remote_*, auto_fetch_on_ready, stale_threshold_seconds.\n- project.json is read through a .balls/project.json symlink into .balls/state-repo. On overlap, project.json WINS -- enforced project ownership, and the migration path (old clients fall back to built-in defaults). config.json is never symlinked.\n- Plugin config (.balls/plugins/*) is project config, on the tracker branch. Plugin auth (.balls/local/plugins/) and BALLS_IDENTITY stay per-workspace, never on the tracker. bl plugin enable/disable/policy writes land in project.json.\n\nConformance (SPEC SS16) tests 5 and 6 must exist and fail against current code before this lands.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":111,"source":"balls","state":"open","synced_at":"2026-05-21T07:17:51.555950011+00:00","url":"https://github.com/mudbungie/balls/issues/111"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":111,"source":"balls","state":"open","synced_at":"2026-05-21T19:57:31.297733661+00:00","url":"https://github.com/mudbungie/balls/issues/111"}}},
   "id": "bl-e609",
   "links": [],
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-21T07:17:51.568329954Z"},
+  "synced_at": {"github-issues":"2026-05-21T19:57:31.319170435Z"},
   "tags": [],
   "title": "Split config: config.json (workspace) vs project.json (project)",
   "type": "task",
-  "updated_at": "2026-05-21T19:57:29.693210980Z"
+  "updated_at": "2026-05-21T19:57:31.319184119Z"
 }
