@@ -51,6 +51,7 @@ pub mod policy;
 pub mod progress;
 pub mod ready;
 pub mod remaster;
+mod remaster_detach;
 pub mod render_list;
 pub mod render_ready;
 pub mod render_show;
