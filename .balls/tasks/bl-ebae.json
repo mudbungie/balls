@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-1098 made `.balls/plugins/` a symlink into `.balls/state-repo/.balls/plugins/`\nin federated mode, materialized by `state_repo::ensure`. It deliberately left\nthe git-hygiene side of the transition alone — this ball closes that.\n\nWhen `bl remaster --commit <url>` flips a standalone repo to federated:\n\n- `state_repo::ensure` removes the `.gitkeep`-only `.balls/plugins/` directory\n  and drops a symlink in its place. But `.balls/plugins/.gitkeep` is still\n  *tracked* in git, so `git status` shows it as deleted.\n- The new `.balls/plugins` symlink is untracked and has no `.gitignore` entry —\n  it would be committed by a careless `git add -A`, baking one user's filesystem\n  layout into the shared repo.\n- `.balls/state-repo/` itself is also untracked with no `.gitignore` entry. This\n  one predates bl-1098 (a pre-existing gap), but it compounds the same mess.\n\nNet effect: a freshly-federated repo has a permanently noisy `git status` until\nthe user manually `git rm`s the `.gitkeep` and hand-edits `.gitignore`. That is\nexactly the kind of silent-footgun state `ensure_main_gitignore` exists to prevent.\n\n# Scope\n\n- On the federated flip (`bl remaster --commit <url>`, and the `bl init` path\n  that materializes a seeded `master_url`): add `.balls/plugins` and\n  `.balls/state-repo` to `.gitignore`, and `git rm --cached`\n  `.balls/plugins/.gitkeep` (plus any other now-symlink-shadowed tracked content).\n- On `bl remaster --detach`: reverse it — drop `.balls/plugins` from `.gitignore`\n  and re-track `.balls/plugins/.gitkeep` so the standalone repo is clean again.\n- Decide the seam: a federated arm on `store_init::ensure_main_gitignore`, or\n  direct handling in the remaster command. ensure_main_gitignore already owns\n  the non-stealth `.balls/tasks` / `.balls/worktree` entries, so it is the\n  natural home — but it is currently only called at init time, not remaster time.\n- Tests: federated flip leaves a clean `git status`; detach restores standalone\n  shape; idempotent on re-run.\n\n# Relation\n\nComposes with bl-82a4 (symlink-based config symmetry), whose redirected design\nmakes `bl remaster` \"handle whatever state it finds\". This could fold into that\nball, but it is a concrete, independently-shippable hygiene fix and shouldn't\nwait on bl-82a4's discuss-first design loop.\n\n# Origin\n\nbl-1098 close-out review (2026-05-20). Deferred scope explicitly flagged at\ndelivery; user asked for it to be tracked as its own ball.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":74,"source":"balls","state":"open","synced_at":"2026-05-21T01:10:11.307700720+00:00","url":"https://github.com/mudbungie/balls/issues/74"}}},
   "id": "bl-ebae",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T01:10:11.323567811Z"},
   "tags": ["multi-repo","master_url","hygiene"],
   "title": "bl remaster --commit: gitignore + untrack .balls/plugins on the federated flip",
   "type": "bug",
-  "updated_at": "2026-05-21T01:10:10.384190725Z"
+  "updated_at": "2026-05-21T01:10:11.323571558Z"
 }
