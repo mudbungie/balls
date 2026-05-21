@@ -1,0 +1,1 @@
+{"ts":"2026-05-21T04:21:10.493352786Z","author":"Toned","text":"Remove duplicated Reject header from the README\n\nThe Worktree Lifecycle section emitted '### Reject (reviewer requests rework)' twice in a row — a copy-paste artifact that renders as an empty duplicated section on GitHub and any docs site. Drop the first occurrence."}
