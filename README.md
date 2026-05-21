@@ -1003,8 +1003,8 @@ Committed to main, shared across the team.
   "require_remote_on_review": false,
   "require_remote_on_close": false,
   "worktree_dir": ".balls-worktrees",
-  "tasks_dir": null,
   "delivery": { "mode": "local-squash" },
+  "review": { "pre_check": null },
   "target_branch": null,
   "min_bl_version": null,
   "plugins": {
@@ -1019,6 +1019,7 @@ Committed to main, shared across the team.
 
 | Field | Description |
 |---|---|
+| `version` | Config schema version. Currently `1`. |
 | `id_length` | Hex chars in generated task IDs. Clamped to `[4, 32]` on load; out-of-range values produce a warning and fall back to 4. |
 | `stale_threshold_seconds` | `bl ready` auto-fetches if the last fetch is older than this. |
 | `auto_fetch_on_ready` | Whether `bl ready` auto-fetches at all. |
@@ -1028,6 +1029,7 @@ Committed to main, shared across the team.
 | `worktree_dir` | Where `bl claim` creates worktrees. Must be a relative path under the repo; values containing `..` or starting with `/` are rejected on load. |
 | `tasks_dir` | *(removed in 0.3.4)* Stealth-mode task storage is controlled via `bl init --stealth [--tasks-dir PATH]` and persisted in `.balls/local/tasks_dir`, not in the committed config. Older configs that carry this field are unaffected — it was never read. |
 | `delivery.mode` | `"local-squash"` (default) or `"deferred"`. Selects the `bl review` code path — see *Delivery Modes*. An absent `delivery` block equals `{"mode": "local-squash"}`; the default is bit-identical to every prior version. |
+| `review.pre_check` | Shell command `bl review` runs in the worktree after the integration branch is merged in and *before* the squash; a non-zero exit aborts the review (no squash, no push, no status flip), so the project's quality gate runs at the merge, not just in CI. `null` (or an absent `review` block — the default) ⇒ no gate. See *Delivery Modes → Pre-squash review gate*. |
 | `target_branch` | Repo-level integration branch. `null` (default) falls back to the branch checked out at the repo root — the historical, previously-undocumented behavior. A per-task `target_branch` field overrides this (e.g. a hotfix targeting `main` on a `develop`-default repo). Required (non-null) when `delivery.mode = "deferred"`. |
 | `min_bl_version` | Advisory only. Newer `bl` clients warn when their version is below this; older clients ignore it. Surfaces the deferred-mode caveat (an old client local-squashes instead of deferring) without engineering prevention. |
 | `plugins` | Per-plugin enable/sync flags and config file paths. |
