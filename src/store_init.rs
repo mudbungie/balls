@@ -252,12 +252,14 @@ pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Resul
     Ok(())
 }
 
-/// Add `.balls/local`, `.balls-worktrees`, and `.balls/code-refs`
-/// (all mode-independent) to the main checkout's gitignore, plus
-/// `.balls/tasks` + `.balls/worktree` (non-stealth only — they do not
-/// exist in stealth mode). `.balls/code-refs` is unconditional because
-/// `delivery_remote::ensure_cache` materializes it on any
-/// `--resolve-remote`, with no stealth gating.
+/// Add `.balls/local`, `.balls-worktrees`, `.balls/code-refs`, and
+/// `.balls/state-repo` (all mode-independent) to the main checkout's
+/// gitignore, plus `.balls/tasks` + `.balls/worktree` (non-stealth only
+/// — they do not exist in stealth mode). `.balls/code-refs` is
+/// unconditional because `delivery_remote::ensure_cache` materializes it
+/// on any `--resolve-remote`, with no stealth gating. `.balls/state-repo`
+/// is unconditional for the same reason: `state_repo::ensure`
+/// materializes it from `master_url`, which is orthogonal to stealth.
 fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     let path = root.join(".gitignore");
     let mut content = if path.exists() {
@@ -265,7 +267,12 @@ fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     } else {
         String::new()
     };
-    let mut wanted: Vec<&str> = vec![".balls/local", ".balls-worktrees", ".balls/code-refs"];
+    let mut wanted: Vec<&str> = vec![
+        ".balls/local",
+        ".balls-worktrees",
+        ".balls/code-refs",
+        ".balls/state-repo",
+    ];
     if !is_stealth {
         wanted.push(".balls/tasks");
         wanted.push(".balls/worktree");
