@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-3ce9",
+  "claimed_by": "Gasses",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T04:12:45.576746469Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T04:12:47.156842535Z"},
   "tags": ["hygiene","testing"],
   "title": "Drop dead GIT_* scrub before the bl binary in tests",
   "type": "task",
-  "updated_at": "2026-05-21T04:12:47.156849437Z"
+  "updated_at": "2026-05-21T04:13:40.760002447Z"
 }
