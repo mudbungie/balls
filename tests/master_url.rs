@@ -105,8 +105,8 @@ fn fresh_clone_with_master_url_auto_provisions_on_prime() {
         .success();
     let id = create_task(onboard.path(), "shared task");
     bl(onboard.path()).arg("sync").assert().success();
-    git(onboard.path(), &["add", ".balls/config.json"]);
-    git(onboard.path(), &["commit", "-m", "wire master_url"]);
+    // bl-ebae: `remaster --commit` commits the master_url flip itself,
+    // so the onboarding clone only has to publish `main`.
     git(onboard.path(), &["push", "origin", "main"]);
 
     // Teammate: a fresh `git clone` with no hub remote configured.

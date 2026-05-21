@@ -20,7 +20,7 @@
 //! declaration both consumers now derive from: a new runtime path is a
 //! single row here, and the invariant is structural, not aspirational.
 
-/// One balls-internal runtime path, with the two facts that decide how
+/// One balls-internal runtime path, with the facts that decide how
 /// each consumer treats it.
 pub(crate) struct RuntimePath {
     /// Path, relative to the repo root.
@@ -38,17 +38,27 @@ pub(crate) struct RuntimePath {
     /// never a subpath of one, so a squash of `work/<id>` cannot reach
     /// it — gitignoring it is the whole defense.
     pub backstop: bool,
+    /// Whether the path is internal state *only* under `master_url`
+    /// (bl-ebae). `.balls/plugins` is a real, committed directory in a
+    /// standalone repo, but the federated flip turns it into a symlink
+    /// into the hub clone — so it is gitignored only when `federated`,
+    /// and `bl remaster --detach` removes it again.
+    pub federated_only: bool,
 }
 
 /// The canonical runtime-path table. Adding a sidecar is one row, and
-/// both consumers pick it up.
+/// every consumer picks it up.
 pub(crate) const RUNTIME_PATHS: &[RuntimePath] = &[
-    RuntimePath { rel: ".balls/local", in_stealth: true, backstop: true },
-    RuntimePath { rel: ".balls/tasks", in_stealth: false, backstop: true },
-    RuntimePath { rel: ".balls/worktree", in_stealth: false, backstop: true },
-    RuntimePath { rel: ".balls/code-refs", in_stealth: true, backstop: true },
-    RuntimePath { rel: ".balls/state-repo", in_stealth: true, backstop: true },
-    RuntimePath { rel: ".balls-worktrees", in_stealth: true, backstop: false },
+    RuntimePath { rel: ".balls/local", in_stealth: true, backstop: true, federated_only: false },
+    RuntimePath { rel: ".balls/tasks", in_stealth: false, backstop: true, federated_only: false },
+    RuntimePath { rel: ".balls/worktree", in_stealth: false, backstop: true, federated_only: false },
+    RuntimePath { rel: ".balls/code-refs", in_stealth: true, backstop: true, federated_only: false },
+    RuntimePath { rel: ".balls/state-repo", in_stealth: true, backstop: true, federated_only: false },
+    RuntimePath { rel: ".balls-worktrees", in_stealth: true, backstop: false, federated_only: false },
+    // Federated-only: a squash backstop would wrongly strip a
+    // standalone repo's deliverable plugin config, so `backstop` is
+    // false — gitignoring it under `master_url` is the whole defense.
+    RuntimePath { rel: ".balls/plugins", in_stealth: true, backstop: false, federated_only: true },
 ];
 
 /// Paths the `bl review` squash backstop strips and rejects — the
@@ -61,12 +71,25 @@ pub(crate) fn backstop_paths() -> Vec<&'static str> {
         .collect()
 }
 
-/// Paths `bl init` writes to the main checkout's `.gitignore`: every
-/// runtime path, dropping the ones that do not exist under stealth.
-pub(crate) fn gitignore_paths(is_stealth: bool) -> Vec<&'static str> {
+/// Paths `bl init` (and the `bl remaster` federated flip) write to the
+/// main checkout's `.gitignore`: every runtime path, dropping the ones
+/// that do not exist under stealth and the federated-only ones unless
+/// `federated`.
+pub(crate) fn gitignore_paths(is_stealth: bool, federated: bool) -> Vec<&'static str> {
     RUNTIME_PATHS
         .iter()
-        .filter(|p| p.in_stealth || !is_stealth)
+        .filter(|p| (p.in_stealth || !is_stealth) && (!p.federated_only || federated))
+        .map(|p| p.rel)
+        .collect()
+}
+
+/// Paths gitignored only under `master_url` — added by the remaster
+/// federated flip and removed again on `bl remaster --detach`, where
+/// `.balls/plugins` reverts to a real project-owned directory (bl-ebae).
+pub(crate) fn federated_only_paths() -> Vec<&'static str> {
+    RUNTIME_PATHS
+        .iter()
+        .filter(|p| p.federated_only)
         .map(|p| p.rel)
         .collect()
 }

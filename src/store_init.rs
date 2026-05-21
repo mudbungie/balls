@@ -234,16 +234,22 @@ pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
 /// symlink, not a project directory — there is no project-owned
 /// `.gitkeep` to seed or stage. Read that from `master_url` in config,
 /// not by probing the symlink (which couples to `Store::init` order).
+///
+/// bl-ebae: that federated case also gitignores `.balls/plugins` and
+/// drops any standalone-era `.gitkeep` still tracked from a pre-flip
+/// `bl init`, so a fresh-cloned federated repo has a clean tree.
 pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Result<()> {
-    ensure_main_gitignore(root, is_stealth)?;
     // `state_repo::ensure` only materializes the symlink in non-stealth
     // master_url mode, so that is exactly the condition that owns no
     // project `.gitkeep` — stated here from config, order-independent.
     let config_path = root.join(".balls/config.json");
     let federated = !is_stealth && Config::load(&config_path)?.master_url().is_some();
+    crate::gitignore::ensure_main_gitignore(root, is_stealth, federated)?;
     let keep_rel = Path::new(".balls/plugins/.gitkeep");
     let mut paths: Vec<&Path> = vec![Path::new(".balls/config.json"), Path::new(".gitignore")];
-    if !federated {
+    if federated {
+        git::git_rm_cached(root, &[keep_rel])?;
+    } else {
         let abs_keep = root.join(keep_rel);
         if !abs_keep.exists() {
             fs::write(&abs_keep, "")?;
@@ -253,35 +259,6 @@ pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Resul
     git::git_add(root, &paths)?;
     let msg = if already { "balls: reinitialize" } else { "balls: initialize" };
     git::git_commit(root, msg)?;
-    Ok(())
-}
-
-/// Add every balls runtime path to the main checkout's gitignore. The
-/// path set is derived from the canonical `runtime_paths` table — see
-/// that module for why each path is internal state, not a deliverable.
-/// `runtime_paths::gitignore_paths` already drops the stealth-absent
-/// state-worktree paths, so this function stays mode-agnostic.
-fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
-    let path = root.join(".gitignore");
-    let mut content = if path.exists() {
-        fs::read_to_string(&path)?
-    } else {
-        String::new()
-    };
-    let mut dirty = false;
-    for entry in crate::runtime_paths::gitignore_paths(is_stealth) {
-        if !content.lines().any(|l| l.trim() == entry) {
-            if !content.is_empty() && !content.ends_with('\n') {
-                content.push('\n');
-            }
-            content.push_str(entry);
-            content.push('\n');
-            dirty = true;
-        }
-    }
-    if dirty {
-        fs::write(&path, content)?;
-    }
     Ok(())
 }
 

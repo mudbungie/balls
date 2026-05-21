@@ -15,8 +15,9 @@ use balls::config::Config;
 use balls::error::{BallError, Result};
 use balls::policy::LocalConfig;
 use balls::remaster::{self, Reconciled};
-use balls::state_repo;
 use balls::store::Store;
+use balls::{git, gitignore, state_repo};
+use std::path::Path;
 
 pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Result<()> {
     if detach && target.is_some() {
@@ -50,9 +51,15 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
     }
 
     if detach {
+        // Captured before `detach` swaps the symlink for a real dir:
+        // it tells us whether the federated git hygiene needs reversing.
+        let was_federated = store.root.join(".balls/plugins").is_symlink();
         remaster::detach(&store)?;
         set_local_state_remote(&store, "origin")?;
         clear_master_url(&store)?;
+        if was_federated {
+            detach_gitignore_hygiene(&store)?;
+        }
         println!(
             "detached: balls/tasks re-rooted as a standalone local store; \
              state_remote cleared to `origin`"
@@ -126,17 +133,53 @@ fn commit_master_url(store: &Store, url: &str, commit: bool) -> Result<()> {
         // would otherwise still try to resolve the name field too.
         cfg.state_remote = None;
         cfg.save(&path)?;
-        println!(
-            "wrote master_url=`{url}` to committed .balls/config.json — \
-             balls owns .balls/state-repo/; commit the config to share \
-             the project link"
-        );
+        commit_federated_flip(store, url)?;
     } else {
         println!(
             "materialized .balls/state-repo/ from `{url}` (per-clone, \
              not committed). Re-run with --commit to share the link."
         );
     }
+    Ok(())
+}
+
+/// bl-ebae: leave the federated flip with a clean `git status`.
+/// `state_repo::ensure` already swapped `.balls/plugins/` for a symlink
+/// into the hub clone; here we (1) gitignore the balls-owned federated
+/// paths so a careless `git add -A` can't bake them into the shared
+/// repo, (2) drop the now-symlink-shadowed `.gitkeep` from the index,
+/// and (3) commit the whole transition alongside the config change.
+fn commit_federated_flip(store: &Store, url: &str) -> Result<()> {
+    gitignore::ensure_main_gitignore(&store.root, false, true)?;
+    git::git_rm_cached(&store.root, &[Path::new(".balls/plugins/.gitkeep")])?;
+    git::git_add(
+        &store.root,
+        &[Path::new(".balls/config.json"), Path::new(".gitignore")],
+    )?;
+    git::git_commit(&store.root, "balls: remaster to federated hub")?;
+    println!(
+        "remastered to federated hub `{url}`: master_url committed, \
+         .balls/state-repo + .balls/plugins gitignored"
+    );
+    Ok(())
+}
+
+/// bl-ebae: reverse `commit_federated_flip`. Detach turned the plugins
+/// symlink back into a real directory (`remaster::detach`), so it must
+/// leave the ignore list and its restored contents be re-tracked. The
+/// whole standalone shape is committed so detach, too, leaves a clean
+/// tree. `.balls/state-repo` stays ignored — the clone is still on disk.
+fn detach_gitignore_hygiene(store: &Store) -> Result<()> {
+    gitignore::remove_federated_entries(&store.root)?;
+    git::git_add(
+        &store.root,
+        &[
+            Path::new(".balls/plugins"),
+            Path::new(".balls/config.json"),
+            Path::new(".gitignore"),
+        ],
+    )?;
+    git::git_commit(&store.root, "balls: remaster --detach to standalone")?;
     Ok(())
 }
 

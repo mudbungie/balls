@@ -36,6 +36,7 @@ pub mod error;
 pub mod git;
 pub mod git_merge;
 pub mod git_state;
+pub mod gitignore;
 mod hash;
 pub mod human_gate;
 pub mod link;
