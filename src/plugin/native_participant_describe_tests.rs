@@ -9,6 +9,7 @@ use crate::plugin::native_types::{DescribeResponse, ProjectionWire};
 use crate::negotiation::{FailurePolicy, NegotiationResult, Protocol};
 use crate::participant::{self, Event, EventCtx, Field, Participant};
 use crate::participant_config::InvocationOverrides;
+use crate::plugin::runner::test_seam::ExecutableOverride;
 
 #[test]
 fn from_describe_intersects_declared_and_configured_events() {
@@ -167,11 +168,12 @@ fn unsubscribed_event_is_skipped_at_run_level() {
 
 #[test]
 fn run_against_missing_executable_collapses_to_skipped() {
-    // No plugin executable on PATH; the protocol's auth_check fails,
+    // Unresolvable plugin executable; the protocol's auth_check fails,
     // propose returns AttemptClass::Other, BestEffort policy absorbs
     // it as Skipped.
     let (_td, store) = stealth_store();
     save_task(&store, "bl-0004");
+    let _exe = ExecutableOverride::unresolvable(&store.root);
     let p = NativePluginParticipant::from_describe(
         &store,
         "ghost".into(),
@@ -182,16 +184,7 @@ fn run_against_missing_executable_collapses_to_skipped() {
     )
     .unwrap();
     let ctx = EventCtx::new(Event::Claim, &store, "bl-0004", "alice");
-    let saved = std::env::var_os("PATH");
-    unsafe {
-        std::env::remove_var("PATH");
-    }
     let r = participant::run(&p, Event::Claim, ctx).unwrap();
-    if let Some(s) = saved {
-        unsafe {
-            std::env::set_var("PATH", s);
-        }
-    }
     assert!(
         matches!(&r, NegotiationResult::Skipped(s) if s.contains("auth-check failed")),
         "expected Skipped from BestEffort, got {r:?}"

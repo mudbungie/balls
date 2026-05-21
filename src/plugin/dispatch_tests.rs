@@ -8,6 +8,7 @@ use crate::config::{Config, PluginEntry, CONFIG_SCHEMA_VERSION};
 use crate::error::Result;
 use crate::participant::Event;
 use crate::participant_config::InvocationOverrides;
+use crate::plugin::runner::test_seam::ExecutableOverride;
 use crate::store::Store;
 use crate::task::{NewTaskOpts, Task, TaskType};
 use std::collections::BTreeMap;
@@ -158,7 +159,7 @@ fn dispatch_sync_skips_disabled_plugin() {
 
 #[test]
 fn dispatch_sync_runs_for_unavailable_executable() {
-    // A configured-but-not-on-PATH plugin: `Plugin::auth_check`
+    // A configured-but-unresolvable plugin: `Plugin::auth_check`
     // returns false, propose returns Other, BestEffort absorbs as
     // Skipped, and the dispatcher records no report. Critical
     // because legacy behavior treats "plugin missing" as silent skip.
@@ -166,19 +167,8 @@ fn dispatch_sync_runs_for_unavailable_executable() {
     let mut plugins = BTreeMap::new();
     plugins.insert("ghost".into(), entry(true, true));
     write_config(&store, plugins);
-    // PATH = empty so the plugin executable is unfindable.
-    let saved = std::env::var_os("PATH");
-    // SAFETY: tests run single-threaded under cargo's default harness
-    // for unit tests in a module; we restore PATH below.
-    unsafe {
-        std::env::remove_var("PATH");
-    }
+    let _exe = ExecutableOverride::unresolvable(&store.root);
     let reports = dispatch_sync(&store, None, "alice").unwrap();
-    if let Some(p) = saved {
-        unsafe {
-            std::env::set_var("PATH", p);
-        }
-    }
     assert!(reports.is_empty());
 }
 
@@ -198,15 +188,7 @@ fn dispatch_sync_filter_threads_through() {
     let mut plugins = BTreeMap::new();
     plugins.insert("filterable".into(), entry(true, true));
     write_config(&store, plugins);
-    let saved = std::env::var_os("PATH");
-    unsafe {
-        std::env::remove_var("PATH");
-    }
+    let _exe = ExecutableOverride::unresolvable(&store.root);
     let reports = dispatch_sync(&store, Some("PROJ-1"), "alice").unwrap();
-    if let Some(p) = saved {
-        unsafe {
-            std::env::set_var("PATH", p);
-        }
-    }
     assert!(reports.is_empty());
 }
