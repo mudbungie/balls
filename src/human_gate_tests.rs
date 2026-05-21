@@ -1,9 +1,8 @@
 use super::*;
-use crate::git_test_support::git_run;
+use crate::git_test_support::init_repo_no_commit;
 use crate::plugin::{SyncCreate, SyncDelete, SyncReport, SyncUpdate};
 use crate::store::Store;
 use std::collections::BTreeMap;
-use std::path::Path;
 use tempfile::TempDir;
 
 fn fresh_store() -> (TempDir, Store) {
@@ -11,16 +10,11 @@ fn fresh_store() -> (TempDir, Store) {
         .prefix("balls-human-gate-")
         .tempdir()
         .unwrap();
-    init_repo(dir.path());
+    // `Store::init` seeds the first commit itself, so the fixture
+    // stops at init + identity config.
+    init_repo_no_commit(dir.path());
     let store = Store::init(dir.path(), false, None).unwrap();
     (dir, store)
-}
-
-fn init_repo(path: &Path) {
-    git_run(path, &["init", "-q", "-b", "main"]);
-    git_run(path, &["config", "user.email", "h@example.com"]);
-    git_run(path, &["config", "user.name", "Test"]);
-    git_run(path, &["config", "commit.gpgsign", "false"]);
 }
 
 fn sample_report() -> SyncReport {

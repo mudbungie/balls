@@ -5,21 +5,12 @@
 //! stays at 100%.
 
 use super::*;
-use crate::git_test_support::{git_run, git_stdout};
+use crate::git_test_support::{git_run, git_stdout, init_repo};
 use crate::participant::Event;
 use crate::participant_config::InvocationOverrides;
 use crate::store::Store;
 use crate::task::{NewTaskOpts, Task};
-use std::path::Path;
 use tempfile::tempdir;
-
-fn init_repo(path: &Path) {
-    git_run(path, &["init", "-q", "-b", "main"]);
-    git_run(path, &["config", "user.email", "t@e.com"]);
-    git_run(path, &["config", "user.name", "t"]);
-    git_run(path, &["config", "commit.gpgsign", "false"]);
-    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
-}
 
 fn git_store() -> (tempfile::TempDir, Store) {
     let td = tempdir().unwrap();

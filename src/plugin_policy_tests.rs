@@ -4,16 +4,12 @@
 
 use super::*;
 use crate::config::Config;
-use crate::git_test_support::git_run;
+use crate::git_test_support::init_repo;
 use tempfile::tempdir;
 
 fn standalone_store() -> (tempfile::TempDir, Store) {
     let td = tempdir().unwrap();
-    git_run(td.path(), &["init", "-q", "-b", "main"]);
-    git_run(td.path(), &["config", "user.email", "t@example.com"]);
-    git_run(td.path(), &["config", "user.name", "t"]);
-    git_run(td.path(), &["config", "commit.gpgsign", "false"]);
-    git_run(td.path(), &["commit", "--allow-empty", "-m", "init"]);
+    init_repo(td.path());
     let store = Store::init(td.path(), false, None).unwrap();
     (td, store)
 }

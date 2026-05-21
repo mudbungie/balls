@@ -6,19 +6,8 @@
 use super::*;
 use crate::config::Config;
 use crate::error::BallError;
-use crate::git_test_support::git_run;
-use std::path::Path;
+use crate::git_test_support::{git_run, init_repo};
 use tempfile::tempdir;
-
-/// Initialize a fresh non-bare repo at `path` with a configured user
-/// and an initial commit on `main`.
-fn init_repo(path: &Path) {
-    git_run(path, &["init", "-q", "-b", "main"]);
-    git_run(path, &["config", "user.email", "test@example.com"]);
-    git_run(path, &["config", "user.name", "test"]);
-    git_run(path, &["config", "commit.gpgsign", "false"]);
-    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
-}
 
 #[test]
 fn is_bare_repo_false_on_regular_repo() {

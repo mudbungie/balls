@@ -6,18 +6,10 @@
 use super::*;
 use crate::config::Config;
 use crate::error::{BallError, NotInitKind};
-use crate::git_test_support::git_run;
+use crate::git_test_support::init_repo;
 use crate::store::Store;
 use std::path::Path;
 use tempfile::tempdir;
-
-fn init_repo(path: &Path) {
-    git_run(path, &["init", "-q", "-b", "main"]);
-    git_run(path, &["config", "user.email", "t@example.com"]);
-    git_run(path, &["config", "user.name", "t"]);
-    git_run(path, &["config", "commit.gpgsign", "false"]);
-    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
-}
 
 fn standalone_store() -> (tempfile::TempDir, Store) {
     let td = tempdir().unwrap();

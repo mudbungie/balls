@@ -4,18 +4,9 @@
 //! their failure paths so coverage stays at 100%.
 
 use super::*;
-use crate::git_test_support::{git_run, git_stdout};
+use crate::git_test_support::{git_run, git_stdout, init_repo};
 use crate::store::Store;
-use std::path::Path;
 use tempfile::tempdir;
-
-fn init_repo(path: &Path) {
-    git_run(path, &["init", "-q", "-b", "main"]);
-    git_run(path, &["config", "user.email", "test@example.com"]);
-    git_run(path, &["config", "user.name", "test"]);
-    git_run(path, &["config", "commit.gpgsign", "false"]);
-    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
-}
 
 #[test]
 fn add_user_changes_stages_normal_files() {
