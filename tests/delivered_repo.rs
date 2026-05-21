@@ -9,15 +9,10 @@
 mod common;
 
 use common::*;
+use common::forge;
 use predicates::prelude::*;
 use std::fs;
 use std::path::Path;
-
-fn show_json(repo: &Path, id: &str) -> serde_json::Value {
-    let out = bl(repo).args(["show", id, "--json"]).output().unwrap();
-    assert!(out.status.success());
-    serde_json::from_slice(&out.stdout).unwrap()
-}
 
 fn claim_and_seed(repo: &Path, id: &str) {
     bl_as(repo, "alice").args(["claim", id]).assert().success();
@@ -122,34 +117,14 @@ fn checkpoint_review_leaves_delivered_repo_null() {
     );
 }
 
-/// `bl close --delivered <sha>` is the deferred-mode operator override.
-/// It writes `delivered_in` verbatim and also tags the current clone
-/// as the delivery's source — the manual sha by definition lives in
-/// the local checkout.
-fn deferred_seed(repo: &Path) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","target_branch":"main","delivery":{"mode":"deferred"}}"#,
-    )
-    .unwrap();
-}
-
-fn deferred_gate_child(repo: &Path) -> String {
-    let out = bl(repo)
-        .args(["list", "--json", "--tag", "forge-gate"])
-        .output()
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    v.as_array().unwrap()[0]["id"].as_str().unwrap().to_string()
-}
-
+/// Deferred-mode `bl close` with no `--delivered` tag-scans the target
+/// branch for the `[id]` merge commit and caches the local clone's
+/// `origin` as the delivery provenance.
 #[test]
 fn deferred_close_tag_scan_tags_delivered_repo() {
     let remote = new_bare_remote();
     let alice = clone_from_remote(remote.path(), "alice");
-    deferred_seed(alice.path());
+    forge::seed(alice.path(), Some("main"));
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["push", "origin", "main"]);
 
@@ -172,7 +147,7 @@ fn deferred_close_tag_scan_tags_delivered_repo() {
         ],
     );
 
-    let child = deferred_gate_child(alice.path());
+    let child = forge::gate_child(alice.path());
     bl(alice.path())
         .args(["update", &child, "status=closed", "--note", "merged"])
         .assert()

@@ -10,13 +10,6 @@ mod common;
 
 use common::*;
 
-/// Toggle the main repo's `core.bare` flag without going through the
-/// `bl` discovery path (which already trusts the gitdir). Mimics the
-/// state of the user's bare-flagged main gitdir post-conversion.
-fn set_core_bare(repo_root: &std::path::Path, bare: bool) {
-    git(repo_root, &["config", "core.bare", if bare { "true" } else { "false" }]);
-}
-
 #[test]
 fn review_succeeds_when_repo_root_is_bare() {
     let repo = new_repo();
@@ -29,7 +22,7 @@ fn review_succeeds_when_repo_root_is_bare() {
     let wt = repo.path().join(".balls-worktrees").join(&id);
     std::fs::write(wt.join("feature.txt"), "delivered").unwrap();
 
-    set_core_bare(repo.path(), true);
+    set_core_bare(repo.path());
 
     bl(&wt)
         .args(["review", &id, "-m", "ready for review"])
@@ -78,7 +71,7 @@ fn review_no_code_on_bare_repo_records_no_code_marker() {
         .assert()
         .success();
 
-    set_core_bare(repo.path(), true);
+    set_core_bare(repo.path());
 
     let head_before = git(repo.path(), &["rev-parse", "main"]).trim().to_string();
     let wt = repo.path().join(".balls-worktrees").join(&id);

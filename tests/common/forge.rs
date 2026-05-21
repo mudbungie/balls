@@ -1,6 +1,6 @@
 //! Shared helpers for deferred-mode / forge-gated delivery tests
-//! (SPEC-forge-gated-delivery). Used by `forge_deferred.rs` (forward
-//! path) and `forge_deferred_reject.rs` (SPEC §7.3 reject path).
+//! (SPEC-forge-gated-delivery): seeding deferred config, resolving the
+//! auto-opened `forge-gate` child, and reading refs.
 
 #![allow(dead_code)]
 

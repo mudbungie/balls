@@ -8,6 +8,7 @@
 
 pub mod forge;
 pub mod human_gate;
+pub mod multidev;
 pub mod native_plugin;
 pub mod plugin;
 
@@ -220,4 +221,46 @@ pub fn push(cwd: &Path) {
 /// Pull from origin (fetch + merge).
 pub fn pull(cwd: &Path) {
     git(cwd, &["pull", "--no-edit", "origin", "main"]);
+}
+
+/// Run `bl doctor` and return stdout. Asserts exit 0 — doctor is
+/// read-only and never fails the process; the verdict is in the text.
+pub fn doctor(cwd: &Path) -> String {
+    let out = bl(cwd).arg("doctor").output().expect("bl doctor");
+    assert!(out.status.success(), "doctor must exit 0 (read-only)");
+    String::from_utf8_lossy(&out.stdout).to_string()
+}
+
+/// Flip the repo's `core.bare` flag on directly, mimicking a
+/// bare-converted hub without going through `bl`.
+pub fn set_core_bare(repo_root: &Path) {
+    git(repo_root, &["config", "core.bare", "true"]);
+}
+
+/// Run `bl show --json` for a (possibly archived) task and return the
+/// parsed value. Asserts the command succeeded.
+pub fn show_json(repo: &Path, id: &str) -> serde_json::Value {
+    let out = bl(repo).args(["show", id, "--json"]).output().unwrap();
+    assert!(out.status.success());
+    serde_json::from_slice(&out.stdout).unwrap()
+}
+
+/// Write a minimal valid `.balls/config.json` before `bl init`, with
+/// `extra` string-valued keys merged into the base object. Use this
+/// instead of hand-rolling the config JSON literal per test — see
+/// `common::forge::seed` for the deferred-delivery variant.
+pub fn seed_config(repo: &Path, extra: &[(&str, &str)]) {
+    let mut cfg = serde_json::json!({
+        "version": 1,
+        "id_length": 4,
+        "stale_threshold_seconds": 60,
+        "worktree_dir": ".balls-worktrees",
+    });
+    let obj = cfg.as_object_mut().unwrap();
+    for (key, val) in extra {
+        obj.insert((*key).into(), serde_json::Value::String((*val).into()));
+    }
+    let balls = repo.join(".balls");
+    std::fs::create_dir_all(&balls).unwrap();
+    std::fs::write(balls.join("config.json"), cfg.to_string()).unwrap();
 }

@@ -3,17 +3,7 @@
 mod common;
 
 use common::*;
-
-fn three_way() -> (Repo, Repo, Repo) {
-    let remote = new_bare_remote();
-    let alice = clone_from_remote(remote.path(), "alice");
-    bl(alice.path()).arg("init").assert().success();
-    push(alice.path());
-
-    let bob = clone_from_remote(remote.path(), "bob");
-    bl(bob.path()).arg("init").assert().success();
-    (remote, alice, bob)
-}
+use common::multidev::*;
 
 #[test]
 fn story_45_sync_no_remote_changes() {

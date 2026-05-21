@@ -14,25 +14,6 @@ use predicates::prelude::*;
 use std::fs;
 use std::path::Path;
 
-/// Write a minimal valid `.balls/config.json` before `bl init` so the
-/// repo is targeting `target_branch` from its first lifecycle command
-/// (mirrors `tests/state_remote.rs::seed_config`).
-fn seed_config(repo: &Path, target_branch: Option<&str>) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    let tb = match target_branch {
-        Some(b) => format!(r#","target_branch":"{b}""#),
-        None => String::new(),
-    };
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees"{tb}}}"#
-        ),
-    )
-    .unwrap();
-}
-
 fn sha(repo: &Path, refname: &str) -> String {
     git(repo, &["rev-parse", refname]).trim().to_string()
 }
@@ -47,7 +28,7 @@ fn subject(repo: &Path, refname: &str) -> String {
 #[test]
 fn review_squashes_into_configured_target_branch_not_checkout() {
     let repo = new_repo();
-    seed_config(repo.path(), Some("develop"));
+    seed_config(repo.path(), &[("target_branch", "develop")]);
     init_in(repo.path());
     git(repo.path(), &["branch", "develop"]);
 
@@ -126,7 +107,7 @@ fn unset_target_branch_squashes_into_checkout() {
 fn sync_pushes_configured_target_branch() {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");
-    seed_config(alice.path(), Some("develop"));
+    seed_config(alice.path(), &[("target_branch", "develop")]);
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["branch", "develop"]);
     git(alice.path(), &["push", "origin", "main"]);
@@ -183,7 +164,7 @@ fn create_with_target(repo: &Path, title: &str, branch: &str) -> String {
 #[test]
 fn per_task_target_branch_overrides_config_and_checkout() {
     let repo = new_repo();
-    seed_config(repo.path(), Some("develop"));
+    seed_config(repo.path(), &[("target_branch", "develop")]);
     init_in(repo.path());
     git(repo.path(), &["branch", "develop"]);
     git(repo.path(), &["branch", "release"]);
