@@ -19,6 +19,29 @@ use balls::state_repo;
 use balls::store::Store;
 
 pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Result<()> {
+    if detach && target.is_some() {
+        return Err(BallError::Other(
+            "remaster --detach takes no TARGET (it goes standalone)".into(),
+        ));
+    }
+
+    // Detach must work offline (bl-dcd3). When `master_url` is set but
+    // the state-repo never materialized — an unreachable hub blocking
+    // first-time setup — `discover()` re-hits the same hard-fail, so
+    // the warm detach path can't run. Try the cold path first; it
+    // returns Ok(false) when the warm path is the right answer.
+    if detach {
+        let cwd = std::env::current_dir()?;
+        if remaster::try_cold_detach(&cwd)? {
+            println!(
+                "detached (offline): cleared master_url; initialized a fresh \
+                 local task store at .balls/worktree/. Your tasks are not \
+                 shared with any hub yet."
+            );
+            return Ok(());
+        }
+    }
+
     let store = discover()?;
     if store.no_git || store.stealth {
         return Err(BallError::Other(
@@ -27,11 +50,6 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
     }
 
     if detach {
-        if target.is_some() {
-            return Err(BallError::Other(
-                "remaster --detach takes no TARGET (it goes standalone)".into(),
-            ));
-        }
         remaster::detach(&store)?;
         set_local_state_remote(&store, "origin")?;
         clear_master_url(&store)?;

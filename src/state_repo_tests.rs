@@ -75,26 +75,61 @@ fn ensure_is_idempotent() {
 }
 
 #[test]
-fn ensure_with_unreachable_url_creates_safe_local_orphan() {
+fn ensure_first_time_unreachable_hub_hard_fails(
+) {
+    // bl-dcd3: a cross-repo client with `master_url` set is a pure
+    // pointer to the hub. If first-time setup can't reach it, the
+    // only safe outcome is to stop — silently dropping to a local
+    // orphan would let the user accumulate task changes that diverge
+    // from the team. The error names the URL, the underlying fetch
+    // failure, and the three resolution paths.
     let root = TempDir::new().unwrap();
     let url = "/this/path/does/not/exist/hub.git";
 
-    let dir = ensure(root.path(), url).unwrap();
-    assert!(dir.join(".git").exists());
-    assert!(git_state::branch_exists(&dir, "balls/tasks"));
-    // The remote URL was still recorded — a later `bl prime` once the
-    // hub becomes reachable picks up where this left off.
-    let url_out = std::process::Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .current_dir(&dir)
-        .output()
-        .unwrap();
-    assert!(url_out.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&url_out.stdout).trim(),
-        url,
-        "origin URL must be recorded even when unreachable"
+    let err = ensure(root.path(), url).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains(url), "error must name the URL: {msg}");
+    assert!(
+        msg.contains("could not reach state hub"),
+        "error must call out the unreachable hub: {msg}"
     );
+    assert!(
+        msg.contains("remaster --detach"),
+        "error must mention the standalone escape hatch: {msg}"
+    );
+    assert!(
+        msg.contains("master_url"),
+        "error must name the config field to edit: {msg}"
+    );
+    // Scaffold rolled back so the next attempt is a clean first-time,
+    // not a half-built cache that would soft-fail.
+    assert!(
+        !root.path().join(".balls/state-repo").exists(),
+        "first-time failure must leave no partial state-repo behind"
+    );
+}
+
+#[test]
+fn ensure_warm_cache_offline_soft_fails() {
+    // Once a state-repo has been successfully materialized, a later
+    // offline invocation continues from the local cache — parity with
+    // normal git, and the only soft-fail path the cross-repo model
+    // accepts. bl-dcd3.
+    let hub = hub_repo();
+    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
+    let root = TempDir::new().unwrap();
+
+    // Warm the cache against a reachable hub.
+    let dir = ensure(root.path(), &url).unwrap();
+    let sha = git::git_resolve_sha(&dir, "balls/tasks").unwrap();
+
+    // Drop the hub: subsequent invocations must keep working from the
+    // local cache rather than re-erroring.
+    drop(hub);
+    let dir2 = ensure(root.path(), &url).unwrap();
+    assert_eq!(dir, dir2);
+    let sha2 = git::git_resolve_sha(&dir2, "balls/tasks").unwrap();
+    assert_eq!(sha, sha2, "warm cache offline must not lose history");
 }
 
 #[test]
