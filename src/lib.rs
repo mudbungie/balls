@@ -42,6 +42,7 @@ pub mod negotiation;
 pub mod participant;
 pub mod participant_config;
 pub mod plugin;
+pub mod plugin_admin;
 pub mod policy;
 pub mod progress;
 pub mod ready;

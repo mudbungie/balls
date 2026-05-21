@@ -89,6 +89,33 @@ pub enum DepCmd {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum PluginCmd {
+    /// Enable a plugin: insert/replace the effective entry and create
+    /// the per-plugin config file if it does not exist.
+    Enable {
+        /// Plugin name. Becomes the key in the `plugins` map.
+        name: String,
+        /// Relative path under the plugins root for the per-plugin
+        /// JSON config. Defaults to `<name>.json`.
+        #[arg(long = "config-file", value_name = "PATH")]
+        config_file: Option<String>,
+        /// Subscribe this plugin to the SPEC §11 legacy create/update
+        /// path. Off by default.
+        #[arg(long = "sync-on-change")]
+        sync_on_change: bool,
+    },
+    /// Remove a plugin from the effective `plugins` map. The
+    /// per-plugin config file is kept so credentials survive a
+    /// temporary disable.
+    Disable { name: String },
+    /// Show the effective plugins map and its source (project vs hub).
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub enum LinkCmd {
     /// Add a typed link: relates_to, duplicates, supersedes, replies_to, gates.
     /// `gates` blocks the source task from closing until the target closes.

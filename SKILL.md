@@ -70,6 +70,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
 | `bl remaster TARGET` [`--commit`] / `bl remaster --detach` | Re-point this repo's `balls/tasks` at the git remote `TARGET` (a shared task hub) and reconcile local-only tasks onto it. Per-clone by default; `--commit` writes the project-wide `.balls/config.json`. `--detach` severs shared history and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
+| `bl plugin enable NAME` [`--config-file PATH`] [`--sync-on-change`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] | Manage the effective plugins map. Under `master_url` the writes land on the hub's `balls/tasks` (commit auto-staged; `bl sync` publishes); standalone repos get an in-place edit of the project's `.balls/config.json`. `list` reports the source (`hub` vs `project`). |
 | `bl doctor` | Read-only drift check. Reports the specific reason bl can't run here (or that it can but state has drifted) and names the command that fixes each. Never mutates — `repair` stays the only action verb. Run it when bl behaves unexpectedly or before trusting an unfamiliar repo. |
 
 > **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
@@ -274,11 +275,22 @@ This is the natural composition with the bridge/proxy pattern below:
 plugin secrets, sync schedules, and mirroring policy live in **one**
 place across an N-clone federation, so client repos can't drift them.
 
-- **Where to edit plugin config on the hub:** `cd .balls/state-repo`
-  on any clone (or directly on the hub if it has a working tree).
-  Edit `.balls/config.json` and `.balls/plugins/*.json` there,
-  commit on `balls/tasks`, and push. Every client's next
-  `bl prime` (or any state-branch op) picks up the change.
+- **Hub-aware tooling: `bl plugin enable|disable|list`.** From any
+  participant clone, `bl plugin enable <name> [--config-file PATH]
+  [--sync-on-change]` writes the entry into the effective plugins
+  map and creates an empty per-plugin config file if absent.
+  `bl plugin disable <name>` removes the entry but keeps the
+  per-plugin file (operators may want to preserve credentials).
+  `bl plugin list [--json]` shows the effective map and its source
+  (`hub` under `master_url`, `project` otherwise). Under `master_url`
+  the writes land on `.balls/state-repo/`'s `balls/tasks` branch and
+  are committed automatically — run `bl sync` to publish. In
+  standalone mode the writes update the project's `.balls/config.json`
+  and `.balls/plugins/*` in place; commit them yourself.
+- **Hand-editing is still supported.** `cd .balls/state-repo` (or
+  the project root in standalone mode), edit `.balls/config.json`
+  and `.balls/plugins/*.json`, commit, push. Same effect as the
+  tooling — useful for bulk migrations or one-off policy tweaks.
 - **Drift warning.** A `master_url`-configured clone that still
   has a project-side `plugins` map or non-placeholder
   `.balls/plugins/*` files emits a one-shot "master wins" warning

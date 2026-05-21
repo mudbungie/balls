@@ -4,7 +4,7 @@ mod commands;
 
 use balls::error::{BallError, Result};
 use clap::{CommandFactory, Parser};
-use cli::{Cli, Command, DepCmd, LinkCmd, ShellArg};
+use cli::{Cli, Command, DepCmd, LinkCmd, PluginCmd, ShellArg};
 
 /// Accept bare-hex task ids on the CLI: `534c` becomes `bl-534c`. Anything
 /// already prefixed or not pure hex is returned unchanged, so the storage
@@ -151,6 +151,13 @@ fn main() {
         }
         Command::Dep { sub } => commands::cmd_dep(normalize_dep(sub)),
         Command::Link { sub } => commands::cmd_link(normalize_link(sub)),
+        Command::Plugin { sub } => match sub {
+            PluginCmd::Enable { name, config_file, sync_on_change } => {
+                commands::cmd_plugin_enable(name, config_file, sync_on_change)
+            }
+            PluginCmd::Disable { name } => commands::cmd_plugin_disable(name),
+            PluginCmd::List { json } => commands::cmd_plugin_list(json),
+        },
         Command::Sync {
             remote,
             task,
