@@ -23,26 +23,13 @@ fn read_master_url(repo: &Path) -> Option<String> {
 }
 
 fn state_repo_origin_url(repo: &Path) -> String {
-    let out = std::process::Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .current_dir(repo.join(".balls/state-repo"))
-        .output()
-        .unwrap();
-    assert!(out.status.success(), "state-repo missing origin: {out:?}");
-    String::from_utf8(out.stdout).unwrap().trim().to_string()
+    git(&repo.join(".balls/state-repo"), &["remote", "get-url", "origin"])
+        .trim()
+        .to_string()
 }
 
 fn project_remotes(repo: &Path) -> Vec<String> {
-    let out = std::process::Command::new("git")
-        .args(["remote"])
-        .current_dir(repo)
-        .output()
-        .unwrap();
-    String::from_utf8(out.stdout)
-        .unwrap()
-        .lines()
-        .map(String::from)
-        .collect()
+    git(repo, &["remote"]).lines().map(String::from).collect()
 }
 
 /// `bl remaster <hub-url> --commit` writes the URL to committed config,

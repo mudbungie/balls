@@ -1,4 +1,5 @@
 use super::*;
+use crate::git_test_support::git_run;
 use crate::plugin::{SyncCreate, SyncDelete, SyncReport, SyncUpdate};
 use crate::store::Store;
 use std::collections::BTreeMap;
@@ -16,30 +17,10 @@ fn fresh_store() -> (TempDir, Store) {
 }
 
 fn init_repo(path: &Path) {
-    use std::process::Command;
-    // Clear inherited GIT_* vars (pre-commit hooks set GIT_DIR, which
-    // would otherwise redirect this `git init` away from the temp dir
-    // and back to the host repo).
-    let env_vars = [
-        "GIT_DIR",
-        "GIT_INDEX_FILE",
-        "GIT_WORK_TREE",
-        "GIT_PREFIX",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    ];
-    let run = |args: &[&str]| {
-        let mut cmd = Command::new("git");
-        cmd.current_dir(path).args(args);
-        for v in &env_vars {
-            cmd.env_remove(v);
-        }
-        cmd.output().unwrap();
-    };
-    run(&["init", "-q", "-b", "main"]);
-    run(&["config", "user.email", "h@example.com"]);
-    run(&["config", "user.name", "Test"]);
-    run(&["config", "commit.gpgsign", "false"]);
+    git_run(path, &["init", "-q", "-b", "main"]);
+    git_run(path, &["config", "user.email", "h@example.com"]);
+    git_run(path, &["config", "user.name", "Test"]);
+    git_run(path, &["config", "commit.gpgsign", "false"]);
 }
 
 fn sample_report() -> SyncReport {

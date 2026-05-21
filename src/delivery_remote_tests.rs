@@ -4,42 +4,24 @@
 //! dependency. A bogus URL covers the soft-fail / cache-teardown path.
 
 use super::*;
+use crate::git_test_support::{git_run, git_stdout};
 use crate::task::{NewTaskOpts, Task};
 use std::process::Command;
 use tempfile::TempDir;
-
-fn run(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    assert!(out.status.success(), "git {args:?} failed: {out:?}");
-}
 
 /// Build a non-bare repo with a single commit whose subject carries
 /// `[bl-id]`. Returns the path; the SHA of that commit is what `resolve`
 /// should produce when given the path as `delivered_repo`.
 fn repo_with_tag_commit(id: &str) -> (TempDir, String) {
     let dir = TempDir::new().unwrap();
-    run(dir.path(), &["init", "-q", "-b", "main"]);
-    run(dir.path(), &["config", "user.email", "t@e.x"]);
-    run(dir.path(), &["config", "user.name", "t"]);
-    run(dir.path(), &["config", "commit.gpgsign", "false"]);
+    git_run(dir.path(), &["init", "-q", "-b", "main"]);
+    git_run(dir.path(), &["config", "user.email", "t@e.x"]);
+    git_run(dir.path(), &["config", "user.name", "t"]);
+    git_run(dir.path(), &["config", "commit.gpgsign", "false"]);
     std::fs::write(dir.path().join("a.txt"), "a").unwrap();
-    run(dir.path(), &["add", "a.txt"]);
-    run(dir.path(), &["commit", "-qm", &format!("seed [{id}]")]);
-    let sha = String::from_utf8(
-        Command::new("git")
-            .args(["rev-parse", "HEAD"])
-            .current_dir(dir.path())
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .unwrap()
-    .trim()
-    .to_string();
+    git_run(dir.path(), &["add", "a.txt"]);
+    git_run(dir.path(), &["commit", "-qm", &format!("seed [{id}]")]);
+    let sha = git_stdout(dir.path(), &["rev-parse", "HEAD"]);
     (dir, sha)
 }
 
