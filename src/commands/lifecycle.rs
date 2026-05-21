@@ -68,6 +68,7 @@ pub fn cmd_close(
     identity: Option<String>,
     delivered: Option<String>,
     delivered_repo: Option<String>,
+    resolve_remote: bool,
     sync: bool,
     no_sync: bool,
     overrides: InvocationOverrides,
@@ -83,6 +84,16 @@ pub fn cmd_close(
         let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
         let repo = cfg.as_ref().is_some_and(|c| c.require_remote_on_close);
         let policy = policy::resolve_close(repo, local.as_ref(), cli);
+        // bl-e454: deferred mode is exactly the case where the closer
+        // is typically not the clone that produced the squash (the
+        // forge merged, the bridge's sync hook is closing), so the
+        // cross-repo fallback auto-engages without a flag. Local-squash
+        // mode keeps the explicit-opt-in default — single-repo closes
+        // stay byte-identical.
+        let deferred = matches!(
+            cfg.as_ref().map(balls::config::Config::delivery_mode),
+            Some(balls::config::DeliveryMode::Deferred)
+        );
         balls::review::close_worktree(
             &store,
             &id,
@@ -91,6 +102,7 @@ pub fn cmd_close(
             policy,
             delivered,
             delivered_repo,
+            resolve_remote || deferred,
         )?
     };
     let tokens = override_tokens(&overrides, sync, no_sync);
