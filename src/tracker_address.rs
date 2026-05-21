@@ -12,8 +12,13 @@
 //! retired `.balls/master.json` pointer, or as `master_url` /
 //! `state_remote` fields inside `config.json`. `resolve` reads all
 //! three transparently; `bl remaster` rewrites them to `state_url`.
+//!
+//! `state_branch` half: bl-8a9a wired the *resolution* (here) and the
+//! *materialization* (`state_repo`) of a non-default branch, but not
+//! the lifecycle traffic — so `ensure_supported` gates it (see there).
 
 use crate::config::Config;
+use crate::error::{BallError, Result};
 use crate::git_state;
 use serde::Deserialize;
 use std::fs;
@@ -74,6 +79,36 @@ pub fn resolve(root: &Path, cfg: &Config) -> Address {
 
     // Implicit default: the code repo's own `origin`, resolved live.
     Address { url: git_state::remote_url(root, "origin"), branch, explicit: false }
+}
+
+/// Reject a tracker address this `bl` cannot honor end to end.
+///
+/// `state_branch` is *resolved* (`resolve`, above) and *materialized*
+/// — bl-8a9a checks the configured branch out in `.balls/state-repo` —
+/// but the claim/review/close/sync traffic still hardcodes
+/// `git_state::STATE_BRANCH` (`DEFAULT_BRANCH`). A non-default value
+/// would leave the local state branch and every push/fetch/merge
+/// refspec naming different branches: a silently half-working field,
+/// worse than an honest "not yet". Until that traffic is wired
+/// (SPEC-tracker-state §5 / §8; follow-up bl-3f59) a non-default
+/// `state_branch` is a hard error. Called from `Config::validate`, so
+/// it fronts every command — the field has no CLI writer today, so the
+/// only way in is a hand-edit, and the only way out is the same.
+pub fn ensure_supported(cfg: &Config) -> Result<()> {
+    if let Some(branch) = &cfg.state_branch {
+        if branch != DEFAULT_BRANCH {
+            return Err(BallError::Other(format!(
+                "invalid config: state_branch {branch:?} is not yet \
+                 supported by this bl — the claim/review/close/sync \
+                 paths still target {DEFAULT_BRANCH:?}, so a non-default \
+                 branch would silently misroute task state \
+                 (SPEC-tracker-state §5 is not wired end to end; see \
+                 bl-3f59). Remove `state_branch` from .balls/config.json, \
+                 or set it to {DEFAULT_BRANCH:?}."
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Read the retired `.balls/master.json` pointer if present. A missing

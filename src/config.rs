@@ -173,8 +173,10 @@ impl Config {
     }
 
     /// Reject `worktree_dir` values that would escape the repo root,
-    /// and refuse configs written with a schema version newer than
-    /// this binary understands. `pub` so bl-32e5's admin surface re-runs the gate before persisting.
+    /// configs written with a schema version newer than this binary
+    /// understands, and a tracker address this `bl` cannot honor
+    /// (`tracker_address::ensure_supported`). `pub` so bl-32e5's admin
+    /// surface re-runs the gate before persisting.
     pub fn validate(&self) -> Result<()> {
         if self.version > CONFIG_SCHEMA_VERSION {
             return Err(BallError::Other(format!(
@@ -189,6 +191,7 @@ impl Config {
                 self.worktree_dir
             )));
         }
+        crate::tracker_address::ensure_supported(self)?;
         validate_drop_policies(&self.plugins)
     }
 
