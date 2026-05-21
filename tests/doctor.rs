@@ -49,7 +49,10 @@ fn state_worktree_git_pointer_malformed() {
     fs::write(repo.path().join(".balls/worktree/.git"), "garbage\n").unwrap();
     let out = doctor(repo.path());
     assert!(out.contains("not a valid linked git worktree"));
-    assert!(out.contains("bl repair"));
+    // Mirror master_url's "remove ... and re-run `bl prime`" shape:
+    // legacy layout is fixed by `bl init`, not `bl repair`.
+    assert!(out.contains("bl init"));
+    assert!(!out.contains("bl repair"));
 }
 
 #[test]
@@ -58,6 +61,18 @@ fn state_worktree_git_pointer_missing() {
     init_in(repo.path());
     fs::remove_file(repo.path().join(".balls/worktree/.git")).unwrap();
     assert!(doctor(repo.path()).contains("not a valid linked git worktree"));
+}
+
+#[test]
+fn legacy_worktree_rebuild_via_doctors_hint() {
+    // The hint says "remove ... and re-run `bl init`". Doing exactly
+    // that must self-heal — including pruning git's stale worktree
+    // registry, which would otherwise block the re-add.
+    let repo = new_repo();
+    init_in(repo.path());
+    fs::remove_dir_all(repo.path().join(".balls/worktree")).unwrap();
+    bl(repo.path()).arg("init").assert().success();
+    assert!(doctor(repo.path()).contains("no problems detected"));
 }
 
 #[test]
