@@ -63,6 +63,10 @@ pub(crate) fn setup_state_branch(root: &Path, remote: &str, linked: bool) -> Res
         if let Some(parent) = state_wt.parent() {
             fs::create_dir_all(parent)?;
         }
+        // Operator may have removed the checkout dir to fix corruption
+        // (the path doctor's legacy-worktree hint names). Clear any
+        // dangling registry entry so the re-add isn't blocked.
+        let _ = git_state::worktree_prune(root);
         git_state::worktree_add_existing(root, &state_wt, STATE_BRANCH)?;
     }
 

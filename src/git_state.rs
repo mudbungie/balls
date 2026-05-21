@@ -32,6 +32,16 @@ pub fn worktree_add_existing(dir: &Path, path: &Path, branch: &str) -> Result<()
     Ok(())
 }
 
+/// Drop git's worktree registry entries whose checkout dir no longer
+/// exists. Lets `bl init` re-materialize a hand-removed
+/// `.balls/worktree/` without the operator having to know about the
+/// stale registry — without this, a subsequent `worktree add` fails
+/// with "missing but already registered worktree".
+pub fn worktree_prune(dir: &Path) -> Result<()> {
+    run(dir, &["worktree", "prune"])?;
+    Ok(())
+}
+
 /// True if `branch` exists locally.
 pub fn branch_exists(dir: &Path, branch: &str) -> bool {
     run(
