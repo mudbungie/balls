@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-9c17",
+  "claimed_by": "Chrysalis",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T04:09:52.747013196Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T04:09:54.456106302Z"},
   "tags": [],
   "title": "README: refresh the Task File Schema table",
   "type": "task",
-  "updated_at": "2026-05-21T04:09:54.456116340Z"
+  "updated_at": "2026-05-21T04:15:12.901815153Z"
 }
