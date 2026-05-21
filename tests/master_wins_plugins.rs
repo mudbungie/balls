@@ -1,15 +1,18 @@
-//! bl-a7d9 — `master_url` makes the hub authoritative for plugin
-//! config. The project's `.balls/plugins/*` and committed `plugins`
-//! map are ignored; effective dispatch reads from the materialized
-//! `.balls/state-repo/`.
+//! bl-a7d9 + bl-1098 — `master_url` makes the hub authoritative for
+//! plugin config. The transition to federated is now mediated by a
+//! `.balls/plugins -> state-repo/.balls/plugins` symlink (option a):
+//! reads always go through the project root, and the symlink
+//! redirects to the hub view. No runtime branching on `master_url`.
 //!
 //! Conformance:
 //! - A repo flipping on `master_url` while still carrying project-side
-//!   plugin config emits a one-shot "master wins" drift warning.
+//!   plugin config files is refused at `bl remaster --commit` time
+//!   with a migration message — the silent-drift window is gone.
 //! - Standalone repos (no `master_url`) keep reading project-side
 //!   plugin config — no warning, no behavior change.
-//! - Plugin dispatch resolves per-plugin config files relative to the
-//!   hub-side state-repo, not the project root.
+//! - Plugin dispatch resolves per-plugin config files through the
+//!   project-root path, which the symlink redirects to the hub view
+//!   so the file content comes from the state-repo.
 
 mod common;
 
@@ -19,27 +22,27 @@ use std::fs;
 
 const MASTER_WINS_MARKER: &str = "master wins";
 
-/// Once `master_url` is wired, a leftover project-side plugin entry
-/// counts as drift and the operator gets nudged to migrate.
+/// Flipping on `master_url` while project-side plugin files are still
+/// present is refused at remaster time with a migration message — the
+/// hub-wins rule would otherwise silently shadow those files (bl-1098).
 #[test]
-fn master_url_warns_when_project_carries_plugin_drift() {
+fn remaster_commit_refuses_when_project_carries_plugin_drift() {
     let hub = new_bare_remote();
     let alice = new_repo();
     init_in(alice.path());
     configure_plugin(alice.path());
 
-    bl(alice.path())
+    let out = bl(alice.path())
         .arg("remaster")
         .arg(hub.path().to_string_lossy().as_ref())
         .arg("--commit")
-        .assert()
-        .success();
-
-    let out = bl(alice.path()).arg("ready").output().unwrap();
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "expected remaster --commit to refuse");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains(MASTER_WINS_MARKER),
-        "expected master-wins drift warning on stderr, got: {stderr}"
+        stderr.contains("hub is authoritative") || stderr.contains("bl-a7d9"),
+        "refusal must reference the master-wins rule: {stderr}"
     );
 }
 
@@ -60,9 +63,11 @@ fn standalone_repo_emits_no_master_wins_warning() {
 }
 
 /// With `master_url`, plugin dispatch resolves the per-plugin
-/// `config_file` relative to the materialized state-repo. The mock
-/// plugin logs the `--config` path it receives; we assert it points
-/// inside `.balls/state-repo/`, never straight off the project root.
+/// `config_file` relative to the project root — but `.balls/plugins`
+/// is now a symlink to the state-repo (bl-1098), so the path
+/// canonicalizes into the hub view. The mock plugin logs the
+/// `--config` path it receives; we canonicalize and assert it resolves
+/// under `.balls/state-repo/`.
 #[test]
 fn master_url_dispatches_with_hub_side_plugin_config_path() {
     let (bin_dir, log) = install_mock_plugin();
@@ -113,20 +118,18 @@ fn master_url_dispatches_with_hub_side_plugin_config_path() {
         "mock plugin must have been invoked with a --config path: {log_contents}"
     );
 
-    let state_repo_str = state_repo.to_string_lossy();
-    let project_plugins_str = alice.path().join(".balls/plugins").to_string_lossy().into_owned();
+    let state_repo_canon = fs::canonicalize(&state_repo).unwrap();
     for line in log_contents.lines() {
         let Some(cfg) = line.split("config=").nth(1).and_then(|s| s.split_whitespace().next())
         else {
             continue;
         };
+        let canon = fs::canonicalize(cfg).expect("plugin config path must exist");
         assert!(
-            cfg.starts_with(state_repo_str.as_ref()),
-            "plugin config path must resolve into the hub-side state-repo, got `{cfg}`"
-        );
-        assert!(
-            !cfg.starts_with(&project_plugins_str),
-            "plugin config path must not resolve to the project-side plugins dir, got `{cfg}`"
+            canon.starts_with(&state_repo_canon),
+            "plugin config path must resolve into the hub-side state-repo via the \
+             .balls/plugins symlink, got `{cfg}` (canonical `{}`)",
+            canon.display()
         );
     }
 }
