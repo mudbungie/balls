@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T04:17:09.896365582Z",
-  "delivered_in": null,
+  "delivered_in": "44b1326309d5fb1469d81b2d19e453b1761fcd69",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "The '## Config (.balls/config.json)' section (README line 985) is the canonical config reference, but has drifted from src/config.rs:\n\n- The example JSON (line 999) still lists \"tasks_dir\": null, while the field table 23 lines below it (line 1022) explicitly says tasks_dir was *removed in 0.3.4*. The canonical example contradicts its own table; config.rs confirms there is no tasks_dir field. Drop it from the example block.\n- The 'review' block (review.pre_check) is a real Config field (pub review: Option<ReviewConfig>) and is documented in prose as the 'Pre-squash review gate' (README lines 48, 419-427), but appears in neither the example JSON nor the field table. Add a row + example entry.\n- Minor: 'version' is in the example JSON but has no field-table row.\n\nWhy it matters: the section is presented as authoritative. An example that ships a field removed two minor versions ago while omitting a current one actively misleads anyone hand-writing .balls/config.json.\n\nScope: distinct from bl-7cea (master_url/state_remote/federation, which is SPEC-dep-blocked) -- these defects are independent of federation and unblocked. Parallels bl-9c17 for the Task schema. Audited 2026-05-20.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":102,"source":"balls","state":"open","synced_at":"2026-05-21T04:21:24.705580872+00:00","url":"https://github.com/mudbungie/balls/issues/102"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T04:21:24.723014862Z"},
   "tags": [],
   "title": "README: config example lists removed tasks_dir, omits review.pre_check",
   "type": "bug",
-  "updated_at": "2026-05-21T04:21:24.723030126Z"
+  "updated_at": "2026-05-21T04:22:13.995327662Z"
 }
