@@ -72,9 +72,15 @@ pub struct Task {
     /// in the commit message — see `crate::delivery`.
     #[serde(default)]
     pub delivered_in: Option<String>,
-    /// Provenance: the code repo this task was created in (`origin`
-    /// URL, else repo path). Set at create; legible on a shared hub.
-    /// Older `bl` round-trips it via `extra` (SPEC §13 / bl-d31c).
+    /// Code-home provenance: the code repo this task's work belongs
+    /// to, as a fetchable `origin` URL. `bl create` stamps the
+    /// creating clone's origin; `bl claim` re-anchors it to the
+    /// claiming clone — definitionally the code home (bl-8994). Only
+    /// a real URL is auto-written, never a bare basename, so a null
+    /// means "origin unknown," not "single-repo." Implicitly frozen
+    /// after claim: no lifecycle step re-stamps it, though an explicit
+    /// `bl update <id> repo=` still can. Older `bl` round-trips it
+    /// via `extra` (SPEC §13 / bl-d31c).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
     /// Delivery provenance (bl-7523): the code repo whose history

@@ -117,6 +117,15 @@ fn apply_field(task: &mut Task, field: &str, value: &str) -> Result<()> {
             };
         }
         "description" => task.description = value.to_string(),
+        // `repo` is implicitly frozen after claim, never locked: this
+        // is the fixup path when a task's code home changes (bl-8994).
+        "repo" => {
+            task.repo = if value.is_empty() || value == "null" {
+                None
+            } else {
+                Some(value.to_string())
+            };
+        }
         _ => {
             return Err(BallError::InvalidTask(format!(
                 "unknown or unwritable field: {field}"
