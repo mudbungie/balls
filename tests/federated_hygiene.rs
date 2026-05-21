@@ -146,8 +146,9 @@ fn remaster_commit_is_idempotent() {
 }
 
 /// `bl remaster --detach` reverses the flip: `.balls/plugins` leaves
-/// the ignore list and is a tracked directory again, `.balls/state-repo`
-/// stays ignored (the clone is still on disk), tree stays clean.
+/// the ignore list and is a tracked directory again, the balls-owned
+/// `.balls/state-repo` clone is removed from disk (bl-692b) while its
+/// `.gitignore` entry stays, and the tree stays clean.
 #[test]
 fn remaster_detach_restores_standalone_shape() {
     let hub = new_bare_remote();
@@ -174,7 +175,12 @@ fn remaster_detach_restores_standalone_shape() {
     );
     assert!(
         gi.iter().any(|l| l == ".balls/state-repo"),
-        "the state-repo clone is still on disk — it stays ignored"
+        "the .gitignore entry stays — a later re-federation re-creates the clone"
+    );
+    assert!(
+        !alice.path().join(".balls/state-repo").exists(),
+        "detach must remove the hub clone — a leftover is a re-federation \
+         footgun (bl-692b)"
     );
     assert!(
         is_tracked(alice.path(), ".balls/plugins/.gitkeep"),
