@@ -1,7 +1,7 @@
-//! Unit tests for the runtime-path table derivations (bl-228d).
-//! These pin the two derived sets to exactly what the consumers
-//! produced before the table existed — the refactor is only correct
-//! if both sets are identical to the old hand-kept lists.
+//! Unit tests for the runtime-path table derivations (bl-228d, bl-ebae).
+//! These pin the derived sets to exactly what each consumer expects —
+//! the table is only correct if every derivation stays identical to
+//! the hand-kept lists it replaced.
 
 use super::*;
 
@@ -20,9 +20,9 @@ fn backstop_paths_are_the_balls_state_paths() {
 }
 
 #[test]
-fn gitignore_paths_non_stealth_lists_every_runtime_path() {
+fn gitignore_paths_non_stealth_lists_every_non_federated_path() {
     assert_eq!(
-        gitignore_paths(false),
+        gitignore_paths(false, false),
         vec![
             ".balls/local",
             ".balls/tasks",
@@ -39,7 +39,7 @@ fn gitignore_paths_stealth_drops_the_state_worktree() {
     // Stealth mode never creates the state worktree, so `.balls/tasks`
     // and `.balls/worktree` drop out; everything else stays ignored.
     assert_eq!(
-        gitignore_paths(true),
+        gitignore_paths(true, false),
         vec![
             ".balls/local",
             ".balls/code-refs",
@@ -50,10 +50,23 @@ fn gitignore_paths_stealth_drops_the_state_worktree() {
 }
 
 #[test]
+fn gitignore_paths_federated_adds_plugins() {
+    // `.balls/plugins` is gitignored only under `master_url`; a
+    // standalone repo owns it as a real, committed directory.
+    assert!(!gitignore_paths(false, false).contains(&".balls/plugins"));
+    assert!(gitignore_paths(false, true).contains(&".balls/plugins"));
+}
+
+#[test]
+fn federated_only_paths_is_just_plugins() {
+    assert_eq!(federated_only_paths(), vec![".balls/plugins"]);
+}
+
+#[test]
 fn balls_worktrees_is_gitignored_but_not_a_backstop_path() {
     // The one row that differs between consumers: `.balls-worktrees`
     // is the parent of the work worktrees, unreachable from a
     // `work/<id>` squash, so it is gitignore-only.
-    assert!(gitignore_paths(false).contains(&".balls-worktrees"));
+    assert!(gitignore_paths(false, false).contains(&".balls-worktrees"));
     assert!(!backstop_paths().contains(&".balls-worktrees"));
 }
