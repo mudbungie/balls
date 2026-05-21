@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nSKILL.md's \"Working in a multi-repo hub\" section (corrected by bl-4f29,\nlanded 88f1206) describes `task.repo` as it behaved *before* bl-8994:\n\n- \"that field is create-anchored ... (bl-8994 tracks tightening this)\"\n- \"`repo` is auto-set at create from the creating clone's `origin` URL\n  (else its repo path)\"\n\nBoth clauses are now stale. bl-8994 (landed dda0ad4) shipped: `repo` is\nre-anchored at `bl claim` to the claiming clone — the definitive code\nhome — and only a fetchable `origin` URL is ever auto-written. The\n`(else its repo path)` basename fallback was removed for `repo`; a\nclone with no origin now leaves it null.\n\nbl-4f29 explicitly deferred the provenance-correctness story to bl-8994\n(\"bl-8994 tracks tightening this\"), so this was a foreseeable sequencing\ngap, not a new bug — but the text now actively misinforms an agent\nreading it: it will expect `repo` to point at where a ball was filed\nand to always be populated.\n\n# Scope\n\nIn SKILL.md's multi-repo section, correct the `repo`-field description:\n\n- `repo` is anchored at `bl claim`, not create. `bl create` stamps the\n  creating clone's origin as a provisional value; `bl claim` re-anchors\n  it to the claiming clone, which is definitionally the code home.\n- Only a fetchable `origin` URL is auto-written — never a basename or\n  path. A clone with no origin leaves `repo` null; null means \"origin\n  unknown,\" not \"single-repo.\"\n- Drop the \"(bl-8994 tracks tightening this)\" parenthetical — bl-8994\n  is done.\n- `bl update <id> repo=<url>` is the explicit fixup path; the field is\n  implicitly frozen after claim but not locked.\n\nThe surrounding guidance (filter on `repo`, tag as a manual override,\nparent + per-repo children) stays correct — this is a precision fix to\nthe one stale paragraph, not a rewrite.\n\n# Origin\n\nNoticed closing bl-8994: bl-4f29's SKILL.md correction landed an hour\nbefore bl-8994 and described the pre-bl-8994 behavior.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":93,"source":"balls","state":"open","synced_at":"2026-05-21T03:38:49.695963229+00:00","url":"https://github.com/mudbungie/balls/issues/93"}}},
   "id": "bl-f80d",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T03:38:49.719555733Z"},
   "tags": ["docs","multi-repo"],
   "title": "SKILL.md: repo field is claim-anchored, not create-anchored",
   "type": "task",
-  "updated_at": "2026-05-21T03:38:47.986371534Z"
+  "updated_at": "2026-05-21T03:38:49.719565271Z"
 }
