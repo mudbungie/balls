@@ -18,7 +18,9 @@ use std::path::Path;
 // `bl remaster --detach` lives in its own module; re-exported here so
 // the public path `balls::remaster::{detach, try_cold_detach}` — and
 // the conceptual home of "remaster" — is unchanged.
-pub use crate::remaster_detach::{detach, scrub_legacy_canonical, try_cold_detach};
+pub use crate::remaster_detach::{
+    detach, discard_state_repo, scrub_legacy_canonical, try_cold_detach,
+};
 
 const STATE_BRANCH: &str = "balls/tasks";
 const TASKS_REL: &str = ".balls/tasks";
