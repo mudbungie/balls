@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "The first run of a post-bl-8a9a bl in any pre-existing repo migrates in place: state_repo::ensure adopts the legacy .balls/worktree's balls/tasks into a new .balls/state-repo, then retire_legacy_worktree removes .balls/worktree AND deletes the project git's local balls/tasks branch, and absorb_plugins_dir moves any real .balls/plugins/*.json into the state checkout. For the dogfood bare repo this is high-stakes and irreversible-ish. Before anyone runs make install, verify on a throwaway clone of the bare repo: (a) the new .balls/state-repo carries the full task history, not just HEAD; (b) origin (GitHub origin/balls/tasks) stays the durable tracker and bl sync still round-trips after migration; (c) concurrent clones still on an old bl, and the shared origin, are not stranded by the local branch deletion; (d) the .balls/plugins/{github,github-issues}.json absorb-onto-tracker-branch is correct and the resulting main-branch deletion drift is expected and gets committed. This is the riskiest behaviour bl-8a9a shipped — confirm it on a copy before it touches the live repo.",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":124,"source":"balls","state":"open","synced_at":"2026-05-21T20:11:52.465547725+00:00","url":"https://github.com/mudbungie/balls/issues/124"}}},
   "id": "bl-dc2b",
   "links": [],
   "parent": "bl-dc79",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-21T20:11:35.732704695Z"},
+  "synced_at": {"github-issues":"2026-05-21T20:11:52.482205175Z"},
   "tags": [],
   "title": "Verify the bare-hub in-place migration is safe for the dogfooded /home/mark/dev/balls",
   "type": "task",
-  "updated_at": "2026-05-21T20:11:51.212405052Z"
+  "updated_at": "2026-05-21T20:11:52.482214390Z"
 }
