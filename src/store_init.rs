@@ -256,14 +256,11 @@ pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Resul
     Ok(())
 }
 
-/// Add `.balls/local`, `.balls-worktrees`, `.balls/code-refs`, and
-/// `.balls/state-repo` (all mode-independent) to the main checkout's
-/// gitignore, plus `.balls/tasks` + `.balls/worktree` (non-stealth only
-/// — they do not exist in stealth mode). `.balls/code-refs` is
-/// unconditional because `delivery_remote::ensure_cache` materializes it
-/// on any `--resolve-remote`, with no stealth gating. `.balls/state-repo`
-/// is unconditional for the same reason: `state_repo::ensure`
-/// materializes it from `master_url`, which is orthogonal to stealth.
+/// Add every balls runtime path to the main checkout's gitignore. The
+/// path set is derived from the canonical `runtime_paths` table — see
+/// that module for why each path is internal state, not a deliverable.
+/// `runtime_paths::gitignore_paths` already drops the stealth-absent
+/// state-worktree paths, so this function stays mode-agnostic.
 fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     let path = root.join(".gitignore");
     let mut content = if path.exists() {
@@ -271,18 +268,8 @@ fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     } else {
         String::new()
     };
-    let mut wanted: Vec<&str> = vec![
-        ".balls/local",
-        ".balls-worktrees",
-        ".balls/code-refs",
-        ".balls/state-repo",
-    ];
-    if !is_stealth {
-        wanted.push(".balls/tasks");
-        wanted.push(".balls/worktree");
-    }
     let mut dirty = false;
-    for entry in wanted {
+    for entry in crate::runtime_paths::gitignore_paths(is_stealth) {
         if !content.lines().any(|l| l.trim() == entry) {
             if !content.is_empty() && !content.ends_with('\n') {
                 content.push('\n');
