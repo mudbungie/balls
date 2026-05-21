@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:20:48.682074310Z",
-  "delivered_in": null,
+  "delivered_in": "402c63e51e90dad772352a4d5399b1dd247b0f95",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\n`src/cli.rs` is 305 lines, over the 300-line pre-commit cap. The\nline-length gate (`scripts/check-line-lengths.sh`, also in `make\ncheck` and the pre-commit hook) fails on it.\n\nIt landed broken: bl-32e5 (`5bac85c`, \"bl plugin enable/disable/list\")\ngrew `cli.rs` from 299 -> 305. `bl review`'s squash-merge does not run\nthe pre-commit hook, so the gate never fired on that delivery. main\nhas been red on `make check` since.\n\n# Fix\n\nFollow the in-tree decomposition convention: lift a cohesive unit into\na sibling module and re-export it so callers stay byte-stable.\n`cli.rs` is already split once — `cli_sub.rs` holds the subcommand and\nvalue enums. Lift the `Command` subcommand enum into a new\n`cli_command.rs` the same way, and `pub use` it back from `cli`.\n\n- `cli.rs` keeps only the `Cli` parser struct plus the re-exports.\n- `cli_command.rs` holds `pub enum Command`, importing the `cli_sub`\n  types its variants reference.\n- `main.rs` gains `mod cli_command;`. Its `use cli::{... Command ...}`\n  is unchanged — `cli::Command` resolves through the re-export.\n\nPure code movement: no behavior change, coverage stays 100% by\nconstruction.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":78,"source":"balls","state":"open","synced_at":"2026-05-21T01:20:53.713950768+00:00","url":"https://github.com/mudbungie/balls/issues/78"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T01:20:53.740564469Z"},
   "tags": ["build-gate"],
   "title": "Decompose src/cli.rs under the 300-line cap",
   "type": "task",
-  "updated_at": "2026-05-21T01:20:53.740572484Z"
+  "updated_at": "2026-05-21T01:25:11.965449223Z"
 }
