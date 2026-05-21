@@ -9,7 +9,9 @@
 //!
 //! Built on `git::clean_git_command`, so the scrub set is defined in
 //! exactly one place and shared with the production git path. Test
-//! modules call `git_run`/`git_stdout` instead of rolling their own.
+//! modules call `git_run`/`git_stdout` instead of rolling their own,
+//! and `init_repo`/`init_repo_no_commit` for the fresh-repo fixture
+//! they all stood up by hand before (bl-5a28).
 
 use crate::git::clean_git_command;
 use std::path::Path;
@@ -37,4 +39,24 @@ pub(crate) fn git_stdout(dir: &Path, args: &[&str]) -> String {
         .expect("git stdout is utf-8")
         .trim()
         .to_string()
+}
+
+/// Initialize a fresh non-bare repo at `dir` on `main` with a fixed
+/// test identity, but no seed commit — the caller seeds history.
+///
+/// `commit.gpgsign=false` keeps fixture commits from stalling on a
+/// signing key the test environment doesn't have. No test asserts on
+/// the commit author, so the identity is arbitrary but fixed.
+pub(crate) fn init_repo_no_commit(dir: &Path) {
+    git_run(dir, &["init", "-q", "-b", "main"]);
+    git_run(dir, &["config", "user.email", "test@example.com"]);
+    git_run(dir, &["config", "user.name", "test"]);
+    git_run(dir, &["config", "commit.gpgsign", "false"]);
+}
+
+/// `init_repo_no_commit` plus an empty seed commit on `main` — the
+/// shape almost every git-fixture test wants.
+pub(crate) fn init_repo(dir: &Path) {
+    init_repo_no_commit(dir);
+    git_run(dir, &["commit", "--allow-empty", "-m", "init"]);
 }
