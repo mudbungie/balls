@@ -39,12 +39,17 @@ fn enable_master_url_writes_and_commits_state_repo() {
         .unwrap()
         .contains_key("github"));
 
-    // Per-plugin config file is on the state-repo, not the project.
+    // Per-plugin config file is on the state-repo. The project's
+    // `.balls/plugins/` is a bl-1098 symlink into it, not a second
+    // copy — so the file is single-sourced on the hub.
     assert!(alice
         .path()
         .join(".balls/state-repo/.balls/plugins/github.json")
         .exists());
-    assert!(!alice.path().join(".balls/plugins/github.json").exists());
+    assert!(
+        alice.path().join(".balls/plugins").is_symlink(),
+        "project .balls/plugins must be a symlink to the hub view (bl-1098)"
+    );
 
     // Project's own config.json is untouched — master wins on the hub.
     let project_cfg: Value =
