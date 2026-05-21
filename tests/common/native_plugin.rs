@@ -145,6 +145,30 @@ pub fn write_plugin_config(repo: &Path, names: &[&str]) {
     git(repo, &["commit", "-m", "configure plugins", "--no-verify"]);
 }
 
+/// Write a config subscribing `jira` to one lifecycle event with one
+/// policy, and commit it. The participant-enforcement tests use this
+/// to wire a single plugin with a chosen `required`/`best-effort`/
+/// `gating` policy in one call.
+pub fn jira_policy(repo: &Path, event: &str, policy: &str) {
+    let plugins_dir = repo.join(".balls/plugins");
+    fs::create_dir_all(&plugins_dir).unwrap();
+    fs::write(plugins_dir.join("jira.json"), "{}").unwrap();
+    let cfg_path = repo.join(".balls/config.json");
+    let mut cfg: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&cfg_path).unwrap()).unwrap();
+    cfg["plugins"] = serde_json::json!({
+        "jira": {
+            "enabled": true,
+            "sync_on_change": false,
+            "config_file": ".balls/plugins/jira.json",
+            "participant": { "subscriptions": { event: { "policy": policy } } }
+        }
+    });
+    fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
+    git(repo, &["add", ".balls/config.json", ".balls/plugins"]);
+    git(repo, &["commit", "-m", "configure jira", "--no-verify"]);
+}
+
 pub fn create_auth(repo: &Path, name: &str) {
     let auth_dir = repo.join(format!(".balls/local/plugins/{name}"));
     fs::create_dir_all(&auth_dir).unwrap();
