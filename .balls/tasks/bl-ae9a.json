@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-ae9a",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-20T23:43:28.085683315Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-20T23:43:29.744857662Z"},
   "tags": ["tech-debt","master_url"],
   "title": "sync: stale bl-88c7 reuse-comment after bl-16e9 dropped the optimization",
   "type": "task",
-  "updated_at": "2026-05-20T23:43:29.744864004Z"
+  "updated_at": "2026-05-21T00:12:52.538290620Z"
 }
