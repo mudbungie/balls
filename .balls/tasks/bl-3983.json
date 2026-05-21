@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\n`bl link add A <type> B` rejects B with `error: task not found` when B\nis closed. The lookup goes through the live store at state-branch HEAD,\nwhere closed tasks have been archived; `bl show B` still finds it via\nhistory reconstruction, but `bl link add` doesn't.\n\nThis shows up consistently when filing follow-up balls that want to\npoint back at the just-shipped parent. Today's session hit it three\ntimes in a row trying to `relates_to` bl-38dd (closed minutes earlier)\nand bl-ffb4. The documented workaround\n([[feedback_link_add_closed]]) is to put the canonical id in the close\n--note or in the new ball's description prose. Both work, but they\ndefeat the discoverability promise of links — `bl show <closed-id>`\nwon't surface the new ball as a reverse link, because the link was\nnever recorded.\n\n# Concrete shape\n\nEither:\n\n- **Soft path.** `bl link add` falls back to the same history scan\n  `bl show` uses when the live store lookup misses. Link is added to\n  the *open* side only (A's record); the closed side has nothing\n  mutable to write to, but a reader of B's archived record could\n  surface inbound links by walking the live store at scan time. That\n  matches the existing read-side asymmetry — `bl show` already\n  reconstructs closed tasks for display.\n\n- **Stricter path.** Allow it but require a flag\n  (`--allow-closed-target`) so the operator confirms they understand\n  the asymmetry. Avoids accidental link-rot from auto-completion on a\n  stale id.\n\nThe soft path matches the principle that links are non-blocking\nmetadata for everything except `gates` (which already blocks close, so\nlinking-to-closed there is incoherent and should stay rejected). Other\ntypes — `relates_to`, `duplicates`, `supersedes`, `replies_to` — have\nno reason to care about the target's lifecycle.\n\n# Out of scope\n\n- Reverse-link materialization on the closed side (would require\n  rewriting an archived task or maintaining a sidecar index — bigger\n  question, not blocking this).\n- `gates` semantics — stay rejected; a closed gate target is a no-op\n  blocker.\n\n# Origin\n\nbl-38dd / bl-773e / bl-eb76 session — three retrospective cross-refs\nin a row blocked by the closed-target rule, all genuinely useful\nlinks, all worked around with prose references. Lossy on\ndiscoverability.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":61,"source":"balls","state":"open","synced_at":"2026-05-21T00:16:26.856919693+00:00","url":"https://github.com/mudbungie/balls/issues/61"}}},
   "id": "bl-3983",
   "links": [],
   "parent": null,
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T00:16:26.877279539Z"},
   "tags": ["ergonomics","links"],
   "title": "bl link add: accept closed targets for retrospective cross-refs",
   "type": "task",
-  "updated_at": "2026-05-21T00:16:25.231337422Z"
+  "updated_at": "2026-05-21T00:16:26.877289037Z"
 }
