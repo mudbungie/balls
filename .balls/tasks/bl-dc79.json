@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-21T20:09:12.653053859Z","id":"bl-b0b9","title":"Verify the interim plugin-config split (map on code branch, files on tracker) is coherent"},{"closed_at":"2026-05-21T20:11:58.206315276Z","id":"bl-dc2b","title":"Verify the bare-hub in-place migration is safe for the dogfooded /home/mark/dev/balls"},{"closed_at":"2026-05-21T20:14:26.187412031Z","id":"bl-022c","title":"Verify or gate state_branch — it materializes but push/sync hardcode balls/tasks"}],
+  "closed_children": [{"closed_at":"2026-05-21T20:09:12.653053859Z","id":"bl-b0b9","title":"Verify the interim plugin-config split (map on code branch, files on tracker) is coherent"},{"closed_at":"2026-05-21T20:11:58.206315276Z","id":"bl-dc2b","title":"Verify the bare-hub in-place migration is safe for the dogfooded /home/mark/dev/balls"},{"closed_at":"2026-05-21T20:14:26.187412031Z","id":"bl-022c","title":"Verify or gate state_branch — it materializes but push/sync hardcode balls/tasks"},{"closed_at":"2026-05-21T20:24:38.465153823Z","id":"bl-2b49","title":"Conformance test 13 asserts new-bl behaviour, not the pre-spec-bl fixture SPEC 16.13 intends"}],
   "created_at": "2026-05-21T19:44:46.209259265Z",
   "delivered_in": null,
   "depends_on": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Audit the bl-8a9a delivery against SPEC-tracker-state.md",
   "type": "epic",
-  "updated_at": "2026-05-21T20:14:26.187466461Z"
+  "updated_at": "2026-05-21T20:24:38.465205317Z"
 }
