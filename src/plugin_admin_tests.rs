@@ -6,26 +6,17 @@
 use super::*;
 use crate::config::Config;
 use crate::error::{BallError, NotInitKind};
+use crate::git_test_support::git_run;
 use crate::store::Store;
 use std::path::Path;
-use std::process::Command;
 use tempfile::tempdir;
 
-fn raw_git(path: &Path, args: &[&str]) {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(path).args(args);
-    for var in crate::git::GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    assert!(cmd.status().expect("spawn git").success(), "git {args:?}");
-}
-
 fn init_repo(path: &Path) {
-    raw_git(path, &["init", "-q", "-b", "main"]);
-    raw_git(path, &["config", "user.email", "t@example.com"]);
-    raw_git(path, &["config", "user.name", "t"]);
-    raw_git(path, &["config", "commit.gpgsign", "false"]);
-    raw_git(path, &["commit", "--allow-empty", "-m", "init"]);
+    git_run(path, &["init", "-q", "-b", "main"]);
+    git_run(path, &["config", "user.email", "t@example.com"]);
+    git_run(path, &["config", "user.name", "t"]);
+    git_run(path, &["config", "commit.gpgsign", "false"]);
+    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
 }
 
 fn standalone_store() -> (tempfile::TempDir, Store) {

@@ -37,6 +37,8 @@ pub mod error;
 pub mod git;
 pub mod git_merge;
 pub mod git_state;
+#[cfg(test)]
+mod git_test_support;
 pub mod gitignore;
 mod hash;
 pub mod human_gate;

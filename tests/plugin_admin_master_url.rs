@@ -61,12 +61,7 @@ fn enable_master_url_writes_and_commits_state_repo() {
 
     // Commit landed on the state-repo (no dirty working tree).
     let state_repo = alice.path().join(".balls/state-repo");
-    let status_out = std::process::Command::new("git")
-        .current_dir(&state_repo)
-        .args(["status", "--porcelain"])
-        .output()
-        .unwrap();
-    let porcelain = String::from_utf8_lossy(&status_out.stdout);
+    let porcelain = git(&state_repo, &["status", "--porcelain"]);
     assert!(
         porcelain.trim().is_empty(),
         "state-repo not clean: {porcelain}"

@@ -12,8 +12,8 @@ pub mod native_plugin;
 pub mod plugin;
 
 use assert_cmd::Command;
+use balls::git::clean_git_command;
 use std::path::{Path, PathBuf};
-use std::process::Command as StdCommand;
 use tempfile::TempDir;
 
 /// A pair of (temp dir, repo root path). The TempDir must be kept alive to
@@ -36,23 +36,14 @@ pub fn tmp() -> TempDir {
 }
 
 /// Environment variables that git sets during hooks. Must be cleared so
-/// tests using temp repos are fully isolated from the parent repo.
-pub const GIT_ENV_VARS: &[&str] = &[
-    "GIT_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_WORK_TREE",
-    "GIT_PREFIX",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-];
+/// tests using temp repos are fully isolated from the parent repo. The
+/// canonical list — and the `git` command builder below — come straight
+/// from the production `balls::git` path, so the test harness scrubs
+/// exactly what `bl` itself does.
+pub use balls::git::GIT_ENV_VARS;
 
 pub fn git(cwd: &Path, args: &[&str]) -> String {
-    let mut cmd = StdCommand::new("git");
-    cmd.current_dir(cwd).args(args);
-    for var in GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    let out = cmd.output().expect("git");
+    let out = clean_git_command(cwd).args(args).output().expect("git");
     assert!(
         out.status.success(),
         "git {} failed: {}",
@@ -63,12 +54,10 @@ pub fn git(cwd: &Path, args: &[&str]) -> String {
 }
 
 pub fn git_ok(cwd: &Path, args: &[&str]) -> bool {
-    let mut cmd = StdCommand::new("git");
-    cmd.current_dir(cwd).args(args);
-    for var in GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    cmd.output().is_ok_and(|o| o.status.success())
+    clean_git_command(cwd)
+        .args(args)
+        .output()
+        .is_ok_and(|o| o.status.success())
 }
 
 /// Initialize a fresh git repo at a temp path with a configured user and
@@ -99,26 +88,20 @@ pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
         .expect("tempdir");
 
     // Check if the remote has a main branch
-    let mut check = StdCommand::new("git");
-    check
+    let has_main = clean_git_command(dir.path())
         .arg("--git-dir")
         .arg(remote)
-        .args(["rev-parse", "--verify", "refs/heads/main"]);
-    for var in GIT_ENV_VARS {
-        check.env_remove(var);
-    }
-    let has_main = check.output().is_ok_and(|o| o.status.success());
+        .args(["rev-parse", "--verify", "refs/heads/main"])
+        .output()
+        .is_ok_and(|o| o.status.success());
 
     if has_main {
-        let mut clone_cmd = StdCommand::new("git");
-        clone_cmd
+        let out = clean_git_command(dir.path())
             .args(["clone", "-q", "--branch", "main"])
             .arg(remote)
-            .arg(dir.path());
-        for var in GIT_ENV_VARS {
-            clone_cmd.env_remove(var);
-        }
-        let out = clone_cmd.output().expect("git clone");
+            .arg(dir.path())
+            .output()
+            .expect("git clone");
         assert!(
             out.status.success(),
             "git clone failed: {}",
@@ -241,10 +224,8 @@ pub fn push(cwd: &Path) {
         cwd,
         &["rev-parse", "--verify", "--quiet", "refs/heads/balls/tasks"],
     ) {
-        let _ = StdCommand::new("git")
-            .current_dir(cwd)
+        let _ = clean_git_command(cwd)
             .args(["push", "origin", "balls/tasks"])
-            .env_remove("GIT_DIR")
             .output();
     }
 }

@@ -5,30 +5,20 @@
 //! stays at 100%.
 
 use super::*;
+use crate::git_test_support::{git_run, git_stdout};
 use crate::participant::Event;
 use crate::participant_config::InvocationOverrides;
 use crate::store::Store;
 use crate::task::{NewTaskOpts, Task};
 use std::path::Path;
-use std::process::Command;
 use tempfile::tempdir;
 
-fn raw_git(path: &Path, args: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new("git");
-    cmd.current_dir(path).args(args);
-    for var in crate::git::GIT_ENV_VARS {
-        cmd.env_remove(var);
-    }
-    cmd.output().expect("spawn git")
-}
-
 fn init_repo(path: &Path) {
-    let run = |args: &[&str]| assert!(raw_git(path, args).status.success());
-    run(&["init", "-q", "-b", "main"]);
-    run(&["config", "user.email", "t@e.com"]);
-    run(&["config", "user.name", "t"]);
-    run(&["config", "commit.gpgsign", "false"]);
-    run(&["commit", "--allow-empty", "-m", "init"]);
+    git_run(path, &["init", "-q", "-b", "main"]);
+    git_run(path, &["config", "user.email", "t@e.com"]);
+    git_run(path, &["config", "user.name", "t"]);
+    git_run(path, &["config", "commit.gpgsign", "false"]);
+    git_run(path, &["commit", "--allow-empty", "-m", "init"]);
 }
 
 fn git_store() -> (tempfile::TempDir, Store) {
@@ -111,8 +101,7 @@ fn log_overrides_amends_state_subject() {
     let (_td, store) = git_store();
     let sd = store.state_worktree_dir();
     log_overrides(&store, &["--no-sync".into(), "--skip=jira".into()]).unwrap();
-    let subj =
-        String::from_utf8(raw_git(&sd, &["log", "-1", "--format=%s"]).stdout).unwrap();
+    let subj = git_stdout(&sd, &["log", "-1", "--format=%s"]);
     assert!(subj.contains("[--no-sync] [--skip=jira]"), "got: {subj}");
 }
 
@@ -123,7 +112,7 @@ fn log_overrides_errors_when_amend_fails() {
     // guard fires.
     let (_td, store) = git_store();
     let sd = store.state_worktree_dir();
-    raw_git(&sd, &["checkout", "--orphan", "void"]);
+    git_run(&sd, &["checkout", "--orphan", "void"]);
     let err = log_overrides(&store, &["--skip=jira".into()]).unwrap_err();
     assert!(format!("{err}").contains("override log"), "got: {err}");
 }
@@ -155,7 +144,7 @@ fn finish_rolls_state_back_on_dispatch_error() {
     // Advance the state branch so a rewind to `rb` is observable,
     // then break config so `dispatch_push` errors at config load.
     let sd = store.state_worktree_dir();
-    raw_git(&sd, &["commit", "--allow-empty", "-m", "advance"]);
+    git_run(&sd, &["commit", "--allow-empty", "-m", "advance"]);
     std::fs::write(store.config_path(), "not json").unwrap();
     let err = finish(
         &store,

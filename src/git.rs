@@ -11,7 +11,10 @@ pub use crate::git_merge::{
 /// Env vars git reads to locate its repo/index. We always pass the
 /// repo via `current_dir`, so inherited values of these would bypass
 /// our intent (e.g. inside a git hook). Scrub them on every spawn.
-pub(crate) const GIT_ENV_VARS: &[&str] = &[
+///
+/// `pub` so the test harness scrubs the exact same set — see
+/// `git_test_support` and `tests/common`.
+pub const GIT_ENV_VARS: &[&str] = &[
     "GIT_DIR",
     "GIT_INDEX_FILE",
     "GIT_WORK_TREE",

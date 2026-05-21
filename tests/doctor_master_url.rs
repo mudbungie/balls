@@ -80,11 +80,10 @@ fn master_url_origin_drift_is_flagged() {
     // point state-repo's origin at a different URL, leaving committed
     // master_url alone — drift in the direction users actually create.
     let drifted = "git@example.invalid:other/hub.git";
-    std::process::Command::new("git")
-        .args(["remote", "set-url", "origin", drifted])
-        .current_dir(repo.path().join(".balls/state-repo"))
-        .status()
-        .unwrap();
+    git(
+        &repo.path().join(".balls/state-repo"),
+        &["remote", "set-url", "origin", drifted],
+    );
     let out = doctor(repo.path());
     assert!(
         out.contains("does not match") && out.contains(&hub_url) && out.contains(drifted),
@@ -99,11 +98,10 @@ fn master_url_origin_drift_is_flagged() {
 #[test]
 fn master_url_state_repo_with_no_origin_is_flagged() {
     let (repo, _hub, _url) = master_url_repo();
-    std::process::Command::new("git")
-        .args(["remote", "remove", "origin"])
-        .current_dir(repo.path().join(".balls/state-repo"))
-        .status()
-        .unwrap();
+    git(
+        &repo.path().join(".balls/state-repo"),
+        &["remote", "remove", "origin"],
+    );
     let out = doctor(repo.path());
     assert!(
         out.contains("no `origin` remote"),
