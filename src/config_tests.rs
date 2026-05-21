@@ -142,6 +142,28 @@ fn load_accepts_current_schema_version() {
     assert_eq!(cfg.version, CONFIG_SCHEMA_VERSION);
 }
 
+// `state_branch` is resolved and materialized (bl-8a9a) but the
+// lifecycle traffic still hardcodes `balls/tasks`; `validate` rejects a
+// non-default value rather than let it silently misroute (bl-022c). The
+// gate lives in `tracker_address::ensure_supported`; this asserts
+// `Config::load` actually fronts it. The explicit-default and absent
+// cases stay green via every other load test here.
+#[test]
+fn load_rejects_non_default_state_branch() {
+    let dir = TempDir::new().unwrap();
+    let p = write_cfg(
+        &dir,
+        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,
+            "worktree_dir":".balls-worktrees","state_branch":"project-x"}"#,
+    );
+    let err = Config::load(&p).unwrap_err();
+    assert!(
+        matches!(err, BallError::Other(ref s)
+            if s.contains("state_branch") && s.contains("project-x")),
+        "expected non-default state_branch rejection, got: {err:?}",
+    );
+}
+
 #[test]
 fn plugin_entry_serde() {
     let mut cfg = Config::default();
