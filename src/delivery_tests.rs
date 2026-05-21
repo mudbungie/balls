@@ -1,56 +1,13 @@
 //! Unit tests for `delivery`: local-resolve branches, the bl-7523
 //! `populate_on_close` provenance writes, and the bl-f37b `resolve_with`
 //! remote-fallback gate. Split out of `delivery.rs` to keep that file
-//! under the 300-line cap.
+//! under the 300-line cap; the bl-e454 `populate_on_close` remote-knob
+//! tests live in `delivery_close_remote_tests.rs` for the same reason.
+//! Fixtures are in `delivery_test_support`.
 
 use super::*;
-use crate::task::{NewTaskOpts, Task};
-use std::process::Command;
+use crate::delivery_test_support::{empty_task, local_repo_with_tag};
 use tempfile::TempDir;
-
-fn empty_task() -> Task {
-    Task::new(
-        NewTaskOpts {
-            title: "t".into(),
-            ..Default::default()
-        },
-        "bl-abcd".into(),
-    )
-}
-
-fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    assert!(out.status.success(), "git {args:?} failed: {out:?}");
-}
-
-/// Stand up a tiny git repo with a single tagged commit so the local
-/// resolve path has something real to find. Returns (root, sha).
-fn local_repo_with_tag(id: &str) -> (TempDir, String) {
-    let dir = TempDir::new().unwrap();
-    git(dir.path(), &["init", "-q", "-b", "main"]);
-    git(dir.path(), &["config", "user.email", "t@e.x"]);
-    git(dir.path(), &["config", "user.name", "t"]);
-    git(dir.path(), &["config", "commit.gpgsign", "false"]);
-    std::fs::write(dir.path().join("a.txt"), "a").unwrap();
-    git(dir.path(), &["add", "a.txt"]);
-    git(dir.path(), &["commit", "-qm", &format!("seed [{id}]")]);
-    let sha = String::from_utf8(
-        Command::new("git")
-            .args(["rev-parse", "HEAD"])
-            .current_dir(dir.path())
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .unwrap()
-    .trim()
-    .to_string();
-    (dir, sha)
-}
 
 #[test]
 fn resolve_returns_empty_when_not_a_git_repo() {
@@ -73,7 +30,7 @@ fn populate_on_close_manual_override_wins_unconditionally() {
     let dir = TempDir::new().unwrap();
     let mut t = empty_task();
     t.delivered_in = Some("oldsha".into());
-    let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()), None);
+    let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()), None, false);
     assert!(changed);
     assert_eq!(t.delivered_in.as_deref(), Some("forced"));
     assert_eq!(
@@ -91,7 +48,7 @@ fn populate_on_close_is_noop_when_hint_already_set() {
     let mut t = empty_task();
     t.delivered_in = Some("fromreview".into());
     t.delivered_repo = Some("git@h:from-review.git".into());
-    let changed = populate_on_close(dir.path(), "main", &mut t, None, None);
+    let changed = populate_on_close(dir.path(), "main", &mut t, None, None, false);
     assert!(!changed);
     assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
     assert_eq!(t.delivered_repo.as_deref(), Some("git@h:from-review.git"));
@@ -104,7 +61,7 @@ fn populate_on_close_scan_miss_leaves_hint_null() {
     // no sha, no provenance.
     let dir = TempDir::new().unwrap();
     let mut t = empty_task();
-    let changed = populate_on_close(dir.path(), "main", &mut t, None, None);
+    let changed = populate_on_close(dir.path(), "main", &mut t, None, None, false);
     assert!(!changed);
     assert!(t.delivered_in.is_none());
     assert!(t.delivered_repo.is_none());
@@ -123,6 +80,7 @@ fn populate_on_close_manual_repo_overrides_auto_tag() {
         &mut t,
         Some("forced".into()),
         Some("git@h:client-a.git".into()),
+        false,
     );
     assert!(changed);
     assert_eq!(t.delivered_in.as_deref(), Some("forced"));
@@ -145,6 +103,7 @@ fn populate_on_close_manual_repo_alone_updates_only_provenance() {
         &mut t,
         None,
         Some("git@h:right.git".into()),
+        false,
     );
     assert!(changed);
     assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
@@ -165,6 +124,7 @@ fn populate_on_close_manual_repo_writes_even_when_no_sha_resolves() {
         &mut t,
         None,
         Some("git@h:c.git".into()),
+        false,
     );
     assert!(changed);
     assert!(t.delivered_in.is_none());

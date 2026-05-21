@@ -149,6 +149,18 @@ fn local_resolve(repo_root: &Path, main_branch: &str, task: &Task, tag: &str) ->
 /// or without `--delivered`. Setting it on a task with no sha
 /// (manual or scanned) is allowed but odd — the operator opted in.
 ///
+/// `resolve_remote` (`bl close --resolve-remote`, bl-e454) routes the
+/// local-miss case through the cross-repo cache when the task carries
+/// `delivered_repo`. It is the symmetric write-side counterpart to
+/// `bl show --resolve-remote` (bl-f37b): on the hub or a sibling
+/// clone whose history doesn't carry the `[bl-xxxx]` squash, an
+/// unattended `bl close` would otherwise archive the task with
+/// `delivered_in: null` even though the sha is one fetch away.
+/// Off by default — fetches from arbitrary forge URLs need operator
+/// opt-in, same policy as the show path. Deferred-mode is set
+/// implicitly upstream so a bridge running deferred close from a
+/// sync hook gets resolution without a flag.
+///
 /// Returns `true` iff anything changed, so the close path knows to
 /// persist the task to the state branch before archiving it (the
 /// no-op local-squash path returns `false` and stays byte-identical).
@@ -158,6 +170,7 @@ pub fn populate_on_close(
     task: &mut Task,
     manual_sha: Option<String>,
     manual_repo: Option<String>,
+    resolve_remote: bool,
 ) -> bool {
     // bl-7523: whenever we *set* `delivered_in` we also tag the
     // local repo as the delivery's source so a reader on a hub (or a
@@ -167,7 +180,9 @@ pub fn populate_on_close(
         Some(sha)
     } else if task.delivered_in.is_some() {
         None
-    } else if let Some(sha) = resolve(repo_root, target_branch, task).sha {
+    } else if let Some(sha) =
+        resolve_with(repo_root, target_branch, task, ResolveOpts { remote: resolve_remote }).sha
+    {
         Some(sha)
     } else {
         eprintln!(
@@ -206,3 +221,7 @@ pub fn describe(repo_root: &Path, sha: &str) -> String {
 #[cfg(test)]
 #[path = "delivery_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "delivery_close_remote_tests.rs"]
+mod close_remote_tests;
