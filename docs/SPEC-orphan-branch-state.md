@@ -30,7 +30,7 @@ These are architectural invariants. Any implementation choice that violates one 
 
 Fixed terms, used throughout this document and in code comments. Do not invent synonyms.
 
-- **state branch**: the orphan branch `balls/tasks`. Contains task files and nothing else. Has no shared ancestry with main.
+- **state branch**: the orphan branch `balls/tasks`. Carries the project's shared state — task files and project config. Has no shared ancestry with main.
 - **state worktree**: a git worktree at `.balls/worktree/` with the state branch checked out. This is where task files physically live.
 - **task file**: `.balls/worktree/.balls/tasks/<id>.json`. The canonical JSON document describing one task.
 - **notes file**: `.balls/worktree/.balls/tasks/<id>.notes.jsonl`. Append-only newline-delimited JSON of notes attached to one task.
@@ -74,25 +74,25 @@ Filesystem layout of a balls-enabled repo:
 
 On main: `.balls/tasks` and `.balls/worktree` are gitignored; nothing under `.balls/` is tracked by main.
 
-On the state branch: the tree contains `.balls/tasks/*.json` and `.balls/tasks/*.notes.jsonl` and nothing else. No source code, no config, no README. The state branch is a pure data branch.
+On the state branch: the tree contains the task files (`.balls/tasks/*.json`, `.balls/tasks/*.notes.jsonl`) and the project config (`.balls/project.json`, `.balls/plugins/`) — the project's shared state and the configuration that governs it. No source code, no README. The `.balls/worktree` worktree this section describes is superseded by the universal `.balls/state-repo` checkout — see SPEC-tracker-state.md, which also defines the config-ownership split.
 
 ## 5. Task file schema invariant
 
-Task files must be text-mergeable. Git's default line-based three-way merge must produce a clean result whenever two workers edit disjoint fields of the same task. This is a hard constraint on the file format.
+Task files must be text-mergeable. Stock `git merge` must produce a clean result whenever two workers edit *different* fields of the same task — no custom merge driver, and no "usually." This is a hard constraint on the file format, and the conformance suite gates it.
 
-Requirements:
+The invariant is one rule:
 
-1. **One top-level field per line.** The task file is a JSON object whose serialization places each key on its own line, with a trailing comma (or no comma on the last line), no nested pretty-printed objects on multiple lines unless each nested line is self-contained.
-2. **Stable key ordering.** Keys are serialized in a fixed order (alphabetical, or a predeclared schema order). Two writers producing the same logical state produce byte-identical files.
-3. **Trailing newline.** Files always end with `\n`. Eliminates a common false conflict.
-4. **No in-place growing arrays.** Arrays whose length changes (notes, dependency lists with frequent additions) must not live inside the task file. They are split into sibling files:
-   - **Notes**: `<id>.notes.jsonl`, append-only, one JSON object per line. Concurrent appends merge cleanly because new lines always land at the end and git's merge handles disjoint line additions in the common case.
-   - **Dependencies** are expected to change rarely and can stay inside the task file as a sorted array, one element per line if the array is non-trivial. If we find dep churn in practice, split them too.
-5. **Scalar fields only at the top level.** Nested objects (e.g. `closed_children`) either live in their own file or are flattened into scalar keys.
+**One top-level field per line, compact value.** The task file is a JSON object serialized with each top-level key on its own line, its entire value rendered as compact single-line JSON on that same line, keys in a fixed (alphabetical) order, all but the last line comma-terminated, and a trailing newline. `src/task_io.rs::serialize_mergeable` is the implementation.
 
-Concurrent edits to the *same* field are a genuine conflict. The spec does not try to merge them. `bl sync` must detect the conflict and surface it to the user with a clear resolution path; see §7.
+Three guarantees follow mechanically:
 
-Schema changes that break mergeability are breaking changes and require a version bump.
+1. **Disjoint-field edits never collide.** Editing a field rewrites only that field's line. Two workers editing different fields touch different lines; git's three-way merge resolves them with zero conflicts — always, not "in the common case."
+2. **Same-field edits are a genuine conflict.** Two workers editing the *same* field rewrite the same line. The spec does not auto-merge this; `bl sync`'s field-wise resolver handles it (§7). This is uniform across every field — `depends_on` is not special, and is not split into a sidecar.
+3. **Field shape is irrelevant.** A scalar, an array, or an array of objects all serialize to one compact line. `depends_on`, `links`, `closed_children`, `tags`, `external` all live in the task file. Nothing is "too nested" — the invariant is the *line*, not the value's shape.
+
+Notes are the one collection kept *out* of the task file — not because arrays cannot live in it, but because the notes log is unbounded and append-only, and two concurrent appends must *both* survive. That is union-merge semantics, which the field-wise resolver does not provide. Notes live in an append-only sibling `<id>.notes.jsonl` marked `merge=union` in `.gitattributes`; `bl` seeds the file empty on first save so divergent first-appends meet a common merge base. Under the union driver, concurrent note appends are conflict-free — a guarantee, not a likelihood.
+
+There is no "split it later if churn appears" escape hatch and no field exempt from the rule. A serialization change that can produce a conflict on a disjoint-field edit is a breaking change to this spec, not a tuning decision.
 
 ## 6. Delivery link: tag is ground truth, SHA is a hint
 
