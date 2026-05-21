@@ -42,7 +42,7 @@ impl Source {
         }
     }
 
-    fn from_store(store: &Store) -> Self {
+    pub(crate) fn from_store(store: &Store) -> Self {
         let cfg = Config::load(&store.config_path()).unwrap_or_default();
         if cfg.master_url().is_some() {
             Source::Hub
@@ -55,7 +55,7 @@ impl Source {
 /// Validate the plugin name once at the command boundary. The runtime
 /// trusts loaded config; this is the gate that keeps a typo from
 /// committing `../foo` or whitespace into the plugins map.
-fn validate_name(name: &str) -> Result<()> {
+pub(crate) fn validate_name(name: &str) -> Result<()> {
     if name.is_empty() {
         return Err(BallError::Other("plugin name must not be empty".into()));
     }
@@ -195,7 +195,7 @@ pub struct DisableReport {
     pub config_path: PathBuf,
 }
 
-fn load_or_default(path: &Path) -> Result<Config> {
+pub(crate) fn load_or_default(path: &Path) -> Result<Config> {
     match Config::load(path) {
         Ok(c) => Ok(c),
         Err(BallError::NotInitialized(NotInitKind::ConfigMissing(_))) => Ok(Config::default()),
@@ -215,7 +215,12 @@ fn ensure_parent(path: &Path) -> Result<()> {
 /// mode this is a no-op: the project's `.balls/config.json` belongs
 /// to whichever branch is currently checked out and the operator
 /// commits it themselves (matching `bl remaster --commit`).
-fn commit_change(store: &Store, source: Source, paths: &[&Path], message: &str) -> Result<()> {
+pub(crate) fn commit_change(
+    store: &Store,
+    source: Source,
+    paths: &[&Path],
+    message: &str,
+) -> Result<()> {
     if source != Source::Hub || store.stealth {
         return Ok(());
     }

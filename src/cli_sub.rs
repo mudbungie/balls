@@ -108,8 +108,9 @@ pub enum PluginCmd {
         /// JSON config. Defaults to `<name>.json`.
         #[arg(long = "config-file", value_name = "PATH")]
         config_file: Option<String>,
-        /// Subscribe this plugin to the SPEC §11 legacy create/update
-        /// path. Off by default.
+        /// (Deprecated) Subscribe this plugin to the SPEC §11 legacy
+        /// create/update path. Use `bl plugin policy` to set explicit
+        /// per-event policy instead. Off by default.
         #[arg(long = "sync-on-change")]
         sync_on_change: bool,
     },
@@ -119,6 +120,37 @@ pub enum PluginCmd {
     Disable { name: String },
     /// Show the effective plugins map and its source (project vs hub).
     List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Set, drop, or clear a plugin's SPEC §11 per-event participant
+    /// policy. Exactly one form per call.
+    Policy {
+        /// Plugin name. Must already be in the effective plugins map.
+        name: String,
+        /// `EVENT=KIND` — upsert one per-event subscription.
+        /// Repeatable. EVENT is one of claim/review/close/update/
+        /// sync/create/drop; KIND is required/best-effort/gating.
+        #[arg(value_name = "EVENT=KIND", group = "policy_op")]
+        set: Vec<String>,
+        /// Drop one event's subscription. Repeatable. The participant
+        /// block stays present — use --clear to remove it entirely.
+        #[arg(long = "rm", value_name = "EVENT", group = "policy_op")]
+        rm: Vec<String>,
+        /// Remove the whole participant block: fall back to the
+        /// legacy sync_on_change mapping.
+        #[arg(long, group = "policy_op")]
+        clear: bool,
+        /// Write an explicit empty subscriptions map: suppress the
+        /// legacy fallback so the plugin participates in nothing.
+        #[arg(long = "no-legacy", group = "policy_op")]
+        no_legacy: bool,
+    },
+    /// Show one plugin's effective entry and resolved per-event
+    /// participant policy.
+    Show {
+        /// Plugin name.
+        name: String,
         #[arg(long)]
         json: bool,
     },

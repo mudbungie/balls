@@ -70,7 +70,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
 | `bl remaster TARGET` [`--commit`] / `bl remaster --detach` | Re-point this repo's `balls/tasks` at the git remote `TARGET` (a shared task hub) and reconcile local-only tasks onto it. Per-clone by default; `--commit` writes the project-wide `.balls/config.json`. `--detach` severs shared history and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
-| `bl plugin enable NAME` [`--config-file PATH`] [`--sync-on-change`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] | Manage the effective plugins map. Under `master_url` the writes land on the hub's `balls/tasks` (commit auto-staged; `bl sync` publishes); standalone repos get an in-place edit of the project's `.balls/config.json`. `list` reports the source (`hub` vs `project`). |
+| `bl plugin enable NAME` [`--config-file PATH`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] / `bl plugin policy NAME EVENT=KIND...` / `bl plugin show NAME` [`--json`] | Manage the effective plugins map. `policy` sets SPEC §11 per-event participant policy (`KIND` ∈ `required`/`best-effort`/`gating`); `--rm EVENT` drops one subscription, `--clear` removes the block (legacy `sync_on_change` fallback), `--no-legacy` writes an explicit empty map (the plugin participates in nothing). `show` prints one plugin's resolved per-event policy. Under `master_url` the writes land on the hub's `balls/tasks` (commit auto-staged; `bl sync` publishes); standalone repos get an in-place edit of the project's `.balls/config.json`. `list`/`show` report the source (`hub` vs `project`). `enable --sync-on-change` is deprecated — use `policy` to set per-event policy explicitly. |
 | `bl doctor` | Read-only drift check. Reports the specific reason bl can't run here (or that it can but state has drifted) and names the command that fixes each. Never mutates — `repair` stays the only action verb. Run it when bl behaves unexpectedly or before trusting an unfamiliar repo. |
 
 > **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
@@ -281,14 +281,17 @@ place across an N-clone federation, so client repos can't drift them.
   the project-root path resolve into the hub view without any
   code-side branching on `master_url`. Standalone mode keeps a real
   `.balls/plugins/` directory.
-- **Hub-aware tooling: `bl plugin enable|disable|list`.** From any
-  participant clone, `bl plugin enable <name> [--config-file PATH]
-  [--sync-on-change]` writes the entry into the effective plugins
-  map and creates an empty per-plugin config file if absent.
+- **Hub-aware tooling: `bl plugin enable|disable|list|policy|show`.**
+  From any participant clone, `bl plugin enable <name> [--config-file
+  PATH]` writes the entry into the effective plugins map and creates
+  an empty per-plugin config file if absent.
   `bl plugin disable <name>` removes the entry but keeps the
   per-plugin file (operators may want to preserve credentials).
   `bl plugin list [--json]` shows the effective map and its source
-  (`hub` under `master_url`, `project` otherwise). Under `master_url`
+  (`hub` under `master_url`, `project` otherwise). `bl plugin policy
+  <name> <event>=<kind> ...` edits SPEC §11 per-event participant
+  policy and `bl plugin show <name>` inspects the resolved policy.
+  Under `master_url`
   the writes land on `.balls/state-repo/`'s `balls/tasks` branch and
   are committed automatically — run `bl sync` to publish. In
   standalone mode the writes update the project's `.balls/config.json`
