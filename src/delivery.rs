@@ -91,16 +91,19 @@ pub fn populate_on_close(
     task: &mut Task,
     manual: Option<String>,
 ) -> bool {
-    if let Some(sha) = manual {
-        task.delivered_in = Some(sha);
-        return true;
-    }
-    if task.delivered_in.is_some() {
+    // bl-7523: whenever we *set* `delivered_in` we also tag the
+    // local repo as the delivery's source, so a reader on a hub (or
+    // a sibling client) can resolve the sha even when no code clone
+    // is locally checked out. The already-set path stays a no-op —
+    // the local-squash review path already wrote both fields, and
+    // pre-bl-7523 tasks without `delivered_repo` are read as "the
+    // locally-checked-out repo" (no retrofit).
+    let new_sha = if let Some(sha) = manual {
+        Some(sha)
+    } else if task.delivered_in.is_some() {
         return false;
-    }
-    if let Some(sha) = resolve(repo_root, target_branch, task).sha {
-        task.delivered_in = Some(sha);
-        true
+    } else if let Some(sha) = resolve(repo_root, target_branch, task).sha {
+        Some(sha)
     } else {
         eprintln!(
             "warning: no [{id}] commit reachable on {target_branch}; closing \
@@ -108,8 +111,12 @@ pub fn populate_on_close(
              ground truth)",
             id = task.id,
         );
-        false
-    }
+        None
+    };
+    let Some(sha) = new_sha else { return false };
+    task.delivered_in = Some(sha);
+    task.delivered_repo = Some(crate::repo_url::current(repo_root));
+    true
 }
 
 /// Human-friendly `"<short> <subject>"` for display in `bl show`.
@@ -151,35 +158,46 @@ mod tests {
     fn populate_on_close_manual_override_wins_unconditionally() {
         // `bl close --delivered <sha>` skips the scan and sets the
         // hint even when one is already present (forge rebase-merge).
+        // bl-7523: the manual sha is by definition local-resolvable,
+        // so `delivered_repo` is tagged with the current repo.
         let dir = TempDir::new().unwrap();
         let mut t = empty_task();
         t.delivered_in = Some("oldsha".into());
         let changed = populate_on_close(dir.path(), "main", &mut t, Some("forced".into()));
         assert!(changed);
         assert_eq!(t.delivered_in.as_deref(), Some("forced"));
+        assert_eq!(
+            t.delivered_repo.as_deref(),
+            Some(crate::repo_url::current(dir.path()).as_str())
+        );
     }
 
     #[test]
     fn populate_on_close_is_noop_when_hint_already_set() {
         // Local-squash mode wrote the hint in `review`; close must
-        // not touch it (no scan, byte-identical archived task).
+        // not touch it (no scan, byte-identical archived task). The
+        // bl-7523 provenance the review path already wrote stays put.
         let dir = TempDir::new().unwrap();
         let mut t = empty_task();
         t.delivered_in = Some("fromreview".into());
+        t.delivered_repo = Some("git@h:from-review.git".into());
         let changed = populate_on_close(dir.path(), "main", &mut t, None);
         assert!(!changed);
         assert_eq!(t.delivered_in.as_deref(), Some("fromreview"));
+        assert_eq!(t.delivered_repo.as_deref(), Some("git@h:from-review.git"));
     }
 
     #[test]
     fn populate_on_close_scan_miss_leaves_hint_null() {
         // Null hint, no `[id]` commit reachable (not a git repo, so
-        // the tag scan finds nothing): warn and proceed with null.
+        // the tag scan finds nothing): warn and proceed with null —
+        // no sha, no provenance.
         let dir = TempDir::new().unwrap();
         let mut t = empty_task();
         let changed = populate_on_close(dir.path(), "main", &mut t, None);
         assert!(!changed);
         assert!(t.delivered_in.is_none());
+        assert!(t.delivered_repo.is_none());
     }
 
     #[test]
