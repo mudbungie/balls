@@ -54,6 +54,15 @@ pub struct CloseArgs {
     /// the source repo of an already-set `delivered_in`.
     #[arg(long = "delivered-repo", value_name = "URL")]
     pub delivered_repo: Option<String>,
+    /// Opt in to cross-repo `delivered_in` resolution on local miss
+    /// (bl-e454). Mirrors `bl show --resolve-remote`: when the target
+    /// branch on this clone doesn't carry the `[bl-xxxx]` squash, fetch
+    /// `delivered_repo` into the balls-owned code-refs cache and re-run
+    /// the tag scan. Off by default — silent in deferred mode, where
+    /// resolution auto-engages because the clone closing the task is
+    /// typically not the one that produced the squash.
+    #[arg(long = "resolve-remote")]
+    pub resolve_remote: bool,
     /// Force a remote round-trip on this close. Mirrors `bl claim --sync`.
     #[arg(long, conflicts_with = "no_sync")]
     pub sync: bool,
