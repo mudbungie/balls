@@ -61,11 +61,13 @@ pub fn cmd_review(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_close(
     id: String,
     message: Vec<String>,
     identity: Option<String>,
     delivered: Option<String>,
+    delivered_repo: Option<String>,
     sync: bool,
     no_sync: bool,
     overrides: InvocationOverrides,
@@ -81,7 +83,15 @@ pub fn cmd_close(
         let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
         let repo = cfg.as_ref().is_some_and(|c| c.require_remote_on_close);
         let policy = policy::resolve_close(repo, local.as_ref(), cli);
-        balls::review::close_worktree(&store, &id, message.as_deref(), &ident, policy, delivered)?
+        balls::review::close_worktree(
+            &store,
+            &id,
+            message.as_deref(),
+            &ident,
+            policy,
+            delivered,
+            delivered_repo,
+        )?
     };
     let tokens = override_tokens(&overrides, sync, no_sync);
     // A required plugin veto rolls the state branch back to `rb`,

@@ -46,6 +46,14 @@ pub struct CloseArgs {
     /// rebase-merge with several commits and you want a specific one.
     #[arg(long = "delivered", value_name = "SHA")]
     pub delivered: Option<String>,
+    /// Override the `delivered_repo` provenance instead of auto-tagging
+    /// the current clone's `origin` URL (bl-733e). Use when closing on
+    /// behalf of another repo — e.g. a bridge clone running close from
+    /// a forge-sync hook for a sha that lives in a different client.
+    /// Pairs with `--delivered`; takes effect alone when correcting
+    /// the source repo of an already-set `delivered_in`.
+    #[arg(long = "delivered-repo", value_name = "URL")]
+    pub delivered_repo: Option<String>,
     /// Force a remote round-trip on this close. Mirrors `bl claim --sync`.
     #[arg(long, conflicts_with = "no_sync")]
     pub sync: bool,
