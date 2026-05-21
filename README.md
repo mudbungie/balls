@@ -45,6 +45,8 @@ make hooks     # one-time: install the repo-local pre-commit hook
 
 The two compose rather than exclude: a bare core can still install the hook (one install in the shared common dir covers every worktree) for at-commit feedback layered on top of the structural guarantee.
 
+A third path covers the gap the first two leave. Both the hook and CI miss `bl review`'s squash *itself* — balls makes that commit with `git commit --no-verify`, and CI only runs once it has already landed. Setting **`review.pre_check`** in `.balls/config.json` makes `bl review` run a command (typically `make check`) against the merged worktree *before* the squash and abort the delivery if it fails — the gate fires at the moment the merge happens. See *Delivery Modes → Pre-squash review gate*.
+
 To remove everything `make install` placed:
 
 ```bash
@@ -410,6 +412,18 @@ gh pr create --base develop --head work/bl-c3d4 --title "Add OAuth flow [bl-c3d4
 cd <repo root>
 bl close bl-c3d4 -m "ship"             # unblocked; delivered_in resolved by tag-scan
 ```
+
+### Pre-squash review gate
+
+Both modes above can run a project-defined check before `bl review` delivers. Set it in committed `.balls/config.json`:
+
+```json
+{ "review": { "pre_check": "make check" } }
+```
+
+`bl review` runs `pre_check` once it has committed the worker's work and merged the integration branch into the worktree — so the check sees the exact end-state being delivered — and *before* the squash (local-squash) or the branch push (deferred). A non-zero exit aborts the review: no squash, no push, no status flip. The integration-branch merge stays in the worktree, so you fix the failure there and re-run `bl review`; the check's own output streams to your terminal.
+
+This is where a repo's quality gate belongs. balls commits every state-branch write — and the squash itself — with `git commit --no-verify`, so a git `pre-commit` hook structurally cannot see the merge to the integration branch, and CI sees it only after it has landed. `pre_check` is the one gate that runs *at* the merge. Because it lives in committed config, a `master_url` hub enforces it across the whole federation. Unset (the default) ⇒ no gate, byte-identical to before.
 
 ### Backwards-compatibility caveat
 

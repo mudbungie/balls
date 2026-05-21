@@ -121,3 +121,20 @@ fn delivery_mode_defaults_and_round_trips() {
     assert!(std::fs::read_to_string(&p).unwrap().contains(r#""mode": "deferred""#));
     assert_eq!(Config::load(&p).unwrap().delivery_mode(), DeliveryMode::Deferred);
 }
+
+#[test]
+fn review_pre_check_defaults_and_round_trips() {
+    // Unset `review` never serializes and resolves to no gate (bl-1f38),
+    // mirroring `delivery` / `target_branch`.
+    let dir = TempDir::new().unwrap();
+    let p = dir.path().join("r.json");
+    let mut cfg = Config::default();
+    cfg.save(&p).unwrap();
+    // The quoted key, so the substring can't match `require_remote_on_review`.
+    assert!(!std::fs::read_to_string(&p).unwrap().contains(r#""review""#));
+    assert_eq!(cfg.review_pre_check(), None);
+    cfg.review = Some(ReviewConfig { pre_check: Some("make check".into()) });
+    cfg.save(&p).unwrap();
+    assert!(std::fs::read_to_string(&p).unwrap().contains(r#""pre_check": "make check""#));
+    assert_eq!(Config::load(&p).unwrap().review_pre_check(), Some("make check"));
+}
