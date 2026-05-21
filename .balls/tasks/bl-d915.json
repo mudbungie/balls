@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T06:49:18.698550178Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Code & test redundancy audit (2026-05-20) found copy-pasted CLI plumbing in the command and plugin layers -- no dead code and no competing architectures, just a small cluster of duplicated glue that 3-4 shared helpers would absorb. Pure consolidation, no behaviour change. Sibling task bl-af7b covers the core-library duplication. Line numbers approximate (audited at c262b37); anchor on symbol names.\n\n1. (Med) (sync, no_sync) -> SyncOverride decode duplicated. The 5-line `match (sync,no_sync) { (true,false)=>Sync, (false,true)=>NoSync, _=>Unset }` appears verbatim in src/commands/claim.rs (resolve_claim_policy) and src/commands/lifecycle.rs (sync_inputs). clap declares the two flags conflicts_with each other, so the (true,true) case is already dead in both. Add SyncOverride::from_flags(sync, no_sync) -- or From<(bool,bool)> -- in policy.rs and call it from both; the dead arm disappears.\n\n2. (Med) resolve_claim_policy vs sync_inputs share their front half. Both build the SyncOverride (finding 1), call store.load_config(), and LocalConfig::load(store), differing only in which require_remote_on_* flag they read and which policy::resolve* they call. Factor a shared sync_inputs(store, sync, no_sync) helper; cmd_claim then finishes with the same is_ok_and(|c| c.require_remote_on_claim) + policy::resolve the other two handlers already do.\n\n3. (Med) state_head + finish + Rollback::State dance repeated 4x. create (src/commands/basic.rs), review and close (src/commands/lifecycle.rs), and update (src/commands/update.rs) each run `let rb = plugin::state_head(&store)?;` then the identical 8-arg plugin::finish(..., Rollback::State(rb.as_deref())) call, varying only the Event and the pre-image. Add a commands helper finish_state_event(store, before, task, event, ident, overrides, sync, no_sync) that captures rb itself and computes the override tokens; the four call sites shrink to one line and the #[allow(clippy::too_many_arguments)] on finish is confined to that seam. (claim.rs uses Rollback::DropClaim -- the one legitimate exception, leave it.)\n\n4. (Med) dispatch_sync loop duplicated. src/commands/sync.rs (cmd_sync_run) and src/commands/sync_review.rs (dispatch_and_stage) both call plugin::dispatch_sync, match Ok/Err with the literal \\\"warning: plugin sync failed: {e}\\\" message, iterate the reports, and close with the literal \\\"sync complete\\\". They differ only in the per-report action (apply_sync_report vs human_gate::stage_sync). Add dispatch_sync_each(store, filter, ident, |name, report| ...) taking a per-report closure; both literal strings get one home.\n\n5. (Low) event_subcommand_arg (src/plugin/runner.rs) hand-writes the lowercase wire name for all 7 variants -- exactly what participant.rs's Event #[serde(rename_all=\\\"lowercase\\\")] already produces. Its own doc comment and pinning test acknowledge \\\"same as the JSON-side serde rename\\\", which is the tell: a second source of truth. Derive the string from serde so a variant rename cannot drift the two apart; the pinning test then becomes unnecessary.\n\nOut of scope (checked, NOT findings): dispatch.rs run_native/run_legacy is a real protocol fork, not a parallel implementation (the old dual dispatcher was already collapsed in bl-b1dd); runner.rs / runner_proc.rs are cleanly partitioned. Over-fragmentation of the sync_* command-file cluster is a separate concern -- it intersects the 300-line decomposition convention -- and is deliberately left out.\n\nDone = the helpers above extracted, make check green (cargo test all pass, clippy -D warnings clean, line-length, 100% coverage).",
+  "external": {},
+  "id": "bl-d915",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Extract shared command/plugin-layer plumbing helpers",
+  "type": "chore",
+  "updated_at": "2026-05-21T06:49:18.698550178Z"
+}
