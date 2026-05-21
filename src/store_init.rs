@@ -230,13 +230,17 @@ pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
 /// to the main branch. Extracted from Store::init so the no-git path
 /// can skip it without duplicating the line-budget in store.rs.
 ///
-/// bl-1098: in master_url mode `.balls/plugins` is a symlink to the
-/// hub-owned state-repo, not a project-owned directory — the project
-/// has no placeholder `.gitkeep` to seed or stage. Detected by the
-/// symlink left by `state_repo::ensure`.
+/// bl-1098/bl-4432: in master_url mode `.balls/plugins` is a hub-owned
+/// symlink, not a project directory — there is no project-owned
+/// `.gitkeep` to seed or stage. Read that from `master_url` in config,
+/// not by probing the symlink (which couples to `Store::init` order).
 pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Result<()> {
     ensure_main_gitignore(root, is_stealth)?;
-    let federated = root.join(".balls/plugins").is_symlink();
+    // `state_repo::ensure` only materializes the symlink in non-stealth
+    // master_url mode, so that is exactly the condition that owns no
+    // project `.gitkeep` — stated here from config, order-independent.
+    let config_path = root.join(".balls/config.json");
+    let federated = !is_stealth && Config::load(&config_path)?.master_url().is_some();
     let keep_rel = Path::new(".balls/plugins/.gitkeep");
     let mut paths: Vec<&Path> = vec![Path::new(".balls/config.json"), Path::new(".gitignore")];
     if !federated {
@@ -293,3 +297,7 @@ fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "store_init_tests.rs"]
+mod tests;
