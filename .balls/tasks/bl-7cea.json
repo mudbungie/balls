@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-81e0"],
   "description": "The README config table documents target_branch, min_bl_version, delivery.mode etc. but never mentions master_url, state_remote, or the .balls/master.json pointer file -- the dominant feature of recent work. master_url appears exactly once in the whole README, in passing in the pre-squash-gate section. There is no config-table entry and no federated-deployment section.\n\nAdd master_url / state_remote / master.json to the config documentation and give the federated multi-repo model a proper README section, cross-referencing docs/SPEC-federated-state.md. Depends on bl-81e0 so the README can cite the SPEC as the authoritative contract rather than restating it.\n\nAudited 2026-05-20.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":98,"source":"balls","state":"open","synced_at":"2026-05-21T06:57:00.835553822+00:00","url":"https://github.com/mudbungie/balls/issues/98"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":98,"source":"balls","state":"open","synced_at":"2026-05-21T07:03:15.729157466+00:00","url":"https://github.com/mudbungie/balls/issues/98"}}},
   "id": "bl-7cea",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-21T06:57:00.848923206Z"},
+  "synced_at": {"github-issues":"2026-05-21T07:03:15.752990240Z"},
   "tags": [],
   "title": "README: document master_url / federated config",
   "type": "task",
-  "updated_at": "2026-05-21T07:03:14.040675687Z"
+  "updated_at": "2026-05-21T07:03:15.752996662Z"
 }
