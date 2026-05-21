@@ -137,6 +137,45 @@ fn fresh_clone_with_master_url_auto_provisions_on_prime() {
     );
 }
 
+/// bl-16e9 regression: `bl sync` must push `balls/tasks` to the hub
+/// when `master_url` is set even if the project root has no `origin`.
+/// The state-leg presence gate used to ask the project root whether
+/// the state remote exists; in `master_url` mode the remote lives
+/// inside `.balls/state-repo/.git/config`, not the project's, so the
+/// push was silently skipped for the exact topology `master_url` was
+/// built to enable (e.g. a bridge clone with no code remote at all).
+#[test]
+fn sync_pushes_state_branch_in_master_url_mode_with_no_project_origin() {
+    let hub = new_bare_remote();
+    let hub_url = hub.path().to_string_lossy().to_string();
+    let alice = new_repo();
+    let balls = alice.path().join(".balls");
+    fs::create_dir_all(&balls).unwrap();
+    fs::write(
+        balls.join("config.json"),
+        format!(
+            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,
+                 "worktree_dir":".balls-worktrees","master_url":"{hub_url}"}}"#
+        ),
+    )
+    .unwrap();
+    bl(alice.path()).arg("init").assert().success();
+    assert!(
+        !project_remotes(alice.path()).contains(&"origin".to_string()),
+        "project root must have no `origin`: {:?}",
+        project_remotes(alice.path())
+    );
+
+    let id = create_task(alice.path(), "shared task");
+    bl(alice.path()).arg("sync").assert().success();
+
+    let listing = git(hub.path(), &["ls-tree", "-r", "--name-only", "balls/tasks"]);
+    assert!(
+        listing.contains(&format!(".balls/tasks/{id}.json")),
+        "hub must carry the synced task on `balls/tasks`: {listing}"
+    );
+}
+
 /// `bl remaster <url>` *without* `--commit` materializes the
 /// state-repo locally but leaves the committed config untouched —
 /// the per-clone path.
@@ -212,75 +251,6 @@ fn remaster_detach_clears_master_url() {
     );
 }
 
-/// bl-dcd3 hard-fail tests: a `master_url` client whose hub is
-/// unreachable must refuse first-time setup rather than silently
-/// dropping to an unlinked local orphan that would drift away from
-/// the rest of the team. Three sites cover the model:
-/// - `bl prime`'s auto-provision (the documented onboarding command),
-/// - `bl init` with a seeded master_url,
-/// - `bl remaster --detach` as the offline escape hatch.
-fn seed_unreachable_master_url(repo: &Path) -> String {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    let url = "/this/path/does/not/exist/hub.git".to_string();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,
-                 "worktree_dir":".balls-worktrees","master_url":"{url}"}}"#
-        ),
-    )
-    .unwrap();
-    url
-}
-
-#[test]
-fn bl_prime_with_unreachable_master_url_hard_fails() {
-    let code = new_bare_remote();
-    let onboard = clone_from_remote(code.path(), "onboard");
-    init_in(onboard.path());
-    let url = seed_unreachable_master_url(onboard.path());
-    git(onboard.path(), &["add", ".balls/config.json"]);
-    git(onboard.path(), &["commit", "-m", "wire master_url"]);
-    git(onboard.path(), &["push", "origin", "main"]);
-
-    let teammate = clone_from_remote(code.path(), "teammate");
-    let assert = bl(teammate.path()).arg("prime").assert().failure();
-    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
-    assert!(stderr.contains("could not reach state hub"), "{stderr}");
-    assert!(stderr.contains(&url), "stderr must name URL: {stderr}");
-    assert!(stderr.contains("remaster --detach"), "{stderr}");
-    assert!(
-        !teammate.path().join(".balls/state-repo").exists(),
-        "no partial state-repo must remain after hard-fail"
-    );
-}
-
-#[test]
-fn bl_init_with_unreachable_master_url_hard_fails() {
-    let alice = new_repo();
-    let url = seed_unreachable_master_url(alice.path());
-    let assert = bl(alice.path()).arg("init").assert().failure();
-    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
-    assert!(
-        stderr.contains("could not reach state hub") && stderr.contains(&url),
-        "init stderr must surface hard-fail: {stderr}"
-    );
-}
-
-#[test]
-fn remaster_detach_works_offline_against_unreachable_master_url() {
-    let alice = new_repo();
-    seed_unreachable_master_url(alice.path());
-    git(alice.path(), &["add", ".balls/config.json"]);
-    git(alice.path(), &["commit", "-m", "wire master_url"]);
-
-    bl(alice.path()).arg("remaster").arg("--detach").assert().success();
-    assert!(read_master_url(alice.path()).is_none());
-    assert!(
-        alice.path().join(".balls/worktree/.balls/tasks").exists(),
-        "detach must leave a usable legacy state worktree behind"
-    );
-    bl(alice.path()).arg("prime").assert().success();
-    create_task(alice.path(), "post-detach task");
-}
+// The bl-dcd3 hard-fail tests for an unreachable hub live in
+// `tests/master_url_hard_fail.rs` — split out to keep both files
+// under the 300-line cap.
