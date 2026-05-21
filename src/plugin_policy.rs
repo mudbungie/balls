@@ -9,11 +9,10 @@
 //! nothing).
 //!
 //! Writes land in the same effective config `plugin_admin` mutates —
-//! the project's `.balls/config.json` standalone, the state-repo's
-//! checkout under `master_url` (master-wins, bl-a7d9). There is
-//! deliberately no per-clone `--local` surface: a federated clone
-//! overriding hub plugin policy locally is the exact drift the
-//! master-wins model exists to prevent.
+//! `.balls/project.json` on the tracker branch (SPEC §7), inherited by
+//! every workspace. There is deliberately no per-clone `--local`
+//! surface: a workspace overriding the project's plugin policy locally
+//! is the exact drift project-owned config exists to prevent.
 
 use crate::config::PluginEntry;
 use crate::error::{BallError, Result};
@@ -157,9 +156,9 @@ pub fn parse_op(set: &[String], rm: &[String], clear: bool, no_legacy: bool) -> 
 }
 
 /// Apply `op` to `name`'s entry in the effective config. Re-runs
-/// `Config::validate` so the SPEC §6.2 `drop`-is-observe-only rule
-/// fails here, at command time, rather than at the next load; under
-/// `master_url` commits the change on the state-repo checkout.
+/// `ProjectConfig::validate` so the SPEC §6.2 `drop`-is-observe-only
+/// rule fails here, at command time, rather than at the next load;
+/// `commit_change` then publishes `project.json` on the tracker branch.
 pub fn apply(store: &Store, name: &str, op: PolicyOp) -> Result<PolicyReport> {
     plugin_admin::validate_name(name)?;
     let cfg_path = plugin_admin::effective_config_path(store);

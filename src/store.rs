@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
+use crate::project_config::ProjectConfig;
 use crate::git;
 use crate::store_init::{bootstrap_bare_hub, commit_init};
 use crate::store_paths::{find_balls_root, find_main_root, init_stealth_tasks, stealth_tasks_override};
@@ -71,6 +72,10 @@ impl Store {
     fn ensure_state_repo(root: &Path) -> Result<PathBuf> {
         let dir = root.join(crate::state_repo::STATE_REPO_REL);
         if dir.join(".git").exists() {
+            // A warm checkout skips re-materialization, but one built
+            // before the SPEC §7 split has no `project.json` — bring it
+            // up to date in place (a no-op once it exists).
+            crate::state_repo::ensure_project_config(root, &dir)?;
             return Ok(dir);
         }
         let cfg = Config::load(&root.join(".balls/config.json"))?;
@@ -201,6 +206,22 @@ impl Store {
     /// is a plain read with no federation layering.
     pub fn load_config(&self) -> Result<Config> {
         Config::load(&self.config_path())
+    }
+
+    /// Path of the project config — `.balls/project.json`, a symlink
+    /// into the state checkout for every non-stealth repo (SPEC §7).
+    pub fn project_config_path(&self) -> PathBuf {
+        self.balls_dir().join("project.json")
+    }
+
+    /// The project's config (SPEC §7): the schema version, id width,
+    /// `min_bl_version` floor, and plugin map shared by every workspace
+    /// on the tracker. `.balls/project.json` resolves through a symlink
+    /// into the state checkout; a repo without one — stealth, or a
+    /// checkout predating the config split — falls its project-owned
+    /// fields back to `config.json`.
+    pub fn load_project_config(&self) -> Result<ProjectConfig> {
+        ProjectConfig::resolve(&self.project_config_path(), &self.config_path())
     }
 
     /// Root that a plugin's `config_file` path is joined against. The

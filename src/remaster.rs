@@ -88,7 +88,7 @@ fn replay_onto(store: &Store, sd: &Path, target_ref: &str) -> Result<Reconciled>
 
     git::git_reset_hard(sd, target_ref)?;
 
-    let id_len = store.load_config()?.id_length;
+    let id_len = store.load_project_config()?.id_length;
     let mut used: BTreeSet<String> = target_ids;
     used.extend(local.keys().cloned());
     let mut rename: BTreeMap<String, String> = BTreeMap::new();

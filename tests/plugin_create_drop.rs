@@ -105,20 +105,17 @@ fn write_drop_config(repo: &Path, policy: &str) {
     let plugins_dir = repo.join(".balls/plugins");
     std::fs::create_dir_all(&plugins_dir).unwrap();
     std::fs::write(plugins_dir.join("jira.json"), "{}").unwrap();
-    let cfg_path = repo.join(".balls/config.json");
-    let mut cfg: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&cfg_path).unwrap()).unwrap();
-    cfg["plugins"] = serde_json::json!({
-        "jira": {
-            "enabled": true,
-            "sync_on_change": false,
-            "config_file": ".balls/plugins/jira.json",
-            "participant": { "subscriptions": { "drop": { "policy": policy } } }
-        }
-    });
-    std::fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
-    git(repo, &["add", ".balls/config.json"]);
-    git(repo, &["commit", "-m", "configure jira drop", "--no-verify"]);
+    set_project_plugins(
+        repo,
+        serde_json::json!({
+            "jira": {
+                "enabled": true,
+                "sync_on_change": false,
+                "config_file": ".balls/plugins/jira.json",
+                "participant": { "subscriptions": { "drop": { "policy": policy } } }
+            }
+        }),
+    );
     commit_state_repo(repo, "configure jira drop");
 }
 

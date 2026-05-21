@@ -112,23 +112,19 @@ pub fn configure_plugin(repo_path: &Path) {
     )
     .unwrap();
 
-    let cfg_path = repo_path.join(".balls/config.json");
-    let mut cfg: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&cfg_path).unwrap()).unwrap();
-    cfg["plugins"] = serde_json::json!({
-        "mock": {
-            "enabled": true,
-            "sync_on_change": true,
-            "config_file": ".balls/plugins/mock.json"
-        }
-    });
-    fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
-
-    // The plugins map lives in the workspace config.json (committed
-    // to the code branch); the plugin config files live in the state
-    // checkout (`.balls/plugins` symlinks into it).
-    git(repo_path, &["add", ".balls/config.json"]);
-    git(repo_path, &["commit", "-m", "configure mock plugin", "--no-verify"]);
+    // The plugins map is project config (SPEC §7): it rides
+    // `.balls/project.json` on the tracker branch alongside the plugin
+    // config files, so one state-repo commit publishes both.
+    super::set_project_plugins(
+        repo_path,
+        serde_json::json!({
+            "mock": {
+                "enabled": true,
+                "sync_on_change": true,
+                "config_file": ".balls/plugins/mock.json"
+            }
+        }),
+    );
     super::commit_state_repo(repo_path, "configure mock plugin");
 }
 

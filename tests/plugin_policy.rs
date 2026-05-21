@@ -1,7 +1,7 @@
 //! bl-5cc2 — `bl plugin policy` / `bl plugin show` end-to-end.
 //!
 //! Drives the real `bl` binary against a standalone repo: policy
-//! edits land in the project's `.balls/config.json` in place.
+//! edits land in the project config, `.balls/project.json` (SPEC §7).
 
 mod common;
 
@@ -16,7 +16,7 @@ fn ready_repo() -> Repo {
 }
 
 fn config(repo: &Repo) -> Value {
-    let raw = fs::read_to_string(repo.path().join(".balls/config.json")).unwrap();
+    let raw = fs::read_to_string(repo.path().join(".balls/project.json")).unwrap();
     serde_json::from_str(&raw).unwrap()
 }
 

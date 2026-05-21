@@ -153,6 +153,61 @@ fn ensure_repoints_a_stale_plugins_symlink() {
 }
 
 #[test]
+fn ensure_repoints_a_stale_project_json_symlink() {
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
+    fs::create_dir_all(root.path().join(".balls")).unwrap();
+    std::os::unix::fs::symlink(
+        PathBuf::from("stale-project-target"),
+        root.path().join(".balls/project.json"),
+    )
+    .unwrap();
+    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    assert_eq!(
+        fs::read_link(root.path().join(".balls/project.json")).unwrap(),
+        Path::new("state-repo/.balls/project.json")
+    );
+}
+
+#[test]
+fn ensure_refuses_a_pre_existing_non_symlink_at_the_project_json_path() {
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
+    fs::create_dir_all(root.path().join(".balls")).unwrap();
+    fs::write(root.path().join(".balls/project.json"), "{}").unwrap();
+    let err = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap_err();
+    assert!(err.to_string().contains("unexpected non-symlink"), "{err}");
+}
+
+#[test]
+fn ensure_project_config_migrates_a_warm_pre_split_checkout() {
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
+    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let link = root.path().join(".balls/project.json");
+    let tracked = dir.join(".balls/project.json");
+
+    // Simulate a checkout from before the config split: drop the
+    // project.json file and its workspace symlink, and commit that.
+    fs::remove_file(&link).unwrap();
+    fs::remove_file(&tracked).unwrap();
+    git::git_add_all(&dir).unwrap();
+    git::git_commit(&dir, "drop project.json").unwrap();
+
+    ensure_project_config(root.path(), &dir).unwrap();
+    assert!(link.is_symlink() && tracked.exists(), "migration restores both");
+
+    // Idempotent: a second call short-circuits on the resolved symlink.
+    ensure_project_config(root.path(), &dir).unwrap();
+
+    // Symlink-only loss: the tracked file survives, so no new commit —
+    // only the link is rebuilt.
+    fs::remove_file(&link).unwrap();
+    ensure_project_config(root.path(), &dir).unwrap();
+    assert!(link.is_symlink() && tracked.exists());
+}
+
+#[test]
 fn ensure_migration_clears_a_stray_unregistered_worktree_dir() {
     // The legacy `.balls/worktree` lingers as a plain directory that
     // git no longer tracks as a worktree — `git worktree remove`
