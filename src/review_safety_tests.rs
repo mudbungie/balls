@@ -82,6 +82,29 @@ fn commit_touches_runtime_flags_runtime_paths() {
 }
 
 #[test]
+fn commit_touches_runtime_flags_code_refs_cache() {
+    // bl-c4e2: the `--resolve-remote` code-refs cache shares the
+    // shape of the other runtime paths — a deep file under it
+    // (here `.git/HEAD` inside a forge clone dir) must still be
+    // recognized as runtime so a stale-gitignore repo cannot
+    // accidentally squash the cache into the integration branch.
+    let td = tempdir().unwrap();
+    init_repo(td.path());
+    std::fs::create_dir_all(td.path().join(".balls/code-refs/foo.git")).unwrap();
+    std::fs::write(td.path().join(".balls/code-refs/foo.git/HEAD"), "ref: x").unwrap();
+    assert!(raw_git(td.path(), &["add", "-A"]).status.success());
+    assert!(raw_git(td.path(), &["commit", "-m", "bad"])
+        .status
+        .success());
+    let sha = String::from_utf8(raw_git(td.path(), &["rev-parse", "HEAD"]).stdout)
+        .unwrap()
+        .trim()
+        .to_string();
+    let hits = commit_touches_runtime(td.path(), &sha).unwrap();
+    assert_eq!(hits, vec![".balls/code-refs/foo.git/HEAD".to_string()]);
+}
+
+#[test]
 fn commit_touches_runtime_empty_for_clean_commit() {
     let td = tempdir().unwrap();
     init_repo(td.path());
