@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-82a4",
+  "claimed_by": "sartorial",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:01:59.697115989Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T00:08:13.460799379Z"},
   "tags": ["multi-repo","master_url","config","architecture","discuss-first"],
   "title": "Symlink-based config symmetry: one read path, two materializations",
   "type": "task",
-  "updated_at": "2026-05-21T00:08:13.460803266Z"
+  "updated_at": "2026-05-21T00:20:44.339750861Z"
 }
