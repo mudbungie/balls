@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T04:09:52.747013196Z",
-  "delivered_in": null,
+  "delivered_in": "07cbf882a565208073dd7947da3c04bda814388f",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "The README 'Task File Schema' table lists 18 fields; the Task struct in src/task.rs has 24. Missing from the table: repo, delivered_repo, sync_status, synced_at, target_branch, extra. Of these, repo and delivered_repo appear nowhere in the README at all (only in SKILL.md); synced_at, sync_status, target_branch, and extra are described in README prose but absent from the canonical schema table.\n\nThe schema table is presented as the authoritative description of a task JSON file -- it must enumerate every field. Refresh both the table and the example JSON block so they match src/task.rs. Independent of the federated SPEC work.\n\nAudited 2026-05-20.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":97,"source":"balls","state":"open","synced_at":"2026-05-21T04:15:14.254547462+00:00","url":"https://github.com/mudbungie/balls/issues/97"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T04:15:14.259484350Z"},
   "tags": [],
   "title": "README: refresh the Task File Schema table",
   "type": "task",
-  "updated_at": "2026-05-21T04:15:14.259493877Z"
+  "updated_at": "2026-05-21T04:17:27.310734354Z"
 }
