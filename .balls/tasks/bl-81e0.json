@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "The master_url / federated state model (multiple code repos sharing one balls/tasks hub) was a deliberate scope expansion but shipped by accretion across ~30 commits with no design document. The motivating use case is real: multiple repos syncing to a single upstream did not work under the single-repo orphan-branch model.\n\nThe project's three other major subsystems each have a SPEC (forge-gated-delivery, lifecycle-sync-participants, orphan-branch-state) carrying invariants, a backwards-compat audit, and a conformance test list. The federated model is comparably load-bearing -- a nested .balls/state-repo/ clone, symlink-materialized .balls/config.json + .balls/plugins/, the .balls/master.json pointer file, master-wins config policy, and hard-fail-vs-soft-fail reachability semantics -- yet it is documented only as ~71 lines of operational prose in SKILL.md and appears in zero SPECs.\n\nDeliverable: docs/SPEC-federated-state.md, matching the rigor and structure of the existing SPECs. Must cover: the master.json pointer schema, state-repo materialization and re-materializability, the symlink-config seam, master-wins policy, the hard-fail/soft-fail boundary, state_remote (legacy) deprecation, and a backwards/forwards-compatibility section -- the model must stay bilaterally compatible with the simpler standalone model. Include a conformance test list.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":96,"source":"balls","state":"open","synced_at":"2026-05-21T04:09:42.975175914+00:00","url":"https://github.com/mudbungie/balls/issues/96"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":96,"source":"balls","state":"open","synced_at":"2026-05-21T04:10:01.268074117+00:00","url":"https://github.com/mudbungie/balls/issues/96"}}},
   "id": "bl-81e0",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-21T04:09:42.988172473Z"},
+  "synced_at": {"github-issues":"2026-05-21T04:10:01.278001631Z"},
   "tags": [],
   "title": "SPEC the federated multi-repo state model",
   "type": "task",
-  "updated_at": "2026-05-21T04:09:59.976381765Z"
+  "updated_at": "2026-05-21T04:10:01.278013984Z"
 }
