@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-5cc2",
+  "claimed_by": "Infused",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:52:31.781554904Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T00:52:32.875734842Z"},
   "tags": ["plugins","participants","discuss-first","spec-§11"],
   "title": "bl plugin policy: control SPEC §11 per-event participant knobs",
   "type": "task",
-  "updated_at": "2026-05-21T00:52:32.875739832Z"
+  "updated_at": "2026-05-21T01:17:42.095864552Z"
 }
