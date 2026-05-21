@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-f37b ships `bl show --resolve-remote` against a balls-owned cache that\nfetches `delivered_repo` with `--filter=blob:none` (commit metadata only, no\ntrees/blobs). Partial-clone support is universal on modern GitHub/GitLab\nbut not on older self-hosted deployments — older Bitbucket Server (pre-7.x,\nroughly), gitea ahead of partial-clone, plain `git daemon`, etc. — where\nthe fetch errors with `filter \"blob:none\" not supported`.\n\nIn the current code path that is a hard failure on the first call:\n`delivery_remote::ensure_cache` tears the half-built scaffold down,\nwarns once, and returns `None`. The operator sees `delivered_in_resolved:\nnull` plus a generic \"could not fetch\" warning, with no hint that it is\nthe *filter* the server rejected — and no path forward short of dropping\n`--resolve-remote` (which defeats the point).\n\nThis is precisely the case we said soft-fail covered, and it does for the\n\"genuinely unreachable URL\" tier. It does not cover \"server is reachable\nbut does not speak partial clone,\" which is functionally different.\n\n# Scope\n\nIn `delivery_remote::ensure_cache`, try `--filter=blob:none` first; on\nnon-zero exit, retry once with no filter before treating the fetch as\nfailed. The unfiltered retry pays full blobs but still terminates — the\nwarm-cache + soft-fail invariants of the bl-f37b design are preserved.\n\nPreferred shape (see \"Open\" below): detect the specific \"filter ... not\nsupported\" error on stderr and only fall back in that case — server-\ngenuinely-unreachable should not pay a second round-trip. String-matching\ngit stderr is fragile, but the alternative (always-retry) doubles the\nnetwork cost on every legitimately unreachable URL.\n\nTest coverage: a tempdir-backed \"remote\" with `uploadpack.allowFilter =\nfalse` plus `transfer.advertiseObjectInfo = false` (or whatever the\nminimal config is to refuse partial clone) exercises the fallback locally\nwithout a real Bitbucket Server.\n\n# Open\n\n- **Detect via stderr vs always-retry.** stderr capture means using\n  `.output()` instead of `.status()` in the fetch path; the existing\n  `is_ok_and(|s| s.success())` shape loses stderr. Refactor needed but\n  small.\n- **What does the unsupporting-server error actually look like?** Worth\n  reproducing against an older bitbucket / `git daemon` once, so the\n  match string is grounded in a real failure rather than a guess.\n- **One-shot capability cache?** Once we know a URL does not support\n  filter, the next `ensure_cache` call against it could skip straight\n  to unfiltered. Probably premature — the warm cache absorbs most\n  subsequent calls anyway — but worth a note.\n\n# Origin\n\nbl-f37b review pass — flagged as a hard failure for users on older\nBitbucket Server / gitea / `git daemon` deployments. Filed because the\nread-side resolution is unusable for them otherwise, and the fix is\nsmall enough to land as a follow-up.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":69,"source":"balls","state":"open","synced_at":"2026-05-21T00:43:17.502354504+00:00","url":"https://github.com/mudbungie/balls/issues/69"}}},
   "id": "bl-dbe5",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T00:43:17.516318966Z"},
   "tags": ["multi-repo","delivery-remote"],
   "title": "delivery_remote: fall back to unfiltered fetch when server rejects --filter=blob:none",
   "type": "bug",
-  "updated_at": "2026-05-21T00:43:14.189687891Z"
+  "updated_at": "2026-05-21T00:43:17.516324065Z"
 }
