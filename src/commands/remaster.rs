@@ -84,6 +84,11 @@ fn detach_path(store: &Store) -> Result<()> {
     let was_federated = federate::is_federated(&store.root);
     remaster::detach(store)?;
     federate::unfederate(&store.root)?;
+    // `unfederate` has just turned `.balls/config.json` back into a
+    // real file, so nothing points into the balls-owned hub clone
+    // anymore — discard it (bl-692b: a leftover is a re-federation
+    // footgun). Ordered after `unfederate` for that reason.
+    remaster::discard_state_repo(&store.root)?;
     remaster::scrub_legacy_canonical(&store.root)?;
     set_local_state_remote(store, "origin")?;
     if was_federated {

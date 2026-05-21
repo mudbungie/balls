@@ -73,6 +73,24 @@ fn adopt_state_into_worktree(root: &Path, state_repo: &Path, worktree: &Path) ->
     crate::store_init::ensure_tasks_symlink(root, "worktree/.balls/tasks")
 }
 
+/// Remove the balls-owned `.balls/state-repo` hub clone left behind by
+/// a warm `master_url` detach (bl-692b). Once `detach` has transplanted
+/// the re-rooted orphan onto `.balls/worktree` and the caller has
+/// materialized the standalone `.balls/config.json` (`federate::
+/// unfederate`), nothing references the clone — and leaving it on disk
+/// is a re-federation footgun: `state_repo::ensure` keys "warm cache"
+/// off the leftover `.git` + `balls/tasks`, so a later re-federation
+/// would silently re-adopt the hub-severed orphan instead of the new
+/// hub's history. A no-op when the clone was never materialized (legacy
+/// `state_remote`, or a cold detach).
+pub fn discard_state_repo(root: &Path) -> Result<()> {
+    let dir = root.join(crate::state_repo::STATE_REPO_REL);
+    if dir.exists() {
+        fs::remove_dir_all(&dir)?;
+    }
+    Ok(())
+}
+
 /// Offline-friendly detach (bl-dcd3) for when `master_url` is set but
 /// the state-repo hasn't yet materialized — typically because the hub
 /// is unreachable and `state_repo::ensure` hard-failed first-time
