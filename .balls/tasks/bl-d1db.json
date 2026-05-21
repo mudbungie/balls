@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T02:31:01.512386739Z",
-  "delivered_in": null,
+  "delivered_in": "c3d7b787d661adc7fc0b7eb843873134df7207e3",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\nThe project pre-commit hook (`scripts/pre-commit`) runs `cargo test`. A git\nhook always executes with `GIT_DIR`, `GIT_INDEX_FILE`, `GIT_WORK_TREE`,\n`GIT_AUTHOR_*` etc. exported into its environment, and every subprocess the\nhook spawns — `cargo test`, and in turn every `git` a test shells out to —\ninherits them. Those vars override directory-based repo discovery: a `git`\ninvocation with `GIT_DIR` set ignores `current_dir(tempdir)` and operates on\nthe hook's repo instead.\n\nResult: running the test suite via the pre-commit hook does not test against\ntempdir fixtures — it mutates the real repo the commit is happening in.\n\nObserved live (bl-0151, 2026-05-20). A `git commit` in a claimed task\nworktree fired the hook; the hook's `cargo test` ran. `delivery_test_support::\nlocal_repo_with_tag` does `git init` / `git add a.txt` / `git commit -qm\n\"seed [bl-abcd]\"`, all via a `git()` helper that sets `current_dir` but does\nNOT scrub `GIT_*`. With the hook's `GIT_INDEX_FILE` inherited, `git add` wrote\nto the worktree's real index and `git commit` swept the already-staged `src/`\nchanges into a junk commit `seed [bl-abcd]` on the live `work/bl-0151` branch,\nplus a stray `a.txt`. Concurrent test processes all inheriting one `GIT_DIR`\nalso produced `error: could not lock config file .../balls/config` panics\n(`delivery_test_support.rs:26`). A plain `make check` (cargo test NOT under a\nhook, no `GIT_*` in env) is unaffected — which is why this hid until now.\n\nThis is the same class as the env-var races in the parallel-test work\n(bl-bfa8 HOME, bl-ad4b PATH), but the blast radius is worse: it does not just\nfail a test, it writes commits onto whatever branch the developer is sitting\non.\n\n# Scope\n\nMake the test suite immune to an inherited GIT_* environment.\n\n- Primary fix (one chokepoint): `scripts/pre-commit` should unset the git\n  env vars before it runs `cargo test`, so ALL tests — unit and integration\n  — are covered at once, with no per-helper vigilance.\n- Test-helper fix: the `git` helpers that shell out without scrubbing should\n  scrub `crate::git::GIT_ENV_VARS` the way the others already do. Confirmed\n  culprit: `src/delivery_test_support.rs` (`git()` at ~line 20). Audit the\n  rest — `git grep -l 'Command::new(\"git\")'` over tests vs. the files that\n  already loop `GIT_ENV_VARS` (bare_squash_tests, review_safety_tests,\n  store_init_tests, plugin_admin_tests, plugin_policy_tests, plugin/\n  consume_tests) shows the gap: delivery_remote_tests, human_gate_tests,\n  state_repo_test_support, tests/common/mod.rs and several tests/*.rs do not.\n  Ideally collapse the duplicated scrub-and-run git() helper into one shared\n  definition rather than re-fixing N copies.\n\n# Out of scope\n\nThe production `src/git.rs` path already scrubs (`git.rs:27`). This ball is\nthe test harness and the hook only.\n\n# Origin\n\nRoot-caused while delivering bl-0151: the hook corrupted that task's own\nworktree mid-delivery. Recovery was a hard reset of the work branch.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":89,"source":"balls","state":"open","synced_at":"2026-05-21T03:13:05.887256950+00:00","url":"https://github.com/mudbungie/balls/issues/89"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T03:13:05.896650927Z"},
   "tags": ["hygiene","testing"],
   "title": "Test git helpers leak GIT_* env: cargo test inside the pre-commit hook corrupts the live worktree",
   "type": "bug",
-  "updated_at": "2026-05-21T03:13:05.896663080Z"
+  "updated_at": "2026-05-21T03:33:21.096062185Z"
 }
