@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:58:54.443740860Z",
-  "delivered_in": null,
+  "delivered_in": "81138067b53a32d57ebc104626a4ab71e928113c",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\nbl-c4e2 added `.balls/code-refs` to `store_init::ensure_main_gitignore`,\nbut placed it inside the `if !is_stealth` block alongside `.balls/tasks`\nand `.balls/worktree`. That gating is wrong for code-refs.\n\n`.balls/tasks` and `.balls/worktree` are non-stealth-only because they\n*do not exist* in stealth mode — stealth keeps task JSON under a\n`--tasks-dir` path, with no state worktree and no symlink. So there is\nnothing to gitignore.\n\nThe code-refs cache is different. `delivery_remote::ensure_cache`\nmaterializes `.balls/code-refs/<hash>.git` relative to the repo root on\nany `bl show --resolve-remote`, with no stealth gating whatsoever. A\nstealth-mode repo that opts into `--resolve-remote` therefore gets an\nuntracked `.balls/code-refs/` tree that is NOT gitignored (the stealth\n`wanted` list is only `.balls/local`, `.balls-worktrees`). A subsequent\n`git add -A` silently commits a forge clone into the project — exactly\nthe failure mode bl-c4e2 set out to close, still open for stealth repos.\n\nThe `review_safety::RUNTIME_PATHS` squash backstop already covers this\nmode-independently (it added `.balls/code-refs` unconditionally), so\nthis is defense-in-depth, not a hole in the last line of defense — but\nthe gitignore-side defense should not be thinner for stealth than for\nnon-stealth when the hazard is identical.\n\n# Scope\n\n- `store_init::ensure_main_gitignore`: move `.balls/code-refs` out of\n  the `if !is_stealth` block and into the always-`wanted` list, next to\n  `.balls/local` (the other path that exists in both modes). Leave\n  `.balls/tasks` and `.balls/worktree` non-stealth-gated — that gating\n  is correct for them.\n- Update the docstring on `ensure_main_gitignore` to reflect that\n  `.balls/code-refs` is unconditional.\n- A test exercising stealth-mode init (`bl init --tasks-dir ...`) and\n  asserting `.gitignore` contains `.balls/code-refs`. `init_stealth.rs`\n  is the existing home for stealth init stories.\n\n# Out of scope\n\n`.balls/state-repo` (master_url mode) has a separate, parallel gap —\nalso missing from both `ensure_main_gitignore` and `RUNTIME_PATHS`.\nTracked/decided separately; do not fold it in here.\n\n# Origin\n\nFollow-up from the bl-c4e2 review pass. bl-c4e2 followed its ball's\nexplicit scope (\\\"non-stealth wanted list, mirrors .balls/worktree\\\"),\nwhich under-covered stealth mode because code-refs, unlike worktree,\nis materialized regardless of mode.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":71,"source":"balls","state":"open","synced_at":"2026-05-21T01:05:22.062693072+00:00","url":"https://github.com/mudbungie/balls/issues/71"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T01:05:22.078667951Z"},
   "tags": ["multi-repo","hygiene"],
   "title": "ensure_main_gitignore: cover .balls/code-refs in stealth mode too",
   "type": "bug",
-  "updated_at": "2026-05-21T01:05:22.078672710Z"
+  "updated_at": "2026-05-21T01:10:21.776277667Z"
 }
