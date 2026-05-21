@@ -229,17 +229,23 @@ pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
 /// Commit the init-time files (.gitignore, config.json, plugins .gitkeep)
 /// to the main branch. Extracted from Store::init so the no-git path
 /// can skip it without duplicating the line-budget in store.rs.
+///
+/// bl-1098: in master_url mode `.balls/plugins` is a symlink to the
+/// hub-owned state-repo, not a project-owned directory — the project
+/// has no placeholder `.gitkeep` to seed or stage. Detected by the
+/// symlink left by `state_repo::ensure`.
 pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Result<()> {
     ensure_main_gitignore(root, is_stealth)?;
-    let plugins_keep = root.join(".balls/plugins/.gitkeep");
-    if !plugins_keep.exists() {
-        fs::write(&plugins_keep, "")?;
+    let federated = root.join(".balls/plugins").is_symlink();
+    let keep_rel = Path::new(".balls/plugins/.gitkeep");
+    let mut paths: Vec<&Path> = vec![Path::new(".balls/config.json"), Path::new(".gitignore")];
+    if !federated {
+        let abs_keep = root.join(keep_rel);
+        if !abs_keep.exists() {
+            fs::write(&abs_keep, "")?;
+        }
+        paths.push(keep_rel);
     }
-    let paths: Vec<&Path> = vec![
-        Path::new(".balls/config.json"),
-        Path::new(".balls/plugins/.gitkeep"),
-        Path::new(".gitignore"),
-    ];
     git::git_add(root, &paths)?;
     let msg = if already { "balls: reinitialize" } else { "balls: initialize" };
     git::git_commit(root, msg)?;

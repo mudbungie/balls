@@ -168,6 +168,20 @@ fn has_real_plugin_files_true_when_real_file_present() {
 }
 
 #[test]
+fn has_real_plugin_files_false_when_symlinked_to_hub() {
+    // bl-1098: in federated mode `.balls/plugins/` is a symlink to the
+    // state-repo's plugins dir — its contents ARE the hub's view, so
+    // they are never "drift" no matter how many files are reachable.
+    let dir = tempfile::tempdir().unwrap();
+    let hub = dir.path().join("hub");
+    fs::create_dir_all(&hub).unwrap();
+    fs::write(hub.join("real.json"), "{}").unwrap();
+    fs::create_dir_all(dir.path().join(".balls")).unwrap();
+    std::os::unix::fs::symlink(&hub, dir.path().join(".balls/plugins")).unwrap();
+    assert!(!has_real_plugin_files(dir.path()));
+}
+
+#[test]
 fn emit_drift_warning_silent_on_second_call() {
     let once = AtomicBool::new(false);
     emit_drift_warning(&once);
