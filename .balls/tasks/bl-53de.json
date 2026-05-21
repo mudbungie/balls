@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\nbl-f37b shipped `delivered_in_resolved_repo` in `bl show --json`, but the\ntext renderer was not updated. `render_show_relations::write_delivered_repo`\nstill prints only the static `task.delivered_repo` field, which is whatever\nthe *closer* tagged at close time (auto = current clone, or `--delivered-repo`\noverride per bl-733e). An operator running `bl show --resolve-remote` against\na hub gets the cross-repo resolution in the JSON but no visible signal in the\nhuman output.\n\nThe two values usually agree, but they intentionally can disagree:\n\n- A bridge clone (README §Bridging) closed someone else's task and either\n  used `--delivered-repo` or accepted the auto-tag; later, a different\n  reader on a different clone resolves the sha via a *third* repo whose\n  history actually contains it.\n- The static `delivered_repo` was written by a pre-bl-f37b `bl` (null) and\n  the remote-resolution fallback synthesizes one from the resolver's\n  search path.\n\nBoth cases are exactly what bl-f37b was designed to surface; not showing\nthem in text is a soft regression from the bl-7523 'delivered repo:' line.\n\n# Scope\n\n- Thread the resolved `Delivery` (which already carries `resolved_repo`)\n  through to `write_delivered_repo` — it currently reads only from the\n  task. The renderer already receives the `Delivery` for the delivered\n  line; small refactor.\n- When `resolved_repo` is `Some` and differs from `task.delivered_repo`,\n  print a second line (or a parenthetical on the existing line) naming\n  the resolved-through repo. Exact shape TBD — favor the\n  least-disruptive of:\n    - `delivered repo: <static>  (resolved via <resolved>)`\n    - or a separate `resolved via: <resolved>` line below\n  Match the existing column-aligned key style.\n- Suppress duplication: when `resolved_repo == task.delivered_repo` (the\n  common case), the rendered output stays byte-identical to today.\n\n# Out of scope\n\nJSON contract is unchanged — already correct since bl-f37b. This is\npurely the text-rendering parity.\n\n# Origin\n\nBl-f37b review pass — flagged 'no render-layer change for\ndelivered_in_resolved_repo' and deferred to keep that ball scoped.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":66,"source":"balls","state":"open","synced_at":"2026-05-21T00:38:08.868384037+00:00","url":"https://github.com/mudbungie/balls/issues/66"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":66,"source":"balls","state":"open","synced_at":"2026-05-21T00:45:29.161350559+00:00","url":"https://github.com/mudbungie/balls/issues/66"}}},
   "id": "bl-53de",
   "links": [],
   "parent": null,
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-21T00:38:08.885455214Z"},
+  "synced_at": {"github-issues":"2026-05-21T00:45:29.169087758Z"},
   "tags": ["display","multi-repo"],
   "title": "bl show text: surface resolved_repo when it diverges from the static delivered_repo",
   "type": "task",
-  "updated_at": "2026-05-21T00:45:28.129880864Z"
+  "updated_at": "2026-05-21T00:45:29.169095202Z"
 }
