@@ -17,6 +17,10 @@ fn story_1_init_in_existing_git_repo() {
     let gi = std::fs::read_to_string(repo.path().join(".gitignore")).unwrap();
     assert!(gi.contains(".balls/local"));
     assert!(gi.contains(".balls-worktrees"));
+    // bl-c439: the master_url state-repo clone is gitignored
+    // unconditionally, same as the code-refs cache.
+    assert!(gi.contains(".balls/code-refs"));
+    assert!(gi.contains(".balls/state-repo"));
     let log = git(repo.path(), &["log", "--oneline"]);
     assert!(log.contains("balls: initialize"));
 }
