@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-dc2b",
+  "claimed_by": "Debatable",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T19:45:44.818543560Z",
@@ -13,10 +13,10 @@
   "parent": "bl-dc79",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T19:45:46.403567397Z"},
   "tags": [],
   "title": "Verify the bare-hub in-place migration is safe for the dogfooded /home/mark/dev/balls",
   "type": "task",
-  "updated_at": "2026-05-21T19:45:46.403575378Z"
+  "updated_at": "2026-05-21T19:56:53.734463726Z"
 }
