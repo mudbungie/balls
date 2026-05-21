@@ -13,11 +13,17 @@
 //! hub's `master_url` is allowed to hard-fail because nothing else
 //! works without it (bl-dcd3); here the cost of failure is just an
 //! unresolvable sha, and `bl show` keeps working without provenance.
+//!
+//! Fetches ask for `--filter=blob:none` so we pay for commit metadata
+//! only. Older servers that do not speak partial clone reject the
+//! filter outright; a recognized rejection triggers one unfiltered
+//! retry so those deployments still resolve, paying full blobs (bl-dbe5).
 
 use crate::git;
 use crate::task::Task;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Output;
 
 /// Relative path (from the repo root) of the code-refs cache. Each
 /// `delivered_repo` URL maps to a SHA-1-named subdirectory so the cache
@@ -55,12 +61,12 @@ pub fn resolve(repo_root: &Path, delivered_repo: &str, task: &Task) -> Option<St
 pub(crate) fn ensure_cache(repo_root: &Path, url: &str) -> Option<PathBuf> {
     let dir = cache_dir_for(repo_root, url);
     if dir.join("HEAD").exists() {
-        if !refresh(&dir) {
+        if !fetch_with_fallback(url, &mut |filter| fetch_origin(&dir, filter)) {
             eprintln!("note: could not refresh code-refs for `{url}`; using warm cache");
         }
         return Some(dir);
     }
-    if clone_bare(&dir, url) {
+    if fetch_with_fallback(url, &mut |filter| clone_bare(&dir, url, filter)) {
         return Some(dir);
     }
     let _ = fs::remove_dir_all(&dir);
@@ -68,27 +74,87 @@ pub(crate) fn ensure_cache(repo_root: &Path, url: &str) -> Option<PathBuf> {
     None
 }
 
-fn refresh(dir: &Path) -> bool {
-    git::clean_git_command(dir)
-        .args(["fetch", "--quiet", "--filter=blob:none", "origin"])
-        .status()
-        .is_ok_and(|s| s.success())
+/// Run `op(true)` (a `--filter=blob:none` fetch or clone). When the
+/// server rejects the filter — an older deployment that does not speak
+/// partial clone — retry `op(false)` once unfiltered and note the
+/// degraded fetch. A genuinely-unreachable URL fails the first attempt
+/// without a filter-rejection signature, so it pays no second
+/// round-trip (bl-dbe5). Returns whether the cache is now usable.
+///
+/// `op` is a trait object rather than a generic so the orchestration
+/// compiles to a single function — the filter-rejection arm is only
+/// reachable from a test injecting a synthetic failure, and a generic
+/// would split that arm across monomorphizations the coverage tool
+/// cannot reassemble.
+fn fetch_with_fallback(url: &str, op: &mut dyn FnMut(bool) -> std::io::Result<Output>) -> bool {
+    match classify(op(true)) {
+        Attempt::Ok => true,
+        Attempt::FilterRejected => {
+            let recovered = matches!(classify(op(false)), Attempt::Ok);
+            if recovered {
+                note_unfiltered(url);
+            }
+            recovered
+        }
+        Attempt::Failed => false,
+    }
 }
 
-fn clone_bare(dir: &Path, url: &str) -> bool {
+/// Classification of one `git` invocation's outcome.
+#[derive(Debug, PartialEq, Eq)]
+enum Attempt {
+    Ok,
+    FilterRejected,
+    Failed,
+}
+
+fn classify(result: std::io::Result<Output>) -> Attempt {
+    match result {
+        Ok(out) if out.status.success() => Attempt::Ok,
+        Ok(out) if is_filter_rejection(&out.stderr) => Attempt::FilterRejected,
+        _ => Attempt::Failed,
+    }
+}
+
+/// Recognize the stderr of a server that does not speak partial clone.
+/// Modern git degrades a missing filter capability to a warning and
+/// exit 0, so this only fires for older deployments (pre-7.x Bitbucket
+/// Server, gitea before partial-clone, plain `git daemon`) that fail
+/// the fetch outright. Their phrasing varies, so match the `filter`
+/// signal alongside any of the known refusal forms.
+fn is_filter_rejection(stderr: &[u8]) -> bool {
+    let s = String::from_utf8_lossy(stderr).to_lowercase();
+    s.contains("filter")
+        && (s.contains("not supported")
+            || s.contains("not recognized")
+            || s.contains("not advertised"))
+}
+
+fn fetch_origin(dir: &Path, with_filter: bool) -> std::io::Result<Output> {
+    let mut cmd = git::clean_git_command(dir);
+    cmd.args(["fetch", "--quiet"]);
+    if with_filter {
+        cmd.arg("--filter=blob:none");
+    }
+    cmd.arg("origin").output()
+}
+
+fn clone_bare(dir: &Path, url: &str, with_filter: bool) -> std::io::Result<Output> {
     let parent = dir.parent().expect("cache_dir_for always has a parent");
     let _ = fs::create_dir_all(parent);
-    git::clean_git_command(parent)
-        .args([
-            "clone",
-            "--bare",
-            "--quiet",
-            "--filter=blob:none",
-            url,
-            &dir.to_string_lossy(),
-        ])
-        .status()
-        .is_ok_and(|s| s.success())
+    let mut cmd = git::clean_git_command(parent);
+    cmd.args(["clone", "--bare", "--quiet"]);
+    if with_filter {
+        cmd.arg("--filter=blob:none");
+    }
+    cmd.arg(url).arg(dir).output()
+}
+
+fn note_unfiltered(url: &str) {
+    eprintln!(
+        "note: `{url}` does not support partial clone; \
+         code-refs cache fetched with full blobs"
+    );
 }
 
 fn warn_unreachable(url: &str) {
