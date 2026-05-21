@@ -4,20 +4,8 @@
 //! create that symlink, only the config that drives the choice.
 
 use super::*;
-use crate::git_test_support::{git_run, git_stdout};
+use crate::git_test_support::{git_stdout, init_repo};
 use tempfile::TempDir;
-
-fn init_repo(path: &Path) {
-    for args in [
-        &["init", "-q", "-b", "main"][..],
-        &["config", "user.email", "test@example.com"],
-        &["config", "user.name", "test"],
-        &["config", "commit.gpgsign", "false"],
-        &["commit", "--allow-empty", "-m", "init", "--no-verify"],
-    ] {
-        git_run(path, args);
-    }
-}
 
 /// Scaffold the `.balls/` layout `commit_init` expects: a real plugins
 /// directory, a canonical config, and — for the federated case — the
