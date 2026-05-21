@@ -44,7 +44,7 @@ pub(crate) fn write_relations(
     write_parent(out, t, all);
     write_children(out, t, all);
     write_delivered(out, delivery, repo_root);
-    write_delivered_repo(out, t);
+    write_delivered_repo(out, t, delivery);
     write_branch(out, t);
     write_target_branch(out, t);
     write_repo(out, t);
@@ -169,10 +169,22 @@ fn write_repo(out: &mut String, t: &Task) {
     }
 }
 
-fn write_delivered_repo(out: &mut String, t: &Task) {
+fn write_delivered_repo(out: &mut String, t: &Task, delivery: &Delivery) {
+    // bl-53de: when the resolver landed on a different repo than the
+    // static `delivered_repo` tag (sibling-clone local hit, or a
+    // pre-bl-f37b task whose static field is null), surface the
+    // resolved repo on a second line. When they agree (the common
+    // case), output stays byte-identical to the bl-7523 single line.
     if let Some(r) = &t.delivered_repo {
         let _ = writeln!(out, "  delivered repo: {}", sanitize::inline(r));
     }
+    let Some(resolved) = delivery.resolved_repo.as_deref() else {
+        return;
+    };
+    if t.delivered_repo.as_deref() == Some(resolved) {
+        return;
+    }
+    let _ = writeln!(out, "  resolved via:   {}", sanitize::inline(resolved));
 }
 
 fn write_target_branch(out: &mut String, t: &Task) {
