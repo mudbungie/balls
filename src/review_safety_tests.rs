@@ -55,7 +55,7 @@ fn add_user_changes_excludes_balls_runtime_paths() {
     let staged =
         String::from_utf8(raw_git(td.path(), &["diff", "--cached", "--name-only"]).stdout).unwrap();
     assert!(staged.contains("user.txt"), "got: {staged}");
-    for p in RUNTIME_PATHS {
+    for p in crate::runtime_paths::backstop_paths() {
         assert!(
             !staged.lines().any(|l| l.starts_with(p)),
             "runtime path {p} leaked into staging: {staged}"
