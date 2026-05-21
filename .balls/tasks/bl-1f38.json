@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-1f38",
+  "claimed_by": "Pecked",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:46:44.604830359Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T01:46:45.846305937Z"},
   "tags": ["review","hygiene","discuss-first"],
   "title": "bl review: run a configurable pre-squash gate before merging",
   "type": "task",
-  "updated_at": "2026-05-21T01:46:45.846311046Z"
+  "updated_at": "2026-05-21T02:29:06.223272675Z"
 }
