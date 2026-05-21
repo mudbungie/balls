@@ -13,10 +13,10 @@
   "parent": "bl-dc79",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T20:08:52.747933380Z"},
   "tags": [],
   "title": "Verify the interim plugin-config split (map on code branch, files on tracker) is coherent",
   "type": "task",
-  "updated_at": "2026-05-21T20:08:52.747942914Z"
+  "updated_at": "2026-05-21T20:09:06.072681627Z"
 }
