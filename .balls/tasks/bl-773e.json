@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:02:45.878932764Z",
-  "delivered_in": null,
+  "delivered_in": "a4a3314e8417b357ba0d85a0b280f7e936c16c90",
   "depends_on": [],
   "description": "# Why\n\nbl-38dd added `.balls/tasks` symlink creation to `state_repo::ensure` so\nmaster_url-configured repos get the same convenience symlink the legacy\nleg drops in `setup_state_branch`. The target differs between the two\nlayouts: `worktree/.balls/tasks` (legacy) vs `state-repo/.balls/tasks`\n(master_url).\n\n`ensure_tasks_symlink` short-circuits on `is_symlink()` without\ninspecting the target, so a repo that was initialized in legacy mode\nand later flipped to master_url via `bl remaster --commit <url>` keeps\nits old symlink pointing at `worktree/.balls/tasks`. If\n`.balls/worktree/` is gone (which it should be in master_url mode), the\nsymlink dangles silently. bl itself keeps working because Store routes\nthrough `tasks_dir_path`, but the README-advertised ergonomic of\n`ls .balls/tasks/` breaks.\n\n# Scope\n\nIn `ensure_tasks_symlink` (or its master_url caller in\n`state_repo::ensure`), if the existing symlink's `read_link` target\ndisagrees with the expected target, repoint it. The bl-init guard\nagainst non-symlinks at the path is unaffected — a stray directory or\nfile there still aborts. Idempotency is preserved because matching\ntargets are still no-ops.\n\n`bl remaster` itself is a candidate site too — repointing the symlink\nas part of the commit step would mean `state_repo::ensure`'s call only\never runs in the freshly-correct state. Pick whichever matches the\nproject's preference between defensive (in ensure) and proactive (in\nremaster).\n\n# Out of scope\n\nThe reverse direction (master_url → legacy via `bl remaster --detach`)\nhas the same shape but is rarer and easier to spot. Same fix applies.\n\n# Origin\n\nbl-38dd review pass — sibling concern flagged at delivery, captured to\nkeep the symlink work self-contained.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":57,"source":"balls","state":"open","synced_at":"2026-05-21T00:12:52.580936383+00:00","url":"https://github.com/mudbungie/balls/issues/57"}}},
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T00:12:52.596507668Z"},
   "tags": ["multi-repo","master_url","remaster"],
   "title": "Stale .balls/tasks symlink survives legacy → master_url remaster",
   "type": "bug",
-  "updated_at": "2026-05-21T00:12:52.596514110Z"
+  "updated_at": "2026-05-21T00:20:50.922346566Z"
 }
