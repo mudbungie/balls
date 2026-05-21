@@ -323,19 +323,29 @@ place across an N-clone federation, so client repos can't drift them.
 
 ### Working in a multi-repo hub
 
-`bl` does not track which code repo a ball "belongs to" — the shared
-`balls/tasks` branch is flat and `bl prime` lists everything. The
-rules that fill that gap:
+`bl` *does* record which code repo a ball came from: every ball
+carries a `repo` field. But that field is create-anchored — it
+captures where the ball was *filed*, usually but not always where
+its code lives (bl-8994 tracks tightening this) — and the shared
+`balls/tasks` branch is otherwise flat, so `bl prime` lists every
+ball across every participating repo. A few conventions keep
+per-repo work legible:
 
 - **Claim from the clone whose code the ball touches.** Worktrees
   land under the current clone's `.balls-worktrees/`, so claiming
   from the wrong clone puts your edits in a tree that doesn't have
   the right source. Read the ball before claiming if it isn't
   obvious which repo it targets.
-- **Mark the target repo on the ball.** There is no `repo` field,
-  so pick a convention — a tag (`repo:api`, `repo:frontend`) or a
-  stable title prefix — and apply it on every ball. Agents filter
-  on it when scanning `bl ready`.
+- **Filter on the `repo` field; don't reinvent it.** `repo` is
+  auto-set at create from the creating clone's `origin` URL (else
+  its repo path); `bl show` prints it and it's in `--json`. For
+  per-repo triage, filter the `bl ready` output on `repo` rather
+  than inventing a parallel convention to hand-duplicate a field
+  that already exists and is already populated. A tag (`repo:api`,
+  `repo:frontend`) is still a fine *manual override* for the cases
+  where the auto-set value misleads — a cross-cutting ball, or one
+  filed from the wrong clone — but reach for it as the exception,
+  not the default.
 - **Cross-cutting work: parent + per-repo children.** A change
   spanning two code repos becomes one umbrella ball (`-t epic`)
   plus one child per repo, each tagged with its target and claimed
