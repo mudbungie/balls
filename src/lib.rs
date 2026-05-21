@@ -29,6 +29,7 @@ pub mod delivery;
 pub mod delivery_remote;
 pub mod display;
 pub mod doctor;
+mod doctor_symlink;
 pub mod error;
 pub mod git;
 pub mod git_merge;

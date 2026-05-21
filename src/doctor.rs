@@ -7,6 +7,7 @@
 //! points at the command that fixes it. It never mutates state —
 //! `repair` stays the only action verb; doctor only ever suggests.
 
+use crate::doctor_symlink::check_tasks_symlink;
 use crate::git;
 use crate::store::Store;
 use crate::task::Status;
@@ -22,7 +23,7 @@ pub struct Finding {
 }
 
 impl Finding {
-    fn flag(problem: impl Into<String>, hint: impl Into<String>) -> Self {
+    pub(crate) fn flag(problem: impl Into<String>, hint: impl Into<String>) -> Self {
         Finding { problem: problem.into(), hint: Some(hint.into()) }
     }
     fn note(problem: impl Into<String>) -> Self {
@@ -118,7 +119,10 @@ fn check_state_worktree(store: &Store, out: &mut Vec<Finding>) {
     }
     let dir = store.state_worktree_dir();
     match master_url(store) {
-        Some(url) => check_state_repo(&dir, &url, out),
+        Some(url) => {
+            check_state_repo(&dir, &url, out);
+            check_tasks_symlink(&store.root, "state-repo/.balls/tasks", out);
+        }
         None => check_legacy_worktree(&dir, out),
     }
 }
