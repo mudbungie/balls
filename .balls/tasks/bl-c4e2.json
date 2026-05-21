@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-f37b added a cross-repo delivery cache under `.balls/code-refs/<sha1>.git`\nmaterialized on `bl show --resolve-remote`. It is not added to\n`store_init::ensure_main_gitignore`'s wanted list, nor to\n`review_safety::RUNTIME_PATHS`. Today this is mostly harmless because nothing\ncreates the cache without `--resolve-remote`, but:\n\n- A non-bare repo where an operator opts in once will have an untracked\n  `.balls/code-refs/` tree. A subsequent `git add -A` (or a worktree-side\n  script that does the same) silently commits a forge clone into the\n  project — exactly the failure mode the bl-7523 `delivered_repo` write\n  side was trying to *avoid* bloating the integration branch with.\n- The runtime-paths safety net in `bl review` (`commit_touches_runtime` +\n  `runtime_in_squash_error`) already covers the analogous `.balls/local`,\n  `.balls/tasks`, `.balls/worktree`. Adding `.balls/code-refs` is the\n  same shape — defense in depth at squash time even if the gitignore is\n  stale from a pre-bl-f37b `bl init`.\n\n# Scope\n\n- `store_init::ensure_main_gitignore`: include `.balls/code-refs` in the\n  non-stealth `wanted` list (mirrors `.balls/worktree`).\n- `review_safety::RUNTIME_PATHS`: add `.balls/code-refs` so a sneaked-in\n  cache is rejected at review time.\n- A unit test in `review_safety_tests.rs` confirming a commit touching\n  `.balls/code-refs/foo.git/HEAD` is flagged by `commit_touches_runtime`.\n- Repos that already ran `bl init` before this lands won't get the\n  gitignore line auto-added — that's the existing migration story\n  (`bl init` is idempotent-ish, an operator can re-run it). Document\n  briefly in the commit body; no migration code.\n\n# Out of scope\n\n`.balls/state-repo` (bl-ffb4) has the same shape and the same gap. It is\n*also* not gitignored and not in RUNTIME_PATHS. Probably worth folding in,\nbut it predates this ball — file separately if so, or extend this ball's\nscope explicitly. Default: do code-refs only and note the parallel gap\nin the commit body.\n\n# Origin\n\nFollow-up from the bl-f37b review pass — flagged but deferred to keep\nthat ball scoped to the read-side resolver.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":65,"source":"balls","state":"open","synced_at":"2026-05-21T00:32:55.937663862+00:00","url":"https://github.com/mudbungie/balls/issues/65"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":65,"source":"balls","state":"open","synced_at":"2026-05-21T00:38:40.876625006+00:00","url":"https://github.com/mudbungie/balls/issues/65"}}},
   "id": "bl-c4e2",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-21T00:32:55.957309878Z"},
+  "synced_at": {"github-issues":"2026-05-21T00:38:40.882551101Z"},
   "tags": ["multi-repo","hygiene"],
   "title": "Gitignore + runtime-paths cover .balls/code-refs",
   "type": "bug",
-  "updated_at": "2026-05-21T00:38:39.554656730Z"
+  "updated_at": "2026-05-21T00:38:40.882557353Z"
 }
