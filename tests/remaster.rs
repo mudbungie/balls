@@ -9,18 +9,6 @@ use predicates::prelude::*;
 use std::fs;
 use std::path::Path;
 
-fn seed_config(repo: &Path, state_remote: &str) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","state_remote":"{state_remote}"}}"#
-        ),
-    )
-    .unwrap();
-}
-
 fn add_remote(repo: &Path, name: &str, target: &Path) {
     git(repo, &["remote", "add", name, &target.to_string_lossy()]);
 }
@@ -38,7 +26,7 @@ fn hub_with_task() -> (Repo, Repo, String) {
     let hub = new_bare_remote();
     let founder = clone_from_remote(code.path(), "founder");
     add_remote(founder.path(), "hub", hub.path());
-    seed_config(founder.path(), "hub");
+    seed_config(founder.path(), &[("state_remote", "hub")]);
     bl(founder.path()).arg("init").assert().success();
     git(founder.path(), &["push", "origin", "main"]);
     let hid = create_task(founder.path(), "Hub Owned");

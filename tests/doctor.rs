@@ -6,15 +6,6 @@ mod common;
 
 use common::*;
 use std::fs;
-use std::path::Path;
-
-/// Run `bl doctor` and return stdout. Asserts exit 0 — doctor is
-/// read-only and never fails the process, the verdict is in the text.
-fn doctor(cwd: &Path) -> String {
-    let out = bl(cwd).arg("doctor").output().expect("bl doctor");
-    assert!(out.status.success(), "doctor must exit 0 (read-only)");
-    String::from_utf8_lossy(&out.stdout).to_string()
-}
 
 #[test]
 fn clean_repo_is_silent() {

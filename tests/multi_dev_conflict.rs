@@ -4,18 +4,8 @@
 mod common;
 
 use common::*;
+use common::multidev::*;
 use std::thread;
-
-fn three_way() -> (Repo, Repo, Repo) {
-    let remote = new_bare_remote();
-    let alice = clone_from_remote(remote.path(), "alice");
-    bl(alice.path()).arg("init").assert().success();
-    push(alice.path());
-
-    let bob = clone_from_remote(remote.path(), "bob");
-    bl(bob.path()).arg("init").assert().success();
-    (remote, alice, bob)
-}
 
 #[test]
 fn story_47_sync_conflicting_tasks_auto_resolve() {
