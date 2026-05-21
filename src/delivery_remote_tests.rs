@@ -53,6 +53,19 @@ fn task_with_id(id: &str) -> Task {
     )
 }
 
+/// Synthesize a `git`-shaped `Output` from a real subprocess so the
+/// `ExitStatus` is genuine. `stderr` is passed as a positional arg to
+/// dodge shell quoting.
+fn fake_output(success: bool, stderr: &str) -> std::io::Result<Output> {
+    let code = i32::from(!success);
+    Command::new("sh")
+        .arg("-c")
+        .arg(format!("printf %s \"$1\" >&2; exit {code}"))
+        .arg("sh")
+        .arg(stderr)
+        .output()
+}
+
 #[test]
 fn cache_dir_for_is_under_repo_root_and_deterministic() {
     let root = Path::new("/x/y");
@@ -157,4 +170,108 @@ fn warm_cache_serves_when_origin_disappears() {
         Some(sha),
         "warm cache should still answer the same tag scan",
     );
+}
+
+#[test]
+fn is_filter_rejection_matches_known_phrasings() {
+    assert!(is_filter_rejection(b"fatal: filter 'blob:none' not supported"));
+    assert!(is_filter_rejection(b"error: filtering not recognized by server"));
+    assert!(is_filter_rejection(b"filter capability not advertised"));
+    assert!(is_filter_rejection(b"FATAL: FILTER NOT SUPPORTED"));
+}
+
+#[test]
+fn is_filter_rejection_rejects_unrelated_errors() {
+    assert!(!is_filter_rejection(b"fatal: repository not found"));
+    assert!(!is_filter_rejection(b""));
+    // "filter" present but no refusal phrasing — not a rejection.
+    assert!(!is_filter_rejection(b"applying filter blob:none"));
+}
+
+#[test]
+fn classify_distinguishes_outcomes() {
+    assert_eq!(classify(fake_output(true, "")), Attempt::Ok);
+    assert_eq!(
+        classify(fake_output(false, "fatal: filter not supported")),
+        Attempt::FilterRejected,
+    );
+    assert_eq!(
+        classify(fake_output(false, "fatal: repo gone")),
+        Attempt::Failed,
+    );
+    // A spawn failure (no such binary) is also Failed.
+    assert_eq!(
+        classify(Command::new("/no/such/git").output()),
+        Attempt::Failed,
+    );
+}
+
+#[test]
+fn fetch_with_fallback_filtered_success_skips_retry() {
+    let mut calls = 0;
+    let ok = fetch_with_fallback("git@h:x.git", &mut |_filter| {
+        calls += 1;
+        fake_output(true, "")
+    });
+    assert!(ok);
+    assert_eq!(calls, 1, "a clean filtered fetch must not retry");
+}
+
+#[test]
+fn fetch_with_fallback_retries_unfiltered_on_filter_rejection() {
+    let mut seen = Vec::new();
+    let ok = fetch_with_fallback("git@h:x.git", &mut |filter| {
+        seen.push(filter);
+        if filter {
+            fake_output(false, "fatal: filter 'blob:none' not supported")
+        } else {
+            fake_output(true, "")
+        }
+    });
+    assert!(ok);
+    assert_eq!(
+        seen,
+        vec![true, false],
+        "rejection must drop the filter and retry once",
+    );
+}
+
+#[test]
+fn fetch_with_fallback_fails_when_unfiltered_retry_also_fails() {
+    let ok = fetch_with_fallback("git@h:x.git", &mut |filter| {
+        if filter {
+            fake_output(false, "filter blob:none not supported")
+        } else {
+            fake_output(false, "fatal: repository not found")
+        }
+    });
+    assert!(!ok);
+}
+
+#[test]
+fn fetch_with_fallback_unreachable_url_pays_no_second_round_trip() {
+    let mut calls = 0;
+    let ok = fetch_with_fallback("git@h:x.git", &mut |_filter| {
+        calls += 1;
+        fake_output(false, "fatal: repository not found")
+    });
+    assert!(!ok);
+    assert_eq!(calls, 1, "a non-filter failure must not trigger the retry");
+}
+
+#[test]
+fn unfiltered_fetch_and_clone_paths_resolve() {
+    // The `with_filter = false` arms are only reached via the fallback,
+    // which needs an old server to trigger. Drive them directly so both
+    // sides of the toggle resolve a tag through a full-blob cache.
+    let (src, sha) = repo_with_tag_commit("bl-fa11");
+    let url = src.path().to_string_lossy().into_owned();
+    let root = TempDir::new().unwrap();
+    let dir = cache_dir_for(root.path(), &url);
+
+    assert!(clone_bare(&dir, &url, false).unwrap().status.success());
+    assert!(fetch_origin(&dir, false).unwrap().status.success());
+
+    let task = task_with_id("bl-fa11");
+    assert_eq!(resolve(root.path(), &url, &task), Some(sha));
 }
