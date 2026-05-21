@@ -1,4 +1,5 @@
 mod cli;
+mod cli_command;
 mod cli_sub;
 mod commands;
 
