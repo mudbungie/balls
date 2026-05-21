@@ -613,8 +613,6 @@ The task file is gone from the state branch's tree but preserved in its history 
 
 ### Reject (reviewer requests rework)
 
-### Reject (reviewer requests rework)
-
 ```bash
 # Set status back to in_progress. Agent resumes in existing worktree.
 bl update bl-a1b2 status=in_progress --note "needs error handling"
