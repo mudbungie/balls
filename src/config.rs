@@ -6,6 +6,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+// The nested config blocks live in `config_blocks.rs` (line-cap split,
+// bl-1f38); re-exported here so `config::Delivery` etc. are unchanged.
+pub use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginEntry {
     #[serde(default)]
@@ -18,30 +22,6 @@ pub struct PluginEntry {
     /// `sync_on_change` mapping when this is `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub participant: Option<ParticipantConfig>,
-}
-
-/// Which `bl review` code path a repo follows (SPEC §5).
-///
-/// `LocalSquash` is today's behavior — squash the work branch into the
-/// integration branch locally and immediately. `Deferred` hands the
-/// squash off to an external forge: `bl review` pushes the work branch
-/// and opens an auto-gate instead of touching the integration branch.
-/// Absent config ⇒ `LocalSquash`, byte-identical to before this field.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DeliveryMode {
-    #[default]
-    LocalSquash,
-    Deferred,
-}
-
-/// The `delivery` config block. Its own struct (rather than a bare
-/// `DeliveryMode` field) so future delivery knobs extend it without
-/// another top-level key.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Delivery {
-    #[serde(default)]
-    pub mode: DeliveryMode,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -104,6 +84,15 @@ pub struct Config {
     /// unset so an untouched config stays byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery: Option<Delivery>,
+    /// Opt-in pre-squash review gate (bl-1f38). When `review.pre_check`
+    /// is set, `bl review` runs that command in the worktree after
+    /// merging the integration branch in and aborts the review if it
+    /// exits non-zero — so the quality gate runs at the merge, not just
+    /// in CI. `None` (the default, and every config written before this
+    /// field) ⇒ no gate. Skipped from serialization when unset so an
+    /// untouched config stays byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<ReviewConfig>,
     /// Advisory minimum `bl` version (SPEC §5 / §10). `None` (the
     /// default, and every config written before this field) is silent.
     /// When set, a client below it warns on load; older clients drop
@@ -139,6 +128,7 @@ impl Default for Config {
             master_url: None,
             target_branch: None,
             delivery: None,
+            review: None,
             min_bl_version: None,
             plugins: BTreeMap::new(),
         }
@@ -266,6 +256,12 @@ impl Config {
             .as_ref()
             .map(|d| d.mode.clone())
             .unwrap_or_default()
+    }
+
+    /// Resolved `review.pre_check` command, or `None` when no review
+    /// gate is configured. Single seam `bl review` consults.
+    pub fn review_pre_check(&self) -> Option<&str> {
+        self.review.as_ref().and_then(|r| r.pre_check.as_deref())
     }
 }
 

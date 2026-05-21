@@ -74,6 +74,30 @@ fn merge_or_fail(dir: &std::path::Path, branch: &str, ctx: &str) -> Result<()> {
     Ok(())
 }
 
+/// Run the configured `review.pre_check` gate (bl-1f38) in the worktree.
+/// `bl review` calls this once the worker's work is committed and the
+/// integration branch is merged in, so the check sees the exact
+/// end-state being delivered — and *before* the squash or branch push,
+/// so a non-zero exit aborts the review with nothing to roll back:
+/// status stays `in_progress`, the integration branch is untouched. The
+/// check inherits stdio, so its own output streams straight to the
+/// terminal. `None` ⇒ no gate configured, the historical behavior.
+fn run_pre_check(cmd: Option<&str>, dir: &std::path::Path) -> Result<()> {
+    let Some(cmd) = cmd else { return Ok(()) };
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .current_dir(dir)
+        .status()?;
+    if status.success() {
+        return Ok(());
+    }
+    Err(BallError::Other(format!(
+        "review pre-check failed: `{cmd}` exited non-zero. No squash, no \
+         status change — fix it in the worktree and retry `bl review`."
+    )))
+}
+
 /// Submit for review: commit the worker's code, squash-merge to main as
 /// the single feature commit, flip task status to review on the state
 /// branch. Keeps the worktree so a rejected review can be re-worked in
@@ -116,6 +140,12 @@ pub fn review_worktree(
                 "conflicts merging {main_branch} into work/{id}. Resolve in worktree, then retry."
             ),
         )?;
+
+        // The quality gate. Runs against the post-merge worktree —
+        // exactly the end-state about to be delivered — and before both
+        // the deferred-mode push and the local squash, so a failure
+        // never lands code on the integration branch (bl-1f38).
+        run_pre_check(cfg.review_pre_check(), &wt_path)?;
 
         if deferred {
             return crate::review_deferred::deferred_review(
@@ -194,3 +224,7 @@ pub fn review_no_git(store: &Store, id: &str, message: Option<&str>, identity: &
 
 // `close_no_git` and `close_worktree` live in `review_close.rs` and
 // are re-exported from `lib.rs` so callers see no change.
+
+#[cfg(test)]
+#[path = "review_tests.rs"]
+mod tests;
