@@ -365,7 +365,7 @@ The state worktree added in step 3 already carries `.gitattributes` and every ta
 
 The deployments above — a working-tree clone, or a single bare hub — weld the task store to one code repo: `balls/tasks` is an orphan ref negotiated against that repo's own `origin`. One repo, one disjoint backlog. A project that spans **several** code repos — a `frontend`, an `api`, an `infra` — wants the opposite: one backlog, one ready queue, cross-repo dependency edges, and one place to run an issue-tracker plugin. Federated mode is the opt-in deployment that delivers it. It is a real scope expansion, taken deliberately, and it does not abandon the project thesis: the hub is still just git — no database, no daemon, no service.
 
-The full design — invariants, the backwards-compatibility audit, the conformance-test list — is [docs/SPEC-federated-state.md](docs/SPEC-federated-state.md), the authoritative contract; this section is the operational summary, and SKILL.md §*Multi-repo: one project, many repos* is the agent-facing companion. A repo with no pointer file is **standalone** and behaves bit-identically to every prior version — federation changes nothing until you opt in.
+The full design — invariants, the backwards-compatibility audit, the conformance-test list — is [docs/SPEC-tracker-state.md](docs/SPEC-tracker-state.md), the authoritative contract; this section is the operational summary, and SKILL.md §*Multi-repo: one project, many repos* is the agent-facing companion. A repo with no pointer file is **standalone** and behaves bit-identically to every prior version — federation changes nothing until you opt in.
 
 ### The hub and the participants
 
