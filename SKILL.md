@@ -247,9 +247,20 @@ ref retargets. The code remote is never disturbed.
   isolated local store. `bl remaster` is the non-destructive way to
   fold those tasks into the project later. `bl init` never resets,
   force-pushes, or clobbers a shared branch.
+- **Unreachable `master_url`:** first-time setup against a hub URL
+  the clone can't reach (no access, VPN down, typo) **hard-fails**
+  — `bl prime`/`bl init` surface the URL, the underlying fetch
+  error, and three resolution paths (fix access, edit `master_url`,
+  detach). No silent fallback to a local orphan: a `master_url`
+  client is a pure pointer, and drift between teammates is the
+  exact failure mode the cross-repo model exists to prevent. Once a
+  state-repo has materialized successfully, *later* offline runs
+  soft-fail (work from the local cache, parity with normal git).
 - **Leave:** `bl remaster --detach` forks the current branch into a
   fresh local orphan and clears both `state_remote` and `master_url`
-  — the repo is standalone again.
+  — the repo is standalone again. Works **offline**: when the hub
+  is unreachable and the state-repo never materialized, detach is
+  the escape hatch, so it never requires network access.
 
 ### Working in a multi-repo hub
 
