@@ -20,7 +20,7 @@ pub struct Plugin {
 
 impl Plugin {
     pub fn resolve(store: &Store, name: &str, entry: &PluginEntry) -> Self {
-        let executable = format!("balls-plugin-{name}");
+        let executable = plugin_executable(name);
         // bl-a7d9: master_url shifts plugin config to the hub; seam in store_plugins.
         let config_path = store.plugin_config_root().join(&entry.config_file);
         let auth_dir = store.local_plugins_dir().join(name);
@@ -161,6 +161,65 @@ fn which(name: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// The executable bl spawns for plugin `name`: `balls-plugin-{name}`,
+/// resolved against `PATH`. In test builds an active
+/// [`test_seam::ExecutableOverride`] substitutes a path of the test's
+/// choosing, so "plugin unavailable" tests can fail resolution without
+/// the process-global `env::remove_var("PATH")` that raced concurrent
+/// subprocess-spawning tests (bl-ad4b, same class as bl-bfa8).
+fn plugin_executable(name: &str) -> String {
+    #[cfg(test)]
+    if let Some(exe) = test_seam::executable_override() {
+        return exe;
+    }
+    format!("balls-plugin-{name}")
+}
+
+/// Test-only seam for `Plugin::resolve`: lets a test redirect the
+/// plugin executable to a path it controls instead of stripping
+/// `PATH`, which is process-global and races any concurrent test that
+/// shells out.
+#[cfg(test)]
+pub(crate) mod test_seam {
+    use std::cell::RefCell;
+    use std::path::Path;
+
+    thread_local! {
+        /// Active override for the current test's thread. Thread-local,
+        /// so a test setting it stays invisible to tests on other
+        /// harness threads — the isolation `env::set_var` cannot give.
+        static OVERRIDE: RefCell<Option<String>> = const { RefCell::new(None) };
+    }
+
+    /// The executable an active [`ExecutableOverride`] imposes, if any.
+    pub(super) fn executable_override() -> Option<String> {
+        OVERRIDE.with(|o| o.borrow().clone())
+    }
+
+    /// RAII guard that points `Plugin::resolve` at an absolute,
+    /// never-created executable under `dir` (pass a tempdir the test
+    /// owns). `which()` and spawn then both fail deterministically with
+    /// `PATH` left untouched. The override clears on drop.
+    #[must_use]
+    pub(crate) struct ExecutableOverride;
+
+    impl ExecutableOverride {
+        pub(crate) fn unresolvable(dir: impl AsRef<Path>) -> Self {
+            let exe = dir.as_ref().join("balls-plugin-absent");
+            OVERRIDE.with(|o| {
+                *o.borrow_mut() = Some(exe.to_string_lossy().into_owned());
+            });
+            ExecutableOverride
+        }
+    }
+
+    impl Drop for ExecutableOverride {
+        fn drop(&mut self) {
+            OVERRIDE.with(|o| *o.borrow_mut() = None);
+        }
+    }
 }
 
 #[cfg(test)]
