@@ -4,42 +4,10 @@
 //! the offline fallback (unreachable URL → safe-but-unlinked) without
 //! a network dependency.
 
+use super::test_support::hub_repo;
 use super::*;
 use crate::git;
-use std::process::Command;
 use tempfile::TempDir;
-
-fn run(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    assert!(out.status.success(), "git {args:?} failed: {out:?}");
-}
-
-/// Spin up a bare repo with `balls/tasks` seeded to act as a hub URL.
-fn hub_repo() -> TempDir {
-    // Build the seed in a working clone, then push to the bare hub —
-    // `git init --bare` alone has no balls/tasks ref to fetch.
-    let scratch = TempDir::new().unwrap();
-    let work = scratch.path().join("work");
-    let bare = scratch.path().join("hub.git");
-    std::fs::create_dir_all(&work).unwrap();
-    run(&work, &["init", "-q", "--initial-branch", "balls/tasks"]);
-    run(&work, &["config", "user.email", "t@e.x"]);
-    run(&work, &["config", "user.name", "t"]);
-    std::fs::write(work.join("seed"), "seed\n").unwrap();
-    run(&work, &["add", "seed"]);
-    run(&work, &["commit", "-qm", "seed"]);
-    run(scratch.path(), &["clone", "--bare", "-q", work.to_str().unwrap(), bare.to_str().unwrap()]);
-    // Hand the caller back a fresh TempDir holding only the bare so
-    // the working scratch dropping doesn't take the hub with it.
-    let kept = TempDir::new().unwrap();
-    let dest = kept.path().join("hub.git");
-    run(scratch.path(), &["clone", "--bare", "-q", bare.to_str().unwrap(), dest.to_str().unwrap()]);
-    kept
-}
 
 #[test]
 fn ensure_clones_from_reachable_hub_and_tracks_balls_tasks() {
@@ -234,3 +202,4 @@ fn looks_like_url_rejects_bare_remote_names() {
     // host:port style is a name we won't second-guess.
     assert!(!looks_like_url("anything:1234"));
 }
+

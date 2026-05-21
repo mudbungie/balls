@@ -88,6 +88,10 @@ pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
     // bypasses that helper entirely, so without this call the README's
     // "ls/$EDITOR .balls/tasks" ergonomic is missing on master_url repos.
     crate::store_init::ensure_tasks_symlink(root, "state-repo/.balls/tasks")?;
+    // bl-1098: parallel `.balls/plugins/` symlink so plugin config reads
+    // resolve through the project root without any code-side branching
+    // on master_url. Two parallel symlinks (a), not an umbrella path.
+    ensure_plugins_symlink(root, "state-repo/.balls/plugins")?;
 
     if !online {
         eprintln!(
@@ -217,6 +221,78 @@ fn ssh_shorthand(s: &str) -> bool {
         && !s.contains("://")
 }
 
+/// Materialize `.balls/plugins` as a symlink to `target` (relative to
+/// `<root>/.balls/`) so per-plugin config files resolve through the
+/// project root in federated mode (bl-1098 option a). Symmetric with
+/// `ensure_tasks_symlink`. Idempotent; repoints a stale symlink. An
+/// existing real `.balls/plugins/` is removed if `.gitkeep`-only;
+/// refused if it carries config files the master-wins rule would
+/// silently shadow.
+pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
+    let link = root.join(".balls/plugins");
+    let want = PathBuf::from(target);
+    if link.is_symlink() {
+        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
+            return Ok(());
+        }
+        fs::remove_file(&link)?;
+    } else if link.exists() {
+        drop_placeholder_plugins_dir(&link)?;
+    }
+    std::os::unix::fs::symlink(&want, &link)?;
+    Ok(())
+}
+
+fn drop_placeholder_plugins_dir(dir: &Path) -> Result<()> {
+    let real: Vec<String> = fs::read_dir(dir)?
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n != ".gitkeep")
+        .collect();
+    if !real.is_empty() {
+        return Err(BallError::Other(format!(
+            "`.balls/plugins/` contains {real:?}; under master_url the hub is \
+             authoritative (bl-a7d9). Move these into the hub's \
+             `.balls/plugins/` and remove `.balls/plugins/` here, then retry."
+        )));
+    }
+    fs::remove_dir_all(dir)?;
+    Ok(())
+}
+
+/// Inverse of `ensure_plugins_symlink`: replace the symlink with a real
+/// directory carrying the hub's plugin files at detach time, so the
+/// new-standalone repo keeps its plugin config instead of losing it.
+/// Idempotent when already a real dir.
+pub(crate) fn restore_plugins_dir(root: &Path, state_repo_plugins: &Path) -> Result<()> {
+    let link = root.join(".balls/plugins");
+    if link.is_symlink() {
+        fs::remove_file(&link)?;
+    } else if link.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(&link)?;
+    if let Ok(rd) = fs::read_dir(state_repo_plugins) {
+        for entry in rd.flatten() {
+            let from = entry.path();
+            if from.is_file() {
+                fs::copy(&from, link.join(entry.file_name()))?;
+            }
+        }
+    }
+    let keep = link.join(".gitkeep");
+    if !keep.exists() {
+        fs::write(&keep, "")?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "state_repo_test_support.rs"]
+mod test_support;
 #[cfg(test)]
 #[path = "state_repo_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "state_repo_plugins_tests.rs"]
+mod plugins_tests;

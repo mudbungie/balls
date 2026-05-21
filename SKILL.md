@@ -269,12 +269,18 @@ When `master_url` is set, **plugin policy is owned by the hub**.
 The effective `plugins` map and the `.balls/plugins/*` config files
 come from the materialized state-repo (`.balls/state-repo/.balls/`
 on disk — i.e. the hub's `balls/tasks` branch). The project repo's
-own `plugins` map and `.balls/plugins/` directory are ignored.
+own `plugins` map is ignored.
 
 This is the natural composition with the bridge/proxy pattern below:
 plugin secrets, sync schedules, and mirroring policy live in **one**
 place across an N-clone federation, so client repos can't drift them.
 
+- **Layout (bl-1098).** In federated mode `.balls/plugins/` at the
+  project root is a **symlink** into `.balls/state-repo/.balls/plugins/`,
+  parallel to the long-standing `.balls/tasks` symlink. Reads via
+  the project-root path resolve into the hub view without any
+  code-side branching on `master_url`. Standalone mode keeps a real
+  `.balls/plugins/` directory.
 - **Hub-aware tooling: `bl plugin enable|disable|list`.** From any
   participant clone, `bl plugin enable <name> [--config-file PATH]
   [--sync-on-change]` writes the entry into the effective plugins
@@ -287,15 +293,27 @@ place across an N-clone federation, so client repos can't drift them.
   are committed automatically — run `bl sync` to publish. In
   standalone mode the writes update the project's `.balls/config.json`
   and `.balls/plugins/*` in place; commit them yourself.
-- **Hand-editing is still supported.** `cd .balls/state-repo` (or
-  the project root in standalone mode), edit `.balls/config.json`
-  and `.balls/plugins/*.json`, commit, push. Same effect as the
-  tooling — useful for bulk migrations or one-off policy tweaks.
-- **Drift warning.** A `master_url`-configured clone that still
-  has a project-side `plugins` map or non-placeholder
-  `.balls/plugins/*` files emits a one-shot "master wins" warning
-  on stderr per process. Those files are inert until you remove
-  them — they no longer affect dispatch.
+- **Hand-editing is still supported.** Edit `.balls/plugins/<name>.json`
+  through the project-root path (the bl-1098 symlink transparently
+  lands you inside `.balls/state-repo/` in federated mode) or
+  `cd .balls/state-repo` first. Commit on `balls/tasks` and push;
+  every client's next `bl prime` picks up the change. Useful for
+  bulk migrations or one-off policy tweaks.
+- **Flipping to federated.** `bl remaster --commit <url>` is refused
+  while the project still carries non-placeholder `.balls/plugins/*`
+  files — those would be silently shadowed by the hub view. Move
+  them into the hub's `.balls/plugins/` first and retry. A
+  `.gitkeep`-only placeholder is removed automatically.
+- **Detach restores standalone shape.** `bl remaster --detach`
+  replaces the symlink with a real `.balls/plugins/` carrying the
+  hub's plugin files at the moment of detach, so the new-standalone
+  repo keeps its plugin config instead of losing it.
+- **Drift warning.** A `master_url`-configured clone whose
+  `.balls/config.json` still has a non-empty project-side `plugins`
+  map emits a one-shot "master wins" warning on stderr per process.
+  Those map entries are inert — only the hub's view drives dispatch
+  — until you remove them. (Drifted `.balls/plugins/*` files are
+  refused outright at flip time, see *Flipping to federated*.)
 - **Standalone repos are unchanged.** Without `master_url`, plugin
   config keeps living on the project's integration branch alongside
   the code, exactly as before.

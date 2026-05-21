@@ -117,12 +117,19 @@ pub fn reconcile(store: &Store, target: &str) -> Result<Reconciled> {
 /// Sever shared history: re-root `balls/tasks` as a fresh local
 /// orphan carrying its current tasks. The config half (clearing
 /// `state_remote`) is the caller's job.
+///
+/// bl-1098: also reverse the `.balls/plugins -> state-repo/.balls/
+/// plugins` symlink — going standalone means the project owns plugin
+/// config again, so we materialize a real `.balls/plugins/` carrying
+/// the hub's files at the moment of detach. Skipped for the legacy
+/// `state_remote` path (no symlink ever existed there).
 pub fn detach(store: &Store) -> Result<()> {
-    git_state::reroot_orphan(
-        &store.state_worktree_dir(),
-        STATE_BRANCH,
-        "balls: remaster --detach (standalone)",
-    )
+    let sd = store.state_worktree_dir();
+    let plugins_link = store.root.join(".balls/plugins");
+    if plugins_link.is_symlink() {
+        crate::state_repo::restore_plugins_dir(&store.root, &sd.join(".balls/plugins"))?;
+    }
+    git_state::reroot_orphan(&sd, STATE_BRANCH, "balls: remaster --detach (standalone)")
 }
 
 /// Offline-friendly detach (bl-dcd3) for when `master_url` is set but
