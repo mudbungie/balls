@@ -67,17 +67,23 @@ pub struct Config {
     pub require_remote_on_review: bool,
     #[serde(default)]
     pub require_remote_on_close: bool,
-    /// Git remote whose `balls/tasks` ref is authoritative for this
-    /// repo. `None` (the default, and every config written before
-    /// this field existed) resolves to `origin` — see
-    /// `state_remote()`. Set to a different remote to point a client
-    /// repo at a shared task hub: every `balls/tasks` fetch/push then
-    /// negotiates against the hub through the same git-remote
-    /// participant, while the code remote (`origin`) is untouched.
-    /// Lives in the committed config so the project link travels with
-    /// the codebase; a fork detaches via the per-clone override.
+    /// Git remote **name** whose `balls/tasks` ref this repo negotiates
+    /// against. `None` (the default) resolves to `origin`. Set to point
+    /// at a shared task hub via an existing project-side remote.
+    ///
+    /// **Deprecated by `master_url` (target: 0.5.0).** The name field
+    /// lives in per-clone `.git/config` and so doesn't travel via a
+    /// fresh `git clone`; `master_url` carries the URL in committed
+    /// config and provisions a balls-owned checkout automatically.
+    /// When both are set, `master_url` wins.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_remote: Option<String>,
+    /// Hub URL of an external task master (bl-ffb4). When set, balls
+    /// materializes its own git clone at `.balls/state-repo/` and
+    /// routes every state-branch op through it; the project's own
+    /// `.git/config` stays clean. Wins over legacy `state_remote`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub master_url: Option<String>,
     /// The integration branch `bl review` squashes into, `bl sync`
     /// pushes alongside the state branch, and the delivery-link /
     /// half-push tag scans consult. `None` (the default, and every
@@ -110,9 +116,7 @@ pub struct Config {
     pub plugins: BTreeMap<String, PluginEntry>,
 }
 
-/// The remote a config with no explicit `state_remote` targets. Equal
-/// to today's hardcoded behavior, so an unmodified config produces
-/// byte-identical git invocations.
+/// The remote a config with no explicit `state_remote` targets.
 pub const DEFAULT_STATE_REMOTE: &str = "origin";
 
 fn default_true() -> bool {
@@ -132,6 +136,7 @@ impl Default for Config {
             require_remote_on_review: false,
             require_remote_on_close: false,
             state_remote: None,
+            master_url: None,
             target_branch: None,
             delivery: None,
             min_bl_version: None,
@@ -142,14 +147,9 @@ impl Default for Config {
 
 pub const ID_LENGTH_MIN: usize = 4;
 pub const ID_LENGTH_MAX: usize = 32;
-
-/// Current on-disk schema version for `.balls/config.json`. Bump this
-/// when a config change requires migration logic. Older clients
-/// reading a config written with a higher version refuse to load
-/// with a clear "your bl is too old" error rather than silently
-/// losing fields. Lower-or-equal versions load normally because the
-/// struct definition is backward-compatible by design (new fields
-/// carry serde defaults).
+/// On-disk schema version for `.balls/config.json`. Older clients
+/// reject a higher number with a clear "bl is too old" error. New
+/// fields carry serde defaults so older configs load unchanged.
 pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
 impl Config {
@@ -196,25 +196,7 @@ impl Config {
                 self.worktree_dir
             )));
         }
-        // SPEC §6.2: `drop` is observe-only. A `required` or `gating`
-        // policy on it is rejected here — an observer must never be
-        // able to block or stage a local claim release (§2 soft
-        // policy, hard primitive). Only `best-effort` is legal.
-        for (name, entry) in &self.plugins {
-            let drop_policy = entry
-                .participant
-                .as_ref()
-                .and_then(|p| p.subscriptions.get(&crate::participant::Event::Drop));
-            if let Some(ep) = drop_policy {
-                if !matches!(ep.policy, crate::participant_config::PolicyKind::BestEffort) {
-                    return Err(BallError::Other(format!(
-                        "invalid config: plugin {name:?} subscribes to `drop` with a \
-                         non-best-effort policy; drop is observe-only (SPEC §6.2)"
-                    )));
-                }
-            }
-        }
-        Ok(())
+        validate_drop_policies(&self.plugins)
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
@@ -236,15 +218,18 @@ impl Config {
         self.state_remote.as_deref().unwrap_or(DEFAULT_STATE_REMOTE)
     }
 
-    /// Resolve the integration branch. This is the single seam every
-    /// integration-branch consumer (`bl review`'s squash, `bl sync`'s
-    /// push, the delivery-link and half-push tag scans, `bl claim`'s
-    /// worktree base) routes through, so the `target_branch`
-    /// precedence lives in exactly one place — the analogue of
-    /// `state_remote()`, but with a dynamic default. Configured value
-    /// wins; otherwise fall back to the branch checked out at `root`
-    /// (`git rev-parse --abbrev-ref HEAD`), which is byte-identical to
-    /// the implicit behavior that predated this field.
+    /// Resolved hub URL for the balls-owned state checkout (bl-ffb4),
+    /// or `None` for the legacy `state_remote`-name model. The seam
+    /// that branches between the two layouts.
+    pub fn master_url(&self) -> Option<&str> {
+        self.master_url.as_deref()
+    }
+
+    /// Resolve the integration branch — the single seam every consumer
+    /// (`bl review`'s squash, `bl sync`'s push, delivery-link and
+    /// half-push tag scans, `bl claim`'s worktree base) routes through.
+    /// Configured value wins; otherwise falls back to `HEAD@root`,
+    /// byte-identical to the implicit pre-field behavior.
     pub fn integration_branch(&self, root: &Path) -> Result<String> {
         match &self.target_branch {
             Some(b) => Ok(b.clone()),
@@ -274,15 +259,35 @@ impl Config {
         }
     }
 
-    /// Resolved delivery mode. The single seam `bl review` consults to
-    /// pick its code path; `None` delivery block ⇒ `LocalSquash`, so an
-    /// untouched repo behaves exactly as before this field existed.
+    /// Resolved delivery mode (`None` block ⇒ `LocalSquash`). Single
+    /// seam `bl review` consults to pick its code path.
     pub fn delivery_mode(&self) -> DeliveryMode {
         self.delivery
             .as_ref()
             .map(|d| d.mode.clone())
             .unwrap_or_default()
     }
+}
+
+/// SPEC §6.2: `drop` is observe-only — only `best-effort` is legal.
+/// Lifted out of `validate()` to keep `config.rs` under the 300-line cap.
+fn validate_drop_policies(plugins: &BTreeMap<String, PluginEntry>) -> Result<()> {
+    for (name, entry) in plugins {
+        let Some(ep) = entry
+            .participant
+            .as_ref()
+            .and_then(|p| p.subscriptions.get(&crate::participant::Event::Drop))
+        else {
+            continue;
+        };
+        if !matches!(ep.policy, crate::participant_config::PolicyKind::BestEffort) {
+            return Err(BallError::Other(format!(
+                "invalid config: plugin {name:?} subscribes to `drop` with a \
+                 non-best-effort policy; drop is observe-only (SPEC §6.2)"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

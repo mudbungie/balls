@@ -213,27 +213,43 @@ Important:
 By default a repo's task state branch (`balls/tasks`) is negotiated
 against the same remote as its code (`origin`). A project spanning
 several code repos can instead share **one** task store on a dedicated
-hub remote. The single knob is `state_remote` in `.balls/config.json`
-(default: `origin`); point it at a git remote whose `balls/tasks` ref
-is authoritative. Everything else — claim/review/close/sync — then
-negotiates that ref through the existing git-remote participant. The
-code remote is untouched; only the orphan ref retargets.
+hub. There are two ways to wire the hub link:
 
-- **Onboard / join:** add the hub as a git remote, then
-  `bl remaster <hubremote>`. It fetches the hub's `balls/tasks`,
-  reconciles your local-only tasks onto it (a rare id clash with a
-  different task is re-imported under a fresh id, never silently
-  merged), and records the link per-clone. `--commit` writes the
-  link into the shared `.balls/config.json` so it travels with the
-  codebase. Idempotent: re-running against the same hub is a no-op.
+- **`master_url` (recommended, bl-ffb4)** — put the hub's git URL in
+  committed `.balls/config.json`. Balls materializes its own clone at
+  `.balls/state-repo/` (origin = that URL) and routes every
+  state-branch op through it. The project's own `.git/config` is
+  untouched — `git remote -v` stays clean. A teammate's fresh
+  `git clone` + `bl prime` is a complete onboard: no manual
+  `git remote add`, no `bl remaster` step.
+- **`state_remote` (legacy)** — point at the *name* of an existing
+  project-side git remote. Works for the single-repo "shared hub via
+  origin" case, but a fresh clone lands without that remote in its
+  `.git/config` and stays *safe but unlinked* until a teammate runs
+  `git remote add hub <url> && bl remaster hub`. Deprecated for the
+  cross-repo case in 0.5.0 in favor of `master_url`.
+
+In both modes claim/review/close/sync are unchanged; only the orphan
+ref retargets. The code remote is never disturbed.
+
+- **Onboard with `master_url`:** in any clone, `bl remaster <hub-url>
+  --commit` writes the URL to committed config, materializes
+  `.balls/state-repo/`, and reconciles local-only tasks onto the hub.
+  Commit and push the config change; everyone else's next
+  `git pull && bl prime` joins automatically.
+- **Onboard with legacy `state_remote`:** `git remote add <name>
+  <url>` then `bl remaster <name>`. `--commit` writes the *name* into
+  shared config (which other clones still have to wire up to a real
+  URL manually). Idempotent: re-running against the same hub is a
+  no-op.
 - **Unaware `bl init`:** a clone whose committed config names a hub
   it has no git remote for stays *safe but unlinked* — a usable
   isolated local store. `bl remaster` is the non-destructive way to
   fold those tasks into the project later. `bl init` never resets,
   force-pushes, or clobbers a shared branch.
 - **Leave:** `bl remaster --detach` forks the current branch into a
-  fresh local orphan and clears the link — the repo is standalone
-  again.
+  fresh local orphan and clears both `state_remote` and `master_url`
+  — the repo is standalone again.
 
 ### Working in a multi-repo hub
 

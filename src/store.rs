@@ -1,8 +1,10 @@
 use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::store_init::{bootstrap_bare_hub, commit_init, setup_state_branch, STATE_WORKTREE_REL};
-use crate::store_paths::{find_balls_root, find_main_root, resolve_tasks_dir, stealth_tasks_dir};
+use crate::store_init::{bootstrap_bare_hub, commit_init, setup_state_branch};
+use crate::store_paths::{
+    auto_provision_master, find_balls_root, find_main_root, init_stealth_tasks, resolve_layout,
+};
 use crate::task::{self, Task};
 use crate::task_io;
 use std::fs;
@@ -20,6 +22,9 @@ pub struct Store {
     /// True when no git repository is available. Implies stealth.
     pub no_git: bool,
     tasks_dir_path: PathBuf,
+    /// Where state-branch git ops run. `.balls/state-repo` under
+    /// `master_url`, `.balls/worktree` otherwise (bl-ffb4 seam).
+    state_worktree_path: PathBuf,
 }
 
 impl Store {
@@ -39,21 +44,26 @@ impl Store {
         if !main_root.join(".balls").exists() {
             return Err(BallError::git_repo_no_balls(&main_root));
         }
-        let (tasks_dir_path, stealth) = resolve_tasks_dir(&main_root);
+        // Auto-provision the balls-owned state-repo on first discover
+        // after a fresh `git clone` of a master_url-configured project.
+        // Idempotent; offline-safe (failure leaves discover to surface
+        // its own diagnostic).
+        auto_provision_master(&main_root);
+        let (tasks_dir_path, stealth, state_worktree_path) = resolve_layout(&main_root);
         if !stealth && !tasks_dir_path.exists() {
             return Err(BallError::state_worktree_missing(&main_root, &tasks_dir_path));
         }
         git::git_ensure_user(&main_root)?;
-        Ok(Store { root: main_root, stealth, no_git: false, tasks_dir_path })
+        Ok(Store { root: main_root, stealth, no_git: false, tasks_dir_path, state_worktree_path })
     }
 
     fn discover_no_git(from: &Path) -> Result<Self> {
         let root = find_balls_root(from)?;
-        let (tasks_dir_path, stealth) = resolve_tasks_dir(&root);
+        let (tasks_dir_path, stealth, state_worktree_path) = resolve_layout(&root);
         if !stealth || !tasks_dir_path.exists() {
             return Err(BallError::no_git_store_unusable(&root, &tasks_dir_path, stealth));
         }
-        Ok(Store { root, stealth, no_git: true, tasks_dir_path })
+        Ok(Store { root, stealth, no_git: true, tasks_dir_path, state_worktree_path })
     }
 
     pub fn init(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
@@ -87,37 +97,34 @@ impl Store {
         }
 
         let use_stealth = stealth || tasks_dir.is_some();
-        let (tasks_dir_path, is_stealth) = if use_stealth {
-            let ext = match tasks_dir {
-                Some(td) => PathBuf::from(td),
-                None => stealth_tasks_dir(&repo_root),
-            };
-            fs::create_dir_all(&ext)?;
-            fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
-            (ext, true)
+        let (tasks_dir_path, is_stealth, state_worktree_path) = if use_stealth {
+            init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?
         } else {
-            // Resolve the state remote from the just-ensured config so
-            // a clone whose committed config points at a task hub
-            // adopts the hub's branch instead of forking an orphan.
+            // master_url overrides the project-worktree leg entirely:
+            // balls owns its own clone, project's `.git/config` stays
+            // untouched (bl-ffb4).
             let cfg = Config::load(&config_path)?;
-            setup_state_branch(&repo_root, cfg.state_remote(), cfg.state_remote.is_some())?;
-            (repo_root.join(".balls/worktree/.balls/tasks"), false)
+            let wt = if let Some(url) = cfg.master_url() {
+                crate::state_repo::ensure(&repo_root, url)?
+            } else {
+                setup_state_branch(&repo_root, cfg.state_remote(), cfg.state_remote.is_some())?;
+                repo_root.join(".balls/worktree")
+            };
+            (wt.join(".balls/tasks"), false, wt)
         };
 
         if !no_git {
             commit_init(&repo_root, is_stealth, already)?;
         }
-        Ok(Store { root: repo_root, stealth: is_stealth, no_git, tasks_dir_path })
+        Ok(Store { root: repo_root, stealth: is_stealth, no_git, tasks_dir_path, state_worktree_path })
     }
 
     /// Bootstrap a bare central hub at `hubdir` from `source` and open
-    /// a Store rooted there. The convenience wrapper over the by-hand
-    /// README bootstrap; the heavy lifting (clone, scaffold, materialize
-    /// config, state wiring) lives in `store_init::bootstrap_bare_hub`.
+    /// a Store rooted there. Heavy lifting is in `bootstrap_bare_hub`.
     pub fn init_bare(source: &str, hubdir: &Path) -> Result<Self> {
         let root = bootstrap_bare_hub(source, hubdir)?;
-        let (tasks_dir_path, _) = resolve_tasks_dir(&root);
-        Ok(Store { root, stealth: false, no_git: false, tasks_dir_path })
+        let (tasks_dir_path, _, state_worktree_path) = resolve_layout(&root);
+        Ok(Store { root, stealth: false, no_git: false, tasks_dir_path, state_worktree_path })
     }
 
     pub fn balls_dir(&self) -> PathBuf {
@@ -129,12 +136,13 @@ impl Store {
     }
 
     /// Directory where git operations against task state should run.
-    /// In non-stealth mode this is the state worktree (commits land on
-    /// the `balls/tasks` orphan branch, never on main). In stealth mode
-    /// the concept is meaningless — callers should branch on `stealth`
-    /// before using this.
+    /// In non-stealth mode this is the resolved state checkout —
+    /// `.balls/state-repo/` when `master_url` is set (balls-owned clone,
+    /// bl-ffb4) or `.balls/worktree/` otherwise (legacy worktree of
+    /// project repo). In stealth mode the concept is meaningless —
+    /// callers branch on `stealth` first.
     pub fn state_worktree_dir(&self) -> PathBuf {
-        self.root.join(STATE_WORKTREE_REL)
+        self.state_worktree_path.clone()
     }
 
     pub fn local_dir(&self) -> PathBuf {
