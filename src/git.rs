@@ -98,20 +98,6 @@ pub fn git_rm_force(dir: &Path, paths: &[&Path]) -> Result<()> {
     Ok(())
 }
 
-/// `git rm --cached`: drop paths from the index, leaving the working
-/// tree untouched. `--ignore-unmatch` makes an already-untracked path
-/// a silent no-op, so the federated-flip `.gitkeep` untrack (bl-ebae)
-/// can run unconditionally and stay idempotent.
-pub fn git_rm_cached(dir: &Path, paths: &[&Path]) -> Result<()> {
-    let mut args = vec!["rm", "--cached", "--ignore-unmatch", "--"];
-    let strs: Vec<String> = paths.iter().map(|p| p.to_string_lossy().to_string()).collect();
-    for s in &strs {
-        args.push(s.as_str());
-    }
-    run_git_ok(dir, &args)?;
-    Ok(())
-}
-
 pub fn git_add_all(dir: &Path) -> Result<()> {
     run_git_ok(dir, &["add", "-A"])?;
     Ok(())

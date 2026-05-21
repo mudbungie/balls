@@ -33,7 +33,7 @@ fn review_of_empty_worktree_leaves_delivered_in_null() {
     assert!(j["delivered_in"].is_null(), "delivered_in must be null: {j}");
 
     // State branch subject ends with "no-code".
-    let state_log = git(
+    let state_log = git_state(
         repo.path(),
         &["log", "--format=%s", "balls/tasks"],
     );

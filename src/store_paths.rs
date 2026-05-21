@@ -6,81 +6,30 @@ use crate::git;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Task directory resolution. Stealth mode honors an override file at
-/// `.balls/local/tasks_dir`; non-stealth mode points at the state
-/// worktree's `.balls/tasks/` (the canonical location — main's
-/// `.balls/tasks` is a gitignored symlink to the same place).
-pub(crate) fn resolve_tasks_dir(root: &Path) -> (PathBuf, bool) {
-    let override_file = root.join(".balls/local/tasks_dir");
-    if let Ok(s) = fs::read_to_string(&override_file) {
-        let p = PathBuf::from(s.trim());
-        if p.is_absolute() {
-            return (p, true);
-        }
-    }
-    (state_worktree_for(root).join(".balls/tasks"), false)
+/// The stealth/no-git tasks-dir override, if one is configured at
+/// `.balls/local/tasks_dir`. `Some` ⇒ this repo is in stealth mode and
+/// its task files live at the returned absolute path; `None` ⇒ a
+/// normal repo whose state lives in `.balls/state-repo`.
+pub(crate) fn stealth_tasks_override(root: &Path) -> Option<PathBuf> {
+    let s = fs::read_to_string(root.join(".balls/local/tasks_dir")).ok()?;
+    let p = PathBuf::from(s.trim());
+    p.is_absolute().then_some(p)
 }
 
-/// Layout triple `(tasks_dir, stealth, state_worktree)` resolved once
-/// at Store construction. Single seam for the `master_url`
-/// project-worktree vs balls-owned-clone choice (bl-ffb4): every
-/// caller of `state_worktree_dir()` routes through the cached path so
-/// the model decision lives here.
-pub(crate) fn resolve_layout(root: &Path) -> (PathBuf, bool, PathBuf) {
-    let (tasks_dir_path, stealth) = resolve_tasks_dir(root);
-    (tasks_dir_path, stealth, state_worktree_for(root))
-}
-
-/// Resolve the state-worktree path for `root`. Reads `MasterPointer`
-/// (which transparently falls back to the legacy in-canonical shape);
-/// any failure modes (missing/corrupt files) resolve to standalone,
-/// matching prior behavior.
-pub(crate) fn state_worktree_for(root: &Path) -> PathBuf {
-    if crate::master_pointer::MasterPointer::load_or_empty(root)
-        .master_url()
-        .is_some()
-    {
-        root.join(crate::state_repo::STATE_REPO_REL)
-    } else {
-        root.join(".balls/worktree")
-    }
-}
-
-/// Auto-provision the balls-owned state-repo on `discover` when committed
-/// config sets `master_url` but `.balls/state-repo/` doesn't yet exist —
-/// the fresh-`git clone` case bl-ffb4 closes. Errors are surfaced
-/// (bl-dcd3): a master_url that can't be reached for first-time setup
-/// stops the user from quietly drifting in an unlinked local orphan.
-/// A config that won't load isn't this path's concern — the caller's
-/// subsequent layout/discover steps surface that diagnostic.
-pub(crate) fn auto_provision_master(root: &Path) -> Result<()> {
-    let pointer = crate::master_pointer::MasterPointer::load_or_empty(root);
-    let Some(url) = pointer.master_url() else { return Ok(()) };
-    if root
-        .join(crate::state_repo::STATE_REPO_REL)
-        .join(".git")
-        .exists()
-    {
-        return Ok(());
-    }
-    crate::state_repo::ensure(root, url).map(|_| ())
-}
-
-/// Stealth/tasks-dir init leg. `master_url` is irrelevant in stealth
-/// mode (no state branch), so the state-worktree path is just a
-/// sentinel — callers gate on `stealth` before consulting it.
+/// Stealth/tasks-dir init leg. Returns the resolved external tasks
+/// directory; stealth mode has no state branch and no state checkout.
 pub(crate) fn init_stealth_tasks(
     repo_root: &Path,
     local_dir: &Path,
     tasks_dir: Option<String>,
-) -> Result<(PathBuf, bool, PathBuf)> {
+) -> Result<PathBuf> {
     let ext = match tasks_dir {
         Some(td) => PathBuf::from(td),
         None => stealth_tasks_dir(repo_root),
     };
     fs::create_dir_all(&ext)?;
     fs::write(local_dir.join("tasks_dir"), ext.to_string_lossy().as_bytes())?;
-    Ok((ext, true, repo_root.join(".balls/worktree")))
+    Ok(ext)
 }
 
 /// Generate a deterministic external path for stealth tasks.

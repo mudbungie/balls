@@ -90,7 +90,7 @@ fn disable_rejects_unknown_plugin() {
 }
 
 #[test]
-fn list_shows_entries_with_source() {
+fn list_json_shows_enabled_entries() {
     let repo = new_repo();
     init_in(repo.path());
 
@@ -105,7 +105,6 @@ fn list_shows_entries_with_source() {
         .unwrap();
     assert!(out.status.success());
     let parsed: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(parsed["source"], Value::String("project".into()));
     assert!(parsed["plugins"]
         .as_object()
         .unwrap()
@@ -113,7 +112,7 @@ fn list_shows_entries_with_source() {
 }
 
 #[test]
-fn list_empty_text_output_names_source() {
+fn list_empty_text_output_reports_no_plugins() {
     let repo = new_repo();
     init_in(repo.path());
 
@@ -121,7 +120,6 @@ fn list_empty_text_output_names_source() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("no plugins"), "stdout: {stdout}");
-    assert!(stdout.contains("project"), "stdout: {stdout}");
 }
 
 #[test]

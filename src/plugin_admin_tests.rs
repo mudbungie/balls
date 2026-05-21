@@ -45,16 +45,9 @@ fn validate_config_file_rejects_traversal_and_absolute() {
 }
 
 #[test]
-fn source_str_round_trips() {
-    assert_eq!(Source::Project.as_str(), "project");
-    assert_eq!(Source::Hub.as_str(), "hub");
-}
-
-#[test]
 fn enable_standalone_writes_config_and_creates_file() {
     let (_td, store) = standalone_store();
     let report = enable(&store, "github", None, true).unwrap();
-    assert_eq!(report.source, Source::Project);
     assert!(report.file_created);
 
     let cfg = Config::load(&store.config_path()).unwrap();
@@ -130,8 +123,7 @@ fn disable_removes_entry_and_keeps_file() {
     let report = enable(&store, "github", None, false).unwrap();
     let file = report.file_path.clone();
 
-    let drep = disable(&store, "github").unwrap();
-    assert_eq!(drep.source, Source::Project);
+    disable(&store, "github").unwrap();
     let cfg = Config::load(&store.config_path()).unwrap();
     assert!(!cfg.plugins.contains_key("github"));
     assert!(file.exists(), "config file must be kept on disable");
@@ -147,16 +139,14 @@ fn disable_rejects_unknown_name() {
 #[test]
 fn list_returns_empty_map_on_fresh_repo() {
     let (_td, store) = standalone_store();
-    let (plugins, source) = load_effective(&store).unwrap();
-    assert!(plugins.is_empty());
-    assert_eq!(source, Source::Project);
+    assert!(load_effective(&store).unwrap().is_empty());
 }
 
 #[test]
 fn list_returns_inserted_entry() {
     let (_td, store) = standalone_store();
     enable(&store, "github", None, false).unwrap();
-    let (plugins, _) = load_effective(&store).unwrap();
+    let plugins = load_effective(&store).unwrap();
     assert_eq!(plugins.len(), 1);
     assert!(plugins.contains_key("github"));
 }
@@ -196,15 +186,19 @@ fn ensure_parent_no_op_at_root() {
 }
 
 #[test]
-fn commit_change_no_op_under_project_source() {
+fn commit_change_is_a_noop_when_the_state_checkout_is_clean() {
     let (_td, store) = standalone_store();
-    commit_change(
-        &store,
-        Source::Project,
-        &[Path::new(".balls/config.json")],
-        "should be skipped",
-    )
-    .unwrap();
+    commit_change(&store, "nothing to commit").unwrap();
+}
+
+#[test]
+fn commit_change_is_a_noop_in_a_stealth_repo() {
+    let td = tempdir().unwrap();
+    init_repo(td.path());
+    let ext = td.path().join("ext-tasks");
+    let store =
+        Store::init(td.path(), false, Some(ext.to_string_lossy().into_owned())).unwrap();
+    commit_change(&store, "stealth — no state checkout").unwrap();
 }
 
 #[test]

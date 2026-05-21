@@ -47,13 +47,23 @@ pub struct Config {
     pub require_remote_on_review: bool,
     #[serde(default)]
     pub require_remote_on_close: bool,
-    /// Legacy bootstrap pointer fields, kept on `Config` so a
-    /// pre-bl-82a4 `.balls/config.json` deserializes without error.
-    /// **Do not read these** — federation bootstrap lives in
-    /// `MasterPointer` (`.balls/master.json`), which transparently
-    /// falls back to these fields for legacy configs. New code writes
-    /// them as `None` (skipped from serialization), so a migrated
-    /// canonical no longer carries them.
+    /// The tracker address (SPEC-tracker-state §5): where the shared
+    /// `balls/tasks` branch lives. `None` resolves live to the code
+    /// repo's own `origin` — a standalone repo carries neither field,
+    /// which is why a pre-federation config is already conformant.
+    /// `bl remaster <url>` writes `state_url`; `bl remaster --detach`
+    /// removes it. Resolved through `tracker_address::resolve`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_url: Option<String>,
+    /// The tracker's branch name. `None` resolves to `balls/tasks`.
+    /// Lets one tracker host several projects on distinct branches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_branch: Option<String>,
+    /// Legacy bootstrap fields, read transparently for migration.
+    /// A pre-spec `.balls/config.json` (or `.balls/master.json`) may
+    /// still carry `master_url` / `state_remote`; `tracker_address`
+    /// folds them into the `state_url` resolution and `bl remaster`
+    /// rewrites them away. New code never writes them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_remote: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,6 +125,8 @@ impl Default for Config {
             require_remote_on_claim: false,
             require_remote_on_review: false,
             require_remote_on_close: false,
+            state_url: None,
+            state_branch: None,
             state_remote: None,
             master_url: None,
             target_branch: None,

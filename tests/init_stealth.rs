@@ -120,7 +120,7 @@ fn tasks_dir_rejects_relative_path() {
 fn stealth_init_gitignores_code_refs_cache() {
     // `.balls/code-refs` is materialized by `--resolve-remote`
     // regardless of mode, so stealth init must gitignore it too —
-    // the non-stealth-only `.balls/tasks`/`.balls/worktree` gating
+    // the non-stealth-only `.balls/tasks`/`.balls/state-repo` gating
     // does not apply to it.
     let repo = new_repo();
     bl(repo.path())

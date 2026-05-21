@@ -1,10 +1,10 @@
-//! `bl remaster` reconcile/detach core (bl-2057). Recovery must be a
-//! first-class verb, not manual git surgery: an unaware `bl init` is
-//! only safe (bl-8e8f) if there is a non-destructive path back INTO
-//! a project afterwards. `reconcile` adopts the hub's `balls/tasks`
-//! history, replays local-only tasks on top, and renames any id
-//! clashes (independent offline creation under the same `bl-xxxx`).
-//! No CLI or printing here; that is `commands::remaster`.
+//! `bl remaster` reconcile core (SPEC-tracker-state §8). `bl remaster
+//! <url>` re-points `.balls/state-repo`'s `origin` at the new tracker
+//! and reconciles the workspace's local-only tasks onto its history,
+//! renaming any id clashes. There is one mechanism — the address is
+//! the only thing that varies — so a fresh tracker, a divergent one,
+//! and an up-to-date one are the same code path. Detach lives in
+//! `remaster_detach`; the CLI in `commands::remaster`.
 
 use crate::error::{BallError, Result};
 use crate::git_state::STATE_BRANCH;
@@ -16,22 +16,20 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-// `bl remaster --detach` lives in its own module; re-exported here so
-// the public path `balls::remaster::{detach, try_cold_detach}` — and
-// the conceptual home of "remaster" — is unchanged.
-pub use crate::remaster_detach::{
-    detach, discard_state_repo, scrub_legacy_canonical, try_cold_detach,
-};
+pub use crate::remaster_detach::detach;
 
 const TASKS_REL: &str = ".balls/tasks";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reconciled {
-    /// The target is already an ancestor of the local state branch —
-    /// re-running against the same hub is a no-op fetch.
+    /// The tracker had no state branch — this workspace's history
+    /// seeded it.
+    Seeded,
+    /// The tracker is already an ancestor of the local state branch —
+    /// re-running against the same tracker is a no-op fetch.
     AlreadyUpToDate,
-    /// The hub history was adopted; `replayed` local-only tasks were
-    /// re-applied and `renamed` id-clashing tasks were re-imported
+    /// The tracker history was adopted; `replayed` local-only tasks
+    /// were re-applied and `renamed` id-clashing tasks were re-imported
     /// under fresh ids.
     Joined { replayed: usize, renamed: usize },
 }
@@ -41,38 +39,45 @@ struct LocalTask {
     notes: String,
 }
 
-/// Fetch `target`'s `balls/tasks` and reconcile this repo's
-/// local-only tasks onto it. Idempotent. See module docs.
-pub fn reconcile(store: &Store, target: &str) -> Result<Reconciled> {
-    let sd = store.state_worktree_dir();
-    if !git::git_has_remote(&sd, target) {
-        return Err(BallError::Other(format!(
-            "no git remote `{target}`; add it (git remote add {target} <url>) and retry"
-        )));
+/// Re-point `.balls/state-repo`'s `origin` at `url`, fetch, and
+/// reconcile this workspace's local-only tasks onto the tracker's
+/// history. Idempotent.
+pub fn reconcile(store: &Store, url: &str) -> Result<Reconciled> {
+    let sd = store.state_repo_dir();
+    git_state::set_remote(&sd, "origin", url)?;
+    if !git::git_fetch(&sd, "origin")? {
+        return Err(BallError::Other(format!("could not reach tracker `{url}`")));
     }
-    if !git::git_fetch(&sd, target)? {
-        return Err(BallError::Other(format!("could not fetch from `{target}`")));
+    if !git_state::has_remote_branch(&sd, "origin", STATE_BRANCH) {
+        // A fresh tracker with no state branch: this workspace's
+        // history seeds it. The first-federation race is just this —
+        // the loser of the push is an ordinary diverged checkout.
+        git::git_push(&sd, "origin", STATE_BRANCH)?;
+        return Ok(Reconciled::Seeded);
     }
-    if !git_state::has_remote_branch(&sd, target, STATE_BRANCH) {
-        return Err(BallError::Other(format!(
-            "`{target}` has no {STATE_BRANCH} branch — nothing to join"
-        )));
-    }
-    let target_ref = format!("refs/remotes/{target}/{STATE_BRANCH}");
+    let target_ref = format!("refs/remotes/origin/{STATE_BRANCH}");
     let target_sha = git::git_resolve_sha(&sd, &target_ref)?;
     if git::git_is_ancestor(&sd, &target_sha, STATE_BRANCH) {
         return Ok(Reconciled::AlreadyUpToDate);
     }
+    let outcome = replay_onto(store, &sd, &target_ref)?;
+    // Publish the reconciled history so a re-run is a clean no-op.
+    let _ = git::git_push(&sd, "origin", STATE_BRANCH);
+    Ok(outcome)
+}
 
+/// Adopt `target_ref` as the new base and replay local-only tasks on
+/// top, re-importing id-clashing tasks under fresh ids.
+fn replay_onto(store: &Store, sd: &Path, target_ref: &str) -> Result<Reconciled> {
     let tdir = sd.join(TASKS_REL);
     let local = read_local_tasks(&tdir)?;
-    let target_ids = git_state::ls_task_ids(&sd, &target_ref)?;
+    let target_ids = git_state::ls_task_ids(sd, target_ref)?;
 
     let mut replay: Vec<String> = Vec::new();
     let mut clashes: Vec<String> = Vec::new();
     for (id, lt) in &local {
         if target_ids.contains(id) {
-            let theirs = git_state::show_file(&sd, &target_ref, &json_rel(id))?;
+            let theirs = git_state::show_file(sd, target_ref, &json_rel(id))?;
             if theirs.as_deref() != Some(lt.json.as_str()) {
                 clashes.push(id.clone());
             }
@@ -81,7 +86,7 @@ pub fn reconcile(store: &Store, target: &str) -> Result<Reconciled> {
         }
     }
 
-    git::git_reset_hard(&sd, &target_ref)?;
+    git::git_reset_hard(sd, target_ref)?;
 
     let id_len = store.load_config()?.id_length;
     let mut used: BTreeSet<String> = target_ids;
@@ -97,9 +102,9 @@ pub fn reconcile(store: &Store, target: &str) -> Result<Reconciled> {
         write_task(&tdir, id, &local[id], &rename)?;
     }
     if !replay.is_empty() || !clashes.is_empty() {
-        git::git_add_all(&sd)?;
+        git::git_add_all(sd)?;
         git::git_commit(
-            &sd,
+            sd,
             &format!(
                 "balls: remaster reconcile ({} replayed, {} renamed)",
                 replay.len(),
@@ -107,10 +112,7 @@ pub fn reconcile(store: &Store, target: &str) -> Result<Reconciled> {
             ),
         )?;
     }
-    Ok(Reconciled::Joined {
-        replayed: replay.len(),
-        renamed: clashes.len(),
-    })
+    Ok(Reconciled::Joined { replayed: replay.len(), renamed: clashes.len() })
 }
 
 fn json_rel(id: &str) -> String {

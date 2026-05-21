@@ -27,7 +27,7 @@ pub fn populated_sync_response(create_title: &str) -> String {
 }
 
 pub fn state_head(repo: &Path) -> String {
-    git(repo.join(".balls/worktree").as_path(), &["rev-parse", "HEAD"])
+    git(repo.join(".balls/state-repo").as_path(), &["rev-parse", "HEAD"])
         .trim()
         .to_string()
 }

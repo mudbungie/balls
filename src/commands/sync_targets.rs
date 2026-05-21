@@ -24,7 +24,7 @@ use std::path::Path;
 /// no per-task overrides records no `target=` markers, so the push set
 /// is byte-identical to before this change.
 pub(super) fn push_recorded_targets(store: &Store, remote: &str, repo_main: &str) -> Result<()> {
-    let subjects = git_state::log_subjects(&store.state_worktree_dir(), "balls/tasks")?;
+    let subjects = git_state::log_subjects(&store.state_repo_dir(), "balls/tasks")?;
     let mut seen = std::collections::HashSet::new();
     for subj in &subjects {
         let Some((_, branch)) = reviewed_target(subj) else { continue };

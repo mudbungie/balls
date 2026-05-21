@@ -49,7 +49,7 @@ fn story_3_init_in_cloned_repo_creates_local_only() {
     bl(dev_b.path()).arg("init").assert().success();
     assert!(dev_b.path().join(".balls/local/claims").exists());
     assert!(dev_b.path().join(".balls/tasks").is_symlink());
-    assert!(dev_b.path().join(".balls/worktree").exists());
+    assert!(dev_b.path().join(".balls/state-repo").exists());
 }
 
 #[test]

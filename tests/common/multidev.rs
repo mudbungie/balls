@@ -22,10 +22,18 @@ pub fn three_way() -> (Repo, Repo, Repo) {
     (remote, alice, bob)
 }
 
-/// Point a repo's `origin` at a path that does not exist, so the next
-/// remote round-trip fails — exercises sync-failure handling.
+/// Point a repo's `origin` — and its state checkout's `origin` — at a
+/// path that does not exist, so the next remote round-trip fails.
+/// Under the unified model the state branch lives in
+/// `.balls/state-repo`, an independent clone with its own `origin`,
+/// so a sync-failure test must break both.
 pub fn break_remote(repo: &Path) {
-    git(repo, &["remote", "set-url", "origin", "/tmp/balls-no-such-remote.git"]);
+    let bad = "/tmp/balls-no-such-remote.git";
+    git(repo, &["remote", "set-url", "origin", bad]);
+    let state_repo = repo.join(".balls/state-repo");
+    if state_repo.join(".git").exists() {
+        git(&state_repo, &["remote", "set-url", "origin", bad]);
+    }
 }
 
 /// Write a placeholder source file into a claimed task's worktree so

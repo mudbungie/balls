@@ -1,29 +1,20 @@
-//! State-branch push: remote resolution and outcome classification.
-//!
-//! Split out of `claim_sync` so the `Protocol`/`Participant` wiring
-//! there stays focused on the negotiation shape. This module owns the
-//! one seam that resolves the effective `state_remote` and the
-//! `git push balls/tasks` → `AttemptClass` mapping (conflict vs.
-//! unreachable vs. other). Re-exported from `claim_sync`.
+//! State-branch push: the `git push balls/tasks` → `AttemptClass`
+//! mapping (conflict vs. unreachable vs. other). Split out of
+//! `claim_sync` so the `Protocol`/`Participant` wiring there stays
+//! focused on the negotiation shape. Re-exported from `claim_sync`.
 
 use crate::error::Result;
 use crate::git;
 use crate::git_state::STATE_BRANCH;
 use crate::negotiation::AttemptClass;
-use crate::store::Store;
 use std::path::Path;
 use std::process::Output;
 
-/// Resolve this repo's effective `state_remote` — the one seam that
-/// retargets `balls/tasks` (per-clone override over committed,
-/// default `origin`). No other code path bakes in `origin`. Errors
-/// propagate: a required sync must not silently hit the wrong peer.
-pub(crate) fn state_remote(store: &Store) -> Result<String> {
-    let pointer = crate::master_pointer::MasterPointer::load(&store.root)?;
-    let local = crate::policy::LocalConfig::load(store)?;
-    Ok(crate::policy::state_remote_opt(&pointer, local.as_ref())
-        .unwrap_or_else(|| "origin".to_string()))
-}
+/// The state checkout's tracker remote. Under the unified model
+/// `.balls/state-repo`'s `origin` *is* the tracker address, so every
+/// state-branch push and fetch targets `origin` — there is no remote
+/// name to resolve.
+pub(crate) const STATE_REMOTE: &str = "origin";
 
 /// Run `git push <state_remote> balls/tasks` from `dir` and classify
 /// the outcome. Spawn failures propagate as Err — they're

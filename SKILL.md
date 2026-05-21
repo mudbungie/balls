@@ -69,8 +69,8 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl update TASK_ID --note "text"` | Add a note. |
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
-| `bl remaster TARGET` [`--commit`] / `bl remaster --detach` | Re-point this repo's `balls/tasks` at the git remote `TARGET` (a shared task hub) and reconcile local-only tasks onto it. Per-clone by default; `--commit` writes the project-wide `.balls/config.json`. `--detach` severs shared history and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
-| `bl plugin enable NAME` [`--config-file PATH`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] / `bl plugin policy NAME EVENT=KIND...` / `bl plugin show NAME` [`--json`] | Manage the effective plugins map. `policy` sets SPEC §11 per-event participant policy (`KIND` ∈ `required`/`best-effort`/`gating`); `--rm EVENT` drops one subscription, `--clear` removes the block (legacy `sync_on_change` fallback), `--no-legacy` writes an explicit empty map (the plugin participates in nothing). `show` prints one plugin's resolved per-event policy. Under `master_url` the writes land on the hub's `balls/tasks` (commit auto-staged; `bl sync` publishes); standalone repos get an in-place edit of the project's `.balls/config.json`. `list`/`show` report the source (`hub` vs `project`). `enable --sync-on-change` is deprecated — use `policy` to set per-event policy explicitly. |
+| `bl remaster TARGET` [`--commit`] / `bl remaster --detach` | Write the tracker address (`TARGET`'s URL) into `.balls/config.json` and reconcile local-only tasks onto it; `--commit` also commits that change so a clone carries it. `--detach` clears the address and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
+| `bl plugin enable NAME` [`--config-file PATH`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] / `bl plugin policy NAME EVENT=KIND...` / `bl plugin show NAME` [`--json`] | Manage the effective plugins map. `policy` sets SPEC §11 per-event participant policy (`KIND` ∈ `required`/`best-effort`/`gating`); `--rm EVENT` drops one subscription, `--clear` removes the block (legacy `sync_on_change` fallback), `--no-legacy` writes an explicit empty map (the plugin participates in nothing). `show` prints one plugin's resolved per-event policy. The `plugins` map lives in the workspace `.balls/config.json` (commit it yourself); per-plugin config files ride the state branch (committed for you). `enable --sync-on-change` is deprecated — use `policy` to set per-event policy explicitly. |
 | `bl doctor` | Read-only drift check. Reports the specific reason bl can't run here (or that it can but state has drifted) and names the command that fixes each. Never mutates — `repair` stays the only action verb. Run it when bl behaves unexpectedly or before trusting an unfamiliar repo. |
 
 > **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
@@ -214,120 +214,62 @@ Important:
 By default a repo's task state branch (`balls/tasks`) is negotiated
 against the same remote as its code (`origin`). A project spanning
 several code repos can instead share **one** task store on a dedicated
-hub. There are two ways to wire the hub link:
+*tracker*.
 
-- **`master_url` (recommended, bl-ffb4 / bl-82a4)** — the hub's git
-  URL lives in a small committed **pointer file**, `.balls/master.json`.
-  Balls materializes its own clone at `.balls/state-repo/` (origin =
-  that URL), and `.balls/config.json` + `.balls/plugins/` become
-  **symlinks** into that clone — so the canonical config is literally
-  the hub's. The project's own `.git/config` is untouched —
-  `git remote -v` stays clean. A teammate's fresh `git clone` +
-  `bl prime` is a complete onboard: the pointer bootstraps the
-  state-repo and the symlinks resolve.
-- **`state_remote` (legacy)** — point at the *name* of an existing
-  project-side git remote. Works for the single-repo "shared hub via
-  origin" case, but a fresh clone lands without that remote in its
-  `.git/config` and stays *safe but unlinked* until a teammate runs
-  `git remote add hub <url> && bl remaster hub`. Deprecated for the
-  cross-repo case in 0.5.0 in favor of `master_url`. The link lives
-  in `.balls/master.json` too (committed) or `.balls/local/config.json`
-  (per-clone).
+There is one mechanism — a **tracker address** — not a mode. Every
+workspace's committed `.balls/config.json` may carry two optional
+fields:
 
-In both modes claim/review/close/sync are unchanged; only the orphan
-ref retargets. The code remote is never disturbed.
+- **`state_url`** — the tracker's git URL. Absent ⇒ the code repo's
+  own `origin`, resolved live (a standalone repo). Set ⇒ a dedicated
+  shared tracker.
+- **`state_branch`** — the tracker's branch name. Absent ⇒
+  `balls/tasks`.
 
-- **Onboard with `master_url`:** in any clone — even one that has
-  never run `bl init` — `bl remaster <hub-url> --commit` materializes
-  `.balls/state-repo/`, writes the `.balls/master.json` pointer,
-  swaps `.balls/config.json` and `.balls/plugins/` for symlinks into
-  the hub, and auto-commits the result. Push it; everyone else's next
-  `git pull && bl prime` joins automatically. Idempotent — re-running
-  against the same hub is a no-op, and it also migrates a repo still
-  on the pre-bl-82a4 in-config `master_url` shape.
-- **Onboard with legacy `state_remote`:** `git remote add <name>
-  <url>` then `bl remaster <name>`. `--commit` writes the *name* into
-  shared config (which other clones still have to wire up to a real
-  URL manually). Idempotent: re-running against the same hub is a
-  no-op.
-- **Unaware `bl init`:** a clone whose committed config names a hub
-  it has no git remote for stays *safe but unlinked* — a usable
-  isolated local store. `bl remaster` is the non-destructive way to
-  fold those tasks into the project later. `bl init` never resets,
-  force-pushes, or clobbers a shared branch.
-- **Unreachable `master_url`:** first-time setup against a hub URL
-  the clone can't reach (no access, VPN down, typo) **hard-fails**
-  — `bl prime`/`bl init` surface the URL, the underlying fetch
-  error, and three resolution paths (fix access, edit the pointer,
-  detach). No silent fallback to a local orphan: a `master_url`
-  client is a pure pointer, and drift between teammates is the
-  exact failure mode the cross-repo model exists to prevent. Once a
-  state-repo has materialized successfully, *later* offline runs
-  soft-fail (work from the local cache, parity with normal git).
-- **Leave:** `bl remaster --detach` forks the current branch into a
-  fresh local orphan, restores `.balls/config.json` + `.balls/plugins/`
-  as real files, and drops `.balls/master.json` — the repo is
-  standalone again. Works **offline**: when the hub is unreachable
-  and the state-repo never materialized, detach is the escape hatch,
-  so it never requires network access.
+`bl` materializes one checkout of the address at `.balls/state-repo/`
+and routes every state-branch op through it. `.balls/tasks` and
+`.balls/plugins` are gitignored symlinks into that checkout;
+`.balls/config.json` is a real, never-symlinked workspace file (it
+carries the address, so it must be readable first). claim / review /
+close / sync are unchanged — only the orphan ref's home varies. The
+code remote is never disturbed.
 
-### Config under `master_url`: one file, two materializations
+- **Onboard:** `bl remaster <tracker-url> --commit` writes `state_url`
+  into `config.json`, reconciles this workspace's local-only tasks
+  onto the tracker (renaming any id clashes), and commits the config
+  change. Push it; everyone else's next `git pull && bl prime` joins
+  automatically — the clone carries `config.json`, and
+  `Store::discover` materializes the checkout and the symlinks with no
+  manual `git remote add`. A legacy `.balls/master.json` pointer, or
+  `master_url`/`state_remote` in an old config, is read transparently
+  and rewritten to `state_url` on the next `bl remaster`.
+- **Unreachable tracker:** first contact with an unreachable *explicit*
+  `state_url` **hard-fails** — `bl prime`/`bl init` surface the URL,
+  the underlying fetch error, and three resolutions (fix access, edit
+  `state_url`, `bl remaster --detach`). No silent fallback to a local
+  orphan: drift between teammates is the exact failure mode the model
+  prevents. Once `.balls/state-repo` has materialized, a later
+  unreachable tracker soft-fails (work from the checkout, parity with
+  normal git). A repo with *no* `state_url` and no reachable `origin`
+  falls back to a local `git init` — a solo project is
+  offline-bootstrappable.
+- **Leave:** `bl remaster --detach` clears the address (reverting to
+  the implicit `origin`) and re-roots `balls/tasks` as a fresh local
+  orphan carrying its current tasks. Offline-capable — a workspace is
+  never trapped in a tracker it cannot reach.
 
-The seam is filesystem-shaped (bl-82a4). `.balls/master.json` is a
-tiny committed **pointer** — it carries only `master_url` (and the
-legacy `state_remote`). The canonical config bl actually reads is
-always `.balls/config.json`:
+### Plugin config under a shared tracker
 
-- **Standalone:** a regular committed file; `.balls/plugins/` a real
-  directory.
-- **Federated:** `.balls/config.json` is a symlink to
-  `.balls/state-repo/.balls/config.json` (the hub's own config) and
-  `.balls/plugins/` is a symlink to `.balls/state-repo/.balls/plugins/`
-  (bl-1098). So the hub owns *all* policy — task knobs,
-  target-branch, delivery, plugins — "master wins" outright, with no
-  runtime layering.
+Plugin config files (`.balls/plugins/*.json`) ride the state branch:
+`.balls/plugins` resolves into `.balls/state-repo`, so a fresh clone
+inherits them. `bl plugin enable|disable|policy` commit those files
+onto the tracker branch automatically; the `plugins` *map* in
+`config.json` is workspace config the operator commits, like any other
+`config.json` change. Plugin *auth* (tokens, under
+`.balls/local/plugins/`) and the worker's `BALLS_IDENTITY` stay
+per-workspace — gitignored, never on the tracker.
 
-This composes naturally with the bridge/proxy pattern below: config,
-plugin secrets, sync schedules, and mirroring policy live in **one**
-place across an N-clone federation, so client repos can't drift them.
-
-- **Hub-aware tooling: `bl plugin enable|disable|list|policy|show`.**
-  From any participant clone, `bl plugin enable <name> [--config-file
-  PATH] [--sync-on-change]` writes the entry into the effective
-  plugins map and creates an empty per-plugin config file if absent.
-  `bl plugin disable <name>` removes the entry but keeps the
-  per-plugin file (operators may want to preserve credentials).
-  `bl plugin list [--json]` shows the effective map and its source
-  (`hub` under `master_url`, `project` otherwise). `bl plugin policy
-  <name> <event>=<kind> ...` edits SPEC §11 per-event participant
-  policy and `bl plugin show <name>` inspects the resolved policy.
-  Under `master_url` the writes land on `.balls/state-repo/`'s
-  `balls/tasks` branch — run `bl sync` to publish. In standalone mode
-  the writes update the project's `.balls/config.json` and
-  `.balls/plugins/*` in place; commit them yourself.
-- **Hand-editing is still supported.** Edit `.balls/config.json` and
-  `.balls/plugins/<name>.json` through the project-root path (the
-  symlinks transparently land you inside `.balls/state-repo/` in
-  federated mode) or `cd .balls/state-repo` first. Commit on
-  `balls/tasks` and push; every client reads it through the symlink
-  immediately, and a fresh clone picks it up on the next `bl prime`.
-- **Flipping to federated migrates, never refuses (bl-82a4).**
-  `bl remaster <url> --commit` promotes the project's `plugins` map
-  and any non-placeholder `.balls/plugins/*` files up into the hub
-  (hub wins on a name clash — the project-side entry is dropped and
-  named in the command's output), then makes `.balls/config.json` and
-  `.balls/plugins/` gitignored symlinks. There is no silent-drift
-  window and no manual move-it-yourself step.
-- **Detach restores standalone shape.** `bl remaster --detach`
-  replaces the symlinks with real `.balls/config.json` +
-  `.balls/plugins/` carrying the hub's content at the moment of
-  detach, and drops `.balls/master.json` — the new-standalone repo
-  keeps its config and plugins instead of losing them.
-- **Standalone repos are unchanged.** Without `master_url`, config
-  and plugin policy keep living on the project's integration branch
-  alongside the code, exactly as before.
-
-### Working in a multi-repo hub
+### Working in a multi-repo project
 
 `bl` *does* record which code repo a ball belongs to: every ball
 carries a `repo` field, anchored at `bl claim` to the claiming
@@ -358,10 +300,10 @@ legible:
   spanning two code repos becomes one umbrella ball (`-t epic`)
   plus one child per repo, each tagged with its target and claimed
   in its own clone.
-- **The hub itself.** Most projects make the hub a bare repo that
+- **The tracker itself.** Most projects make the tracker a bare repo that
   carries *only* the `balls/tasks` ref — no working tree, no code,
   just a remote every participant can push/fetch the orphan ref
-  to. A real code repo can double as the hub when one of the
+  to. A real code repo can double as the tracker when one of the
   participants is already the natural source of truth.
 
 ### Bridging to an external tracker (the proxy pattern)
@@ -375,7 +317,7 @@ plugin, never hold its credentials, and never run its sync.
 
 ```text
        ┌────────────────┐
-       │    tracker     │   (Jira / GH Issues / Linear)
+       │    tracker     │   external — Jira / GH Issues / Linear
        └────────▲───────┘
                 │  plugin sync (bidirectional)
        ┌────────┴───────┐
@@ -384,7 +326,7 @@ plugin, never hold its credentials, and never run its sync.
        └────────▲───────┘
                 │
        ┌────────┴───────┐
-       │   state hub    │   shared balls/tasks
+       │  balls tracker │   shared balls/tasks
        └────▲───────▲───┘
             │       │
        ┌────┴───┐ ┌─┴──────┐
@@ -396,7 +338,7 @@ A ball filed from repo B lands on the shared branch; the bridge
 sees it on its next sync and mirrors it outward. A ticket filed
 externally arrives on the shared branch the same way and shows up
 in `bl ready` in every participant. Repos B and C are unaware of
-the tracker — they only ever talk to the state hub.
+the external tracker — they only ever talk to the balls tracker.
 
 Why one bridge rather than per-repo plugins: external-tracker
 plugins store credentials and run scheduled sync. Putting them on

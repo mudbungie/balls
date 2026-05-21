@@ -89,7 +89,7 @@ fn review_no_code_on_bare_repo_records_no_code_marker() {
     assert_eq!(j["status"], "review");
     assert!(j["delivered_in"].is_null(), "delivered_in must be null: {j}");
 
-    let state_log = git(repo.path(), &["log", "--format=%s", "balls/tasks"]);
+    let state_log = git_state(repo.path(), &["log", "--format=%s", "balls/tasks"]);
     let line = state_log
         .lines()
         .find(|l| l.starts_with(&format!("state: review {id}")))

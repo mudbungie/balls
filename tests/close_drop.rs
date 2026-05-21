@@ -55,7 +55,7 @@ fn story_34_close_with_message_is_in_git_history() {
         !main_log.contains(&format!("close {id}")),
         "main must not carry balls close commits: {main_log}"
     );
-    let state_log = git(repo.path(), &["log", "--oneline", "balls/tasks"]);
+    let state_log = git_state(repo.path(), &["log", "--oneline", "balls/tasks"]);
     assert!(
         state_log.contains(&format!("close {id}")),
         "state branch should record the close: {state_log}"

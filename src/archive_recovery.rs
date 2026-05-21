@@ -138,7 +138,7 @@ pub fn recover_one(store: &Store, id: &str) -> Option<Task> {
     if !available(store) {
         return None;
     }
-    let dir = store.state_worktree_dir();
+    let dir = store.state_repo_dir();
     let (sha, closed_at) = deletion_commit(&dir, id)?;
     task_at_predeletion(&dir, id, &sha, closed_at)
 }
@@ -150,7 +150,7 @@ pub fn recover_all(store: &Store) -> Vec<Task> {
     if !available(store) {
         return Vec::new();
     }
-    let dir = store.state_worktree_dir();
+    let dir = store.state_repo_dir();
     let log = git_out(
         &dir,
         &[

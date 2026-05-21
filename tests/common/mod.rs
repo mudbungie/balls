@@ -11,6 +11,7 @@ pub mod human_gate;
 pub mod multidev;
 pub mod native_plugin;
 pub mod plugin;
+pub mod tracker;
 
 use assert_cmd::Command;
 use balls::git::clean_git_command;
@@ -203,16 +204,40 @@ pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
         .collect()
 }
 
+/// Run git against the workspace's state checkout (`.balls/state-repo`),
+/// where the `balls/tasks` branch and its history live under the
+/// unified model. The asserting sibling of `git`.
+pub fn git_state(repo: &Path, args: &[&str]) -> String {
+    git(&repo.join(".balls/state-repo"), args)
+}
+
+/// Commit everything pending in the workspace's state checkout
+/// (`.balls/state-repo`). Under the unified model `.balls/plugins`
+/// resolves into that checkout, so plugin config files written by the
+/// test helpers are committed here, not on the code branch.
+pub fn commit_state_repo(repo: &Path, msg: &str) {
+    let sr = repo.join(".balls/state-repo");
+    if !sr.join(".git").exists() {
+        return; // a stealth repo has no state checkout
+    }
+    git(&sr, &["add", "-A"]);
+    if !git_ok(&sr, &["diff", "--cached", "--quiet"]) {
+        git(&sr, &["commit", "-m", msg, "--no-verify"]);
+    }
+}
+
 /// Push current branch (main) to origin.
 pub fn push(cwd: &Path) {
     git(cwd, &["push", "origin", "main"]);
     // Push the state branch too if it exists — mirrors `bl sync`, so
-    // tests that round-trip tasks across clones don't need to call sync.
-    if git_ok(
-        cwd,
-        &["rev-parse", "--verify", "--quiet", "refs/heads/balls/tasks"],
-    ) {
-        let _ = clean_git_command(cwd)
+    // tests that round-trip tasks across clones don't need to call
+    // sync. Under the unified model `balls/tasks` lives in the
+    // `.balls/state-repo` checkout, whose own `origin` is the tracker.
+    let sr = cwd.join(".balls/state-repo");
+    if sr.join(".git").exists()
+        && git_ok(&sr, &["rev-parse", "--verify", "--quiet", "refs/heads/balls/tasks"])
+    {
+        let _ = clean_git_command(&sr)
             .args(["push", "origin", "balls/tasks"])
             .output();
     }

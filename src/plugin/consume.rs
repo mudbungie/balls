@@ -35,7 +35,7 @@ pub fn state_head(store: &Store) -> Result<Option<String>> {
         return Ok(None);
     }
     Ok(Some(git::git_resolve_sha(
-        &store.state_worktree_dir(),
+        &store.state_repo_dir(),
         "HEAD",
     )?))
 }
@@ -50,7 +50,7 @@ pub fn log_overrides(store: &Store, tokens: &[String]) -> Result<()> {
     if fragment.is_empty() || store.stealth {
         return Ok(());
     }
-    let dir = store.state_worktree_dir();
+    let dir = store.state_repo_dir();
     let out = git::clean_git_command(&dir)
         .args(["log", "-1", "--format=%B"])
         .output()?;
@@ -125,7 +125,7 @@ pub fn finish(
         Err(e) => {
             match rollback {
                 Rollback::State(Some(sha)) if !store.stealth => {
-                    let _ = git::git_reset_hard(&store.state_worktree_dir(), sha);
+                    let _ = git::git_reset_hard(&store.state_repo_dir(), sha);
                 }
                 Rollback::State(_) => {}
                 Rollback::DropClaim => {

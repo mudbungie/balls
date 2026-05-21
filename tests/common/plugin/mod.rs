@@ -124,9 +124,12 @@ pub fn configure_plugin(repo_path: &Path) {
     });
     fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
 
-    // Commit config changes so worktrees created later include them.
-    git(repo_path, &["add", ".balls/config.json", ".balls/plugins/mock.json"]);
+    // The plugins map lives in the workspace config.json (committed
+    // to the code branch); the plugin config files live in the state
+    // checkout (`.balls/plugins` symlinks into it).
+    git(repo_path, &["add", ".balls/config.json"]);
     git(repo_path, &["commit", "-m", "configure mock plugin", "--no-verify"]);
+    super::commit_state_repo(repo_path, "configure mock plugin");
 }
 
 /// Create the mock auth token so auth-check passes.
