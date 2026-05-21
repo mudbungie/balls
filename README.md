@@ -181,6 +181,8 @@ cargo publish
 | **state branch** | The orphan git branch `balls/tasks` that holds all task state. No shared history with main. |
 | **state worktree** | A second git worktree at `.balls/worktree/` with the state branch checked out. Where task files physically live. |
 | **bare hub** | The recommended deployment: a bare repo (`core.bare = true`) with no work tree. All work happens in `.balls-worktrees/<id>/` checkouts; direct commits to the operating branch are a git-level impossibility, not a discouraged convention. Its "repo root" is the bare gitdir's parent. See *The bare central hub* below. |
+| **state hub** | A dedicated git repo whose `balls/tasks` ref is a task store shared by *several* code repos — no code, usually bare. The basis of federated mode. See *Federated multi-repo state*. |
+| **federated mode** | The opt-in deployment in which several code repos share one *state hub*, opted into per repo via the committed `.balls/master.json` pointer. The default — one repo, one disjoint task store — is *standalone*. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a git worktree under `.balls-worktrees/<id>/` for the work. |
 | **review** | Squash-merges the work branch into main as a single feature commit tagged `[bl-xxxx]` and flips the task to `review` on the state branch. A checkpoint state; the default flow is to follow it with `bl close`. |
@@ -356,6 +358,49 @@ bl list
 ```
 
 The state worktree added in step 3 already carries `.gitattributes` and every task file from `balls/tasks`, so nothing is reseeded — it is pure on-disk scaffolding around an already-populated orphan branch. From here `bl claim` / `bl review` / `bl close` run at the bare root exactly as described above; `bl review`'s ephemeral-worktree squash (`bare_squash.rs`) needs no extra setup.
+
+---
+
+## Federated multi-repo state
+
+The deployments above — a working-tree clone, or a single bare hub — weld the task store to one code repo: `balls/tasks` is an orphan ref negotiated against that repo's own `origin`. One repo, one disjoint backlog. A project that spans **several** code repos — a `frontend`, an `api`, an `infra` — wants the opposite: one backlog, one ready queue, cross-repo dependency edges, and one place to run an issue-tracker plugin. Federated mode is the opt-in deployment that delivers it. It is a real scope expansion, taken deliberately, and it does not abandon the project thesis: the hub is still just git — no database, no daemon, no service.
+
+The full design — invariants, the backwards-compatibility audit, the conformance-test list — is [docs/SPEC-federated-state.md](docs/SPEC-federated-state.md), the authoritative contract; this section is the operational summary, and SKILL.md §*Multi-repo: one project, many repos* is the agent-facing companion. A repo with no pointer file is **standalone** and behaves bit-identically to every prior version — federation changes nothing until you opt in.
+
+### The hub and the participants
+
+A **state hub** is a dedicated git repo whose `balls/tasks` ref is the shared task store — no code, usually bare. Each **participant** is an ordinary code repo that points its state branch at the hub instead of negotiating it against its own `origin`. The code remote is never touched; only where the orphan ref lives changes.
+
+A participant does not check the state branch out beside its code. balls materializes a separate, balls-owned clone of the hub at `.balls/state-repo/` and routes every state-branch operation — `create`, `claim`, `review`, `close`, `sync` — through it. Three paths under `.balls/` become symlinks into that clone:
+
+| Project path | Resolves to |
+|---|---|
+| `.balls/tasks` | `state-repo/.balls/tasks` — the task files |
+| `.balls/config.json` | `state-repo/.balls/config.json` — the hub's canonical config |
+| `.balls/plugins` | `state-repo/.balls/plugins` — the hub's plugin config |
+
+The model choice is thus a *filesystem fact*, decided once when the symlinks are laid down — no command branches on `master_url` on a hot path; `Config::load(".balls/config.json")` simply resolves to the hub's file transparently. `.balls/state-repo/` and the symlinks are all gitignored runtime state, fully re-materializable from the committed pointer; deleting them loses nothing durable, exactly as for the standalone local cache.
+
+Federation is opt-in and recorded in **one committed file** — `.balls/master.json`, the bootstrap pointer that names the hub. A `git clone` carries it, so every participant agrees on the model; no environment variable or per-invocation flag switches it. Its two fields, `master_url` and the legacy `state_remote`, are documented under *The `master.json` pointer* in the Config section below.
+
+### Master wins: one config across the federation
+
+In federated mode the hub owns *all* policy — task knobs, `target_branch`, `delivery`, `review`, and plugins. Because `.balls/config.json` and `.balls/plugins/` are symlinks into the hub clone, there is exactly one config file for the whole federation: "master wins" is not a runtime precedence chain to reason about, it is structural single-sourcing. Edit policy by editing the hub's files — `cd .balls/state-repo`, edit, commit on `balls/tasks`, push — and every participant picks it up on its next `bl prime`. A participant that still carries a project-side `plugins` map or non-placeholder `.balls/plugins/*` files gets a one-shot "master wins" warning on stderr; those files are inert until removed.
+
+This single-sourcing is what makes the **bridge pattern** sound. A multi-repo project usually wants one external tracker (Jira, Linear, GitHub Issues) as its human-facing record. Wire that issue-tracker plugin into *one* participant — the **bridge** — and the rest operate through the shared state branch as a proxy: they never install the plugin, never hold its credential, never run its sync. Because mirroring policy lives in the one hub config, there is exactly one place it is set and no place it can drift. SKILL.md carries the diagram and the operating detail.
+
+### Joining, leaving, and reachability
+
+`bl remaster` is the single verb for every model transition:
+
+| Command | Effect |
+|---|---|
+| `bl remaster <hub-url> --commit` | **Federate**: materialize the state-repo, promote this repo's policy into the hub (the hub wins any clash, and discarded names are printed), then write and commit `.balls/master.json`. Runs even on a fresh `git clone` with no `.balls/` yet — a one-command onboard. A true-standalone repo with open local tasks is refused the flip unless they are closed or `--force` is given. |
+| `bl remaster --detach` | **Leave**: re-root `balls/tasks` as a fresh local orphan carrying its current tasks, restore real `.balls/config.json` + `.balls/plugins/` files, and clear the pointer — the repo is standalone again. |
+
+Onboarding a teammate is therefore just `git clone` + `bl prime`: the clone carries the committed pointer, and the first `Store::discover` re-materializes the state-repo and symlinks automatically — no manual `git remote add`, no extra step. That self-bootstrapping URL is why `master_url` supersedes the legacy `state_remote`, whose remote *name* a fresh clone cannot resolve on its own.
+
+Reachability is deliberate. A **first-time** materialization against an unreachable hub *hard-fails* loudly — the error names the URL, the underlying `git fetch` failure, and three remediation paths — rather than silently dropping the client to an empty local orphan, which is the exact drift the federated model exists to prevent. Once a **warm cache** exists, an unreachable hub is a soft-fail: `bl` works from the local cache and prints a `note:`, parity with standalone offline operation. `bl remaster --detach` is offline-capable by construction, so a repo is never trapped in a federation whose hub it cannot reach.
 
 ---
 
@@ -1049,6 +1094,23 @@ Committed to main, shared across the team.
 | `BALLS_PLUGIN_ABS_MAX_STREAM_BYTES` | Absolute hard ceiling on bytes buffered from a plugin stream. Independent of (and never lifted by) a raised `BALLS_PLUGIN_MAX_STREAM_BYTES`, so loosening the stream cap for a large sync can't disable memory protection. Far above any real payload — only a runaway/abusive plugin hits it. | 64 MiB |
 | `BALLS_PLUGIN_MAX_SYNC_CREATES` | Flood backstop: max tasks created from one plugin sync. Excess is skipped with a warning, the rest of the sync still applies. Set in the thousands; a real tracker never reports this many new issues at once. | 5000 |
 | `BALLS_PLUGIN_MAX_SYNC_FIELD_BYTES` | Per-text-field byte ceiling on a synced title/description/note. An oversize field is truncated with a visible marker (never dropped, never rejected); siblings and the rest of the sync are unaffected. Absurdly generous — real fields are bytes to kilobytes. | 1 MiB |
+
+### The `master.json` pointer
+
+`.balls/master.json` is a second committed file, distinct from `config.json` and far smaller. It is the **bootstrap pointer** for *Federated multi-repo state* (above): in federated mode `.balls/config.json` is itself a symlink into the hub clone, so the hub link cannot live inside it — `bl` would have nowhere to read it from before the symlink resolves. `master.json` therefore carries *only* the fields `bl` must read before the canonical config does:
+
+```json
+{ "master_url": "git@host:proj-hub.git" }
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `master_url` | string? | `null` | Git URL of the shared task **hub**. When set, `bl` materializes a hub clone at `.balls/state-repo/` and routes every state-branch operation through it. The recommended federation mechanism. |
+| `state_remote` | string? | `null` | *Legacy.* The *name* of an existing project-side git remote whose `balls/tasks` is negotiated against; `null` resolves to `origin`. Deprecated for the cross-repo case as of 0.5.0 in favour of `master_url` — a remote name is not self-bootstrapping, so a fresh `git clone` lands without it and stays unlinked until someone runs `git remote add` by hand. Still read transparently and never auto-rewritten. |
+
+Both fields are optional and independent; `master_url` wins when both are set. An **empty pointer is the standalone signal** — and `bl` deletes the file rather than writing `{}`, so a non-federated repo carries no `master.json` at all. A pre-pointer repo that kept these fields directly in `config.json` is still honoured: `bl` synthesizes a pointer from them (the `Config` struct retains the fields for deserialization only, never reading them) and migrates them into `master.json` on the next `bl remaster`.
+
+The "committed to main, shared across the team" line at the top of this section describes the **standalone** layout. In federated mode `.balls/config.json` and `.balls/plugins/` are symlinks into the hub clone — one config file shared by every participant, owned outright by the hub (*master wins*).
 
 ---
 
