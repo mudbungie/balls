@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T04:11:23.639934720Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\nbl-d1db consolidated the per-file `git` scrub helper into `src/git_test_support.rs` (`git_run`/`git_stdout`). It deliberately left the *other* obvious test-fixture duplication alone to keep that ball's scope tight: the `init_repo` helper.\n\nSeven unit-test modules each stand up a fresh git repo with the same `git init -b main` + user.email/user.name/commit.gpgsign config (+ usually an empty seed commit). They differ only cosmetically, in ways no test depends on:\n\n- `bare_squash_tests`, `review_safety_tests` — init + 3 configs + empty commit\n- `plugin_admin_tests`, `plugin/consume_tests` — same, different throwaway identity\n- `store_init_tests` — same, written as a loop; its empty commit carries a pointless `--no-verify` (no hook is installed in a tempdir, so it is a no-op)\n- `human_gate_tests` — same minus the empty commit\n- `plugin_policy_tests` — same sequence inlined into `standalone_store`\n\nThe identity strings (test/t/Test, *@example.com / t@e.com / h@example.com) vary per file, but no test asserts on commit author — they are noise, not signal.\n\n# Scope\n\nAdd a shared fixture to `git_test_support` (the module bl-d1db created — its natural home) and route all seven sites through it:\n\n- `init_repo(dir)` — `git init -b main` + a fixed default identity + an empty seed commit. Covers the six commit-carrying sites.\n- A no-commit path for `human_gate_tests` (a second fn, or build `init_repo` on a smaller init+config primitive the no-commit caller also reuses). Pick whichever keeps both readable; do not add a bool flag.\n- Fold `plugin_policy_tests::standalone_store` and `plugin_admin_tests::standalone_store` onto the shared helper.\n- Drop the `--no-verify` in the store_init variant — no-op in a hookless tempdir, only obscures intent.\n\n# Out of scope\n\nRicher fixtures that also open with init+config but then diverge — `state_repo_test_support::hub_repo`, `delivery_test_support::local_repo_with_tag`, `delivery_remote_tests::repo_with_tag_commit` (seed files, tags, bare clones). Those are distinct fixtures, not `init_repo` copies; leave them.\n\n# Constraints\n\n100% coverage gate: every line of the shared helper must be exercised — it will be, all seven callers hit it. Largest source file stays under 300 lines.\n\n# Origin\n\nFollow-up noted while delivering bl-d1db (test git-helper consolidation, c3d7b78 on main).",
+  "external": {},
+  "id": "bl-5a28",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["hygiene","testing"],
+  "title": "Fold duplicated test init_repo into git_test_support",
+  "type": "task",
+  "updated_at": "2026-05-21T04:11:23.639934720Z"
+}
