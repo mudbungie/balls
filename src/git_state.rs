@@ -32,6 +32,17 @@ pub fn worktree_add_existing(dir: &Path, path: &Path, branch: &str) -> Result<()
     Ok(())
 }
 
+/// Fetch `branch` from the git repo at `source` into `dir`'s repo,
+/// force-updating `dir`'s local `refs/heads/<branch>` to match it.
+/// Used by warm `bl remaster --detach` to transplant the detached
+/// task history out of the balls-owned `.balls/state-repo` clone onto
+/// the project git, where a post-detach `discover` resolves it.
+pub fn fetch_into_branch(dir: &Path, source: &Path, branch: &str) -> Result<()> {
+    let refspec = format!("+{branch}:refs/heads/{branch}");
+    run(dir, &["fetch", &source.to_string_lossy(), &refspec])?;
+    Ok(())
+}
+
 /// Drop git's worktree registry entries whose checkout dir no longer
 /// exists. Lets `bl init` re-materialize a hand-removed
 /// `.balls/worktree/` without the operator having to know about the

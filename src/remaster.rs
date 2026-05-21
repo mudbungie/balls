@@ -21,7 +21,12 @@ use crate::{git, git_state};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+// `bl remaster --detach` lives in its own module; re-exported here so
+// the public path `balls::remaster::{detach, try_cold_detach}` — and
+// the conceptual home of "remaster" — is unchanged.
+pub use crate::remaster_detach::{detach, try_cold_detach};
 
 const STATE_BRANCH: &str = "balls/tasks";
 const TASKS_REL: &str = ".balls/tasks";
@@ -112,66 +117,6 @@ pub fn reconcile(store: &Store, target: &str) -> Result<Reconciled> {
         replayed: replay.len(),
         renamed: clashes.len(),
     })
-}
-
-/// Sever shared history: re-root `balls/tasks` as a fresh local
-/// orphan carrying its current tasks. The config half (clearing
-/// `state_remote`) is the caller's job.
-///
-/// bl-1098: also reverse the `.balls/plugins -> state-repo/.balls/
-/// plugins` symlink — going standalone means the project owns plugin
-/// config again, so we materialize a real `.balls/plugins/` carrying
-/// the hub's files at the moment of detach. Skipped for the legacy
-/// `state_remote` path (no symlink ever existed there).
-pub fn detach(store: &Store) -> Result<()> {
-    let sd = store.state_worktree_dir();
-    let plugins_link = store.root.join(".balls/plugins");
-    if plugins_link.is_symlink() {
-        crate::state_repo::restore_plugins_dir(&store.root, &sd.join(".balls/plugins"))?;
-    }
-    git_state::reroot_orphan(&sd, STATE_BRANCH, "balls: remaster --detach (standalone)")
-}
-
-/// Offline-friendly detach (bl-dcd3) for when `master_url` is set but
-/// the state-repo hasn't yet materialized — typically because the hub
-/// is unreachable and `state_repo::ensure` hard-failed first-time
-/// setup. The warm `detach` path can't run there: `Store::discover`
-/// re-hits the same hard-fail, so this is the deadlock breaker.
-///
-/// Returns `Ok(true)` when the cold path applied (caller should
-/// stop), `Ok(false)` when it doesn't apply and the caller should
-/// fall through to the warm `detach` flow. Strictly local — clears
-/// `master_url`/`state_remote` in committed config and re-initializes
-/// the legacy `.balls/worktree` layout on the project's own git, no
-/// network round-trip.
-pub fn try_cold_detach(from: &Path) -> Result<bool> {
-    let repo_root = project_root(from)?;
-    let config_path = repo_root.join(".balls/config.json");
-    let mut cfg = crate::config::Config::load(&config_path)?;
-    if cfg.master_url().is_none() {
-        return Ok(false);
-    }
-    if repo_root
-        .join(crate::state_repo::STATE_REPO_REL)
-        .join(".git")
-        .exists()
-    {
-        // Warm cache available: the regular `discover` + `detach`
-        // path can re-root the orphan and preserve task data.
-        return Ok(false);
-    }
-    cfg.master_url = None;
-    cfg.state_remote = None;
-    cfg.save(&config_path)?;
-    git::git_ensure_user(&repo_root)?;
-    crate::store_init::setup_state_branch(&repo_root, "origin", false)?;
-    Ok(true)
-}
-
-fn project_root(from: &Path) -> Result<PathBuf> {
-    crate::store_paths::require_git_repo(from)?;
-    let common = git::git_common_dir(from)?;
-    crate::store_paths::find_main_root(&common)
 }
 
 fn json_rel(id: &str) -> String {
