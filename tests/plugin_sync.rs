@@ -7,24 +7,6 @@ use common::plugin::*;
 use std::fs;
 
 #[test]
-fn story_67_sync_triggers_plugin_sync() {
-    let (bin_dir, log) = install_mock_plugin();
-    let repo = new_repo();
-    init_in(repo.path());
-    configure_plugin(repo.path());
-    create_mock_auth(repo.path());
-
-    bl(repo.path())
-        .env("PATH", path_with_mock(bin_dir.path()))
-        .arg("sync")
-        .assert()
-        .success();
-
-    let log_contents = fs::read_to_string(&log).unwrap_or_default();
-    assert!(log_contents.contains("sync"));
-}
-
-#[test]
 fn auth_check_and_sync_receive_config_path() {
     // Regression for plugin authors that target multiple instances: every
     // subcommand — including auth-check and auth-setup — must be given the
@@ -107,41 +89,18 @@ fn plugin_sync_failure_is_warned_not_fatal() {
     assert!(log_contents.contains("sync"));
 }
 
+/// An expired/missing plugin auth token: `bl sync` still succeeds, warns
+/// about auth with a re-auth hint naming the plugin config path, and
+/// skips the plugin so a staged sync response is never applied.
 #[test]
-fn story_70_auth_expired_warns_and_skips() {
+fn sync_with_auth_expired_warns_and_skips_plugin() {
     let (bin_dir, _log) = install_mock_plugin();
     let repo = new_repo();
     init_in(repo.path());
     configure_plugin(repo.path());
-    // No auth token — auth-check returns 1
-
-    let out = bl(repo.path())
-        .env("PATH", path_with_mock(bin_dir.path()))
-        .arg("sync")
-        .output()
-        .unwrap();
-    assert!(out.status.success(), "sync should succeed even with expired auth");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("auth") || stderr.contains("expired") || stderr.contains("auth-setup"),
-        "should warn about auth: {stderr}"
-    );
-    assert!(
-        stderr.contains("--config") && stderr.contains(".balls/plugins/mock.json"),
-        "re-auth hint should reference the plugin config path: {stderr}"
-    );
-}
-
-#[test]
-fn sync_with_auth_expired_skips_plugin() {
-    let (bin_dir, _log) = install_mock_plugin();
-    let repo = new_repo();
-    init_in(repo.path());
-    configure_plugin(repo.path());
-    // No auth token
+    // No auth token — auth-check returns 1.
 
     let id = create_task(repo.path(), "should not be affected");
-
     write_sync_response(repo.path(), &format!(r#"{{
         "created": [],
         "updated": [{{
@@ -151,17 +110,28 @@ fn sync_with_auth_expired_skips_plugin() {
         "deleted": []
     }}"#));
 
-    bl(repo.path())
+    let out = bl(repo.path())
         .env("PATH", path_with_mock(bin_dir.path()))
         .arg("sync")
-        .assert()
-        .success();
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "sync should succeed even with expired auth");
+
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("auth") || stderr.contains("expired") || stderr.contains("auth-setup"),
+        "should warn about auth: {stderr}"
+    );
+    assert!(
+        stderr.contains("--config") && stderr.contains(".balls/plugins/mock.json"),
+        "re-auth hint should reference the plugin config path: {stderr}"
+    );
 
     let task = read_task_json(repo.path(), &id);
     assert_eq!(
         task["priority"].as_u64().unwrap(),
         3,
-        "task should not be modified when auth is expired"
+        "task must not be modified when auth is expired",
     );
 }
 

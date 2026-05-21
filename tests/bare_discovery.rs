@@ -13,22 +13,13 @@ mod common;
 use common::*;
 use predicates::prelude::*;
 
-/// Flip the main repo's `core.bare` flag directly, mimicking a
-/// bare-converted hub without going through `bl`.
-fn set_core_bare(repo_root: &std::path::Path, bare: bool) {
-    git(
-        repo_root,
-        &["config", "core.bare", if bare { "true" } else { "false" }],
-    );
-}
-
 #[test]
 fn list_succeeds_from_bare_repo_root() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "visible from bare root");
 
-    set_core_bare(repo.path(), true);
+    set_core_bare(repo.path());
 
     // Sanity: the bare flag really took — git itself now refuses a
     // work-tree command from the root, which is exactly the condition

@@ -4,26 +4,8 @@
 mod common;
 
 use common::*;
+use common::multidev::*;
 use std::fs;
-
-fn three_way() -> (Repo, Repo, Repo) {
-    let remote = new_bare_remote();
-    let alice = clone_from_remote(remote.path(), "alice");
-    bl(alice.path()).arg("init").assert().success();
-    push(alice.path());
-
-    let bob = clone_from_remote(remote.path(), "bob");
-    bl(bob.path()).arg("init").assert().success();
-    (remote, alice, bob)
-}
-
-fn break_remote(repo: &std::path::Path) {
-    git(repo, &["remote", "set-url", "origin", "/tmp/balls-no-such-remote.git"]);
-}
-
-fn write_some_code(wt: &std::path::Path, name: &str) {
-    fs::write(wt.join(name), "code\n").unwrap();
-}
 
 #[test]
 fn review_sync_happy_path_pushes_state_branch_close_to_origin() {

@@ -8,24 +8,6 @@ mod common;
 
 use common::*;
 use std::fs;
-use std::path::Path;
-
-fn write_legacy_config(repo: &Path, master_url: &str) {
-    let cfg = serde_json::json!({
-        "version": 1,
-        "id_length": 4,
-        "stale_threshold_seconds": 60,
-        "worktree_dir": ".balls-worktrees",
-        "master_url": master_url,
-    });
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        serde_json::to_string_pretty(&cfg).unwrap(),
-    )
-    .unwrap();
-}
 
 #[test]
 fn legacy_in_canonical_master_url_still_materializes_state_repo() {
@@ -35,7 +17,10 @@ fn legacy_in_canonical_master_url_still_materializes_state_repo() {
     // the MasterPointer legacy fallback.
     let hub = new_bare_remote();
     let alice = new_repo();
-    write_legacy_config(alice.path(), hub.path().to_string_lossy().as_ref());
+    seed_config(
+        alice.path(),
+        &[("master_url", hub.path().to_string_lossy().as_ref())],
+    );
 
     bl(alice.path()).arg("init").assert().success();
     assert!(
@@ -48,7 +33,10 @@ fn legacy_in_canonical_master_url_still_materializes_state_repo() {
 fn remaster_commit_migrates_legacy_shape_to_pointer_and_symlinks() {
     let hub = new_bare_remote();
     let alice = new_repo();
-    write_legacy_config(alice.path(), hub.path().to_string_lossy().as_ref());
+    seed_config(
+        alice.path(),
+        &[("master_url", hub.path().to_string_lossy().as_ref())],
+    );
     bl(alice.path()).arg("init").assert().success();
 
     // Re-run remaster --commit with the same URL: idempotent migration

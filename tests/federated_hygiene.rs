@@ -50,21 +50,6 @@ fn commit_subjects(repo: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Seed a non-stealth config carrying `master_url` so `bl init` takes
-/// the federated leg directly.
-fn seed_master_url_config(repo: &Path, hub_url: &str) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,
-                 "worktree_dir":".balls-worktrees","master_url":"{hub_url}"}}"#
-        ),
-    )
-    .unwrap();
-}
-
 /// The federated flip commits the master_url transition and leaves no
 /// stray working-tree changes behind.
 #[test]
@@ -199,7 +184,10 @@ fn remaster_detach_restores_standalone_shape() {
 fn bl_init_with_seeded_master_url_is_clean() {
     let hub = new_bare_remote();
     let alice = new_repo();
-    seed_master_url_config(alice.path(), hub.path().to_string_lossy().as_ref());
+    seed_config(
+        alice.path(),
+        &[("master_url", hub.path().to_string_lossy().as_ref())],
+    );
 
     bl(alice.path()).arg("init").assert().success();
 

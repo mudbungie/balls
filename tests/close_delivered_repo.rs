@@ -8,33 +8,8 @@
 mod common;
 
 use common::*;
+use common::forge;
 use std::fs;
-use std::path::Path;
-
-fn show_json(repo: &Path, id: &str) -> serde_json::Value {
-    let out = bl(repo).args(["show", id, "--json"]).output().unwrap();
-    assert!(out.status.success());
-    serde_json::from_slice(&out.stdout).unwrap()
-}
-
-fn deferred_seed(repo: &Path) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","target_branch":"main","delivery":{"mode":"deferred"}}"#,
-    )
-    .unwrap();
-}
-
-fn gate_child(repo: &Path) -> String {
-    let out = bl(repo)
-        .args(["list", "--json", "--tag", "forge-gate"])
-        .output()
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    v.as_array().unwrap()[0]["id"].as_str().unwrap().to_string()
-}
 
 /// `--delivered <sha> --delivered-repo <url>` writes both fields
 /// verbatim — the operator's declared source repo wins over the
@@ -43,7 +18,7 @@ fn gate_child(repo: &Path) -> String {
 fn close_delivered_repo_overrides_auto_tag_with_manual_sha() {
     let remote = new_bare_remote();
     let alice = clone_from_remote(remote.path(), "alice");
-    deferred_seed(alice.path());
+    forge::seed(alice.path(), Some("main"));
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["push", "origin", "main"]);
 
@@ -70,7 +45,7 @@ fn close_delivered_repo_overrides_auto_tag_with_manual_sha() {
     );
     let merge_sha = git(alice.path(), &["rev-parse", "HEAD"]).trim().to_string();
 
-    let child = gate_child(alice.path());
+    let child = forge::gate_child(alice.path());
     bl(alice.path())
         .args(["update", &child, "status=closed", "--note", "merged"])
         .assert()

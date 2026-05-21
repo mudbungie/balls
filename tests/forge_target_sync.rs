@@ -17,21 +17,6 @@ use common::*;
 use std::fs;
 use std::path::Path;
 
-/// Minimal valid config written before `bl init` (mirrors
-/// `tests/target_branch.rs::seed_config`); reused to re-point
-/// `target_branch` after the fact.
-fn write_config(repo: &Path, target_branch: &str) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","target_branch":"{target_branch}"}}"#
-        ),
-    )
-    .unwrap();
-}
-
 fn sha(repo: &Path, refname: &str) -> String {
     git(repo, &["rev-parse", refname]).trim().to_string()
 }
@@ -75,7 +60,7 @@ fn deliver(repo: &Path, title: &str, target: &str, file: &str) -> String {
 fn alice_with_remote() -> (Repo, Repo) {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");
-    write_config(alice.path(), "develop");
+    seed_config(alice.path(), &[("target_branch", "develop")]);
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["branch", "develop"]);
     git(alice.path(), &["branch", "release"]);
@@ -202,7 +187,7 @@ fn no_override_review_subject_is_byte_identical() {
     );
 
     let repo = new_repo();
-    write_config(repo.path(), "develop");
+    seed_config(repo.path(), &[("target_branch", "develop")]);
     init_in(repo.path());
     git(repo.path(), &["branch", "develop"]);
     let id = deliver(repo.path(), "matches default", "develop", "g.txt");
@@ -229,7 +214,7 @@ fn recorded_target_that_became_repo_default_is_coherent() {
         .success();
 
     // Re-point the repo default at the branch the task delivered to.
-    write_config(alice.path(), "release");
+    seed_config(alice.path(), &[("target_branch", "release")]);
     let out = bl(alice.path()).arg("sync").output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "sync after retarget: {stderr}");
@@ -247,7 +232,7 @@ fn recorded_target_that_became_repo_default_is_coherent() {
 fn recorded_target_push_failure_is_best_effort() {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");
-    write_config(alice.path(), "develop");
+    seed_config(alice.path(), &[("target_branch", "develop")]);
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["branch", "develop"]);
     git(alice.path(), &["branch", "release"]);

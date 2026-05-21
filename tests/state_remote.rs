@@ -22,25 +22,6 @@ fn bare_has_state_branch(bare: &Path) -> bool {
     )
 }
 
-/// Write a minimal valid `.balls/config.json` before `bl init` so the
-/// repo is onboarded to a hub from its first lifecycle command — the
-/// only way to set `state_remote` until `bl remaster` (bl-2057) lands.
-fn seed_config(repo: &Path, state_remote: Option<&str>) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    let sr = match state_remote {
-        Some(r) => format!(r#","state_remote":"{r}""#),
-        None => String::new(),
-    };
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees"{sr}}}"#
-        ),
-    )
-    .unwrap();
-}
-
 /// A client repo pointed at a task hub pushes `balls/tasks` to the hub
 /// and never to the code remote; a second clone with the same
 /// committed config adopts the hub's branch and sees the task.
@@ -54,7 +35,7 @@ fn hub_topology_decouples_state_branch_from_code_remote() {
         alice.path(),
         &["remote", "add", "hub", &hub.path().to_string_lossy()],
     );
-    seed_config(alice.path(), Some("hub"));
+    seed_config(alice.path(), &[("state_remote", "hub")]);
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["push", "origin", "main"]);
 
@@ -156,7 +137,7 @@ fn hub_only_client_with_no_code_remote_still_syncs_state_branch() {
         alice.path(),
         &["remote", "add", "hub", &hub.path().to_string_lossy()],
     );
-    seed_config(alice.path(), Some("hub"));
+    seed_config(alice.path(), &[("state_remote", "hub")]);
     bl(alice.path()).arg("init").assert().success();
     assert!(
         !git_ok(alice.path(), &["remote", "get-url", "origin"]),
@@ -184,7 +165,7 @@ fn hub_only_client_with_no_code_remote_still_syncs_state_branch() {
 fn explicit_origin_state_remote_equals_unset() {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");
-    seed_config(alice.path(), Some("origin"));
+    seed_config(alice.path(), &[("state_remote", "origin")]);
     bl(alice.path()).arg("init").assert().success();
     create_task(alice.path(), "explicit origin");
     bl(alice.path()).arg("sync").assert().success();

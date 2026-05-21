@@ -3,18 +3,8 @@
 mod common;
 
 use common::*;
+use common::multidev::*;
 use std::fs;
-
-fn three_way() -> (Repo, Repo, Repo) {
-    let remote = new_bare_remote();
-    let alice = clone_from_remote(remote.path(), "alice");
-    bl(alice.path()).arg("init").assert().success();
-    push(alice.path());
-
-    let bob = clone_from_remote(remote.path(), "bob");
-    bl(bob.path()).arg("init").assert().success();
-    (remote, alice, bob)
-}
 
 fn flip_repo_policy_on(repo: &std::path::Path) {
     let cfg_path = repo.join(".balls/config.json");
@@ -24,13 +14,6 @@ fn flip_repo_policy_on(repo: &std::path::Path) {
     fs::write(&cfg_path, serde_json::to_string_pretty(&j).unwrap()).unwrap();
     git(repo, &["add", ".balls/config.json"]);
     git(repo, &["commit", "-m", "policy: require remote on claim"]);
-}
-
-fn break_remote(repo: &std::path::Path) {
-    git(
-        repo,
-        &["remote", "set-url", "origin", "/tmp/balls-no-such-remote.git"],
-    );
 }
 
 #[test]

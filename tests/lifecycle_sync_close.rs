@@ -1,32 +1,14 @@
 //! bl-2bf7: state-branch sync on the **close** event — happy path
 //! (archive propagates to origin) and the required-policy rollback
 //! that keeps the worktree on an unreachable remote. The review-event
-//! mirror stays in `lifecycle_sync.rs`; the small remote fixtures are
-//! duplicated per test binary (each `tests/*.rs` is its own crate).
+//! mirror stays in `lifecycle_sync.rs`; the shared remote fixtures
+//! (`three_way`, `break_remote`, `write_some_code`) live in
+//! `common::multidev`.
 
 mod common;
 
 use common::*;
-use std::fs;
-
-fn three_way() -> (Repo, Repo, Repo) {
-    let remote = new_bare_remote();
-    let alice = clone_from_remote(remote.path(), "alice");
-    bl(alice.path()).arg("init").assert().success();
-    push(alice.path());
-
-    let bob = clone_from_remote(remote.path(), "bob");
-    bl(bob.path()).arg("init").assert().success();
-    (remote, alice, bob)
-}
-
-fn break_remote(repo: &std::path::Path) {
-    git(repo, &["remote", "set-url", "origin", "/tmp/balls-no-such-remote.git"]);
-}
-
-fn write_some_code(wt: &std::path::Path, name: &str) {
-    fs::write(wt.join(name), "code\n").unwrap();
-}
+use common::multidev::*;
 
 #[test]
 fn close_sync_happy_path_pushes_state_branch_archive_to_origin() {
