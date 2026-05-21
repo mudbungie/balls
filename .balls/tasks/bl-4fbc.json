@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:05:00.139058342Z",
-  "delivered_in": null,
+  "delivered_in": "44fc16f0d165dd515e9801a221e8038bf543fa9c",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\nbl-e454 added `bl close --resolve-remote` and the deferred-mode auto-engage.\nAll five tests it shipped exercise `delivery::populate_on_close` directly.\nThe CLI wiring — `CloseArgs.resolve_remote` -> `main` -> `cmd_close` ->\n`resolve_remote || deferred` -> `close_worktree` -> `populate_on_close` —\nhas no end-to-end coverage.\n\n100% line coverage does not catch this: the `resolve_remote || deferred`\nexpression in `cmd_close` is marked covered by the existing flag-false\nclose tests, so the flag-true path can regress silently — a dropped\nargument, an inverted bool, a wrong default — with no test failing. Line\ncoverage proves the line ran, not that the flag is load-bearing.\n\n# Scope\n\nA `tests/` integration test driving the real `bl` binary:\n\n- Stand up a task store plus a separate code repo containing a `[bl-xxxx]`\n  squash commit; set the task's `delivered_repo` to point at it.\n- Close the task from a clone that does NOT carry that commit locally,\n  passing `--resolve-remote`.\n- Assert the archived task (reconstructed via `bl show --json` from the\n  state-branch history) carries the resolved `delivered_in`.\n- Companion assertion: without `--resolve-remote`, the same close leaves\n  `delivered_in` null — proves the flag is actually load-bearing.\n- If cheap: a deferred-mode close with no flag also resolves, covering the\n  auto-engage path.\n\n# Note\n\nThe `delivered_repo` value written by a remote-resolved close is the\nsubject of bl-6816 (it is currently wrong). Keep this test's primary\nassertions on `delivered_in`; if it also asserts `delivered_repo`, expect\nthat assertion to change when bl-6816 lands. Linked relates_to, not a hard\ndep — the `delivered_in` coverage stands on its own.\n\n# Origin\n\nbl-e454 review pass — flagged as a test-coverage gap in the handoff notes.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":73,"source":"balls","state":"open","synced_at":"2026-05-21T01:18:05.618708653+00:00","url":"https://github.com/mudbungie/balls/issues/73"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T01:18:05.624943218Z"},
   "tags": ["multi-repo","testing"],
   "title": "Integration test: bl close --resolve-remote populates delivered_in end-to-end",
   "type": "task",
-  "updated_at": "2026-05-21T01:18:05.624951574Z"
+  "updated_at": "2026-05-21T01:30:22.824372701Z"
 }
