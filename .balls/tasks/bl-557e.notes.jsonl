@@ -1,3 +1,0 @@
-{"ts":"2026-05-20T03:33:29.015968475Z","author":"github-issues","text":"GH issue #22 closed externally (close_mirror=authoritative)"}
-{"ts":"2026-05-20T23:33:30.795710013Z","author":"github-issues","text":"GH issue #22 no longer found in repo (on_external_delete=deferred)"}
-{"ts":"2026-05-21T04:00:20.180607230Z","author":"mark","text":"Duplicate of bl-2fe1 (github-issues mirror via deleted GH#22). Work shipped: 8554505 'Fix remaining map_unwrap_or clippy lints'. Closing as obsolete."}
