@@ -7,6 +7,7 @@
 //! points at the command that fixes it. It never mutates state —
 //! `repair` stays the only action verb; doctor only ever suggests.
 
+use crate::git;
 use crate::store::Store;
 use crate::task::Status;
 use std::fs;
@@ -106,12 +107,31 @@ fn check_tasks_dir_override(store: &Store, out: &mut Vec<Finding>) {
     }
 }
 
+/// Validate the state checkout. Two layouts in play (bl-ffb4): in
+/// `master_url` mode this is a balls-owned full clone at
+/// `.balls/state-repo/`; otherwise it's a linked git worktree of the
+/// project at `.balls/worktree/`. Different shape on disk, different
+/// fix command — branch on which one this repo is configured for.
 fn check_state_worktree(store: &Store, out: &mut Vec<Finding>) {
     if store.stealth {
         return;
     }
     let dir = store.state_worktree_dir();
-    if !linked_worktree_ok(&dir) {
+    match master_url(store) {
+        Some(url) => check_state_repo(&dir, &url, out),
+        None => check_legacy_worktree(&dir, out),
+    }
+}
+
+fn master_url(store: &Store) -> Option<String> {
+    store
+        .load_config()
+        .ok()
+        .and_then(|c| c.master_url().map(String::from))
+}
+
+fn check_legacy_worktree(dir: &Path, out: &mut Vec<Finding>) {
+    if !linked_worktree_ok(dir) {
         out.push(Finding::flag(
             format!(
                 "state worktree at {} is not a valid linked git worktree",
@@ -119,6 +139,51 @@ fn check_state_worktree(store: &Store, out: &mut Vec<Finding>) {
             ),
             "run `bl repair` to rebuild the state worktree",
         ));
+    }
+}
+
+/// `master_url` mode: state-repo is a full clone, not a linked
+/// worktree, so its `.git` must be a directory. A missing or broken
+/// clone is repaired by `bl prime`, which re-runs `state_repo::ensure`
+/// against the committed `master_url` (auto-provisioning); doctor's
+/// suggested fix is to remove the broken dir so prime can re-materialize.
+///
+/// Also surfaces master_url-vs-origin drift: if a user hand-edited
+/// `master_url` in committed config after the clone was already
+/// materialized, the recorded URL and the materialized clone disagree
+/// — exactly the kind of drift doctor exists to name.
+fn check_state_repo(dir: &Path, master_url: &str, out: &mut Vec<Finding>) {
+    if !state_repo_ok(dir) {
+        out.push(Finding::flag(
+            format!("state-repo at {} is not a valid git clone", dir.display()),
+            format!(
+                "remove {} and re-run `bl prime` to re-materialize from master_url",
+                dir.display()
+            ),
+        ));
+        return;
+    }
+    match read_origin_url(dir) {
+        Some(origin) if origin != master_url => out.push(Finding::flag(
+            format!(
+                "state-repo origin `{origin}` does not match \
+                 committed master_url `{master_url}`"
+            ),
+            "edit master_url in .balls/config.json, or run \
+             `bl remaster <hub-url> --commit` to repoint",
+        )),
+        None => out.push(Finding::flag(
+            format!(
+                "state-repo at {} has no `origin` remote (committed \
+                 master_url is `{master_url}`)",
+                dir.display()
+            ),
+            format!(
+                "remove {} and re-run `bl prime` to re-materialize",
+                dir.display()
+            ),
+        )),
+        _ => {}
     }
 }
 
@@ -133,6 +198,27 @@ fn linked_worktree_ok(dir: &Path) -> bool {
         return false;
     };
     Path::new(rest.trim()).exists()
+}
+
+/// State-repo is a full clone; `.git` must be a directory with a HEAD.
+/// A `.git` file would be a linked-worktree pointer — wrong layout for
+/// the `master_url` model.
+fn state_repo_ok(dir: &Path) -> bool {
+    dir.join(".git").is_dir() && dir.join(".git/HEAD").exists()
+}
+
+fn read_origin_url(dir: &Path) -> Option<String> {
+    let out = git::clean_git_command(dir)
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    // `git remote get-url origin` either errors (no such remote) or
+    // prints the URL — it never succeeds with an empty value, so
+    // success implies a usable string here.
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 fn check_stale_claims(store: &Store, out: &mut Vec<Finding>) {
