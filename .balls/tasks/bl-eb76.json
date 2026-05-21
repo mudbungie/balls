@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-ffb4 introduced a second valid state-checkout layout —\n`.balls/state-repo/` materialized by `state_repo::ensure` when\ncommitted config sets `master_url` — completely separate from the\nlegacy `.balls/worktree/`. bl doctor's drift checks all predate this\nand assume the legacy layout, so on a master_url-configured repo with\na missing or corrupt state-repo, doctor produces diagnostics that\npoint at the wrong path (or reports the absence of `.balls/worktree/`\nas a problem when it's correctly absent).\n\nDoctor is the 'named reason this repo can't run bl' tool. Wrong\ndiagnostics here defeat its only job. Now that bl-38dd has shipped, a\nmaster_url repo's healthy state also includes a\n`.balls/tasks -> state-repo/.balls/tasks` symlink, which doctor also\ndoesn't know to check.\n\n# What needs to change\n\n- doctor.rs reads `.balls/config.json` first and branches on\n  `master_url` to decide which checkout to inspect\n- the 'state worktree missing' diagnostic names the right path\n  (`.balls/state-repo` when applicable) and the right fix\n  (`bl prime` auto-provisions in master_url mode via\n  `auto_provision_master`; legacy is `setup_state_branch`)\n- new master_url-mode checks:\n  - state-repo's `origin` URL matches committed master_url — a\n    user-edited config diverging from the materialized clone is\n    exactly the kind of drift doctor exists to surface\n  - `.balls/tasks` symlink exists and resolves to\n    `state-repo/.balls/tasks` (bl-38dd's invariant; siblings\n    bl-773e covers stale-target on remaster)\n\n# Scope guardrail\n\nRead-only, as doctor always is. `repair` stays the only action verb\n(`auto_provision_master` handles the materialize-on-discover path;\ndoctor just reports). Per the user's standing memory: `repair` is the\nonly action verb in this surface.\n\n# Origin\n\nFlagged during bl-38dd review — the symlink fix moved the goalposts\non what 'healthy master_url repo' means, and doctor needs to catch up.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":58,"source":"balls","state":"open","synced_at":"2026-05-21T00:03:06.117274196+00:00","url":"https://github.com/mudbungie/balls/issues/58"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":58,"source":"balls","state":"open","synced_at":"2026-05-21T00:12:52.562933401+00:00","url":"https://github.com/mudbungie/balls/issues/58"}}},
   "id": "bl-eb76",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-21T00:03:06.123089432Z"},
+  "synced_at": {"github-issues":"2026-05-21T00:12:52.585197293Z"},
   "tags": ["multi-repo","master_url","doctor"],
   "title": "bl doctor: learn .balls/state-repo / master_url layout",
   "type": "task",
-  "updated_at": "2026-05-21T00:12:51.210968556Z"
+  "updated_at": "2026-05-21T00:12:52.585204957Z"
 }
