@@ -67,10 +67,19 @@ fn t2_one_checkout_both_addresses() {
     assert!(!fed.path().join(".balls/worktree").exists());
 }
 
-/// Test 13 — Old-`bl` caveat (§12). A workspace with `state_url` set
-/// routes task state to the tracker; the new binary never falls back
-/// to its own git's `.balls/worktree` (which is exactly what a
-/// pre-spec binary, ignorant of the field, would do).
+/// Test 13 — Old-`bl` caveat (§12 / §16.13). A workspace with
+/// `state_url` set routes task state to the tracker; the new binary
+/// never falls back to its own git's `.balls/worktree` — which is
+/// exactly what a pre-spec binary, ignorant of the field, would do.
+///
+/// Asserted on the *new* side by design, not with an old-binary
+/// fixture. The §12 caveat is "documented, not engineered against":
+/// an old binary's behaviour is immutable and outside this codebase,
+/// so a fixture building a pinned pre-spec binary would gate nothing
+/// this repo can regress and — being invariant — could never fail
+/// against pre-spec code then pass after the refactor, as §16's
+/// preamble requires of every conformance test. The new-side
+/// contrapositive does both. SPEC §16.13 is worded to match.
 #[test]
 fn t13_state_url_routes_to_tracker_not_local_worktree() {
     let tracker = new_tracker();
