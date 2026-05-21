@@ -19,7 +19,12 @@ use balls::store::Store;
 use balls::{git, gitignore, state_repo};
 use std::path::Path;
 
-pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Result<()> {
+pub fn cmd_remaster(
+    target: Option<String>,
+    commit: bool,
+    detach: bool,
+    force: bool,
+) -> Result<()> {
     if detach && target.is_some() {
         return Err(BallError::Other(
             "remaster --detach takes no TARGET (it goes standalone)".into(),
@@ -65,7 +70,7 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
     })?;
 
     if state_repo::looks_like_url(&target) {
-        return federate_url(&store, &target, commit);
+        return federate_url(&store, &target, commit, force);
     }
 
     let outcome = remaster::reconcile(&store, &target)?;
@@ -94,7 +99,8 @@ fn detach_path(store: &Store) -> Result<()> {
 /// `bl remaster <url>` on an initialized repo. `--commit` runs the
 /// federated flip and commits it; without it, only the per-clone
 /// state-repo materializes.
-fn federate_url(store: &Store, url: &str, commit: bool) -> Result<()> {
+fn federate_url(store: &Store, url: &str, commit: bool, force: bool) -> Result<()> {
+    guard_against_strand(store, force)?;
     if !commit {
         state_repo::ensure(&store.root, url)?;
         println!(
@@ -116,6 +122,45 @@ fn federate_url(store: &Store, url: &str, commit: bool) -> Result<()> {
     commit_federated_flip(&store.root, url)?;
     print_federation(url, &report);
     Ok(())
+}
+
+/// bl-20ad: the URL flip adopts the hub's `balls/tasks` history and
+/// repoints `.balls/tasks` at it — unlike the name path's `reconcile`,
+/// it has no machinery to carry local-only tasks across. On a true
+/// standalone repo those tasks would be silently stranded, invisible,
+/// on the orphaned `.balls/worktree`. Refuse rather than lose them.
+///
+/// A repo already linked to a hub (federated, or the legacy
+/// in-canonical `master_url` shape) resolves its store to
+/// `.balls/state-repo`, so re-running the flip strands nothing —
+/// only a true standalone is at risk. `--force` proceeds anyway,
+/// abandoning the local tasks.
+fn guard_against_strand(store: &Store, force: bool) -> Result<()> {
+    if MasterPointer::load_or_empty(&store.root).master_url().is_some() {
+        return Ok(());
+    }
+    let n = store.all_tasks()?.len();
+    if n == 0 {
+        return Ok(());
+    }
+    if force {
+        eprintln!(
+            "warning: --force federate abandons {n} local task(s) on \
+             `.balls/worktree`; they are invisible to bl after the flip"
+        );
+        return Ok(());
+    }
+    let msg = format!(
+        "{n} local task(s) would be stranded by federating to a hub. \
+         The URL flip adopts the hub's task history and has no path to \
+         carry local tasks across. Before retrying, either:\n  \
+         - close every task (`bl close`, or `bl update <id> \
+         status=closed` for unclaimed ones), or\n  \
+         - discard the local task store so there is nothing to strand.\n  \
+         Or re-run with `--force` to federate anyway, abandoning the \
+         {n} task(s) on `.balls/worktree`."
+    );
+    Err(BallError::Other(msg))
 }
 
 /// `bl remaster <url>` on a fresh git clone with no `.balls/`.
