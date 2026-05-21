@@ -243,7 +243,8 @@ pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Resul
 }
 
 /// Add `.balls/local`, `.balls-worktrees`, and (non-stealth only)
-/// `.balls/tasks` + `.balls/worktree` to the main checkout's gitignore.
+/// `.balls/tasks` + `.balls/worktree` + `.balls/code-refs` to the main
+/// checkout's gitignore.
 fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     let path = root.join(".gitignore");
     let mut content = if path.exists() {
@@ -255,6 +256,7 @@ fn ensure_main_gitignore(root: &Path, is_stealth: bool) -> Result<()> {
     if !is_stealth {
         wanted.push(".balls/tasks");
         wanted.push(".balls/worktree");
+        wanted.push(".balls/code-refs");
     }
     let mut dirty = false;
     for entry in wanted {
