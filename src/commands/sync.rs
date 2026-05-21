@@ -59,15 +59,10 @@ fn cmd_sync_run(remote: &str, task_filter: Option<&str>) -> Result<()> {
 }
 
 fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
-    // The two legs are gated independently: the main branch on the
-    // code remote, the state branch on the resolved `state_remote`.
-    // Before bl-88c7 a single code-remote gate fronted both, so a
-    // hub-linked client with a reachable hub but no code `origin`
-    // silently skipped the `balls/tasks` leg too. Splitting the gates
-    // fixes that without disturbing the common case: when
-    // `state_remote` is unset/==origin it resolves to the code remote,
-    // `state_present` reuses `code_present` (no extra git invocation),
-    // and the whole sequence is byte-identical to before this change.
+    // The main-branch and state-branch presence gates are independent
+    // (bl-88c7) — pre-bl-88c7 a single code-remote gate fronted both,
+    // so a hub-linked client with a reachable hub but no code `origin`
+    // silently skipped the `balls/tasks` leg.
     let code_present = git::git_has_remote(&store.root, remote);
 
     if code_present && !git::git_fetch(&store.root, remote)? {
