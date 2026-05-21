@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-0151",
+  "claimed_by": "pillowcase",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:49:37.999206812Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T01:49:39.212272696Z"},
   "tags": ["hygiene"],
   "title": "runtime_in_squash_error: derive its path list from the runtime_paths table",
   "type": "task",
-  "updated_at": "2026-05-21T01:49:39.212277635Z"
+  "updated_at": "2026-05-21T01:54:32.970544292Z"
 }
