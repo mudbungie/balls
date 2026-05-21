@@ -61,6 +61,46 @@ fn ensure_clones_from_reachable_hub_and_tracks_balls_tasks() {
 }
 
 #[test]
+fn ensure_creates_root_tasks_symlink_in_master_url_mode() {
+    // bl-38dd: the legacy `setup_state_branch` leg drops a
+    // `.balls/tasks -> worktree/.balls/tasks` symlink so engineers on
+    // main can `ls .balls/tasks/` without any balls-specific knowledge.
+    // The master_url leg bypasses that helper, so the symlink has to be
+    // recreated here with the target swapped to the state-repo layout.
+    let hub = hub_repo();
+    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
+    let root = TempDir::new().unwrap();
+
+    ensure(root.path(), &url).unwrap();
+
+    let link = root.path().join(".balls/tasks");
+    assert!(link.is_symlink(), "ensure must materialize the convenience symlink");
+    let target = std::fs::read_link(&link).unwrap();
+    assert_eq!(
+        target,
+        Path::new("state-repo/.balls/tasks"),
+        "symlink target must reach the state-repo's tasks dir"
+    );
+    // Resolving through the symlink must hit the seeded tasks directory.
+    assert!(link.join(".gitkeep").exists());
+}
+
+#[test]
+fn ensure_refuses_pre_existing_non_symlink_at_tasks_path() {
+    // The bl-init guard against clobbering a stray `.balls/tasks` dir
+    // applies in master_url mode too — silently adopting it could
+    // shadow uncommitted task files an operator put there by hand.
+    let hub = hub_repo();
+    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
+    let root = TempDir::new().unwrap();
+    fs::create_dir_all(root.path().join(".balls/tasks")).unwrap();
+
+    let err = ensure(root.path(), &url).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("unexpected non-symlink"), "guard message must surface: {msg}");
+}
+
+#[test]
 fn ensure_is_idempotent() {
     let hub = hub_repo();
     let url = hub.path().join("hub.git").to_string_lossy().into_owned();
