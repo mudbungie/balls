@@ -18,5 +18,5 @@
   "tags": ["multi-repo","master_url","bug"],
   "title": "remaster --commit to a hub silently strands local tasks",
   "type": "bug",
-  "updated_at": "2026-05-21T03:38:51.807307114Z"
+  "updated_at": "2026-05-21T03:38:51.832838946Z"
 }
