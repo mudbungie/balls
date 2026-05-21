@@ -1,17 +1,22 @@
-//! Code-repo provenance string for tasks (bl-499b, bl-7523).
+//! Code-repo provenance string for tasks (bl-499b, bl-7523, bl-8994).
 //!
-//! Two task fields need to record which code repo a piece of state
-//! lives in: `task.repo` (creation provenance — set at `bl create`)
-//! and `task.delivered_repo` (delivery provenance — set when `bl
-//! review`/`bl close` lands the squash). Both pick the same shape —
-//! the local clone's `origin` URL when there is one, else the repo's
-//! basename, else the full path — so a reader on a shared hub can
-//! resolve a sha or task back to its source repo without depending on
-//! the per-clone `.git/config` of whoever wrote the field.
+//! Two task fields record which code repo a piece of state lives in,
+//! and they pull from this module with different fallback discipline:
 //!
-//! Pure choice on `Option<String>` + `Path` so every branch is
-//! unit-testable without spawning git. The `current` entry point is
-//! the impure one: shells out to `git remote get-url origin` once.
+//! - `task.delivered_repo` (delivery provenance — set when `bl
+//!   review`/`bl close` lands the squash) uses `current`: `origin`
+//!   URL, else basename, else path. A delivery always happened in
+//!   some checked-out tree, so it always resolves to *something*.
+//! - `task.repo` (code-home provenance) uses `origin_url`: the
+//!   `origin` URL, or nothing. A bare basename is not fetchable from
+//!   a sibling clone, and `repo` is re-anchored at `bl claim` anyway
+//!   (bl-8994), so when there is no `origin` the honest value is
+//!   null — not a guess no reader can act on.
+//!
+//! Pure choice on `Option<String>` + `Path` (`identity_from`) so
+//! every branch is unit-testable without spawning git. `current` and
+//! `origin_url` are the impure entry points: each shells out to `git
+//! remote get-url origin` once.
 //!
 //! Forward-compat: `task.delivered_repo` is `Option<String>` with
 //! `skip_serializing_if = None`. A task delivered by a pre-bl-7523
@@ -27,10 +32,16 @@ use std::path::Path;
 /// (delivery): URL > basename > path. Always returns something so the
 /// task field is never silently null when we have a repo to point at.
 pub fn current(root: &Path) -> String {
-    identity_from(git_origin_url(root), root)
+    identity_from(origin_url(root), root)
 }
 
-fn git_origin_url(root: &Path) -> Option<String> {
+/// The repo's fetchable `origin` URL, or `None` when it has no
+/// `origin` remote. Unlike `current`, this never falls back to a
+/// basename or path: a non-URL string is not something a reader on
+/// another clone can `git fetch`, so callers that auto-write
+/// `task.repo` (`bl create`, `bl claim`) take `None` and leave the
+/// field null rather than persist an unusable value (bl-8994).
+pub fn origin_url(root: &Path) -> Option<String> {
     let out = crate::git::clean_git_command(root)
         .args(["remote", "get-url", "origin"])
         .output()
