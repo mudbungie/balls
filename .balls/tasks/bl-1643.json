@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T04:18:45.436655862Z",
-  "delivered_in": null,
+  "delivered_in": "e1b964a8f7b33234fd91320fedb88132d31145c3",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Test redundancy audit (2026-05-20) found the integration suite is sound in substance -- no obsolete, ignored, or assertion-free tests -- but carries ~600-800 lines of avoidable copy-paste. tests/common/ is well-built yet under-used: files re-implement scaffolding locally instead of importing it. Eliminating this loses zero coverage and makes the remaining scenario logic readable instead of buried under repeated setup.\n\nScope -- fixture consolidation (move into tests/common/, delete local copies):\n- three_way() 3-clone fixture (bare remote + alice + bob) is byte-identical in 5 files: multi_dev_basic.rs, multi_dev_conflict.rs, lifecycle_sync.rs, lifecycle_sync_close.rs, claim_sync.rs.\n- Deferred-mode seed/gate_child/show_json hand-rolled in forge_delivered_in.rs, close_delivered_repo.rs, delivered_repo.rs -- common/forge.rs already exports seed + gate_child (forge_deferred*.rs import them correctly); show_json is byte-identical across two files and should join common/.\n- break_remote()/write_some_code() byte-identical in lifecycle_sync.rs and lifecycle_sync_close.rs.\n- doctor() helper byte-identical in doctor.rs and doctor_master_url.rs.\n- set_core_bare() byte-identical in bare_discovery.rs and bare_squash.rs.\n- The version:1 config literal is hand-written in ~15 files via 11 differently-named seed fns (seed_config, write_config, seed_master_url_config -- itself byte-identical across federated_hygiene.rs and remaster_detach_master_url.rs -- write_legacy_config, etc.). Add one parameterized common::seed_config(repo, &[(key,val)]) builder and collapse the variants.\n\nScope -- genuine duplicate test cases (delete, coverage retained elsewhere):\n- plugin_sync.rs: story_70_auth_expired_warns_and_skips and sync_with_auth_expired_skips_plugin prove the same auth-expired path -- merge into one test asserting both the stderr warning and the no-op effect.\n- plugin_sync.rs: story_67_sync_triggers_plugin_sync is a strict subset of auth_check_and_sync_receive_config_path -- delete it.\n- init.rs: story_2_init_twice_is_idempotent is a strict subset of topology.rs::bl_init_is_idempotent -- delete it (keep init_bare.rs's bare-specific variant, distinct path).\n\nOut of scope (deferred): merging over-fragmented file clusters (sync_*, forge_*, remaster_*, lifecycle_sync*) -- that intersects the 300-line decomposition convention and is a separate judgment call. *_compat.rs / forward_compat.rs are NOT obsolete (guard live serde compat at distinct layers) -- do not touch.\n\nDone = all duplicated helpers live once in tests/common/, the 3 duplicate tests are gone, make check is green (all tests pass, 100% coverage gate holds).",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":105,"source":"balls","state":"open","synced_at":"2026-05-21T04:18:53.279577294+00:00","url":"https://github.com/mudbungie/balls/issues/105"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T04:18:53.302686708Z"},
   "tags": [],
   "title": "Consolidate test fixture duplication into tests/common",
   "type": "chore",
-  "updated_at": "2026-05-21T04:18:53.302695415Z"
+  "updated_at": "2026-05-21T04:37:14.548393573Z"
 }
