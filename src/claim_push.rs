@@ -8,12 +8,11 @@
 
 use crate::error::Result;
 use crate::git;
+use crate::git_state::STATE_BRANCH;
 use crate::negotiation::AttemptClass;
 use crate::store::Store;
 use std::path::Path;
 use std::process::Output;
-
-pub(crate) const STATE_BRANCH: &str = "balls/tasks";
 
 /// Resolve this repo's effective `state_remote` — the one seam that
 /// retargets `balls/tasks` (per-clone override over committed,

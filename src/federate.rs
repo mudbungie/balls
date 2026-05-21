@@ -15,6 +15,7 @@
 
 use crate::config::Config;
 use crate::error::Result;
+use crate::git_state::STATE_BRANCH;
 use crate::master_pointer::MasterPointer;
 use crate::state_repo;
 use std::fs;
@@ -86,7 +87,7 @@ pub fn bootstrap_non_initted(root: &Path, url: &str) -> Result<FederateReport> {
 /// the canonical is already a symlink or absent.
 fn stash_config(root: &Path) -> Result<Option<String>> {
     let p = root.join(".balls").join("config.json");
-    if is_symlink(&p) || !p.is_file() {
+    if p.is_symlink() || !p.is_file() {
         return Ok(None);
     }
     let content = fs::read_to_string(&p)?;
@@ -98,7 +99,7 @@ fn stash_config(root: &Path) -> Result<Option<String>> {
 /// symlink or absent.
 fn stash_plugins(root: &Path) -> Result<Option<PathBuf>> {
     let project_plugins = root.join(".balls").join("plugins");
-    if is_symlink(&project_plugins) || !project_plugins.is_dir() {
+    if project_plugins.is_symlink() || !project_plugins.is_dir() {
         return Ok(None);
     }
     let stash = root.join(PLUGINS_STASH);
@@ -140,7 +141,7 @@ fn commit_hub_canonical(state_repo_dir: &Path) -> Result<()> {
     }
     crate::git::git_add(state_repo_dir, &paths)?;
     crate::git::git_commit(state_repo_dir, "balls: adopt federated project config")?;
-    let _ = crate::git::git_push(state_repo_dir, "origin", "balls/tasks");
+    let _ = crate::git::git_push(state_repo_dir, "origin", STATE_BRANCH);
     Ok(())
 }
 
@@ -151,7 +152,7 @@ fn commit_hub_canonical(state_repo_dir: &Path) -> Result<()> {
 /// Idempotent.
 pub fn unfederate(root: &Path) -> Result<()> {
     let project_cfg = root.join(".balls").join("config.json");
-    if is_symlink(&project_cfg) {
+    if project_cfg.is_symlink() {
         let content = fs::read_to_string(&project_cfg).unwrap_or_default();
         fs::remove_file(&project_cfg)?;
         fs::write(&project_cfg, content)?;
@@ -237,16 +238,12 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-fn is_symlink(p: &Path) -> bool {
-    fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink())
-}
-
 /// Whether the project-side `.balls/` is in the federated shape:
 /// `config.json` *and* `plugins/` both symlinks. `bl remaster <url>`
 /// short-circuits the idempotent path on this.
 pub fn is_federated(root: &Path) -> bool {
-    is_symlink(&root.join(".balls").join("config.json"))
-        && is_symlink(&root.join(".balls").join("plugins"))
+    root.join(".balls").join("config.json").is_symlink()
+        && root.join(".balls").join("plugins").is_symlink()
 }
 
 #[cfg(test)]

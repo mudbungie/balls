@@ -23,9 +23,10 @@
 // `push_state_classified` is re-exported so its API path is stable.
 pub use crate::claim_push::push_state_classified;
 
-use crate::claim_push::{state_remote, STATE_BRANCH};
+use crate::claim_push::state_remote;
 use crate::error::{BallError, Result};
 use crate::git;
+use crate::git_state::STATE_BRANCH;
 use crate::negotiation::{AttemptClass, FailurePolicy, Protocol};
 use crate::participant::{self, Event, EventCtx, Participant, Projection};
 use crate::store::Store;
