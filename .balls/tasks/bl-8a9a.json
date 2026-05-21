@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Per docs/SPEC-tracker-state.md (delivered by bl-40e9). Collapse the master_url 'mode' into one un-moded mechanism.\n\n- config.json gains state_url / state_branch (the tracker address); both optional, absent => (origin, balls/tasks) resolved live. Retire the .balls/master.json pointer -- fold its content into config.json. config.json is no longer symlinked anywhere.\n- Store::discover resolves ONE checkout, .balls/state-repo, for every repo. Retire the .balls/worktree-vs-.balls/state-repo split and the state_worktree_for branch. Standalone = a state-repo whose state_url is the code origin.\n- bl remaster <url> writes the address; --detach removes it. No transplant: detach is an address edit + ordinary reconcile. Drop adopt_state_into_worktree and try_cold_detach's special-casing; the first-federation race becomes an ordinary divergence.\n- Reachability: hard-fail first contact on an explicit unreachable tracker; local git-init fallback when state_url is absent (the implicit default); soft-fail warm.\n- Migrate existing repos: legacy master.json and in-config master_url/state_remote read transparently and rewrite to state_url on next remaster; an existing standalone .balls/worktree migrates to .balls/state-repo.\n\nConformance (SPEC SS16) tests 1,2,3,4,7,8,9,10,11,13,14 must exist and FAIL against current code before this lands. Test 12 -- merge cleanliness in the two-participant topology -- is a hard, non-negotiable gate.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":110,"source":"balls","state":"open","synced_at":"2026-05-21T07:22:46.030604289+00:00","url":"https://github.com/mudbungie/balls/issues/110"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":110,"source":"balls","state":"open","synced_at":"2026-05-21T19:28:05.201672787+00:00","url":"https://github.com/mudbungie/balls/issues/110"}}},
   "id": "bl-8a9a",
   "links": [],
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-21T07:22:46.055191050Z"},
+  "synced_at": {"github-issues":"2026-05-21T19:28:05.208671006Z"},
   "tags": [],
   "title": "Unify the state checkout — retire federated mode",
   "type": "task",
-  "updated_at": "2026-05-21T19:28:03.863712986Z"
+  "updated_at": "2026-05-21T19:28:05.208680415Z"
 }
