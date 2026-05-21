@@ -187,12 +187,21 @@ fn seed_state_worktree(state_wt: &Path) -> Result<()> {
 /// mode, `state-repo/.balls/tasks` in master_url mode. An engineer on
 /// main can `ls .balls/tasks/`, `cat`, and `$EDITOR` files through this
 /// symlink without any balls-specific knowledge.
+///
+/// A pre-existing symlink with a different target is repointed (bl-773e):
+/// a repo flipped from legacy to master_url via `bl remaster --commit`
+/// otherwise keeps a symlink to the deleted `.balls/worktree/`, silently
+/// dangling. Matching targets are still no-ops, so the idempotent path
+/// is unchanged.
 pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
     let link = root.join(".balls/tasks");
+    let want = PathBuf::from(target);
     if link.is_symlink() {
-        return Ok(());
-    }
-    if link.exists() {
+        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
+            return Ok(());
+        }
+        fs::remove_file(&link)?;
+    } else if link.exists() {
         // Pre-existing directory or file at the symlink path is ambiguous:
         // refuse to overwrite to avoid clobbering uncommitted tasks.
         return Err(crate::error::BallError::Other(format!(
@@ -202,7 +211,7 @@ pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
     }
     #[cfg(unix)]
     {
-        std::os::unix::fs::symlink(PathBuf::from(target), &link)?;
+        std::os::unix::fs::symlink(&want, &link)?;
     }
     #[cfg(not(unix))]
     {
