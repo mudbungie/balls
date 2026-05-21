@@ -17,7 +17,9 @@ use std::fs;
 use std::path::Path;
 
 fn read_master_url(repo: &Path) -> Option<String> {
-    let s = fs::read_to_string(repo.join(".balls/config.json")).ok()?;
+    // Post bl-82a4: master_url lives in .balls/master.json (the
+    // federation pointer), not .balls/config.json.
+    let s = fs::read_to_string(repo.join(".balls/master.json")).ok()?;
     let v: serde_json::Value = serde_json::from_str(&s).ok()?;
     v.get("master_url")?.as_str().map(String::from)
 }
@@ -92,7 +94,8 @@ fn fresh_clone_with_master_url_auto_provisions_on_prime() {
         .success();
     let id = create_task(onboard.path(), "shared task");
     bl(onboard.path()).arg("sync").assert().success();
-    // bl-ebae: `remaster --commit` commits the master_url flip itself,
+    // `remaster --commit` commits the federation flip itself —
+    // master.json pointer + gitignored sidecars (bl-ebae/bl-82a4) —
     // so the onboarding clone only has to publish `main`.
     git(onboard.path(), &["push", "origin", "main"]);
 

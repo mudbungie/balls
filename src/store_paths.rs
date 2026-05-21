@@ -1,7 +1,6 @@
 //! Filesystem path resolution helpers for `Store`. Extracted from
 //! `store.rs` so that the main module stays focused on the Store API.
 
-use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::git;
 use std::fs;
@@ -32,26 +31,19 @@ pub(crate) fn resolve_layout(root: &Path) -> (PathBuf, bool, PathBuf) {
     (tasks_dir_path, stealth, state_worktree_for(root))
 }
 
-/// Resolve the state-worktree path for `root`. Reads the committed
-/// config to detect `master_url`; on any load failure (corrupt /
-/// missing config) silently falls back to the legacy worktree path
-/// so a freshly-`git clone`d repo whose `.balls/config.json` hasn't
-/// been read yet still resolves *some* path — the rest of init/
-/// discover will surface the real error.
+/// Resolve the state-worktree path for `root`. Reads `MasterPointer`
+/// (which transparently falls back to the legacy in-canonical shape);
+/// any failure modes (missing/corrupt files) resolve to standalone,
+/// matching prior behavior.
 pub(crate) fn state_worktree_for(root: &Path) -> PathBuf {
-    if uses_master_url(root) {
+    if crate::master_pointer::MasterPointer::load_or_empty(root)
+        .master_url()
+        .is_some()
+    {
         root.join(crate::state_repo::STATE_REPO_REL)
     } else {
         root.join(".balls/worktree")
     }
-}
-
-/// `true` when the committed config declares a `master_url`. Best-effort
-/// — a config that won't load is treated as "no master_url" and the
-/// caller falls through to legacy layout.
-fn uses_master_url(root: &Path) -> bool {
-    let path = root.join(".balls/config.json");
-    Config::load(&path).is_ok_and(|c| c.master_url().is_some())
 }
 
 /// Auto-provision the balls-owned state-repo on `discover` when committed
@@ -62,9 +54,8 @@ fn uses_master_url(root: &Path) -> bool {
 /// A config that won't load isn't this path's concern — the caller's
 /// subsequent layout/discover steps surface that diagnostic.
 pub(crate) fn auto_provision_master(root: &Path) -> Result<()> {
-    let path = root.join(".balls/config.json");
-    let Ok(cfg) = Config::load(&path) else { return Ok(()) };
-    let Some(url) = cfg.master_url() else { return Ok(()) };
+    let pointer = crate::master_pointer::MasterPointer::load_or_empty(root);
+    let Some(url) = pointer.master_url() else { return Ok(()) };
     if root
         .join(crate::state_repo::STATE_REPO_REL)
         .join(".git")

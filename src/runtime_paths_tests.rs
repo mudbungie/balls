@@ -58,8 +58,14 @@ fn gitignore_paths_federated_adds_plugins() {
 }
 
 #[test]
-fn federated_only_paths_is_just_plugins() {
-    assert_eq!(federated_only_paths(), vec![".balls/plugins"]);
+fn federated_only_paths_are_plugins_and_canonical() {
+    // bl-82a4 adds `.balls/config.json`: federated mode symlinks the
+    // canonical into the hub, so it joins `.balls/plugins` as a
+    // gitignored federated-only sidecar.
+    assert_eq!(
+        federated_only_paths(),
+        vec![".balls/plugins", ".balls/config.json"]
+    );
 }
 
 #[test]

@@ -20,11 +20,19 @@ fn init_repo(path: &Path) {
 }
 
 /// Scaffold the `.balls/` layout `commit_init` expects: a real plugins
-/// directory and a config with (or without) a `master_url`.
+/// directory, a canonical config, and — for the federated case — the
+/// `.balls/master.json` pointer (bl-82a4) carrying the `master_url`.
 fn scaffold(root: &Path, master_url: Option<&str>) {
     fs::create_dir_all(root.join(".balls/plugins")).unwrap();
-    let cfg = Config { master_url: master_url.map(str::to_string), ..Config::default() };
-    cfg.save(&root.join(".balls/config.json")).unwrap();
+    Config::default().save(&root.join(".balls/config.json")).unwrap();
+    if let Some(url) = master_url {
+        crate::master_pointer::MasterPointer {
+            master_url: Some(url.to_string()),
+            state_remote: None,
+        }
+        .save(root)
+        .unwrap();
+    }
 }
 
 fn tracked(root: &Path) -> String {
@@ -69,7 +77,10 @@ fn federated_skips_gitkeep_even_without_symlink() {
     );
     let files = tracked(td.path());
     assert!(!files.contains(".gitkeep"), "{files}");
-    assert!(files.contains(".balls/config.json"), "{files}");
+    // bl-82a4: in federated mode the canonical is a gitignored symlink;
+    // the committed federation artifact is the master.json pointer.
+    assert!(!files.contains(".balls/config.json"), "{files}");
+    assert!(files.contains(".balls/master.json"), "{files}");
 }
 
 #[test]

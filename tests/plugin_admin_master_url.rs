@@ -51,13 +51,20 @@ fn enable_master_url_writes_and_commits_state_repo() {
         "project .balls/plugins must be a symlink to the hub view (bl-1098)"
     );
 
-    // Project's own config.json is untouched — master wins on the hub.
+    // Post bl-82a4 the project's `.balls/config.json` *is* the hub's
+    // config — a symlink, not a second copy — so reading it returns
+    // the same effective map. "master wins" is now a filesystem fact.
+    assert!(
+        alice.path().join(".balls/config.json").is_symlink(),
+        "project config.json must be a symlink into the hub (bl-82a4)"
+    );
     let project_cfg: Value =
         serde_json::from_str(&fs::read_to_string(alice.path().join(".balls/config.json")).unwrap())
             .unwrap();
     assert!(project_cfg["plugins"]
         .as_object()
-        .is_none_or(|m| !m.contains_key("github")));
+        .unwrap()
+        .contains_key("github"));
 
     // Commit landed on the state-repo (no dirty working tree).
     let state_repo = alice.path().join(".balls/state-repo");

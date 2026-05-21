@@ -47,21 +47,15 @@ pub struct Config {
     pub require_remote_on_review: bool,
     #[serde(default)]
     pub require_remote_on_close: bool,
-    /// Git remote **name** whose `balls/tasks` ref this repo negotiates
-    /// against. `None` (the default) resolves to `origin`. Set to point
-    /// at a shared task hub via an existing project-side remote.
-    ///
-    /// **Deprecated by `master_url` (target: 0.5.0).** The name field
-    /// lives in per-clone `.git/config` and so doesn't travel via a
-    /// fresh `git clone`; `master_url` carries the URL in committed
-    /// config and provisions a balls-owned checkout automatically.
-    /// When both are set, `master_url` wins.
+    /// Legacy bootstrap pointer fields, kept on `Config` so a
+    /// pre-bl-82a4 `.balls/config.json` deserializes without error.
+    /// **Do not read these** — federation bootstrap lives in
+    /// `MasterPointer` (`.balls/master.json`), which transparently
+    /// falls back to these fields for legacy configs. New code writes
+    /// them as `None` (skipped from serialization), so a migrated
+    /// canonical no longer carries them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_remote: Option<String>,
-    /// Hub URL of an external task master (bl-ffb4). When set, balls
-    /// materializes its own git clone at `.balls/state-repo/` and
-    /// routes every state-branch op through it; the project's own
-    /// `.git/config` stays clean. Wins over legacy `state_remote`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub master_url: Option<String>,
     /// The integration branch `bl review` squashes into, `bl sync`
@@ -104,9 +98,6 @@ pub struct Config {
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
 }
-
-/// The remote a config with no explicit `state_remote` targets.
-pub const DEFAULT_STATE_REMOTE: &str = "origin";
 
 fn default_true() -> bool {
     true
@@ -196,23 +187,6 @@ impl Config {
         }
         fs::write(path, s + "\n")?;
         Ok(())
-    }
-
-    /// The git remote whose `balls/tasks` ref this repo negotiates
-    /// against. This is the single seam that knows the `state_remote`
-    /// default: every state-branch fetch/push (init, the git-remote
-    /// participant, `bl sync`) resolves the remote through here, so
-    /// there is no second code path with the `origin` fallback baked
-    /// in. `None` ⇒ `origin`, byte-identical to a single-repo setup.
-    pub fn state_remote(&self) -> &str {
-        self.state_remote.as_deref().unwrap_or(DEFAULT_STATE_REMOTE)
-    }
-
-    /// Resolved hub URL for the balls-owned state checkout (bl-ffb4),
-    /// or `None` for the legacy `state_remote`-name model. The seam
-    /// that branches between the two layouts.
-    pub fn master_url(&self) -> Option<&str> {
-        self.master_url.as_deref()
     }
 
     /// Resolve the integration branch — the single seam every consumer

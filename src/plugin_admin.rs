@@ -43,8 +43,10 @@ impl Source {
     }
 
     pub(crate) fn from_store(store: &Store) -> Self {
-        let cfg = Config::load(&store.config_path()).unwrap_or_default();
-        if cfg.master_url().is_some() {
+        if crate::master_pointer::MasterPointer::load_or_empty(&store.root)
+            .master_url()
+            .is_some()
+        {
             Source::Hub
         } else {
             Source::Project
