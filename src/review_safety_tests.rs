@@ -236,3 +236,19 @@ fn runtime_in_squash_error_pluralizes_correctly() {
         "{many:?}"
     );
 }
+
+#[test]
+fn runtime_in_squash_error_lists_backstop_subpaths() {
+    // The help-text example list must derive from the runtime_paths
+    // table, not a literal — so a new backstop sidecar (e.g. the
+    // `.balls/state-repo` the old literal silently omitted) shows up
+    // here automatically (bl-0151).
+    let err = runtime_in_squash_error("bl-cccc", &[".balls/state-repo".into()]);
+    for p in crate::runtime_paths::backstop_paths() {
+        let sub = p.strip_prefix(".balls/").unwrap_or(p);
+        assert!(
+            matches!(&err, BallError::Other(s) if s.contains(&format!("`{sub}`"))),
+            "missing `{sub}` in {err:?}",
+        );
+    }
+}
