@@ -4,7 +4,7 @@
 //! exercise the helpers that don't reach git directly.
 
 use super::*;
-use crate::config::Config;
+use crate::project_config::ProjectConfig;
 use crate::error::{BallError, NotInitKind};
 use crate::git_test_support::init_repo;
 use crate::store::Store;
@@ -50,7 +50,7 @@ fn enable_standalone_writes_config_and_creates_file() {
     let report = enable(&store, "github", None, true).unwrap();
     assert!(report.file_created);
 
-    let cfg = Config::load(&store.config_path()).unwrap();
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     let entry = cfg.plugins.get("github").expect("entry");
     assert!(entry.enabled);
     assert!(entry.sync_on_change);
@@ -66,7 +66,7 @@ fn enable_preserves_participant_block_on_replace() {
     use std::collections::BTreeMap;
 
     let (_td, store) = standalone_store();
-    let mut cfg = Config::load(&store.config_path()).unwrap();
+    let mut cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     let mut subs = BTreeMap::new();
     subs.insert(Event::Create, EventPolicy::new(PolicyKind::BestEffort));
     cfg.plugins.insert(
@@ -80,10 +80,10 @@ fn enable_preserves_participant_block_on_replace() {
             }),
         },
     );
-    cfg.save(&store.config_path()).unwrap();
+    cfg.save(&store.project_config_path()).unwrap();
 
     enable(&store, "p", Some("p.json".into()), false).unwrap();
-    let cfg = Config::load(&store.config_path()).unwrap();
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     let entry = cfg.plugins.get("p").unwrap();
     assert!(entry.enabled);
     assert!(
@@ -124,7 +124,7 @@ fn disable_removes_entry_and_keeps_file() {
     let file = report.file_path.clone();
 
     disable(&store, "github").unwrap();
-    let cfg = Config::load(&store.config_path()).unwrap();
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     assert!(!cfg.plugins.contains_key("github"));
     assert!(file.exists(), "config file must be kept on disable");
 }
@@ -156,7 +156,7 @@ fn load_or_default_returns_default_on_missing() {
     let td = tempdir().unwrap();
     let path = td.path().join("does-not-exist.json");
     let cfg = load_or_default(&path).unwrap();
-    assert_eq!(cfg.id_length, Config::default().id_length);
+    assert_eq!(cfg.id_length, ProjectConfig::default().id_length);
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn effective_paths_route_through_plugin_config_root() {
     let (_td, store) = standalone_store();
     let cfg_path = effective_config_path(&store);
     let plugins = effective_plugins_dir(&store);
-    assert!(cfg_path.ends_with(".balls/config.json"));
+    assert!(cfg_path.ends_with(".balls/project.json"));
     assert!(plugins.ends_with(".balls/plugins"));
     // Standalone mode roots both at the project, not a state-repo.
     assert!(cfg_path.starts_with(&store.root));

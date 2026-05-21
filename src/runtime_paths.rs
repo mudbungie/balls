@@ -2,9 +2,10 @@
 //!
 //! `bl` materializes several paths inside a workspace that are its own
 //! state, not deliverables: the per-clone `.balls/local/` dir, the
-//! state checkout at `.balls/state-repo/`, its `.balls/tasks` and
-//! `.balls/plugins` convenience symlinks, the `--resolve-remote`
-//! code-refs cache, and the task worktrees under `.balls-worktrees/`.
+//! state checkout at `.balls/state-repo/`, its `.balls/tasks`,
+//! `.balls/plugins`, and `.balls/project.json` convenience symlinks,
+//! the `--resolve-remote` code-refs cache, and the task worktrees
+//! under `.balls-worktrees/`.
 //! Two consumers must keep every one of them off the workspace's
 //! integration branch, and each used to hand-maintain its own list:
 //!
@@ -42,6 +43,7 @@ pub(crate) struct RuntimePath {
 pub(crate) const RUNTIME_PATHS: &[RuntimePath] = &[
     RuntimePath { rel: ".balls/local", in_stealth: true, backstop: true },
     RuntimePath { rel: ".balls/tasks", in_stealth: false, backstop: true },
+    RuntimePath { rel: ".balls/project.json", in_stealth: false, backstop: true },
     RuntimePath { rel: ".balls/state-repo", in_stealth: false, backstop: true },
     RuntimePath { rel: ".balls/plugins", in_stealth: false, backstop: false },
     RuntimePath { rel: ".balls/code-refs", in_stealth: true, backstop: true },

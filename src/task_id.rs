@@ -9,10 +9,10 @@ use crate::store::Store;
 use crate::task::Task;
 
 /// Generate an id not already present in `store`, reading the id
-/// length from the store's config. Thin store-aware wrapper over the
+/// length from the project config. Thin store-aware wrapper over the
 /// pure `next_unique_id` loop.
 pub fn generate_task_id(store: &Store, title: &str) -> Result<String> {
-    let id_length = store.load_config()?.id_length;
+    let id_length = store.load_project_config()?.id_length;
     next_unique_id(title, id_length, chrono::Utc::now(), &|id| {
         store.task_exists(id)
     })

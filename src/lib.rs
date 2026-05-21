@@ -53,6 +53,7 @@ pub mod plugin_admin;
 pub mod plugin_policy;
 pub mod policy;
 pub mod progress;
+pub mod project_config;
 pub mod ready;
 pub mod remaster;
 mod remaster_detach;
@@ -94,6 +95,7 @@ pub mod worktree_teardown;
 
 pub use config::Config;
 pub use error::{BallError, Result};
+pub use project_config::ProjectConfig;
 pub use store::Store;
 pub use task::{
     validate_id, ArchivedChild, Link, LinkType, NewTaskOpts, Note, Status, Task, TaskType,

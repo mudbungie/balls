@@ -1,9 +1,10 @@
 //! SPEC §5 "Config schema additions": the opt-in delivery/integration
-//! fields (`state_remote`, `target_branch`, `delivery`,
-//! `min_bl_version`). Each is `skip_serializing_if`-omitted when unset
-//! so an untouched config stays byte-identical to before the field
-//! existed, and each round-trips through save/load. Split out of
-//! `config_tests.rs` to keep both files under the line cap.
+//! fields (`state_remote`, `target_branch`, `delivery`, `review`).
+//! Each is `skip_serializing_if`-omitted when unset so an untouched
+//! config stays byte-identical to before the field existed, and each
+//! round-trips through save/load. (`min_bl_version` moved to
+//! `ProjectConfig` with the SPEC §7 split — see `project_config`.)
+//! Split out of `config_tests.rs` to keep both files under the cap.
 
 use super::*;
 use tempfile::TempDir;
@@ -72,35 +73,6 @@ fn target_branch_explicit_value_short_circuits_git_and_round_trips() {
             .unwrap(),
         "develop"
     );
-}
-
-#[test]
-fn min_bl_version_none_is_omitted_from_serialization() {
-    // skip_serializing_if keeps an unmodified config byte-identical,
-    // mirroring target_branch / delivery.
-    let cfg = Config::default();
-    assert_eq!(cfg.min_bl_version, None);
-    let s = serde_json::to_string(&cfg).unwrap();
-    assert!(
-        !s.contains("min_bl_version"),
-        "default config must not serialize min_bl_version: {s}"
-    );
-}
-
-#[test]
-fn min_bl_version_round_trips_through_load() {
-    // Set value survives a save/load cycle; load still succeeds (the
-    // advisory is a stderr nudge, never an error). 9.9.9 is below this
-    // build so load also exercises the warn path without failing.
-    let dir = TempDir::new().unwrap();
-    let path = dir.path().join("c.json");
-    let cfg = Config {
-        min_bl_version: Some("9.9.9".to_string()),
-        ..Config::default()
-    };
-    cfg.save(&path).unwrap();
-    let loaded = Config::load(&path).unwrap();
-    assert_eq!(loaded.min_bl_version.as_deref(), Some("9.9.9"));
 }
 
 #[test]
