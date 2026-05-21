@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Federation shipped as a bolt-on 'mode' (master_url): its own discovery branch, a second checkout mechanism, a config-symlink seam. A design review concluded the intent is sound but the model should be unified, not moded.\n\nConverged target:\n\nONE mechanism. A tracker address (state_url, state_branch) -- always present, implicit default (code origin, balls/tasks) -- is materialized as a clone at .balls/state-repo. 'Standalone' is the case where state_url is the code's own origin; 'federated' is where it is a shared tracker. No mode, no discovery branch, no worktree-vs-clone split. 'bl remaster' just rewrites the address; --detach points it back at self.\n\nConfig ownership SPLIT, not merge. config.json stays a real file in the workspace, repo-owned (the tracker address, target_branch, delivery, review.pre_check, require_remote_*). A new project.json lives on the tracker branch, project-owned (version, id_length, min_bl_version, plugins), inherited by every workspace, and WINS on overlap so ownership is enforced, not advisory. The master.json pointer retires -- the address folds into config.json. Plugin config is project config; plugin auth and BALLS_IDENTITY stay the user's.\n\nTerminology: 'tracker' hosts the shared branch; 'workspace' is where bl runs and task worktrees span from. External issue systems are 'external trackers'.\n\nQuality bar, non-negotiable: the text-mergeable schema guarantees disjoint-field merges are clean -- full stop. One compact line per top-level field; same-field edits go to the resolver. No 'if we find churn' hedges. Conformance gates every refactor.\n\nChildren: the SPEC sweep, then the implementation refactors it gates.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":108,"source":"balls","state":"open","synced_at":"2026-05-21T07:03:53.338088341+00:00","url":"https://github.com/mudbungie/balls/issues/108"}}},
   "id": "bl-e118",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-21T07:03:53.343531174Z"},
   "tags": [],
   "title": "Unified tracker-state model",
   "type": "epic",
-  "updated_at": "2026-05-21T07:03:52.085932027Z"
+  "updated_at": "2026-05-21T07:03:53.343542785Z"
 }
