@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T01:10:21.526398694Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\n`store_init::commit_init` decides whether to seed and stage\n`.balls/plugins/.gitkeep` by checking whether `.balls/plugins` is a symlink\n(the marker bl-1098's `state_repo::ensure` leaves in federated mode).\n\nThat works today only because of execution order inside `Store::init`:\n`state_repo::ensure` runs (creating the symlink) *before* `commit_init`. The\ncheck is an indirect proxy for \"is this repo federated\" — it reads a\nfilesystem side-effect instead of the actual config.\n\nIf those steps were ever reordered, or `commit_init` were called from a path\nthat runs before the symlink exists, it would silently misbehave: either try\nto write `.gitkeep` through a not-yet-existing symlink, or stage a project-side\nplaceholder into a federated repo that should not own one. No test would catch\nthe reorder — the coupling is invisible.\n\n# Scope\n\n- `commit_init`: replace the `.balls/plugins`-is-symlink check with a direct\n  `Config::load(<root>/.balls/config.json)`-then-`master_url().is_some()` check.\n  That states the real intent (federated vs standalone) and is independent of\n  step ordering.\n- Confirm the no-git / stealth paths are unaffected (they already skip\n  commit_init or run before any master_url is set).\n- Test: `commit_init` in federated mode skips the `.gitkeep` seed/stage\n  regardless of whether the symlink happens to exist yet.\n\n# Origin\n\nbl-1098 close-out review (2026-05-20). Flagged as a sturdiness improvement over\nthe shipped order-coupled check; user asked for it to be filed.",
+  "external": {},
+  "id": "bl-4432",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["multi-repo","master_url"],
+  "title": "commit_init: detect federated mode via master_url, not the .balls/plugins symlink",
+  "type": "bug",
+  "updated_at": "2026-05-21T01:10:21.526398694Z"
+}
