@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-6816",
+  "claimed_by": "Hobbled",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:04:42.389179377Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T01:04:48.917789137Z"},
   "tags": ["multi-repo","schema"],
   "title": "populate_on_close: remote-resolved sha clobbers delivered_repo with the wrong URL",
   "type": "bug",
-  "updated_at": "2026-05-21T01:04:48.917793766Z"
+  "updated_at": "2026-05-21T01:06:54.460378584Z"
 }
