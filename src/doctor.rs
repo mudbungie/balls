@@ -141,7 +141,10 @@ fn check_legacy_worktree(dir: &Path, out: &mut Vec<Finding>) {
                 "state worktree at {} is not a valid linked git worktree",
                 dir.display()
             ),
-            "run `bl repair` to rebuild the state worktree",
+            format!(
+                "remove {} and re-run `bl init` to re-materialize the state worktree",
+                dir.display()
+            ),
         ));
     }
 }
