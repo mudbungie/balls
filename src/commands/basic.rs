@@ -178,7 +178,7 @@ fn terminal_columns() -> usize {
         .unwrap_or(100)
 }
 
-pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
+pub fn cmd_show(id: String, json: bool, verbose: bool, resolve_remote: bool) -> Result<()> {
     let store = discover()?;
     // A closed task's file is gone from the state-branch HEAD; fall
     // back to reconstructing it from history so `bl show <id>` keeps
@@ -195,13 +195,14 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
     let delivery = store
         .load_config()
         .and_then(|c| c.integration_branch_for(&store.root, task.target_branch.as_deref()))
-        .map_or(
-            balls::delivery::Delivery {
-                sha: None,
-                hint_stale: false,
-            },
-            |b| balls::delivery::resolve(&store.root, &b, &task),
-        );
+        .map_or(balls::delivery::Delivery::default(), |b| {
+            balls::delivery::resolve_with(
+                &store.root,
+                &b,
+                &task,
+                balls::delivery::ResolveOpts { remote: resolve_remote },
+            )
+        });
 
     if json {
         let blocked = ready::is_dep_blocked(&all, &task);
@@ -214,6 +215,7 @@ pub fn cmd_show(id: String, json: bool, verbose: bool) -> Result<()> {
             "completion": ready::completion(&all, &id),
             "delivered_in_resolved": delivery.sha,
             "delivered_in_hint_stale": delivery.hint_stale,
+            "delivered_in_resolved_repo": delivery.resolved_repo,
         });
         if task.task_type.is_epic() {
             let (closed, total) = balls::progress::counts(&all, &id);
