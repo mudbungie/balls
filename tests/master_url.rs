@@ -42,7 +42,6 @@ fn remaster_with_url_writes_master_url_and_isolates_project_git() {
     let hub = new_bare_remote();
     let alice = new_repo();
     init_in(alice.path());
-    create_task(alice.path(), "seed");
 
     let hub_url = hub.path().to_string_lossy().to_string();
     bl(alice.path())
