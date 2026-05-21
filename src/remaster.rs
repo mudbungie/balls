@@ -7,6 +7,7 @@
 //! No CLI or printing here; that is `commands::remaster`.
 
 use crate::error::{BallError, Result};
+use crate::git_state::STATE_BRANCH;
 use crate::store::Store;
 use crate::task::Task;
 use crate::{git, git_state};
@@ -22,7 +23,6 @@ pub use crate::remaster_detach::{
     detach, discard_state_repo, scrub_legacy_canonical, try_cold_detach,
 };
 
-const STATE_BRANCH: &str = "balls/tasks";
 const TASKS_REL: &str = ".balls/tasks";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -153,30 +153,7 @@ fn read_local_tasks(tdir: &Path) -> Result<BTreeMap<String, LocalTask>> {
 fn fresh_id(json: &str, id_len: usize, used: &BTreeSet<String>) -> Result<String> {
     let t: Task = serde_json::from_str(json)
         .map_err(|e| BallError::InvalidTask(format!("clash task: {e}")))?;
-    next_free_id(&t.title, t.created_at, id_len, |id| used.contains(id))
-}
-
-/// Pure id-retry loop, mirroring `bl create`'s `next_unique_id`:
-/// regenerate from `title`+timestamp, stepping the timestamp forward
-/// on collision. Split out so the retry and exhaustion paths are
-/// unit-testable without standing up two repos.
-fn next_free_id(
-    title: &str,
-    start: chrono::DateTime<chrono::Utc>,
-    id_len: usize,
-    taken: impl Fn(&str) -> bool,
-) -> Result<String> {
-    let mut ts = start;
-    for _ in 0..=1000 {
-        let id = Task::generate_id(title, ts, id_len);
-        if !taken(&id) {
-            return Ok(id);
-        }
-        ts += chrono::Duration::milliseconds(1);
-    }
-    Err(BallError::Other(
-        "could not generate a clash-free id after 1000 tries".into(),
-    ))
+    crate::task_id::next_unique_id(&t.title, id_len, t.created_at, &|id| used.contains(id))
 }
 
 fn write_task(

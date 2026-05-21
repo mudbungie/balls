@@ -18,8 +18,8 @@
 //! the squash on main via the permanent `[bl-id]` tag.
 
 use crate::git::clean_git_command;
+use crate::git_state::STATE_BRANCH;
 use crate::store::Store;
-use crate::store_init::STATE_BRANCH;
 use crate::task::{Status, Task};
 use chrono::{DateTime, Utc};
 use std::collections::HashSet;

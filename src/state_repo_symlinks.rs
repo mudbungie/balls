@@ -7,46 +7,61 @@ use crate::error::{BallError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Materialize `.balls/plugins` as a symlink to `target` (relative to
-/// `<root>/.balls/`) so per-plugin config files resolve through the
-/// project root in federated mode (bl-1098). Idempotent; repoints a
-/// stale symlink. A real `.balls/plugins/` is removed if `.gitkeep`-
-/// only, refused if it carries config files (the migration is
-/// `bl remaster`'s job).
-pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
-    let link = root.join(".balls/plugins");
+/// Materialize a `.balls/` symlink at `link` pointing to `target` (a
+/// path relative to `<root>/.balls/`). Idempotent: a symlink already at
+/// the wanted target is a no-op, a stale one is repointed. When a
+/// *real* (non-symlink) entry occupies the path, `on_real` decides — it
+/// runs for its side effects (clear the entry, or fail) and returns
+/// whether the symlink should still be created; `false` leaves the real
+/// entry in place, an `Err` aborts. Taking `on_real` as `&dyn Fn`
+/// rather than a generic keeps the helper a single monomorphization, so
+/// every branch's coverage is attributed to one instance.
+pub(crate) fn materialize_symlink(
+    link: &Path,
+    target: &str,
+    on_real: &dyn Fn(&Path) -> Result<bool>,
+) -> Result<()> {
     let want = PathBuf::from(target);
     if link.is_symlink() {
-        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
+        if fs::read_link(link).ok().as_deref() == Some(want.as_path()) {
             return Ok(());
         }
-        fs::remove_file(&link)?;
-    } else if link.exists() {
-        drop_placeholder_plugins_dir(&link)?;
+        fs::remove_file(link)?;
+    } else if link.exists() && !on_real(link)? {
+        return Ok(());
     }
-    std::os::unix::fs::symlink(&want, &link)?;
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&want, link)?;
+    }
+    #[cfg(not(unix))]
+    {
+        return Err(BallError::Other(
+            "symlink-mode bl init requires a POSIX filesystem; use stealth mode".into(),
+        ));
+    }
     Ok(())
 }
 
+/// Materialize `.balls/plugins` as a symlink to `target` (relative to
+/// `<root>/.balls/`) so per-plugin config files resolve through the
+/// project root in federated mode (bl-1098). A real `.balls/plugins/`
+/// is removed if `.gitkeep`-only, refused if it carries config files
+/// (the migration is `bl remaster`'s job).
+pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
+    materialize_symlink(&root.join(".balls/plugins"), target, &|link| {
+        drop_placeholder_plugins_dir(link)?;
+        Ok(true)
+    })
+}
+
 /// Materialize `.balls/config.json` as a symlink to `target` (the
-/// hub's canonical) — bl-82a4. Idempotent; repoints a stale symlink. A
-/// *real* `.balls/config.json` is left untouched (standalone, or a
-/// legacy federated repo `bl remaster` migrates). The case this
-/// materializes is the fresh clone — no canonical, only the committed
-/// `.balls/master.json`.
+/// hub's canonical) — bl-82a4. A *real* `.balls/config.json` is left
+/// untouched (standalone, or a legacy federated repo `bl remaster`
+/// migrates). The case this materializes is the fresh clone — no
+/// canonical, only the committed `.balls/master.json`.
 pub(crate) fn ensure_config_symlink(root: &Path, target: &str) -> Result<()> {
-    let link = root.join(".balls/config.json");
-    let want = PathBuf::from(target);
-    if link.is_symlink() {
-        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
-            return Ok(());
-        }
-        fs::remove_file(&link)?;
-    } else if link.exists() {
-        return Ok(()); // real file: standalone or legacy — leave it
-    }
-    std::os::unix::fs::symlink(&want, &link)?;
-    Ok(())
+    materialize_symlink(&root.join(".balls/config.json"), target, &|_| Ok(false))
 }
 
 fn drop_placeholder_plugins_dir(dir: &Path) -> Result<()> {

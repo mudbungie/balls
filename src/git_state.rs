@@ -3,29 +3,21 @@
 //! Separate from `git.rs` so that module stays under the 300-line cap.
 
 use crate::error::{BallError, Result};
-use crate::git::clean_git_command;
+use crate::git::{clean_git_command, run_git_ok};
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Stdio;
 
-fn run(dir: &Path, args: &[&str]) -> Result<String> {
-    let out = clean_git_command(dir)
-        .args(args)
-        .output()
-        .map_err(|e| BallError::Git(format!("spawn git: {e}")))?;
-    if !out.status.success() {
-        return Err(BallError::Git(format!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
-        )));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).to_string())
-}
+/// The orphan branch every balls store keeps its task JSON on. The one
+/// canonical declaration: `store_init`, `state_repo`, `remaster`,
+/// `remaster_detach`, `claim_push`/`claim_sync`, `federate`, and
+/// `archive_recovery` all import it from here, so a rename can't miss
+/// a site (it had already drifted to a bare literal in `federate`).
+pub(crate) const STATE_BRANCH: &str = "balls/tasks";
 
 /// Check out an existing branch into a new worktree.
 pub fn worktree_add_existing(dir: &Path, path: &Path, branch: &str) -> Result<()> {
-    run(
+    run_git_ok(
         dir,
         &["worktree", "add", &path.to_string_lossy(), branch],
     )?;
@@ -39,7 +31,7 @@ pub fn worktree_add_existing(dir: &Path, path: &Path, branch: &str) -> Result<()
 /// the project git, where a post-detach `discover` resolves it.
 pub fn fetch_into_branch(dir: &Path, source: &Path, branch: &str) -> Result<()> {
     let refspec = format!("+{branch}:refs/heads/{branch}");
-    run(dir, &["fetch", &source.to_string_lossy(), &refspec])?;
+    run_git_ok(dir, &["fetch", &source.to_string_lossy(), &refspec])?;
     Ok(())
 }
 
@@ -49,13 +41,13 @@ pub fn fetch_into_branch(dir: &Path, source: &Path, branch: &str) -> Result<()> 
 /// stale registry — without this, a subsequent `worktree add` fails
 /// with "missing but already registered worktree".
 pub fn worktree_prune(dir: &Path) -> Result<()> {
-    run(dir, &["worktree", "prune"])?;
+    run_git_ok(dir, &["worktree", "prune"])?;
     Ok(())
 }
 
 /// True if `branch` exists locally.
 pub fn branch_exists(dir: &Path, branch: &str) -> bool {
-    run(
+    run_git_ok(
         dir,
         &[
             "rev-parse",
@@ -69,7 +61,7 @@ pub fn branch_exists(dir: &Path, branch: &str) -> bool {
 
 /// True if `remote/branch` exists as a remote-tracking ref.
 pub fn has_remote_branch(dir: &Path, remote: &str, branch: &str) -> bool {
-    run(
+    run_git_ok(
         dir,
         &[
             "rev-parse",
@@ -84,7 +76,7 @@ pub fn has_remote_branch(dir: &Path, remote: &str, branch: &str) -> bool {
 /// Create a local branch tracking `remote/branch`. Assumes the remote
 /// branch already exists as a remote-tracking ref.
 pub fn create_tracking_branch(dir: &Path, branch: &str, remote: &str) -> Result<()> {
-    run(dir, &["branch", branch, &format!("{remote}/{branch}")])?;
+    run_git_ok(dir, &["branch", branch, &format!("{remote}/{branch}")])?;
     Ok(())
 }
 
@@ -92,7 +84,7 @@ pub fn create_tracking_branch(dir: &Path, branch: &str, remote: &str) -> Result<
 /// oldest first in output iteration order (git log gives newest first;
 /// we reverse for stable order).
 pub fn log_subjects(dir: &Path, refname: &str) -> Result<Vec<String>> {
-    let out = run(dir, &["log", "--format=%s", refname])?;
+    let out = run_git_ok(dir, &["log", "--format=%s", refname])?;
     Ok(out.lines().map(String::from).collect())
 }
 
@@ -112,10 +104,10 @@ pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<(
         )));
     }
     let empty_tree = String::from_utf8_lossy(&tree_out.stdout).trim().to_string();
-    let commit = run(dir, &["commit-tree", &empty_tree, "-m", message])?
+    let commit = run_git_ok(dir, &["commit-tree", &empty_tree, "-m", message])?
         .trim()
         .to_string();
-    run(
+    run_git_ok(
         dir,
         &["update-ref", &format!("refs/heads/{branch}"), &commit],
     )?;
@@ -125,7 +117,7 @@ pub fn create_orphan_branch(dir: &Path, branch: &str, message: &str) -> Result<(
 /// Task ids present under `.balls/tasks/` at `refname` (any tree-ish).
 /// Notes sidecars and scaffolding files are filtered out.
 pub fn ls_task_ids(dir: &Path, refname: &str) -> Result<BTreeSet<String>> {
-    let out = run(dir, &["ls-tree", "--name-only", refname, ".balls/tasks/"])?;
+    let out = run_git_ok(dir, &["ls-tree", "--name-only", refname, ".balls/tasks/"])?;
     Ok(out
         .lines()
         .filter_map(|l| {
@@ -156,17 +148,17 @@ pub fn show_file(dir: &Path, refname: &str, path: &str) -> Result<Option<String>
 /// `state_remote`). The worktree is reset to the new commit so HEAD
 /// and the index match.
 pub fn reroot_orphan(dir: &Path, branch: &str, message: &str) -> Result<()> {
-    let tree = run(dir, &["rev-parse", &format!("{branch}^{{tree}}")])?
+    let tree = run_git_ok(dir, &["rev-parse", &format!("{branch}^{{tree}}")])?
         .trim()
         .to_string();
-    let commit = run(dir, &["commit-tree", &tree, "-m", message])?
+    let commit = run_git_ok(dir, &["commit-tree", &tree, "-m", message])?
         .trim()
         .to_string();
-    run(
+    run_git_ok(
         dir,
         &["update-ref", &format!("refs/heads/{branch}"), &commit],
     )?;
-    run(dir, &["reset", "--hard", branch])?;
+    run_git_ok(dir, &["reset", "--hard", branch])?;
     Ok(())
 }
 
