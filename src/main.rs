@@ -119,7 +119,9 @@ fn main() {
         Command::List { status, priority, parent, tag, all, closed, json } => {
             commands::cmd_list(status, priority, normalize_opt(parent), tag, all, closed, json)
         }
-        Command::Show { id, json, verbose } => commands::cmd_show(normalize_id(id), json, verbose),
+        Command::Show { id, json, verbose, resolve_remote } => {
+            commands::cmd_show(normalize_id(id), json, verbose, resolve_remote)
+        }
         Command::Ready { json, no_fetch, limit } => commands::cmd_ready(json, no_fetch, limit),
         Command::Claim { id, identity, no_worktree, sync, no_sync, participant } => {
             commands::cmd_claim(

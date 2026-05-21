@@ -98,6 +98,13 @@ pub enum Command {
         /// Append absolute ISO timestamps next to the relative ones.
         #[arg(long)]
         verbose: bool,
+        /// Opt in to cross-repo delivery resolution (bl-f37b): on a
+        /// local miss, fetch `delivered_repo` into a balls-owned
+        /// cache and re-run the tag scan. Off by default — fetches
+        /// from arbitrary forge URLs are rude without the operator
+        /// asking for them.
+        #[arg(long)]
+        resolve_remote: bool,
     },
 
     /// Show tasks ready to be claimed.
