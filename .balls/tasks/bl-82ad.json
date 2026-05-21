@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T00:12:47.937588455Z",
-  "delivered_in": null,
+  "delivered_in": "5b266e4bb3af78eb510c6a21247138939cc61b80",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "# Why\n\n`check_legacy_worktree` (src/doctor.rs) emits:\n\n    state worktree at .balls/worktree is not a valid linked git worktree\n    hint: run `bl repair` to rebuild the state worktree\n\nBut `cmd_repair` (src/commands/repair.rs) only does three things: forget half-pushes, scan task JSON files, and (with `--fix`) clean up orphan claims/worktrees. It does *not* rebuild the linked git worktree at `.balls/worktree/`. The hint is pre-existing — predates the master_url split — and the master_url-mode hint that bl-c61b just landed correctly points at `bl prime` for re-materialization.\n\nDoctor's whole job is naming the right command. Pointing users at one that won't fix the problem defeats it.\n\n# Concrete fix\n\nPick the actually-corrective path and name it:\n- if `setup_state_branch` is callable as a re-materialize for the legacy layout, surface that\n- otherwise the operational fix is `rm -rf .balls/worktree && bl init` (or a new `bl repair` arm that adds linked-worktree rebuild — would justify the existing hint)\n\n# Out of scope\n\nMaster_url branch (`check_state_repo`) — bl-c61b already names the right command there. Only the legacy branch is wrong.\n\n# Origin\n\nFlagged during bl-c61b review pass.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":60,"source":"balls","state":"open","synced_at":"2026-05-21T00:38:30.565881793+00:00","url":"https://github.com/mudbungie/balls/issues/60"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-21T00:38:30.569398919Z"},
   "tags": ["doctor","legacy-worktree"],
   "title": "bl doctor: legacy 'state worktree' hint points at bl repair, which doesn't rebuild it",
   "type": "bug",
-  "updated_at": "2026-05-21T00:38:30.569405061Z"
+  "updated_at": "2026-05-21T00:45:52.151997894Z"
 }
