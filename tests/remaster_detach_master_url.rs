@@ -15,28 +15,12 @@
 mod common;
 
 use common::*;
-use std::fs;
 use std::path::Path;
 
 /// `bl list` stdout for `repo` (asserts the command succeeded).
 fn list_output(repo: &Path) -> String {
     let out = bl(repo).arg("list").assert().success();
     String::from_utf8(out.get_output().stdout.clone()).unwrap()
-}
-
-/// Seed a non-stealth config carrying `master_url` so `bl init` takes
-/// the federated leg directly — no `.balls/worktree` is ever created.
-fn seed_master_url_config(repo: &Path, hub_url: &str) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,
-                 "worktree_dir":".balls-worktrees","master_url":"{hub_url}"}}"#
-        ),
-    )
-    .unwrap();
 }
 
 /// A standalone repo flipped to a federated hub leaves `.balls/worktree`
@@ -89,7 +73,10 @@ fn warm_detach_after_flip_makes_federated_tasks_visible() {
 fn warm_detach_of_seeded_federated_repo_creates_the_worktree() {
     let hub = new_bare_remote();
     let alice = new_repo();
-    seed_master_url_config(alice.path(), hub.path().to_string_lossy().as_ref());
+    seed_config(
+        alice.path(),
+        &[("master_url", hub.path().to_string_lossy().as_ref())],
+    );
     bl(alice.path()).arg("init").assert().success();
     assert!(
         !alice.path().join(".balls/worktree").exists(),

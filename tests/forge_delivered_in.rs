@@ -9,41 +9,15 @@
 mod common;
 
 use common::*;
+use common::forge;
 use predicates::prelude::*;
 use std::fs;
 use std::path::Path;
 
-/// Seed `.balls/config.json` for deferred mode with an explicit
-/// integration branch (mirrors `tests/forge_deferred.rs::seed`).
-fn seed(repo: &Path) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","target_branch":"main","delivery":{"mode":"deferred"}}"#,
-    )
-    .unwrap();
-}
-
-/// The id of the lone `forge-gate` child opened by deferred review.
-fn gate_child(repo: &Path) -> String {
-    let out = bl(repo)
-        .args(["list", "--json", "--tag", "forge-gate"])
-        .output()
-        .expect("bl list");
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    v.as_array().unwrap()[0]["id"].as_str().unwrap().to_string()
-}
-
 /// Raw stored `delivered_in` of a (possibly archived) task, read back
 /// through `bl show --json` which reconstructs from the state branch.
 fn stored_delivered_in(repo: &Path, id: &str) -> serde_json::Value {
-    let out = bl(repo)
-        .args(["show", id, "--json"])
-        .output()
-        .expect("bl show");
-    let j: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    j["task"]["delivered_in"].clone()
+    show_json(repo, id)["task"]["delivered_in"].clone()
 }
 
 /// Drive a task through deferred review and return its id plus the
@@ -51,7 +25,7 @@ fn stored_delivered_in(repo: &Path, id: &str) -> serde_json::Value {
 fn deferred_reviewed() -> (Repo, Repo, String) {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");
-    seed(alice.path());
+    forge::seed(alice.path(), Some("main"));
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["push", "origin", "main"]);
 
@@ -78,7 +52,7 @@ fn deferred_close_auto_populates_delivered_in() {
     );
     let merge_sha = git(alice.path(), &["rev-parse", "HEAD"]).trim().to_string();
 
-    let child = gate_child(alice.path());
+    let child = forge::gate_child(alice.path());
     bl(alice.path())
         .args(["update", &child, "status=closed", "--note", "merged"])
         .assert()
@@ -101,7 +75,7 @@ fn deferred_close_auto_populates_delivered_in() {
 #[test]
 fn deferred_close_scan_miss_warns_and_proceeds() {
     let (_code, alice, id) = deferred_reviewed();
-    let child = gate_child(alice.path());
+    let child = forge::gate_child(alice.path());
     bl(alice.path())
         .args(["update", &child, "status=closed", "--note", "merged"])
         .assert()
@@ -138,7 +112,7 @@ fn close_delivered_flag_overrides_scan() {
         &["commit", "--allow-empty", "-m", &format!("auto squash [{id}]")],
     );
 
-    let child = gate_child(alice.path());
+    let child = forge::gate_child(alice.path());
     bl(alice.path())
         .args(["update", &child, "status=closed", "--note", "merged"])
         .assert()

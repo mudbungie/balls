@@ -23,17 +23,8 @@ fn read_master_url(repo: &Path) -> Option<String> {
 }
 
 fn seed_unreachable_master_url(repo: &Path) -> String {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
     let url = "/this/path/does/not/exist/hub.git".to_string();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,
-                 "worktree_dir":".balls-worktrees","master_url":"{url}"}}"#
-        ),
-    )
-    .unwrap();
+    seed_config(repo, &[("master_url", &url)]);
     url
 }
 

@@ -1,5 +1,6 @@
-//! Init-related stories: 1, 2, 3, 73, 74, 75. Stealth-mode and
-//! `--tasks-dir` stories live in `init_stealth.rs`.
+//! Init-related stories: 1, 3, 73, 74, 75. Stealth-mode and
+//! `--tasks-dir` stories live in `init_stealth.rs`. Init idempotency
+//! is covered by `topology.rs::bl_init_is_idempotent`.
 
 mod common;
 
@@ -28,13 +29,6 @@ fn story_1_init_in_existing_git_repo() {
     assert!(gi.contains(".balls/state-repo"));
     let log = git(repo.path(), &["log", "--oneline"]);
     assert!(log.contains("balls: initialize"));
-}
-
-#[test]
-fn story_2_init_twice_is_idempotent() {
-    let repo = new_repo();
-    bl(repo.path()).arg("init").assert().success();
-    bl(repo.path()).arg("init").assert().success();
 }
 
 #[test]

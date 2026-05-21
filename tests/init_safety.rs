@@ -15,7 +15,6 @@ mod common;
 
 use common::*;
 use predicates::prelude::*;
-use std::fs;
 use std::path::Path;
 
 const ADVISORY: &str = "isolated local task store";
@@ -24,18 +23,6 @@ fn bare_state_sha(bare: &Path) -> String {
     git(bare, &["rev-parse", "refs/heads/balls/tasks"])
         .trim()
         .to_string()
-}
-
-fn seed_config(repo: &Path, state_remote: &str) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","state_remote":"{state_remote}"}}"#
-        ),
-    )
-    .unwrap();
 }
 
 /// Onboard a hub: alice (origin=code, remote hub) creates a task and
@@ -49,7 +36,7 @@ fn onboarded_project() -> (Repo, Repo, String) {
         alice.path(),
         &["remote", "add", "hub", &hub.path().to_string_lossy()],
     );
-    seed_config(alice.path(), "hub");
+    seed_config(alice.path(), &[("state_remote", "hub")]);
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["push", "origin", "main"]);
     let id = create_task(alice.path(), "shared task");
