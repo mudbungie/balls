@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-21T00:01:36.062631961Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Why\n\nbl-a7d9 closed the architectural side of \\\"master wins\\\" for plugins, but the maintainer workflow for actually publishing plugin config on the hub is hand-editing `.balls/state-repo/.balls/{config.json,plugins/*.json}` followed by `git add/commit/push` on `balls/tasks`. Workable, but unergonomic — especially for a bare-only hub which has no obvious \\\"edit here\\\" spot; the maintainer has to operate through some participant clone.\n\nThis isn't only a master_url concern. Even on standalone repos, plugin config today is hand-edited JSON with no validation feedback until the next `bl` command tries to dispatch. A first-class `bl plugin` surface is cleaner in both modes.\n\n# Concrete deliverable\n\n- `bl plugin enable <name> [--config-file <path>] [--sync-on-change]` — adds an entry to the effective plugins map and stages the per-plugin config file. Honors the master-wins seam (bl-a7d9): in master_url mode the writes land in the state-repo's checkout on `balls/tasks`; in standalone mode they land on the project's main.\n- `bl plugin disable <name>` — removes the entry. Per-plugin config file kept (operators may keep credentials warm).\n- `bl plugin list` — shows the effective map and where each entry came from (project vs hub).\n- Schema/validation: reject unknown participant policies (mirrors `validate_drop_policies`) at the command, not just at load.\n\n# Out of scope\n\n- Per-task plugin overrides (bl-a7d9 punted; separate ball if it grows legs).\n- A web UI / GUI.\n- A bare-only hub still has no working tree; the command runs from any participant clone whose state-repo materializes the hub. Same shape as task-editing today (you don't `bl create` directly on a bare hub either).\n\n# Origin\n\nbl-a7d9 close-out (2026-05-20). Notes during the post-merge review:\n\\\"Hub-side plugin management has no tooling. Maintainers must hand-edit ... and `git push`. Workable but unergonomic, especially for a bare hub.\\\"",
+  "external": {},
+  "id": "bl-32e5",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["multi-repo","plugins","tooling"],
+  "title": "bl plugin enable/disable/list — hub-aware plugin management",
+  "type": "task",
+  "updated_at": "2026-05-21T00:01:36.062631961Z"
+}
