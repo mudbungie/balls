@@ -86,6 +86,34 @@ fn ensure_creates_root_tasks_symlink_in_master_url_mode() {
 }
 
 #[test]
+fn ensure_repoints_stale_legacy_symlink_after_remaster() {
+    // bl-773e: a repo initialized in legacy mode lands a
+    // `.balls/tasks -> worktree/.balls/tasks` symlink. `bl remaster
+    // --commit <url>` flips it to master_url mode and `state_repo::ensure`
+    // must repoint the symlink at `state-repo/.balls/tasks`; otherwise
+    // the link silently dangles once `.balls/worktree/` is gone and the
+    // README-advertised `ls .balls/tasks/` ergonomic breaks.
+    let hub = hub_repo();
+    let url = hub.path().join("hub.git").to_string_lossy().into_owned();
+    let root = TempDir::new().unwrap();
+    fs::create_dir_all(root.path().join(".balls")).unwrap();
+    std::os::unix::fs::symlink(
+        PathBuf::from("worktree/.balls/tasks"),
+        root.path().join(".balls/tasks"),
+    )
+    .unwrap();
+
+    ensure(root.path(), &url).unwrap();
+
+    let target = fs::read_link(root.path().join(".balls/tasks")).unwrap();
+    assert_eq!(
+        target,
+        Path::new("state-repo/.balls/tasks"),
+        "stale legacy symlink must be repointed at the state-repo layout"
+    );
+}
+
+#[test]
 fn ensure_refuses_pre_existing_non_symlink_at_tasks_path() {
     // The bl-init guard against clobbering a stray `.balls/tasks` dir
     // applies in master_url mode too — silently adopting it could

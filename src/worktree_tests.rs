@@ -41,8 +41,10 @@ fn link_state_path_rejects_pre_existing_directory() {
 #[test]
 fn link_state_path_idempotent_on_dangling_symlink() {
     // A dangling symlink is still a symlink; we accept it as
-    // idempotent rather than overwriting, matching the strict
-    // is_symlink-first semantics of ensure_tasks_symlink.
+    // idempotent rather than overwriting. `link_state_path` is for
+    // per-claim worktrees that don't migrate between layouts, so it
+    // stays is_symlink-first — unlike `ensure_tasks_symlink`, which
+    // repoints stale targets after a remaster (bl-773e).
     let td = tempdir().unwrap();
     let dst = td.path().join("local");
     std::os::unix::fs::symlink(PathBuf::from("/does/not/exist"), &dst).unwrap();
