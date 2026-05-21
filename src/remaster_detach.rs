@@ -87,9 +87,8 @@ fn adopt_state_into_worktree(root: &Path, state_repo: &Path, worktree: &Path) ->
 /// network round-trip.
 pub fn try_cold_detach(from: &Path) -> Result<bool> {
     let repo_root = project_root(from)?;
-    let config_path = repo_root.join(".balls/config.json");
-    let mut cfg = crate::config::Config::load(&config_path)?;
-    if cfg.master_url().is_none() {
+    let pointer = crate::master_pointer::MasterPointer::load(&repo_root)?;
+    if pointer.master_url().is_none() {
         return Ok(false);
     }
     if repo_root
@@ -101,12 +100,31 @@ pub fn try_cold_detach(from: &Path) -> Result<bool> {
         // path can re-root the orphan and preserve task data.
         return Ok(false);
     }
-    cfg.master_url = None;
-    cfg.state_remote = None;
-    cfg.save(&config_path)?;
+    crate::master_pointer::MasterPointer::default().save(&repo_root)?;
+    scrub_legacy_canonical(&repo_root)?;
     git::git_ensure_user(&repo_root)?;
     crate::store_init::setup_state_branch(&repo_root, "origin", false)?;
     Ok(true)
+}
+
+/// Clear `master_url`/`state_remote` from a *real* (non-symlink)
+/// `.balls/config.json` that still carries the pre-bl-82a4 in-canonical
+/// shape. A symlinked, missing, or unreadable canonical is left alone —
+/// nothing to scrub.
+pub fn scrub_legacy_canonical(repo_root: &Path) -> Result<()> {
+    let config_path = repo_root.join(".balls/config.json");
+    if !config_path.exists() || config_path.is_symlink() {
+        return Ok(());
+    }
+    let Ok(mut cfg) = crate::config::Config::load(&config_path) else {
+        return Ok(());
+    };
+    if cfg.master_url.is_none() && cfg.state_remote.is_none() {
+        return Ok(());
+    }
+    cfg.master_url = None;
+    cfg.state_remote = None;
+    cfg.save(&config_path)
 }
 
 fn project_root(from: &Path) -> Result<PathBuf> {

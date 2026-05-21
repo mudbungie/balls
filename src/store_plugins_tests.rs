@@ -1,206 +1,105 @@
 use super::*;
 use crate::config::{Config, PluginEntry};
-use std::collections::BTreeMap;
 use std::fs;
+use tempfile::TempDir;
 
-fn write_cfg(dir: &Path, master_url: Option<&str>, plugins: &[(&str, &str)]) -> PathBuf {
-    fs::create_dir_all(dir.join(".balls")).unwrap();
+fn write_cfg(path: &Path, plugins: &[(&str, bool)]) {
     let mut cfg = Config::default();
-    if let Some(u) = master_url {
-        cfg.master_url = Some(u.into());
-    }
-    for (name, cf) in plugins {
+    for (name, enabled) in plugins {
         cfg.plugins.insert(
-            (*name).into(),
+            (*name).to_string(),
             PluginEntry {
-                enabled: true,
+                enabled: *enabled,
                 sync_on_change: false,
-                config_file: (*cf).into(),
+                config_file: format!("plugins/{name}.json"),
                 participant: None,
             },
         );
     }
-    let p = dir.join(".balls/config.json");
-    cfg.save(&p).unwrap();
-    p
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    cfg.save(path).unwrap();
 }
 
 #[test]
-fn standalone_returns_project_config_untouched() {
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("project");
-    let state = dir.path().join("state");
-    let cfg_path = write_cfg(&project, None, &[("legacy", ".balls/plugins/legacy.json")]);
-
-    let (cfg, drifted) = load_layered_inner(&cfg_path, &state, &project).unwrap();
-
-    assert!(cfg.master_url().is_none());
-    assert_eq!(cfg.plugins.len(), 1);
-    assert!(cfg.plugins.contains_key("legacy"));
-    assert!(!drifted);
+fn standalone_reads_canonical_directly() {
+    let dir = TempDir::new().unwrap();
+    let cfg = dir.path().join("config.json");
+    let state = dir.path().join("state-wt");
+    write_cfg(&cfg, &[("git", true)]);
+    let effective = load_effective(&cfg, &state, false).unwrap();
+    assert!(effective.plugins.contains_key("git"));
 }
 
 #[test]
-fn master_with_no_state_config_replaces_plugins_with_empty() {
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("project");
-    let state = dir.path().join("state");
-    let cfg_path = write_cfg(
-        &project,
-        Some("file:///hub"),
-        &[("ignored", ".balls/plugins/ignored.json")],
+fn modern_federated_through_symlink_no_layering() {
+    let dir = TempDir::new().unwrap();
+    let hub_cfg = dir.path().join("hub.json");
+    let project_cfg = dir.path().join("config.json");
+    write_cfg(&hub_cfg, &[("github", true)]);
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&hub_cfg, &project_cfg).unwrap();
+    let state = dir.path().to_path_buf();
+    let effective = load_effective(&project_cfg, &state, true).unwrap();
+    assert!(
+        effective.plugins.contains_key("github"),
+        "symlinked canonical reads through to the hub's plugins"
     );
-
-    let (cfg, drifted) = load_layered_inner(&cfg_path, &state, &project).unwrap();
-
-    assert!(cfg.plugins.is_empty(), "project plugins must be ignored");
-    assert!(drifted, "non-empty project plugins map counts as drift");
 }
 
 #[test]
-fn master_with_state_config_overlays_hub_plugins() {
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("project");
-    let state = dir.path().join("state");
-    let cfg_path = write_cfg(&project, Some("file:///hub"), &[]);
-    write_cfg(&state, None, &[("hub-plugin", ".balls/plugins/hub-plugin.json")]);
-
-    let (cfg, drifted) = load_layered_inner(&cfg_path, &state, &project).unwrap();
-
-    assert_eq!(cfg.plugins.len(), 1);
-    assert!(cfg.plugins.contains_key("hub-plugin"));
-    assert!(!drifted, "empty project map + empty plugin dir is not drift");
-}
-
-#[test]
-fn master_warns_when_project_has_committed_plugin_files() {
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("project");
-    let state = dir.path().join("state");
-    let cfg_path = write_cfg(&project, Some("file:///hub"), &[]);
-    fs::create_dir_all(project.join(".balls/plugins")).unwrap();
-    fs::write(project.join(".balls/plugins/.gitkeep"), "").unwrap();
-    fs::write(project.join(".balls/plugins/leftover.json"), "{}").unwrap();
-
-    let (_cfg, drifted) = load_layered_inner(&cfg_path, &state, &project).unwrap();
-    assert!(drifted, "committed plugin file under master_url is drift");
-}
-
-#[test]
-fn load_layered_wrapper_emits_warning_on_drift() {
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("project");
-    let state = dir.path().join("state");
-    let cfg_path = write_cfg(
-        &project,
-        Some("file:///hub"),
-        &[("drift", ".balls/plugins/drift.json")],
+fn legacy_federated_layers_hub_plugins_over_project() {
+    let dir = TempDir::new().unwrap();
+    let project_cfg = dir.path().join("config.json");
+    // Hub-side canonical, located via the state-worktree path.
+    let state_wt = dir.path().join("state-wt");
+    let hub_cfg = state_wt.join(".balls/config.json");
+    write_cfg(&project_cfg, &[("stale-project-side", true)]);
+    write_cfg(&hub_cfg, &[("authoritative-hub-side", true)]);
+    let effective = load_effective(&project_cfg, &state_wt, true).unwrap();
+    assert!(
+        effective.plugins.contains_key("authoritative-hub-side"),
+        "legacy federated must layer in the hub's plugins"
     );
-
-    let cfg = load_layered(&cfg_path, &state, &project).unwrap();
-    assert!(cfg.plugins.is_empty());
+    assert!(
+        !effective.plugins.contains_key("stale-project-side"),
+        "legacy federated must drop the project-side plugin map"
+    );
 }
 
 #[test]
-fn load_layered_wrapper_silent_when_no_drift() {
-    let dir = tempfile::tempdir().unwrap();
-    let project = dir.path().join("project");
-    let state = dir.path().join("state");
-    let cfg_path = write_cfg(&project, None, &[]);
-    let cfg = load_layered(&cfg_path, &state, &project).unwrap();
-    assert!(cfg.master_url().is_none());
+fn legacy_federated_with_no_hub_canonical_falls_back_to_project() {
+    // Pointer says master_url is set but the hub-side canonical
+    // doesn't exist yet (mid-bootstrap). The runtime should keep
+    // serving the project-side plugins rather than nuking them.
+    let dir = TempDir::new().unwrap();
+    let project_cfg = dir.path().join("config.json");
+    let state_wt = dir.path().join("state-wt");
+    write_cfg(&project_cfg, &[("local-only", true)]);
+    let effective = load_effective(&project_cfg, &state_wt, true).unwrap();
+    assert!(effective.plugins.contains_key("local-only"));
 }
 
 #[test]
-fn plugin_config_root_chooses_state_under_master_url() {
-    let project = Path::new("/p");
-    let state = Path::new("/s");
-    let cfg = Config {
-        master_url: Some("file:///hub".into()),
-        ..Config::default()
-    };
-    assert_eq!(plugin_config_root(project, state, &cfg), state);
+fn plugin_config_root_standalone_is_project_root() {
+    let root = Path::new("/proj");
+    let sw = Path::new("/proj/.balls/worktree");
+    assert_eq!(plugin_config_root(root, sw, false, false), root);
 }
 
 #[test]
-fn plugin_config_root_chooses_project_otherwise() {
-    let project = Path::new("/p");
-    let state = Path::new("/s");
-    let cfg = Config::default();
-    assert_eq!(plugin_config_root(project, state, &cfg), project);
+fn plugin_config_root_migrated_federated_is_project_root() {
+    // Symlinked .balls/plugins/ → the symlink does the redirect, so
+    // the project root is correct even with master_url set.
+    let root = Path::new("/proj");
+    let sw = Path::new("/proj/.balls/state-repo");
+    assert_eq!(plugin_config_root(root, sw, true, true), root);
 }
 
 #[test]
-fn read_state_plugins_returns_none_when_state_config_missing() {
-    let dir = tempfile::tempdir().unwrap();
-    assert!(read_state_plugins(dir.path()).unwrap().is_none());
+fn plugin_config_root_legacy_federated_is_state_worktree() {
+    // Unmigrated: master_url set but .balls/plugins/ still a real
+    // dir — must point at the hub's state-worktree.
+    let root = Path::new("/proj");
+    let sw = Path::new("/proj/.balls/state-repo");
+    assert_eq!(plugin_config_root(root, sw, false, true), sw);
 }
-
-#[test]
-fn read_state_plugins_returns_map_when_present() {
-    let dir = tempfile::tempdir().unwrap();
-    write_cfg(dir.path(), None, &[("p", ".balls/plugins/p.json")]);
-    let plugins = read_state_plugins(dir.path()).unwrap().unwrap();
-    assert_eq!(plugins.len(), 1);
-    assert!(plugins.contains_key("p"));
-}
-
-#[test]
-fn has_real_plugin_files_false_when_dir_missing() {
-    let dir = tempfile::tempdir().unwrap();
-    assert!(!has_real_plugin_files(dir.path()));
-}
-
-#[test]
-fn has_real_plugin_files_false_when_only_gitkeep() {
-    let dir = tempfile::tempdir().unwrap();
-    fs::create_dir_all(dir.path().join(".balls/plugins")).unwrap();
-    fs::write(dir.path().join(".balls/plugins/.gitkeep"), "").unwrap();
-    assert!(!has_real_plugin_files(dir.path()));
-}
-
-#[test]
-fn has_real_plugin_files_true_when_real_file_present() {
-    let dir = tempfile::tempdir().unwrap();
-    fs::create_dir_all(dir.path().join(".balls/plugins")).unwrap();
-    fs::write(dir.path().join(".balls/plugins/x.json"), "{}").unwrap();
-    assert!(has_real_plugin_files(dir.path()));
-}
-
-#[test]
-fn has_real_plugin_files_false_when_symlinked_to_hub() {
-    // bl-1098: in federated mode `.balls/plugins/` is a symlink to the
-    // state-repo's plugins dir — its contents ARE the hub's view, so
-    // they are never "drift" no matter how many files are reachable.
-    let dir = tempfile::tempdir().unwrap();
-    let hub = dir.path().join("hub");
-    fs::create_dir_all(&hub).unwrap();
-    fs::write(hub.join("real.json"), "{}").unwrap();
-    fs::create_dir_all(dir.path().join(".balls")).unwrap();
-    std::os::unix::fs::symlink(&hub, dir.path().join(".balls/plugins")).unwrap();
-    assert!(!has_real_plugin_files(dir.path()));
-}
-
-#[test]
-fn emit_drift_warning_silent_on_second_call() {
-    let once = AtomicBool::new(false);
-    emit_drift_warning(&once);
-    emit_drift_warning(&once);
-    // Both arms of the swap are exercised; coverage is the contract here.
-    assert!(once.load(Ordering::Relaxed));
-}
-
-#[test]
-fn warn_drift_once_callable() {
-    // Exercises the production wrapper at least once for coverage. The
-    // process-static `WARNED` may already be set from another test in
-    // the same binary; either branch of `emit_drift_warning` is fine
-    // here, the call must just not panic.
-    warn_drift_once();
-}
-
-// Touch the BTreeMap import so it isn't flagged as unused on edits.
-#[allow(dead_code)]
-const _: fn() = || {
-    let _: BTreeMap<String, PluginEntry> = BTreeMap::new();
-};

@@ -104,7 +104,9 @@ fn remaster_is_idempotent() {
 }
 
 #[test]
-fn remaster_commit_writes_the_committed_config() {
+fn remaster_commit_writes_the_committed_pointer() {
+    // bl-82a4: state_remote moved from .balls/config.json into the
+    // dedicated federation pointer at .balls/master.json.
     let (_code, hub, _hid) = hub_with_task();
     let (_cc, carol, _cid) = standalone_with_task("carol");
     add_remote(carol.path(), "hub", hub.path());
@@ -112,10 +114,10 @@ fn remaster_commit_writes_the_committed_config() {
         .args(["remaster", "hub", "--commit"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("committed .balls/config.json"));
-    let cfg = fs::read_to_string(carol.path().join(".balls/config.json")).unwrap();
-    assert!(cfg.contains("\"state_remote\""));
-    assert!(cfg.contains("hub"));
+        .stdout(predicate::str::contains("committed .balls/master.json"));
+    let pointer = fs::read_to_string(carol.path().join(".balls/master.json")).unwrap();
+    assert!(pointer.contains("\"state_remote\""));
+    assert!(pointer.contains("hub"));
 }
 
 #[test]

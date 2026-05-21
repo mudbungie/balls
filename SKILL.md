@@ -216,28 +216,35 @@ against the same remote as its code (`origin`). A project spanning
 several code repos can instead share **one** task store on a dedicated
 hub. There are two ways to wire the hub link:
 
-- **`master_url` (recommended, bl-ffb4)** — put the hub's git URL in
-  committed `.balls/config.json`. Balls materializes its own clone at
-  `.balls/state-repo/` (origin = that URL) and routes every
-  state-branch op through it. The project's own `.git/config` is
-  untouched — `git remote -v` stays clean. A teammate's fresh
-  `git clone` + `bl prime` is a complete onboard: no manual
-  `git remote add`, no `bl remaster` step.
+- **`master_url` (recommended, bl-ffb4 / bl-82a4)** — the hub's git
+  URL lives in a small committed **pointer file**, `.balls/master.json`.
+  Balls materializes its own clone at `.balls/state-repo/` (origin =
+  that URL), and `.balls/config.json` + `.balls/plugins/` become
+  **symlinks** into that clone — so the canonical config is literally
+  the hub's. The project's own `.git/config` is untouched —
+  `git remote -v` stays clean. A teammate's fresh `git clone` +
+  `bl prime` is a complete onboard: the pointer bootstraps the
+  state-repo and the symlinks resolve.
 - **`state_remote` (legacy)** — point at the *name* of an existing
   project-side git remote. Works for the single-repo "shared hub via
   origin" case, but a fresh clone lands without that remote in its
   `.git/config` and stays *safe but unlinked* until a teammate runs
   `git remote add hub <url> && bl remaster hub`. Deprecated for the
-  cross-repo case in 0.5.0 in favor of `master_url`.
+  cross-repo case in 0.5.0 in favor of `master_url`. The link lives
+  in `.balls/master.json` too (committed) or `.balls/local/config.json`
+  (per-clone).
 
 In both modes claim/review/close/sync are unchanged; only the orphan
 ref retargets. The code remote is never disturbed.
 
-- **Onboard with `master_url`:** in any clone, `bl remaster <hub-url>
-  --commit` writes the URL to committed config, materializes
-  `.balls/state-repo/`, and reconciles local-only tasks onto the hub.
-  Commit and push the config change; everyone else's next
-  `git pull && bl prime` joins automatically.
+- **Onboard with `master_url`:** in any clone — even one that has
+  never run `bl init` — `bl remaster <hub-url> --commit` materializes
+  `.balls/state-repo/`, writes the `.balls/master.json` pointer,
+  swaps `.balls/config.json` and `.balls/plugins/` for symlinks into
+  the hub, and auto-commits the result. Push it; everyone else's next
+  `git pull && bl prime` joins automatically. Idempotent — re-running
+  against the same hub is a no-op, and it also migrates a repo still
+  on the pre-bl-82a4 in-config `master_url` shape.
 - **Onboard with legacy `state_remote`:** `git remote add <name>
   <url>` then `bl remaster <name>`. `--commit` writes the *name* into
   shared config (which other clones still have to wire up to a real
@@ -251,75 +258,74 @@ ref retargets. The code remote is never disturbed.
 - **Unreachable `master_url`:** first-time setup against a hub URL
   the clone can't reach (no access, VPN down, typo) **hard-fails**
   — `bl prime`/`bl init` surface the URL, the underlying fetch
-  error, and three resolution paths (fix access, edit `master_url`,
+  error, and three resolution paths (fix access, edit the pointer,
   detach). No silent fallback to a local orphan: a `master_url`
   client is a pure pointer, and drift between teammates is the
   exact failure mode the cross-repo model exists to prevent. Once a
   state-repo has materialized successfully, *later* offline runs
   soft-fail (work from the local cache, parity with normal git).
 - **Leave:** `bl remaster --detach` forks the current branch into a
-  fresh local orphan and clears both `state_remote` and `master_url`
-  — the repo is standalone again. Works **offline**: when the hub
-  is unreachable and the state-repo never materialized, detach is
-  the escape hatch, so it never requires network access.
+  fresh local orphan, restores `.balls/config.json` + `.balls/plugins/`
+  as real files, and drops `.balls/master.json` — the repo is
+  standalone again. Works **offline**: when the hub is unreachable
+  and the state-repo never materialized, detach is the escape hatch,
+  so it never requires network access.
 
-### Plugin precedence under `master_url`: master wins
+### Config under `master_url`: one file, two materializations
 
-When `master_url` is set, **plugin policy is owned by the hub**.
-The effective `plugins` map and the `.balls/plugins/*` config files
-come from the materialized state-repo (`.balls/state-repo/.balls/`
-on disk — i.e. the hub's `balls/tasks` branch). The project repo's
-own `plugins` map is ignored.
+The seam is filesystem-shaped (bl-82a4). `.balls/master.json` is a
+tiny committed **pointer** — it carries only `master_url` (and the
+legacy `state_remote`). The canonical config bl actually reads is
+always `.balls/config.json`:
 
-This is the natural composition with the bridge/proxy pattern below:
+- **Standalone:** a regular committed file; `.balls/plugins/` a real
+  directory.
+- **Federated:** `.balls/config.json` is a symlink to
+  `.balls/state-repo/.balls/config.json` (the hub's own config) and
+  `.balls/plugins/` is a symlink to `.balls/state-repo/.balls/plugins/`
+  (bl-1098). So the hub owns *all* policy — task knobs,
+  target-branch, delivery, plugins — "master wins" outright, with no
+  runtime layering.
+
+This composes naturally with the bridge/proxy pattern below: config,
 plugin secrets, sync schedules, and mirroring policy live in **one**
 place across an N-clone federation, so client repos can't drift them.
 
-- **Layout (bl-1098).** In federated mode `.balls/plugins/` at the
-  project root is a **symlink** into `.balls/state-repo/.balls/plugins/`,
-  parallel to the long-standing `.balls/tasks` symlink. Reads via
-  the project-root path resolve into the hub view without any
-  code-side branching on `master_url`. Standalone mode keeps a real
-  `.balls/plugins/` directory.
 - **Hub-aware tooling: `bl plugin enable|disable|list|policy|show`.**
   From any participant clone, `bl plugin enable <name> [--config-file
-  PATH]` writes the entry into the effective plugins map and creates
-  an empty per-plugin config file if absent.
+  PATH] [--sync-on-change]` writes the entry into the effective
+  plugins map and creates an empty per-plugin config file if absent.
   `bl plugin disable <name>` removes the entry but keeps the
   per-plugin file (operators may want to preserve credentials).
   `bl plugin list [--json]` shows the effective map and its source
   (`hub` under `master_url`, `project` otherwise). `bl plugin policy
   <name> <event>=<kind> ...` edits SPEC §11 per-event participant
   policy and `bl plugin show <name>` inspects the resolved policy.
-  Under `master_url`
-  the writes land on `.balls/state-repo/`'s `balls/tasks` branch and
-  are committed automatically — run `bl sync` to publish. In
-  standalone mode the writes update the project's `.balls/config.json`
-  and `.balls/plugins/*` in place; commit them yourself.
-- **Hand-editing is still supported.** Edit `.balls/plugins/<name>.json`
-  through the project-root path (the bl-1098 symlink transparently
-  lands you inside `.balls/state-repo/` in federated mode) or
-  `cd .balls/state-repo` first. Commit on `balls/tasks` and push;
-  every client's next `bl prime` picks up the change. Useful for
-  bulk migrations or one-off policy tweaks.
-- **Flipping to federated.** `bl remaster --commit <url>` is refused
-  while the project still carries non-placeholder `.balls/plugins/*`
-  files — those would be silently shadowed by the hub view. Move
-  them into the hub's `.balls/plugins/` first and retry. A
-  `.gitkeep`-only placeholder is removed automatically.
+  Under `master_url` the writes land on `.balls/state-repo/`'s
+  `balls/tasks` branch — run `bl sync` to publish. In standalone mode
+  the writes update the project's `.balls/config.json` and
+  `.balls/plugins/*` in place; commit them yourself.
+- **Hand-editing is still supported.** Edit `.balls/config.json` and
+  `.balls/plugins/<name>.json` through the project-root path (the
+  symlinks transparently land you inside `.balls/state-repo/` in
+  federated mode) or `cd .balls/state-repo` first. Commit on
+  `balls/tasks` and push; every client reads it through the symlink
+  immediately, and a fresh clone picks it up on the next `bl prime`.
+- **Flipping to federated migrates, never refuses (bl-82a4).**
+  `bl remaster <url> --commit` promotes the project's `plugins` map
+  and any non-placeholder `.balls/plugins/*` files up into the hub
+  (hub wins on a name clash — the project-side entry is dropped and
+  named in the command's output), then makes `.balls/config.json` and
+  `.balls/plugins/` gitignored symlinks. There is no silent-drift
+  window and no manual move-it-yourself step.
 - **Detach restores standalone shape.** `bl remaster --detach`
-  replaces the symlink with a real `.balls/plugins/` carrying the
-  hub's plugin files at the moment of detach, so the new-standalone
-  repo keeps its plugin config instead of losing it.
-- **Drift warning.** A `master_url`-configured clone whose
-  `.balls/config.json` still has a non-empty project-side `plugins`
-  map emits a one-shot "master wins" warning on stderr per process.
-  Those map entries are inert — only the hub's view drives dispatch
-  — until you remove them. (Drifted `.balls/plugins/*` files are
-  refused outright at flip time, see *Flipping to federated*.)
-- **Standalone repos are unchanged.** Without `master_url`, plugin
-  config keeps living on the project's integration branch alongside
-  the code, exactly as before.
+  replaces the symlinks with real `.balls/config.json` +
+  `.balls/plugins/` carrying the hub's content at the moment of
+  detach, and drops `.balls/master.json` — the new-standalone repo
+  keeps its config and plugins instead of losing them.
+- **Standalone repos are unchanged.** Without `master_url`, config
+  and plugin policy keep living on the project's integration branch
+  alongside the code, exactly as before.
 
 ### Working in a multi-repo hub
 

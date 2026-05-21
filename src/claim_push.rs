@@ -20,10 +20,10 @@ pub(crate) const STATE_BRANCH: &str = "balls/tasks";
 /// default `origin`). No other code path bakes in `origin`. Errors
 /// propagate: a required sync must not silently hit the wrong peer.
 pub(crate) fn state_remote(store: &Store) -> Result<String> {
-    let cfg = store.load_config()?;
+    let pointer = crate::master_pointer::MasterPointer::load(&store.root)?;
     let local = crate::policy::LocalConfig::load(store)?;
-    Ok(crate::policy::state_remote_opt(&cfg, local.as_ref())
-        .unwrap_or_else(|| crate::config::DEFAULT_STATE_REMOTE.to_string()))
+    Ok(crate::policy::state_remote_opt(&pointer, local.as_ref())
+        .unwrap_or_else(|| "origin".to_string()))
 }
 
 /// Run `git push <state_remote> balls/tasks` from `dir` and classify

@@ -9,20 +9,14 @@ use super::*;
 use tempfile::TempDir;
 
 #[test]
-fn state_remote_default_is_origin() {
-    // Unset field resolves to the historical hardcoded remote, so a
-    // single-repo setup is byte-identical to before this field.
+fn state_remote_default_is_none_and_skipped_from_serialization() {
+    // Post bl-82a4 the canonical no longer carries state_remote in
+    // newly-written configs (the field moved to `.balls/master.json`).
+    // The field is retained on Config for legacy-deser compatibility
+    // but defaults to None and skip_serializing keeps it out of writes.
     let cfg = Config::default();
     assert_eq!(cfg.state_remote, None);
-    assert_eq!(cfg.state_remote(), "origin");
-    assert_eq!(cfg.state_remote(), DEFAULT_STATE_REMOTE);
-}
-
-#[test]
-fn state_remote_none_is_omitted_from_serialization() {
-    // skip_serializing_if keeps an unmodified config byte-identical:
-    // the key must not appear when unset.
-    let s = serde_json::to_string(&Config::default()).unwrap();
+    let s = serde_json::to_string(&cfg).unwrap();
     assert!(
         !s.contains("state_remote"),
         "default config must not serialize state_remote: {s}"
@@ -30,7 +24,10 @@ fn state_remote_none_is_omitted_from_serialization() {
 }
 
 #[test]
-fn state_remote_explicit_value_resolves_and_round_trips() {
+fn legacy_state_remote_value_round_trips_through_load() {
+    // A pre-bl-82a4 canonical with state_remote set still loads — the
+    // MasterPointer's legacy fallback reads from this field on the
+    // next bl invocation.
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("c.json");
     let cfg = Config {
@@ -40,7 +37,6 @@ fn state_remote_explicit_value_resolves_and_round_trips() {
     cfg.save(&path).unwrap();
     let loaded = Config::load(&path).unwrap();
     assert_eq!(loaded.state_remote.as_deref(), Some("taskhub"));
-    assert_eq!(loaded.state_remote(), "taskhub");
 }
 
 #[test]

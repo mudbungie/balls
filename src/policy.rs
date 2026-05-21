@@ -11,8 +11,8 @@
 //! their honour. The policy guides default behaviour; the rest is
 //! social.
 
-use crate::config::Config;
 use crate::error::Result;
+use crate::master_pointer::MasterPointer;
 use crate::participant_config::LocalPluginEntry;
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
@@ -80,12 +80,12 @@ impl LocalConfig {
 /// override beats committed default). `None` means neither side set
 /// it — the caller applies its own default (`origin` for lifecycle
 /// and init; the `bl sync --remote` value for the standalone sync
-/// path, preserving byte-identical behavior). This is the single
-/// place the local-over-committed precedence lives.
-pub fn state_remote_opt(cfg: &Config, local: Option<&LocalConfig>) -> Option<String> {
+/// path, preserving byte-identical behavior). The committed default
+/// lives in `MasterPointer` (`.balls/master.json`) post bl-82a4.
+pub fn state_remote_opt(pointer: &MasterPointer, local: Option<&LocalConfig>) -> Option<String> {
     local
         .and_then(|l| l.state_remote.clone())
-        .or_else(|| cfg.state_remote.clone())
+        .or_else(|| pointer.state_remote.clone())
 }
 
 /// CLI-side override: which way (if any) the user pushed the toggle.

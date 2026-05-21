@@ -1,18 +1,18 @@
-//! bl-a7d9 + bl-1098 — `master_url` makes the hub authoritative for
-//! plugin config. The transition to federated is now mediated by a
-//! `.balls/plugins -> state-repo/.balls/plugins` symlink (option a):
-//! reads always go through the project root, and the symlink
-//! redirects to the hub view. No runtime branching on `master_url`.
+//! bl-a7d9 + bl-1098 + bl-82a4 — `master_url` makes the hub
+//! authoritative for plugin config. Federated mode is a filesystem
+//! fact: `.balls/plugins/` is a symlink to `state-repo/.balls/plugins`
+//! and `.balls/config.json` a symlink to the hub's canonical. No
+//! runtime branching on `master_url`.
 //!
 //! Conformance:
-//! - A repo flipping on `master_url` while still carrying project-side
-//!   plugin config files is refused at `bl remaster --commit` time
-//!   with a migration message — the silent-drift window is gone.
-//! - Standalone repos (no `master_url`) keep reading project-side
-//!   plugin config — no warning, no behavior change.
+//! - `bl remaster <url> --commit` *migrates* a leftover project-side
+//!   plugin entry up to the hub (bl-82a4 — no refuse, no silent
+//!   drift): the stdout names the promoted plugin and the on-disk
+//!   shape leaves `.balls/plugins/` a symlink.
+//! - Standalone repos (no `master_url`) keep `.balls/plugins/` a real
+//!   directory — no behavior change.
 //! - Plugin dispatch resolves per-plugin config files through the
-//!   project-root path, which the symlink redirects to the hub view
-//!   so the file content comes from the state-repo.
+//!   project root, which the symlink redirects into the hub view.
 
 mod common;
 
@@ -20,13 +20,12 @@ use common::plugin::*;
 use common::*;
 use std::fs;
 
-const MASTER_WINS_MARKER: &str = "master wins";
-
-/// Flipping on `master_url` while project-side plugin files are still
-/// present is refused at remaster time with a migration message — the
-/// hub-wins rule would otherwise silently shadow those files (bl-1098).
+/// A leftover project-side plugin entry is *migrated* up to the hub
+/// at `bl remaster <url> --commit` time (bl-82a4). The migration's
+/// stdout names the promoted plugin, and the on-disk shape leaves
+/// `.balls/plugins/` a symlink — nothing left to drift against.
 #[test]
-fn remaster_commit_refuses_when_project_carries_plugin_drift() {
+fn master_url_promotes_project_plugins_during_remaster() {
     let hub = new_bare_remote();
     let alice = new_repo();
     init_in(alice.path());
@@ -36,38 +35,39 @@ fn remaster_commit_refuses_when_project_carries_plugin_drift() {
         .arg("remaster")
         .arg(hub.path().to_string_lossy().as_ref())
         .arg("--commit")
-        .output()
-        .unwrap();
-    assert!(!out.status.success(), "expected remaster --commit to refuse");
-    let stderr = String::from_utf8_lossy(&out.stderr);
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&out.get_output().stdout);
     assert!(
-        stderr.contains("hub is authoritative") || stderr.contains("bl-a7d9"),
-        "refusal must reference the master-wins rule: {stderr}"
+        stdout.contains("promoted plugins to hub: mock"),
+        "expected promotion summary on stdout, got: {stdout}"
+    );
+    assert!(
+        alice.path().join(".balls/plugins").is_symlink(),
+        "after federate, project-side .balls/plugins must be a symlink"
     );
 }
 
-/// Standalone repos must NOT emit the master-wins warning —
-/// byte-identical to pre-bl-a7d9 behavior.
+/// Standalone repos keep `.balls/plugins/` as a real directory.
 #[test]
-fn standalone_repo_emits_no_master_wins_warning() {
+fn standalone_repo_keeps_real_plugins_directory() {
     let repo = new_repo();
     init_in(repo.path());
     configure_plugin(repo.path());
 
-    let out = bl(repo.path()).arg("ready").output().unwrap();
-    let stderr = String::from_utf8_lossy(&out.stderr);
+    let plugins_dir = repo.path().join(".balls/plugins");
+    assert!(plugins_dir.is_dir(), "standalone .balls/plugins is a real dir");
     assert!(
-        !stderr.contains(MASTER_WINS_MARKER),
-        "standalone repo must not see master-wins warning: {stderr}"
+        !plugins_dir.is_symlink(),
+        "standalone must not symlink .balls/plugins"
     );
 }
 
 /// With `master_url`, plugin dispatch resolves the per-plugin
 /// `config_file` relative to the project root — but `.balls/plugins`
-/// is now a symlink to the state-repo (bl-1098), so the path
-/// canonicalizes into the hub view. The mock plugin logs the
-/// `--config` path it receives; we canonicalize and assert it resolves
-/// under `.balls/state-repo/`.
+/// is a symlink to the state-repo, so the path canonicalizes into the
+/// hub view. The mock plugin logs the `--config` path it receives; we
+/// canonicalize and assert it resolves under `.balls/state-repo/`.
 #[test]
 fn master_url_dispatches_with_hub_side_plugin_config_path() {
     let (bin_dir, log) = install_mock_plugin();
@@ -82,10 +82,9 @@ fn master_url_dispatches_with_hub_side_plugin_config_path() {
         .assert()
         .success();
 
-    // Hub-side plugin config: live on the materialized state-repo's
-    // `balls/tasks` checkout. The maintainer's normal workflow lands
-    // these files via the same path; we shortcut that here by writing
-    // and committing directly to the local state-repo.
+    // Hub-side plugin config lives on the materialized state-repo's
+    // `balls/tasks` checkout. Shortcut the maintainer workflow by
+    // writing and committing directly to the local state-repo.
     let state_repo = alice.path().join(".balls/state-repo");
     let state_balls = state_repo.join(".balls");
     fs::create_dir_all(state_balls.join("plugins")).unwrap();
@@ -127,8 +126,8 @@ fn master_url_dispatches_with_hub_side_plugin_config_path() {
         let canon = fs::canonicalize(cfg).expect("plugin config path must exist");
         assert!(
             canon.starts_with(&state_repo_canon),
-            "plugin config path must resolve into the hub-side state-repo via the \
-             .balls/plugins symlink, got `{cfg}` (canonical `{}`)",
+            "plugin config path must canonicalize into the hub-side state-repo \
+             via the .balls/plugins symlink, got `{cfg}` (canonical `{}`)",
             canon.display()
         );
     }
