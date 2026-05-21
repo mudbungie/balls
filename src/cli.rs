@@ -204,6 +204,12 @@ pub enum Command {
         sub: LinkCmd,
     },
 
+    /// Manage the effective plugins map: enable, disable, list.
+    Plugin {
+        #[command(subcommand)]
+        sub: PluginCmd,
+    },
+
     /// Sync with remote: fetch, merge, resolve, push.
     Sync {
         #[arg(long, default_value = "origin")]
@@ -296,4 +302,4 @@ pub enum Command {
     },
 }
 
-pub use crate::cli_sub::{CloseArgs, DepCmd, LinkCmd, ParticipantFlags, ShellArg};
+pub use crate::cli_sub::{CloseArgs, DepCmd, LinkCmd, ParticipantFlags, PluginCmd, ShellArg};
