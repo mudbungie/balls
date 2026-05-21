@@ -764,11 +764,14 @@ Output format mirrors `bl list`'s flat mode (priority dot + status column + id +
 bl show bl-a1b2
 bl show bl-a1b2 --json
 bl show bl-a1b2 --verbose
+bl show bl-a1b2 --resolve-remote
 ```
 
 Lays out a styled header (priority dot + status glyph + id + title + claimed badge), a metadata row (`type`, `created`, `updated` — relative timestamps; `--verbose` appends absolute ISO), an optional `tags:` line, an optional `progress:` row for epics, a relations block (deps with inline statuses, gates, parent + parent title, children, delivered, branch, remote, dep_blocked when relevant), a wrapped description, and an oldest-first notes log.
 
 The delivery line looks like `delivered: e69193f Add bl completions... [bl-1a34]`; if the cached `delivered_in` SHA is stale, the tag scan on main still finds the commit and the display is annotated `(hint stale)`. `--json` exposes `delivered_in_resolved`, `delivered_in_hint_stale`, and (for `type=epic` tasks) a `progress: { closed, total }` object alongside the task.
+
+`--resolve-remote` opts into cross-repo delivery resolution: on a local miss it fetches the task's `delivered_repo` into a balls-owned code-refs cache and re-runs the tag scan, so a task delivered from a *different* clone still resolves its `delivered:` line. Off by default — fetching from arbitrary forge URLs is rude without the operator asking for it.
 
 A **closed** task's id still resolves: when it's no longer on the state-branch HEAD, `bl show` reconstructs it from the `balls/tasks` deletion history (status overlaid as `closed`, `closed_at` taken from the close commit), then renders and resolves its `delivered:` line exactly as for a live task. No flag is needed — the not-found path falls back automatically.
 
@@ -814,6 +817,8 @@ bl close bl-a1b2 -m "approved"
 Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back. On a bare hub the repo root is the bare directory itself (there is no checked-out main to stand in); `bl close` runs there normally — see *The bare central hub*.
 
 The reviewer message is embedded in the state-branch close commit's body (not appended to a notes file, which is about to be deleted). It's still in git history on `balls/tasks`. `-m` is repeatable here too — each value becomes its own paragraph.
+
+Three flags control how `bl close` resolves the delivering commit, mostly in deferred mode or when closing a squash produced by another clone: `--delivered SHA` pins the commit instead of tag-scanning the target branch (useful when a forge rebase-merge left several commits); `--delivered-repo URL` overrides the recorded `delivered_repo` provenance when closing on behalf of another clone; `--resolve-remote` opts into fetching `delivered_repo` into the balls-owned code-refs cache and re-running the tag scan when the squash isn't on this clone's target branch (it auto-engages in deferred mode). See *Delivery Modes*. `--sync` / `--no-sync` toggle the state-branch round-trip — see the `require_remote_on_close` config row.
 
 ### bl update ID [field=value ...] [--note TEXT]
 
