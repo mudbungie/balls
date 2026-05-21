@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-4fbc",
+  "claimed_by": "Inbreeds",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T01:05:00.139058342Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T01:05:01.452198573Z"},
   "tags": ["multi-repo","testing"],
   "title": "Integration test: bl close --resolve-remote populates delivered_in end-to-end",
   "type": "task",
-  "updated_at": "2026-05-21T01:05:03.945934172Z"
+  "updated_at": "2026-05-21T01:18:04.340330821Z"
 }
