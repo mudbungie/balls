@@ -1,9 +1,9 @@
-//! `.balls/plugins` symlink materialization for the state checkout,
-//! split out of `state_repo.rs` to keep it under the 300-line cap.
-//! `state_repo` re-exports `ensure_plugins_symlink` so its callers
-//! keep their `crate::state_repo::…` paths.
+//! `.balls/plugins` and `.balls/project.json` symlink materialization
+//! for the state checkout, split out of `state_repo.rs` to keep it
+//! under the 300-line cap. `state_repo` re-exports both `ensure_*`
+//! helpers so its callers keep their `crate::state_repo::…` paths.
 
-use crate::error::Result;
+use crate::error::{BallError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -23,6 +23,30 @@ pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
         fs::remove_file(&link)?;
     } else if link.is_dir() {
         absorb_plugins_dir(&link, &root.join(".balls").join(&want))?;
+    }
+    std::os::unix::fs::symlink(&want, &link)?;
+    Ok(())
+}
+
+/// Materialize `.balls/project.json` as a symlink to `target` (a path
+/// relative to `<root>/.balls/`). The project config is a single file
+/// on the tracker branch; the symlink lets a workspace read it through
+/// `.balls/project.json` (SPEC §7). Idempotent; repoints a stale
+/// symlink. A real (non-symlink) file at the path is refused — it is
+/// ambiguous with hand-placed config the migration must not shadow.
+pub(crate) fn ensure_project_json_symlink(root: &Path, target: &str) -> Result<()> {
+    let link = root.join(".balls/project.json");
+    let want = PathBuf::from(target);
+    if link.is_symlink() {
+        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
+            return Ok(());
+        }
+        fs::remove_file(&link)?;
+    } else if link.exists() {
+        return Err(BallError::Other(format!(
+            "unexpected non-symlink at {}; remove it and re-run `bl init`",
+            link.display()
+        )));
     }
     std::os::unix::fs::symlink(&want, &link)?;
     Ok(())

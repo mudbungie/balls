@@ -113,6 +113,12 @@ pub fn cmd_close(
 
 pub fn cmd_drop(id: String, force: bool) -> Result<()> {
     let store = discover()?;
+    // Validate the project config before the claim is released: a
+    // structurally invalid `project.json` (a `drop` subscription that
+    // violates observe-only, SPEC §6.2) is a precondition error, not
+    // something the observe-only dispatch below can surface — it
+    // swallows failures by design.
+    store.load_project_config()?;
     if store.no_git {
         worktree::drop_no_worktree(&store, &id)?;
     } else {

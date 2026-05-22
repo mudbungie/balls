@@ -80,7 +80,7 @@ pub fn dispatch_push(input: &DispatchInput) -> Result<DispatchOutcome> {
         event,
         Event::Create | Event::Claim | Event::Review | Event::Close | Event::Update
     ));
-    let cfg = store.load_config()?;
+    let cfg = store.load_project_config()?;
     let mut contributions = Vec::new();
     let mut skipped = Vec::new();
     for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
@@ -215,7 +215,7 @@ pub fn dispatch_sync(
     filter: Option<&str>,
     identity: &str,
 ) -> Result<Vec<(String, SyncReport)>> {
-    let cfg = store.load_config()?;
+    let cfg = store.load_project_config()?;
     let mut reports = Vec::new();
     for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
         // Native plugins do not currently emit the standalone sync
@@ -252,7 +252,7 @@ pub fn dispatch_sync(
 /// byte-identical to pre-bl-ec62 for them. `required`/`gating` on
 /// `drop` cannot reach here: config validation rejects them.
 pub fn dispatch_drop(store: &Store, task: &Task, identity: &str) -> Result<()> {
-    let cfg = store.load_config()?;
+    let cfg = store.load_project_config()?;
     let overrides = InvocationOverrides::default();
     for (name, entry) in cfg.plugins.iter().filter(|(_, e)| e.enabled) {
         let ctx = EventCtx::new(Event::Drop, store, &task.id, identity);

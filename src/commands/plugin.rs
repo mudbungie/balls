@@ -29,7 +29,7 @@ pub fn cmd_plugin_disable(name: String) -> Result<()> {
     let store = discover()?;
     plugin_admin::disable(&store, &name)?;
     println!("disabled {name} (config file kept)");
-    follow_up_hint(&[".balls/config.json"]);
+    follow_up_hint();
     Ok(())
 }
 
@@ -71,15 +71,15 @@ fn print_enable(name: &str, r: &EnableReport) {
     } else {
         println!("  using existing {}", r.file_path.display());
     }
-    follow_up_hint(&[".balls/config.json"]);
+    follow_up_hint();
 }
 
-/// The `plugins` map lives in the workspace `config.json` — committed
-/// to the code branch by the operator. (The plugin config *files* in
-/// the state checkout are committed for them by `plugin_admin`.)
-fn follow_up_hint(paths: &[&str]) {
-    let joined = paths.join(" ");
-    println!("  commit to publish: git add {joined} && git commit");
+/// The plugins map (`.balls/project.json`) and the per-plugin config
+/// files all live on the tracker branch, and `plugin_admin` already
+/// committed them there. `bl sync` is what pushes that branch so the
+/// other workspaces on the tracker inherit the change.
+fn follow_up_hint() {
+    println!("  run `bl sync` to publish the change to the tracker");
 }
 
 pub fn cmd_plugin_policy(
@@ -115,7 +115,7 @@ fn print_policy(name: &str, set: &[String], rm: &[String], clear: bool, no_legac
             tokens = set.join(", ")
         );
     }
-    follow_up_hint(&[".balls/config.json"]);
+    follow_up_hint();
 }
 
 pub fn cmd_plugin_show(name: String, json_mode: bool) -> Result<()> {

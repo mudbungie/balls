@@ -3,7 +3,8 @@
 //!
 //! Layers, lowest precedence first:
 //!
-//! 1. Repo-default `.balls/config.json` (committed to the state branch).
+//! 1. Project-default `.balls/project.json` (committed to the tracker
+//!    branch — the plugin map is project config, SPEC §7).
 //! 2. Per-clone `.balls/local/config.json` (gitignored).
 //! 3. Per-invocation overrides (`--skip=NAME`, `--required=NAME`).
 //!

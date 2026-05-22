@@ -3,7 +3,7 @@
 //! and need no store.
 
 use super::*;
-use crate::config::Config;
+use crate::project_config::ProjectConfig;
 use crate::git_test_support::init_repo;
 use tempfile::tempdir;
 
@@ -172,7 +172,7 @@ fn apply_persists_policy_to_effective_config() {
     )
     .unwrap();
 
-    let cfg = Config::load(&store.config_path()).unwrap();
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     let subs = &cfg.plugins["watcher"].participant.as_ref().unwrap().subscriptions;
     assert_eq!(subs[&Event::Create].policy, PolicyKind::Required);
 }
@@ -189,7 +189,7 @@ fn apply_rejects_drop_with_non_best_effort_policy() {
     .unwrap_err();
     assert!(matches!(err, BallError::Other(s) if s.contains("observe-only")));
     // Validation runs before save — the rejected block never lands.
-    let cfg = Config::load(&store.config_path()).unwrap();
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     assert!(cfg.plugins["watcher"].participant.is_none());
 }
 

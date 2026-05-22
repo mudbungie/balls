@@ -9,7 +9,13 @@ use super::*;
 fn backstop_paths_are_the_state_checkout_paths() {
     assert_eq!(
         backstop_paths(),
-        vec![".balls/local", ".balls/tasks", ".balls/state-repo", ".balls/code-refs"],
+        vec![
+            ".balls/local",
+            ".balls/tasks",
+            ".balls/project.json",
+            ".balls/state-repo",
+            ".balls/code-refs",
+        ],
     );
 }
 
@@ -20,6 +26,7 @@ fn gitignore_paths_non_stealth_lists_every_runtime_path() {
         vec![
             ".balls/local",
             ".balls/tasks",
+            ".balls/project.json",
             ".balls/state-repo",
             ".balls/plugins",
             ".balls/code-refs",
@@ -31,7 +38,8 @@ fn gitignore_paths_non_stealth_lists_every_runtime_path() {
 #[test]
 fn gitignore_paths_stealth_drops_the_state_checkout() {
     // Stealth mode never creates the state checkout, so `.balls/tasks`,
-    // `.balls/state-repo`, and `.balls/plugins` drop out.
+    // `.balls/project.json`, `.balls/state-repo`, and `.balls/plugins`
+    // drop out.
     assert_eq!(
         gitignore_paths(true),
         vec![".balls/local", ".balls/code-refs", ".balls-worktrees"],

@@ -4,7 +4,7 @@
 //! later refactors can't bypass it without touching this file.
 
 use super::*;
-use crate::config::{Config, PluginEntry};
+use crate::project_config::{PluginEntry, ProjectConfig};
 use crate::error::Result;
 use crate::participant::Event;
 use crate::participant_config::InvocationOverrides;
@@ -42,8 +42,8 @@ fn stealth_store() -> (tempfile::TempDir, Store) {
 }
 
 fn write_config(store: &Store, plugins: BTreeMap<String, PluginEntry>) {
-    let cfg = Config { plugins, ..Config::default() };
-    cfg.save(&store.config_path()).unwrap();
+    let cfg = ProjectConfig { plugins, ..ProjectConfig::default() };
+    cfg.save(&store.project_config_path()).unwrap();
 }
 
 fn make_task(store: &Store, title: &str) -> Task {
@@ -105,7 +105,7 @@ fn dispatch_push_skips_when_event_not_subscribed() {
 #[test]
 fn dispatch_push_propagates_config_load_error() {
     let (_td, store) = stealth_store();
-    std::fs::write(store.config_path(), "not json").unwrap();
+    std::fs::write(store.project_config_path(), "not json").unwrap();
     let task = Task::new(
         NewTaskOpts {
             title: "x".into(),
@@ -158,7 +158,7 @@ fn dispatch_sync_runs_for_unavailable_executable() {
 #[test]
 fn dispatch_sync_propagates_config_load_error() {
     let (_td, store) = stealth_store();
-    std::fs::write(store.config_path(), "not json").unwrap();
+    std::fs::write(store.project_config_path(), "not json").unwrap();
     let _ = dispatch_sync(&store, None, "alice").unwrap_err();
 }
 

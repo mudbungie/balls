@@ -19,14 +19,15 @@
 //! the legacy worktree retired.
 
 use crate::error::{BallError, Result};
+use crate::project_config::ProjectConfig;
 use crate::tracker_address::Address;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-// The `.balls/plugins` symlink materializer lives in
-// `state_repo_symlinks`; re-exported so callers are unchanged.
-pub(crate) use crate::state_repo_symlinks::ensure_plugins_symlink;
+// The `.balls/plugins` and `.balls/project.json` symlink materializers
+// live in `state_repo_symlinks`; re-exported so callers are unchanged.
+pub(crate) use crate::state_repo_symlinks::{ensure_plugins_symlink, ensure_project_json_symlink};
 
 /// Relative path (from the repo root) of the balls-owned state clone.
 pub(crate) const STATE_REPO_REL: &str = ".balls/state-repo";
@@ -44,9 +45,10 @@ pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
     } else {
         first_contact(root, &dir, addr)?;
     }
-    seed(&dir)?;
+    seed(root, &dir)?;
     crate::store_init::ensure_tasks_symlink(root, "state-repo/.balls/tasks")?;
     ensure_plugins_symlink(root, "state-repo/.balls/plugins")?;
+    ensure_project_json_symlink(root, "state-repo/.balls/project.json")?;
     Ok(dir)
 }
 
@@ -178,9 +180,10 @@ fn run_at(dir: &Path, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Seed `.balls/tasks/` scaffolding and the `.balls/plugins/` dir on
-/// the state branch, committing anything new so the branch has a HEAD.
-fn seed(state_repo: &Path) -> Result<()> {
+/// Seed `.balls/tasks/` scaffolding, the `.balls/plugins/` dir, and the
+/// `.balls/project.json` project config on the state branch, committing
+/// anything new so the branch has a HEAD.
+fn seed(root: &Path, state_repo: &Path) -> Result<()> {
     let tasks = state_repo.join(".balls/tasks");
     fs::create_dir_all(&tasks)?;
     let attrs = tasks.join(".gitattributes");
@@ -199,11 +202,45 @@ fn seed(state_repo: &Path) -> Result<()> {
             fs::write(&keep, "")?;
         }
     }
+    seed_project_config(root, state_repo)?;
     if git::has_uncommitted_changes(state_repo)? {
         git::git_add_all(state_repo)?;
         git::git_commit(state_repo, "balls: seed state branch")?;
     }
     Ok(())
+}
+
+/// Materialize `.balls/project.json` on the tracker branch once (SPEC
+/// §6.3 / §7). For a repo predating the config split this is the
+/// migration: the project-owned fields a `config.json` still carries —
+/// the `plugins` map above all — are copied into `project.json` so
+/// they survive the move off the code branch.
+fn seed_project_config(root: &Path, state_repo: &Path) -> Result<()> {
+    let project_json = state_repo.join(".balls/project.json");
+    if project_json.exists() {
+        return Ok(());
+    }
+    ProjectConfig::from_config_file(&root.join(".balls/config.json")).save(&project_json)
+}
+
+/// Bring a *warm* state checkout up to the SPEC §7 config split. A
+/// checkout materialized before `project.json` existed (a repo updated
+/// past bl-8a9a but not yet bl-e609) is otherwise never re-`seed`ed —
+/// `Store::discover` skips `ensure` once `.balls/state-repo` is warm.
+/// This runs on the warm path instead: it materializes `project.json`
+/// on the tracker branch (migrating the pre-split `config.json`) and
+/// its workspace symlink. A no-op — two `stat`s — once both exist.
+pub fn ensure_project_config(root: &Path, state_repo: &Path) -> Result<()> {
+    let link = root.join(".balls/project.json");
+    if link.is_symlink() && link.exists() {
+        return Ok(());
+    }
+    seed_project_config(root, state_repo)?;
+    if git::has_uncommitted_changes(state_repo)? {
+        git::git_add_all(state_repo)?;
+        git::git_commit(state_repo, "balls: migrate project config")?;
+    }
+    ensure_project_json_symlink(root, "state-repo/.balls/project.json")
 }
 
 /// Detect URL-shaped `bl remaster` targets so a bare git-remote name

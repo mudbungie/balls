@@ -6,7 +6,6 @@
 
 #![allow(dead_code)]
 
-use super::git;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
@@ -116,18 +115,16 @@ fn write_script(bin_dir: &tempfile::TempDir, name: &str, body: &str) {
     fs::set_permissions(&path, perms).unwrap();
 }
 
-/// Write a `.balls/config.json` that enables every named plugin and
-/// commits the result. Mirrors what `bl init` plus a hand-edit would
-/// produce; tests use it to wire up multiple plugins in one shot.
+/// Set the project `plugins` map (`.balls/project.json`, SPEC §7) so
+/// every named plugin is enabled, and commit the result on the tracker
+/// branch. Mirrors what `bl init` plus a hand-edit would produce;
+/// tests use it to wire up multiple plugins in one shot.
 pub fn write_plugin_config(repo: &Path, names: &[&str]) {
     let plugins_dir = repo.join(".balls/plugins");
     fs::create_dir_all(&plugins_dir).unwrap();
     for n in names {
         fs::write(plugins_dir.join(format!("{n}.json")), "{}").unwrap();
     }
-    let cfg_path = repo.join(".balls/config.json");
-    let mut cfg: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&cfg_path).unwrap()).unwrap();
     let mut plugins = serde_json::Map::new();
     for n in names {
         plugins.insert(
@@ -139,10 +136,7 @@ pub fn write_plugin_config(repo: &Path, names: &[&str]) {
             }),
         );
     }
-    cfg["plugins"] = serde_json::Value::Object(plugins);
-    fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
-    git(repo, &["add", ".balls/config.json"]);
-    git(repo, &["commit", "-m", "configure plugins", "--no-verify"]);
+    super::set_project_plugins(repo, serde_json::Value::Object(plugins));
     super::commit_state_repo(repo, "configure plugins");
 }
 
@@ -154,20 +148,17 @@ pub fn jira_policy(repo: &Path, event: &str, policy: &str) {
     let plugins_dir = repo.join(".balls/plugins");
     fs::create_dir_all(&plugins_dir).unwrap();
     fs::write(plugins_dir.join("jira.json"), "{}").unwrap();
-    let cfg_path = repo.join(".balls/config.json");
-    let mut cfg: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&cfg_path).unwrap()).unwrap();
-    cfg["plugins"] = serde_json::json!({
-        "jira": {
-            "enabled": true,
-            "sync_on_change": false,
-            "config_file": ".balls/plugins/jira.json",
-            "participant": { "subscriptions": { event: { "policy": policy } } }
-        }
-    });
-    fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
-    git(repo, &["add", ".balls/config.json"]);
-    git(repo, &["commit", "-m", "configure jira", "--no-verify"]);
+    super::set_project_plugins(
+        repo,
+        serde_json::json!({
+            "jira": {
+                "enabled": true,
+                "sync_on_change": false,
+                "config_file": ".balls/plugins/jira.json",
+                "participant": { "subscriptions": { event: { "policy": policy } } }
+            }
+        }),
+    );
     super::commit_state_repo(repo, "configure jira");
 }
 

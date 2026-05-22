@@ -133,10 +133,10 @@ fn finish_rolls_state_back_on_dispatch_error() {
     let t = task(&store, "bl-1234");
     let rb = state_head(&store).unwrap();
     // Advance the state branch so a rewind to `rb` is observable,
-    // then break config so `dispatch_push` errors at config load.
+    // then break the project config so `dispatch_push` errors at load.
     let sd = store.state_repo_dir();
     git_run(&sd, &["commit", "--allow-empty", "-m", "advance"]);
-    std::fs::write(store.config_path(), "not json").unwrap();
+    std::fs::write(store.project_config_path(), "not json").unwrap();
     let err = finish(
         &store,
         None,
@@ -160,7 +160,7 @@ fn finish_rolls_state_back_on_dispatch_error() {
 fn finish_error_with_state_none_is_noop_rollback() {
     let (_td, store) = stealth_store();
     let t = task(&store, "bl-1234");
-    std::fs::write(store.config_path(), "not json").unwrap();
+    std::fs::write(store.project_config_path(), "not json").unwrap();
     let err = finish(
         &store,
         None,
@@ -182,7 +182,7 @@ fn finish_error_with_dropclaim_attempts_unclaim() {
     // `Rollback::DropClaim` arm.
     let (_td, store) = git_store();
     let t = task(&store, "bl-1234");
-    std::fs::write(store.config_path(), "not json").unwrap();
+    std::fs::write(store.project_config_path(), "not json").unwrap();
     let err = finish(
         &store,
         None,
