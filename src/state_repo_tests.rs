@@ -179,22 +179,6 @@ fn looks_like_url_recognizes_common_forms() {
 }
 
 #[test]
-fn run_at_propagates_non_zero_git_exit() {
-    // Outside a git repo: `git rev-parse --show-toplevel` exits non-zero.
-    // Hits run_at's exit-status error path without needing a corrupted
-    // .git surface.
-    let dir = TempDir::new().unwrap();
-    let err = run_at(dir.path(), &["rev-parse", "--show-toplevel"]).unwrap_err();
-    match err {
-        BallError::Git(msg) => assert!(
-            msg.contains("exited with") || msg.contains("rev-parse"),
-            "expected exit-status diagnostic, got: {msg}"
-        ),
-        other => panic!("expected Git error, got {other:?}"),
-    }
-}
-
-#[test]
 fn looks_like_url_rejects_bare_remote_names() {
     assert!(!looks_like_url("origin"));
     assert!(!looks_like_url("hub"));

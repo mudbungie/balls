@@ -11,6 +11,7 @@
 //! is fatal.
 
 use crate::error::{BallError, Result};
+use crate::git_state::STATE_BRANCH;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,8 +28,6 @@ pub(crate) use crate::state_repo_symlinks::{
 /// project-worktree path) so a config can flip between models without
 /// the two layouts stomping on each other.
 pub(crate) const STATE_REPO_REL: &str = ".balls/state-repo";
-
-const STATE_BRANCH: &str = "balls/tasks";
 
 /// Materialize `.balls/state-repo/` as a balls-owned git clone whose
 /// `origin` is `url`, with `balls/tasks` checked out. Idempotent.
@@ -71,7 +70,7 @@ pub fn ensure(root: &Path, url: &str) -> Result<PathBuf> {
         checkout(&dir, STATE_BRANCH)?;
     }
 
-    seed(&dir)?;
+    crate::store_init::seed_tasks_dir(&dir)?;
     // Expose .balls/state-repo/.balls/tasks at the convenience path
     // .balls/tasks (mirrors the legacy `worktree`-mode symlink). The
     // legacy path is created in setup_state_branch; the master_url path
@@ -125,7 +124,7 @@ fn init_with_origin(dir: &Path, url: &str) -> Result<()> {
     fs::create_dir_all(dir)?;
     // `git init` with the state branch as initial branch keeps the
     // first orphan commit on the right ref without a separate checkout.
-    run_at(
+    git::run_git_ok(
         dir.parent().unwrap_or(dir),
         &[
             "init",
@@ -135,52 +134,12 @@ fn init_with_origin(dir: &Path, url: &str) -> Result<()> {
             &dir.to_string_lossy(),
         ],
     )?;
-    run_at(dir, &["remote", "add", "origin", url])
-}
-
-fn checkout(dir: &Path, branch: &str) -> Result<()> {
-    run_at(dir, &["checkout", "-q", branch])
-}
-
-fn run_at(dir: &Path, args: &[&str]) -> Result<()> {
-    let status = git::clean_git_command(dir)
-        .args(args)
-        .status()
-        .map_err(|e| BallError::Git(format!("git {}: {e}", args.join(" "))))?;
-    if !status.success() {
-        return Err(BallError::Git(format!(
-            "git {} exited with {status}",
-            args.join(" ")
-        )));
-    }
+    git::run_git_ok(dir, &["remote", "add", "origin", url])?;
     Ok(())
 }
 
-/// Seed `.balls/tasks/` scaffolding (mirrors `setup_state_branch`'s
-/// `seed_state_worktree`), kept here so `ensure` stays self-contained.
-fn seed(state_repo: &Path) -> Result<()> {
-    let tasks = state_repo.join(".balls/tasks");
-    fs::create_dir_all(&tasks)?;
-
-    let attrs = tasks.join(".gitattributes");
-    let attrs_line = "*.notes.jsonl merge=union\n";
-    let need_attrs = match fs::read_to_string(&attrs) {
-        Ok(s) => !s.contains("*.notes.jsonl merge=union"),
-        Err(_) => true,
-    };
-    if need_attrs {
-        fs::write(&attrs, attrs_line)?;
-    }
-
-    let keep = tasks.join(".gitkeep");
-    if !keep.exists() {
-        fs::write(&keep, "")?;
-    }
-
-    if git::has_uncommitted_changes(state_repo)? {
-        git::git_add_all(state_repo)?;
-        git::git_commit(state_repo, "balls: seed state branch")?;
-    }
+fn checkout(dir: &Path, branch: &str) -> Result<()> {
+    git::run_git_ok(dir, &["checkout", "-q", branch])?;
     Ok(())
 }
 

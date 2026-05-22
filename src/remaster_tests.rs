@@ -3,30 +3,6 @@ use serde_json::json;
 use tempfile::TempDir;
 
 #[test]
-fn next_free_id_returns_first_when_free() {
-    let ts = chrono::Utc::now();
-    let got = next_free_id("hello", ts, 4, |_| false).unwrap();
-    assert_eq!(got, Task::generate_id("hello", ts, 4));
-}
-
-#[test]
-fn next_free_id_bumps_past_collision() {
-    let ts = chrono::Utc::now();
-    let first = Task::generate_id("hello", ts, 4);
-    let got = next_free_id("hello", ts, 4, |id| id == first).unwrap();
-    assert_ne!(got, first);
-}
-
-#[test]
-fn next_free_id_exhausts() {
-    let err = next_free_id("x", chrono::Utc::now(), 4, |_| true).unwrap_err();
-    match err {
-        BallError::Other(s) => assert!(s.contains("1000 tries")),
-        other => panic!("expected Other, got {other:?}"),
-    }
-}
-
-#[test]
 fn fresh_id_rejects_bad_json() {
     let used = BTreeSet::new();
     let err = fresh_id("not json", 4, &used).unwrap_err();

@@ -30,7 +30,7 @@ pub(crate) fn load_effective(
     if !pointer_has_master_url {
         return Ok(cfg);
     }
-    if is_symlink(config_path) {
+    if config_path.is_symlink() {
         // Modern federated: the symlink already points at the hub's
         // canonical, so cfg.plugins is hub-side by construction.
         return Ok(cfg);
@@ -47,7 +47,7 @@ pub(crate) fn load_effective(
 /// `PluginEntry::config_file` (a `.balls/plugins/<x>.json`-relative
 /// path) is joined against to produce the absolute config-file path.
 pub(crate) fn plugin_config_root_for_store(store: &crate::store::Store) -> PathBuf {
-    let plugins_symlinked = is_symlink(&store.root.join(".balls").join("plugins"));
+    let plugins_symlinked = store.root.join(".balls").join("plugins").is_symlink();
     let has_master = crate::master_pointer::MasterPointer::load_or_empty(&store.root)
         .master_url()
         .is_some();
@@ -76,10 +76,6 @@ fn read_state_plugins(state_worktree: &Path) -> Result<Option<BTreeMap<String, P
         return Ok(None);
     }
     Ok(Some(Config::load(&p)?.plugins))
-}
-
-fn is_symlink(p: &Path) -> bool {
-    std::fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink())
 }
 
 #[cfg(test)]

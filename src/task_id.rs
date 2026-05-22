@@ -13,23 +13,23 @@ use crate::task::Task;
 /// pure `next_unique_id` loop.
 pub fn generate_task_id(store: &Store, title: &str) -> Result<String> {
     let id_length = store.load_config()?.id_length;
-    next_unique_id(title, id_length, chrono::Utc::now(), |id| {
+    next_unique_id(title, id_length, chrono::Utc::now(), &|id| {
         store.task_exists(id)
     })
 }
 
 /// Pure form of the retry loop: ask `exists` whether each candidate is
 /// taken, stepping the timestamp forward on collision. Split out so the
-/// retry and exhaustion paths are testable without a real Store.
-fn next_unique_id<F>(
+/// retry and exhaustion paths are testable without a real Store, and
+/// shared with `remaster`'s clash-renaming. `exists` is `&dyn Fn` (not
+/// a generic) so the loop is a single monomorphization — every branch's
+/// coverage lands on one instance.
+pub(crate) fn next_unique_id(
     title: &str,
     id_length: usize,
     start: chrono::DateTime<chrono::Utc>,
-    exists: F,
-) -> Result<String>
-where
-    F: Fn(&str) -> bool,
-{
+    exists: &dyn Fn(&str) -> bool,
+) -> Result<String> {
     let mut now = start;
     let mut id = Task::generate_id(title, now, id_length);
     let mut tries = 0;
@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn returns_first_id_when_unused() {
         let now = chrono::Utc::now();
-        let id = next_unique_id("hello", 4, now, |_| false).unwrap();
+        let id = next_unique_id("hello", 4, now, &|_| false).unwrap();
         assert_eq!(id, Task::generate_id("hello", now, 4));
     }
 
@@ -65,14 +65,14 @@ mod tests {
         let first = Task::generate_id("hello", now, 4);
         let mut taken = HashSet::new();
         taken.insert(first.clone());
-        let id = next_unique_id("hello", 4, now, |c| taken.contains(c)).unwrap();
+        let id = next_unique_id("hello", 4, now, &|c| taken.contains(c)).unwrap();
         assert_ne!(id, first);
     }
 
     #[test]
     fn exhausts_after_1000_tries() {
         let calls = RefCell::new(0usize);
-        let err = next_unique_id("x", 4, chrono::Utc::now(), |_| {
+        let err = next_unique_id("x", 4, chrono::Utc::now(), &|_| {
             *calls.borrow_mut() += 1;
             true
         })
