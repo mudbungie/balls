@@ -2,11 +2,11 @@
 //! Split out of `lifecycle.rs` (which was at the 300-line cap) so the
 //! deferred-mode reject leg (SPEC §7.3) has room to live next to it.
 
+use super::plumbing::finish_state_event;
 use super::{default_identity, discover};
 use balls::error::{BallError, Result};
 use balls::participant::Event;
-use balls::participant_config::{override_tokens, InvocationOverrides};
-use balls::plugin::{self, Rollback};
+use balls::participant_config::InvocationOverrides;
 use balls::store::task_lock;
 use balls::task::{Status, Task, TaskType};
 use balls::task_io;
@@ -25,11 +25,8 @@ pub fn cmd_update(
     // surface. In deferred mode it must also close the auto-opened
     // forge-gate child — see the reject branch below.
     let rejecting = !closing && assignments.iter().any(|a| a == "status=in_progress");
-    // Snapshot the state-branch tip before this command's event
-    // commit — the rewind target on a required veto (SPEC §9). The
-    // tip can't move until `commit_task`/`close_and_archive` below.
-    let rb = plugin::state_head(&store)?;
-    let (task, task_before) = {
+    let event = if closing { Event::Close } else { Event::Update };
+    finish_state_event(&store, event, &ident, &overrides, false, false, || {
         let _g = task_lock(&store, &id)?;
         let mut task = store.load_task(&id)?;
         let task_before = task.clone();
@@ -79,21 +76,8 @@ pub fn cmd_update(
             }
             store.commit_task(&id, &format!("balls: update {} - {}", id, task.title))?;
         }
-        (task, task_before)
-    };
-
-    let event = if closing { Event::Close } else { Event::Update };
-    let tokens = override_tokens(&overrides, false, false);
-    plugin::finish(
-        &store,
-        Some(&task_before),
-        &task,
-        event,
-        &ident,
-        &overrides,
-        &tokens,
-        Rollback::State(rb.as_deref()),
-    )?;
+        Ok((Some(task_before), task))
+    })?;
 
     if closing {
         println!("closed and archived {id}");

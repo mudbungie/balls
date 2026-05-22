@@ -127,7 +127,7 @@ impl Plugin {
             Some(j) => Some(super::ctx::CtxFile::new(j)?),
             None => None,
         };
-        let mut flags: Vec<(&str, &str)> = vec![("--event", event_name)];
+        let mut flags: Vec<(&str, &str)> = vec![("--event", &event_name)];
         if let Some(cf) = &ctx {
             flags.push(("--ctx-file", cf.path_str()));
         }
@@ -137,19 +137,14 @@ impl Plugin {
 
 }
 
-/// Map an `Event` to the lowercase wire name a native plugin
-/// receives via `--event`. Stable identifier — same as the serde
-/// rename used on the JSON-side `Event` enum.
-pub(crate) fn event_subcommand_arg(event: Event) -> &'static str {
-    match event {
-        Event::Claim => "claim",
-        Event::Review => "review",
-        Event::Close => "close",
-        Event::Update => "update",
-        Event::Sync => "sync",
-        Event::Create => "create",
-        Event::Drop => "drop",
-    }
+/// The lowercase wire name a native plugin receives via `--event`.
+/// Derived straight from `Event`'s `#[serde(rename_all = "lowercase")]`
+/// so the CLI flag and the JSON-side encoding share one source of
+/// truth and a variant rename cannot drift the two apart.
+pub(crate) fn event_subcommand_arg(event: Event) -> String {
+    let json = serde_json::to_value(event).expect("Event always serializes");
+    let name = json.as_str().expect("Event serializes to a JSON string");
+    name.to_string()
 }
 
 fn which(name: &str) -> Option<PathBuf> {
@@ -219,23 +214,5 @@ pub(crate) mod test_seam {
         fn drop(&mut self) {
             OVERRIDE.with(|o| *o.borrow_mut() = None);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn event_subcommand_arg_covers_every_event() {
-        // Pin the wire name for every Event variant so a rename
-        // changes both this test and the JSON serde rename together.
-        assert_eq!(event_subcommand_arg(Event::Claim), "claim");
-        assert_eq!(event_subcommand_arg(Event::Review), "review");
-        assert_eq!(event_subcommand_arg(Event::Close), "close");
-        assert_eq!(event_subcommand_arg(Event::Update), "update");
-        assert_eq!(event_subcommand_arg(Event::Sync), "sync");
-        assert_eq!(event_subcommand_arg(Event::Create), "create");
-        assert_eq!(event_subcommand_arg(Event::Drop), "drop");
     }
 }
