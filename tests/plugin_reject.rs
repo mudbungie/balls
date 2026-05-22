@@ -40,8 +40,9 @@ fn write_jira_config(repo: &Path) {
         }
     });
     std::fs::write(&cfg_path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
-    git(repo, &["add", ".balls/config.json", ".balls/plugins"]);
+    git(repo, &["add", ".balls/config.json"]);
     git(repo, &["commit", "-m", "configure jira", "--no-verify"]);
+    commit_state_repo(repo, "configure jira");
 }
 
 fn run_update(repo: &Repo, bin: &Path, id: &str) -> std::process::Output {

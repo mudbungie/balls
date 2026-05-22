@@ -68,24 +68,15 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     // next sync's half-push detector (below) surfaces the orphaned
     // state commit so the main push can be retried.
     //
-    // The state-leg presence gate runs against `state_worktree_dir()`,
-    // not the project root (bl-16e9). In `master_url` mode the state
-    // checkout is `.balls/state-repo/` — a balls-owned clone whose
-    // `origin` is the hub — and the project root carries only the
-    // user's code remotes (or none at all in the bridge-clone proxy
-    // pattern). Asking the project root about the state remote would
-    // silently skip the push in exactly the topology `master_url` was
-    // built to enable. In legacy mode `state_worktree_dir()` is the
-    // project's own `.balls/worktree`, a worktree that shares
-    // `.git/config` with the project root, so the answer is identical
-    // — the redirect is a strict superset of the old behavior.
+    // The state branch lives in `.balls/state-repo`, whose own
+    // `origin` *is* the tracker address (SPEC-tracker-state §4) — the
+    // project root's code remotes are independent. A pure-local repo
+    // with no tracker simply has no `origin` there; the push is then
+    // skipped, parity with offline git.
     let mut state_synced = false;
-    if !store.stealth {
-        let state_remote = resolve_state_remote(store, remote);
-        if git::git_has_remote(&store.state_worktree_dir(), &state_remote) {
-            sync_branch(&store.state_worktree_dir(), &state_remote, "balls/tasks")?;
-            state_synced = true;
-        }
+    if !store.stealth && git::git_has_remote(&store.state_repo_dir(), "origin") {
+        sync_branch(&store.state_repo_dir(), "origin", "balls/tasks")?;
+        state_synced = true;
     }
     if code_present {
         let main_branch = store.load_config()?.integration_branch(&store.root)?;
@@ -105,19 +96,6 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     Ok(())
 }
 
-/// Resolve the remote the `balls/tasks` branch negotiates against.
-/// Falls back to the code remote (`code_remote`) on an unset
-/// `state_remote` *or* a pointer that won't load — sync stays
-/// resilient to a corrupt `.balls/master.json` the same way the
-/// plugin leg does (it warns, it doesn't abort), so a federation
-/// pointer balls can't read from degrades to single-repo behavior
-/// rather than failing the command.
-fn resolve_state_remote(store: &Store, code_remote: &str) -> String {
-    let pointer = balls::master_pointer::MasterPointer::load(&store.root).unwrap_or_default();
-    let local = policy::LocalConfig::load(store).ok().flatten();
-    policy::state_remote_opt(&pointer, local.as_ref())
-        .unwrap_or_else(|| code_remote.to_string())
-}
 
 /// Fetch + merge + push a single branch in `dir`. Retries once on push
 /// failure to tolerate a contemporaneous remote advance.

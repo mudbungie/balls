@@ -4,7 +4,7 @@
 //! later refactors can't bypass it without touching this file.
 
 use super::*;
-use crate::config::{Config, PluginEntry, CONFIG_SCHEMA_VERSION};
+use crate::config::{Config, PluginEntry};
 use crate::error::Result;
 use crate::participant::Event;
 use crate::participant_config::InvocationOverrides;
@@ -42,24 +42,7 @@ fn stealth_store() -> (tempfile::TempDir, Store) {
 }
 
 fn write_config(store: &Store, plugins: BTreeMap<String, PluginEntry>) {
-    let cfg = Config {
-        version: CONFIG_SCHEMA_VERSION,
-        id_length: 4,
-        stale_threshold_seconds: 60,
-        auto_fetch_on_ready: true,
-        worktree_dir: ".balls-worktrees".into(),
-        protected_main: false,
-        require_remote_on_claim: false,
-        require_remote_on_review: false,
-        require_remote_on_close: false,
-        state_remote: None,
-        master_url: None,
-        target_branch: None,
-        delivery: None,
-        review: None,
-        min_bl_version: None,
-        plugins,
-    };
+    let cfg = Config { plugins, ..Config::default() };
     cfg.save(&store.config_path()).unwrap();
 }
 

@@ -179,10 +179,10 @@ cargo publish
 |---|---|
 | **task** | A unit of work. One JSON file on the `balls/tasks` orphan branch, exposed to main via a symlink. |
 | **state branch** | The orphan git branch `balls/tasks` that holds all task state. No shared history with main. |
-| **state worktree** | A second git worktree at `.balls/worktree/` with the state branch checked out. Where task files physically live. |
+| **state checkout** | The balls-owned git clone at `.balls/state-repo/` with the state branch checked out. Where task files physically live. One checkout for every repo — see *Multi-repo state*. |
 | **bare hub** | The recommended deployment: a bare repo (`core.bare = true`) with no work tree. All work happens in `.balls-worktrees/<id>/` checkouts; direct commits to the operating branch are a git-level impossibility, not a discouraged convention. Its "repo root" is the bare gitdir's parent. See *The bare central hub* below. |
-| **state hub** | A dedicated git repo whose `balls/tasks` ref is a task store shared by *several* code repos — no code, usually bare. The basis of federated mode. See *Federated multi-repo state*. |
-| **federated mode** | The opt-in deployment in which several code repos share one *state hub*, opted into per repo via the committed `.balls/master.json` pointer. The default — one repo, one disjoint task store — is *standalone*. |
+| **tracker** | The git repo hosting the shared `balls/tasks` branch. For a solo project it is the code repo's own `origin`; for a multi-repo project, a dedicated, usually code-free repo. |
+| **tracker address** | The `(state_url, state_branch)` pair in `.balls/config.json` naming the tracker. Absent ⇒ the implicit default `(origin, balls/tasks)`. "Standalone" and "federated" differ only in this address — see *Multi-repo state*. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a git worktree under `.balls-worktrees/<id>/` for the work. |
 | **review** | Squash-merges the work branch into main as a single feature commit tagged `[bl-xxxx]` and flips the task to `review` on the state branch. A checkpoint state; the default flow is to follow it with `bl close`. |
@@ -207,7 +207,7 @@ Balls stores task state on a dedicated orphan git branch called `balls/tasks`. I
 ### File and Folder Layout
 
 Two deployment shapes share one store format. The **ordinary clone** has
-a working tree; the **bare central hub** has none. The state worktree,
+a working tree; the **bare central hub** has none. The state checkout,
 the `.balls/tasks` symlink, the orphan branch, and `.balls-worktrees/`
 are byte-for-byte identical in both — bare-ness changes only the root,
 never the orphan-branch machinery.
@@ -216,27 +216,30 @@ never the orphan-branch machinery.
 
 ```
 project/
-├── .balls/                          # gitignored on main, set up by `bl init`
-│   ├── tasks → worktree/.balls/tasks    # symlink — naïve view into the state branch
-│   ├── worktree/                        # git worktree on the orphan `balls/tasks` branch
-│   │   └── .balls/tasks/
-│   │       ├── bl-a1b2.json             # tracked on balls/tasks, not on main
-│   │       ├── bl-a1b2.notes.jsonl      # append-only notes sidecar
-│   │       └── .gitattributes           # activates merge=union for notes files
-│   ├── config.json                      # committed to main (project-wide settings)
-│   ├── plugins/                         # committed to main (plugin configs)
-│   │   └── jira.json
-│   └── local/                           # gitignored ephemeral state (per-clone)
-│       ├── claims/                      # one file per active local claim
-│       ├── lock/                        # flock files, incl. state-worktree.lock
-│       └── plugins/                     # plugin runtime state (tokens, caches)
-├── .balls-worktrees/                    # gitignored; `bl claim` creates worktrees here
-│   ├── bl-a1b2/                         # full checkout on work/bl-a1b2 branch
+├── .git/                            # the code repo's git (code origin untouched)
+├── .balls/
+│   ├── config.json                      # committed to the code branch — the
+│   │                                    #   tracker address + workspace settings
+│   ├── state-repo/                       # gitignored — balls-owned clone of the tracker
+│   │   └── .balls/
+│   │       ├── tasks/
+│   │       │   ├── bl-a1b2.json           # task file (on the balls/tasks branch)
+│   │       │   ├── bl-a1b2.notes.jsonl    # append-only notes sidecar
+│   │       │   └── .gitattributes         # activates merge=union for notes files
+│   │       └── plugins/                   # plugin configs (on the state branch)
+│   ├── tasks   → state-repo/.balls/tasks      # symlink — naïve view into the store
+│   ├── plugins → state-repo/.balls/plugins    # symlink — plugin config
+│   └── local/                            # gitignored ephemeral state (per-clone)
+│       ├── claims/                       # one file per active local claim
+│       ├── lock/                         # flock files
+│       └── plugins/                      # plugin auth (tokens) — never synced
+├── .balls-worktrees/                     # gitignored; `bl claim` creates worktrees here
+│   ├── bl-a1b2/                          # full checkout on work/bl-a1b2 branch
 │   └── bl-c3d4/
-└── ... (project files on main)
+└── ... (project files on the code branch)
 ```
 
-The `.balls/tasks` symlink in main's working tree is the key to naïve visibility. It points at `.balls/worktree/.balls/tasks`, which is the state worktree's checkout — where task files physically live. Reading `.balls/tasks/bl-abc.json` follows the symlink into the state worktree and returns the canonical file. `bl` commands and hand-editing agree.
+The `.balls/tasks` symlink is the key to naïve visibility. It points at `state-repo/.balls/tasks`, the state checkout's tree — where task files physically live. Reading `.balls/tasks/bl-abc.json` follows the symlink into the checkout and returns the canonical file. `bl` commands and hand-editing agree. `config.json` is a real, never-symlinked workspace file: it carries the *tracker address* that everything else resolves through, so it must be readable before the checkout exists.
 
 **Bare central hub (no working tree — the recommended deployment):**
 
@@ -244,15 +247,12 @@ The `.balls/tasks` symlink in main's working tree is the key to naïve visibilit
 hub/                                 # "repo root" = the bare gitdir's parent
 ├── .git/                            # bare gitdir (core.bare = true); no checkout
 ├── .balls/                          # loose on-disk store — NOT a tracked working set
-│   ├── tasks → worktree/.balls/tasks    # symlink — same as the ordinary clone
-│   ├── worktree/                        # state worktree on balls/tasks (unchanged)
-│   │   └── .balls/tasks/
-│   │       ├── bl-a1b2.json
-│   │       ├── bl-a1b2.notes.jsonl
-│   │       └── .gitattributes
-│   ├── config.json                      # project-wide settings (materialized here)
-│   ├── plugins/                         # plugin configs
-│   └── local/                           # ephemeral per-hub state
+│   ├── config.json                      # workspace settings (materialized here)
+│   ├── state-repo/                       # balls-owned clone of the tracker (unchanged)
+│   │   └── .balls/{tasks,plugins}/
+│   ├── tasks   → state-repo/.balls/tasks      # symlink — same as the ordinary clone
+│   ├── plugins → state-repo/.balls/plugins
+│   └── local/                            # ephemeral per-hub state
 │       ├── claims/
 │       ├── lock/
 │       └── plugins/
@@ -261,20 +261,21 @@ hub/                                 # "repo root" = the bare gitdir's parent
     └── bl-c3d4/
 ```
 
-At a bare hub there is no `project/` working tree, and nothing is "gitignored on main" — there is no checked-out main to ignore from. `.balls/` and `.balls-worktrees/` are the store itself, ordinary directories sitting next to the bare gitdir, not a tracked working set; `config.json` and `plugins/` are present as loose files rather than a checkout of main. The only real working trees are the per-task `.balls-worktrees/<id>/` checkouts. The state worktree, the `.balls/tasks` symlink, and the state branch are exactly as in the ordinary clone. How the loose store comes to exist at a fresh bare root is the bootstrap sequence — see *The bare central hub* and the `bl init` section.
+At a bare hub there is no `project/` working tree, and nothing is "gitignored on main" — there is no checked-out main to ignore from. `.balls/` and `.balls-worktrees/` are the store itself, ordinary directories sitting next to the bare gitdir, not a tracked working set. The state checkout, the symlinks, and the state branch are exactly as in the ordinary clone. How the loose store comes to exist at a fresh bare root is the bootstrap sequence — see *The bare central hub* and the `bl init` section.
 
 ### .gitignore entries
 
-`bl init` adds these to the **ordinary clone's** `.gitignore` on main:
+`bl init` adds these to the **ordinary clone's** `.gitignore` on the code branch:
 
 ```
 .balls/local
 .balls/tasks
-.balls/worktree
+.balls/state-repo
+.balls/plugins
 .balls-worktrees
 ```
 
-A bare hub has no checked-out main and no `.gitignore` governing it: the same paths are never a tracked working set there, so nothing has to be ignored. These entries matter only for the working-tree case.
+`.balls/config.json` is *not* ignored — it is a committed, workspace-owned deliverable. A bare hub has no checked-out code branch and no `.gitignore` governing it: the same paths are never a tracked working set there, so nothing has to be ignored. These entries matter only for the working-tree case.
 
 ### State branch history
 
@@ -321,7 +322,7 @@ The recommended production topology is a **bare** repository (`core.bare = true`
 bl init --bare git@host:proj.git /srv/proj-hub
 ```
 
-It bare-clones the source into `/srv/proj-hub/.git`, wires the `origin` fetch refspec, reconstructs the loose store (the `.balls/` scaffolding, the `.balls/tasks` symlink, `config.json` materialized from `main`'s tree), and attaches the state worktree. It is idempotent and non-destructive in exactly the way the working-tree `bl init` is: re-running it reuses an existing bare gitdir (and refuses to clobber a *non*-bare `.git` there), re-creates only what is missing, and never force-pushes or resets a shared branch. The source's `main` must already be balls-initialized; if it has no `.balls/config.json` the command stops with that message rather than guessing.
+It bare-clones the source into `/srv/proj-hub/.git`, wires the `origin` fetch refspec, reconstructs the loose store (the `.balls/` scaffolding, `config.json` materialized from `main`'s tree), and materializes the `.balls/state-repo` checkout plus its `.balls/tasks` / `.balls/plugins` symlinks. It is idempotent and non-destructive in exactly the way the working-tree `bl init` is: re-running it reuses an existing bare gitdir (and refuses to clobber a *non*-bare `.git` there), re-creates only what is missing, and never force-pushes or resets a shared branch. The source's `main` must already be balls-initialized; if it has no `.balls/config.json` the command stops with that message rather than guessing.
 
 **The by-hand sequence (still canonical).** `bl init --bare` is a convenience wrapper over standard git plumbing, not a new primitive — per the orphan-branch design principle that standard tools must suffice, the manual sequence below remains valid and is what the wrapper mechanizes (steps 2–3). Use it when you want to see exactly what the hub is, or when scripting around a constraint the wrapper doesn't cover. The sequence is short because the orphan-branch design means a hub is just a loose store wrapped around an already-published `balls/tasks`:
 
@@ -344,63 +345,65 @@ git --git-dir=.git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin
 git --git-dir=.git fetch origin
 
 # 3. Reconstruct the loose store at the bare root — the part `bl init`
-#    would do in a working-tree clone but cannot here. The store dirs are
-#    gitignored on main so a clone never carries them; config.json IS
+#    would do in a working-tree clone but cannot here. config.json IS
 #    tracked on main, so materialize it from main's tree (no checkout
-#    exists to copy it from at a bare root).
-git worktree add .balls/worktree balls/tasks
-ln -s worktree/.balls/tasks .balls/tasks
-mkdir -p .balls/plugins .balls/local/claims .balls/local/lock .balls/local/plugins
+#    exists to copy it from at a bare root). The state checkout is a
+#    single-branch clone of the hub's own balls/tasks.
+mkdir -p .balls/local/claims .balls/local/lock .balls/local/plugins
 git show main:.balls/config.json > .balls/config.json
+git clone --single-branch --branch balls/tasks .git .balls/state-repo
+ln -s state-repo/.balls/tasks   .balls/tasks
+ln -s state-repo/.balls/plugins .balls/plugins
 
 # 4. Verify. Read-only and root commands work from the bare root (bl-8cf7).
 bl list
 ```
 
-The state worktree added in step 3 already carries `.gitattributes` and every task file from `balls/tasks`, so nothing is reseeded — it is pure on-disk scaffolding around an already-populated orphan branch. From here `bl claim` / `bl review` / `bl close` run at the bare root exactly as described above; `bl review`'s ephemeral-worktree squash (`bare_squash.rs`) needs no extra setup.
+The `.balls/state-repo` clone added in step 3 already carries `.gitattributes` and every task file from `balls/tasks`, so nothing is reseeded — it is pure on-disk scaffolding around an already-populated orphan branch. From here `bl claim` / `bl review` / `bl close` run at the bare root exactly as described above; `bl review`'s ephemeral-worktree squash (`bare_squash.rs`) needs no extra setup.
 
 ---
 
-## Federated multi-repo state
+## Multi-repo state: one tracker, many workspaces
 
-The deployments above — a working-tree clone, or a single bare hub — weld the task store to one code repo: `balls/tasks` is an orphan ref negotiated against that repo's own `origin`. One repo, one disjoint backlog. A project that spans **several** code repos — a `frontend`, an `api`, an `infra` — wants the opposite: one backlog, one ready queue, cross-repo dependency edges, and one place to run an issue-tracker plugin. Federated mode is the opt-in deployment that delivers it. It is a real scope expansion, taken deliberately, and it does not abandon the project thesis: the hub is still just git — no database, no daemon, no service.
+The deployments above weld the task store to one code repo: `balls/tasks` is an orphan ref negotiated against that repo's own `origin`. One repo, one disjoint backlog. A project that spans **several** code repos — a `frontend`, an `api`, an `infra` — wants the opposite: one backlog, one ready queue, cross-repo dependency edges, and one place to run an issue-tracker plugin.
 
-The full design — invariants, the backwards-compatibility audit, the conformance-test list — is [docs/SPEC-tracker-state.md](docs/SPEC-tracker-state.md), the authoritative contract; this section is the operational summary, and SKILL.md §*Multi-repo: one project, many repos* is the agent-facing companion. A repo with no pointer file is **standalone** and behaves bit-identically to every prior version — federation changes nothing until you opt in.
+balls handles this with **one mechanism, no mode**. Every workspace resolves a *tracker address* and materializes one checkout of it at `.balls/state-repo/`. "Standalone" is the case where the address is the code repo's own `origin`; "federated" is the case where it is a dedicated, shared tracker. The same code path, the same checkout, the same commands — only the address value differs. A repo with no address configured resolves the implicit default and behaves bit-identically to every pre-federation version.
 
-### The hub and the participants
+The full design — invariants, the backwards-compatibility audit, the conformance-test list — is [docs/SPEC-tracker-state.md](docs/SPEC-tracker-state.md), the authoritative contract; this section is the operational summary, and SKILL.md §*Multi-repo: one project, many repos* is the agent-facing companion.
 
-A **state hub** is a dedicated git repo whose `balls/tasks` ref is the shared task store — no code, usually bare. Each **participant** is an ordinary code repo that points its state branch at the hub instead of negotiating it against its own `origin`. The code remote is never touched; only where the orphan ref lives changes.
+### The tracker address
 
-A participant does not check the state branch out beside its code. balls materializes a separate, balls-owned clone of the hub at `.balls/state-repo/` and routes every state-branch operation — `create`, `claim`, `review`, `close`, `sync` — through it. Three paths under `.balls/` become symlinks into that clone:
+The address is the pair `(state_url, state_branch)`, both optional fields in the workspace's committed `.balls/config.json`:
 
-| Project path | Resolves to |
-|---|---|
-| `.balls/tasks` | `state-repo/.balls/tasks` — the task files |
-| `.balls/config.json` | `state-repo/.balls/config.json` — the hub's canonical config |
-| `.balls/plugins` | `state-repo/.balls/plugins` — the hub's plugin config |
+| Field | Absent ⇒ | Set ⇒ |
+|---|---|---|
+| `state_url` | the code repo's `origin`, resolved live | an explicit tracker URL |
+| `state_branch` | `balls/tasks` | an explicit branch name |
 
-The model choice is thus a *filesystem fact*, decided once when the symlinks are laid down — no command branches on `master_url` on a hot path; `Config::load(".balls/config.json")` simply resolves to the hub's file transparently. `.balls/state-repo/` and the symlinks are all gitignored runtime state, fully re-materializable from the committed pointer; deleting them loses nothing durable, exactly as for the standalone local cache.
+`config.json` is a real, never-symlinked workspace file — it has to be, since the address it carries is what every other path resolves through. `Store::discover` materializes `.balls/state-repo` (a balls-owned clone of the address) and the `.balls/tasks` / `.balls/plugins` symlinks into it; all three are gitignored runtime state, fully re-materializable from the address, so deleting them loses nothing durable. A teammate's `git clone` carries `config.json`, so the clone plus `bl prime` is a complete onboard — no manual `git remote add`.
 
-Federation is opt-in and recorded in **one committed file** — `.balls/master.json`, the bootstrap pointer that names the hub. A `git clone` carries it, so every participant agrees on the model; no environment variable or per-invocation flag switches it. Its two fields, `master_url` and the legacy `state_remote`, are documented under *The `master.json` pointer* in the Config section below.
+### `bl remaster`: changing the address
 
-### Master wins: one config across the federation
-
-In federated mode the hub owns *all* policy — task knobs, `target_branch`, `delivery`, `review`, and plugins. Because `.balls/config.json` and `.balls/plugins/` are symlinks into the hub clone, there is exactly one config file for the whole federation: "master wins" is not a runtime precedence chain to reason about, it is structural single-sourcing. Edit policy by editing the hub's files — `cd .balls/state-repo`, edit, commit on `balls/tasks`, push — and every participant picks it up on its next `bl prime`. A participant that still carries a project-side `plugins` map or non-placeholder `.balls/plugins/*` files gets a one-shot "master wins" warning on stderr; those files are inert until removed.
-
-This single-sourcing is what makes the **bridge pattern** sound. A multi-repo project usually wants one external tracker (Jira, Linear, GitHub Issues) as its human-facing record. Wire that issue-tracker plugin into *one* participant — the **bridge** — and the rest operate through the shared state branch as a proxy: they never install the plugin, never hold its credential, never run its sync. Because mirroring policy lives in the one hub config, there is exactly one place it is set and no place it can drift. SKILL.md carries the diagram and the operating detail.
-
-### Joining, leaving, and reachability
-
-`bl remaster` is the single verb for every model transition:
+`bl remaster` is the one verb for every address change:
 
 | Command | Effect |
 |---|---|
-| `bl remaster <hub-url> --commit` | **Federate**: materialize the state-repo, promote this repo's policy into the hub (the hub wins any clash, and discarded names are printed), then write and commit `.balls/master.json`. Runs even on a fresh `git clone` with no `.balls/` yet — a one-command onboard. A true-standalone repo with open local tasks is refused the flip unless they are closed or `--force` is given. |
-| `bl remaster --detach` | **Leave**: re-root `balls/tasks` as a fresh local orphan carrying its current tasks, restore real `.balls/config.json` + `.balls/plugins/` files, and clear the pointer — the repo is standalone again. |
+| `bl remaster <url>` [`--commit`] | Write `state_url` into `config.json` and reconcile this workspace's local-only tasks onto the new tracker, renaming any id clashes. `--commit` also `git commit`s the `config.json` change so a fresh clone carries it. |
+| `bl remaster --detach` | Clear the address (reverting to the implicit `origin`) and re-root `balls/tasks` as a fresh local orphan carrying its current tasks. Offline-capable — a workspace is never trapped in a tracker it cannot reach. |
 
-Onboarding a teammate is therefore just `git clone` + `bl prime`: the clone carries the committed pointer, and the first `Store::discover` re-materializes the state-repo and symlinks automatically — no manual `git remote add`, no extra step. That self-bootstrapping URL is why `master_url` supersedes the legacy `state_remote`, whose remote *name* a fresh clone cannot resolve on its own.
+There is no transplant and no federated "flip": detach is an address edit plus an ordinary reconcile, and re-mastering to a different tracker is the same. A legacy `.balls/master.json` pointer, or `master_url` / `state_remote` fields in an old `config.json`, are read transparently and rewritten to `state_url` on the next `bl remaster`.
 
-Reachability is deliberate. A **first-time** materialization against an unreachable hub *hard-fails* loudly — the error names the URL, the underlying `git fetch` failure, and three remediation paths — rather than silently dropping the client to an empty local orphan, which is the exact drift the federated model exists to prevent. Once a **warm cache** exists, an unreachable hub is a soft-fail: `bl` works from the local cache and prints a `note:`, parity with standalone offline operation. `bl remaster --detach` is offline-capable by construction, so a repo is never trapped in a federation whose hub it cannot reach.
+### Reachability
+
+First contact with an unreachable *explicit* tracker **hard-fails** loudly — the error names the URL, the underlying `git` failure, and three remediation paths — rather than dropping the workspace to a silent local orphan that would drift from the project. The implicit default (no `state_url` — a solo repo, possibly pre-remote) falls back to a local `git init` instead: a solo project is offline-bootstrappable. Once `.balls/state-repo` has materialized, an unreachable tracker is a **soft-fail**: `bl` works from the checkout, parity with ordinary offline git.
+
+### Code delivery is never routed
+
+Federation routes task *state* to the tracker; it never routes code. `bl review` squashes onto the workspace's own integration branch and pushes to the workspace's own `origin` — the `[bl-xxxx]` delivery tag lands there. Only the state-branch transition reaches the tracker. The two remotes are independent and may be entirely unrelated repos.
+
+### Bridging to an external tracker
+
+A multi-repo project usually wants one external system (Jira, Linear, GitHub Issues) as its human-facing record. Wire that issue-tracker plugin into *one* workspace — the **bridge** — and the rest operate through the shared state branch as a proxy: they never install the plugin, never hold its credential, never run its sync. Plugin config files ride the state branch (`.balls/plugins` resolves into the state checkout), so the bridge role moves without reconfiguration. SKILL.md carries the diagram and the operating detail.
 
 ---
 
@@ -468,7 +471,7 @@ Both modes above can run a project-defined check before `bl review` delivers. Se
 
 `bl review` runs `pre_check` once it has committed the worker's work and merged the integration branch into the worktree — so the check sees the exact end-state being delivered — and *before* the squash (local-squash) or the branch push (deferred). A non-zero exit aborts the review: no squash, no push, no status flip. The integration-branch merge stays in the worktree, so you fix the failure there and re-run `bl review`; the check's own output streams to your terminal.
 
-This is where a repo's quality gate belongs. balls commits every state-branch write — and the squash itself — with `git commit --no-verify`, so a git `pre-commit` hook structurally cannot see the merge to the integration branch, and CI sees it only after it has landed. `pre_check` is the one gate that runs *at* the merge. Because it lives in committed config, a `master_url` hub enforces it across the whole federation. Unset (the default) ⇒ no gate, byte-identical to before.
+This is where a repo's quality gate belongs. balls commits every state-branch write — and the squash itself — with `git commit --no-verify`, so a git `pre-commit` hook structurally cannot see the merge to the integration branch, and CI sees it only after it has landed. `pre_check` is the one gate that runs *at* the merge. It lives in the workspace-owned `.balls/config.json` — a build/test gate is a property of *this* code repo, not of a shared tracker. Unset (the default) ⇒ no gate, byte-identical to before.
 
 ### Backwards-compatibility caveat
 
@@ -599,7 +602,7 @@ Per-clone ephemeral state. Gitignored, disposable, rebuilt by `bl init`.
 Advisory flocks serializing local writes:
 
 - `lock/<task-id>.lock` — one file per task, held by any write path for that task. Prevents two workers on the same machine from racing a claim or update.
-- `lock/state-worktree.lock` — store-wide lock held during any write to the state worktree (`commit_task`, `commit_staged`, `remove_task`, `close_and_archive`). Serializes concurrent bl invocations from different tasks so git's `index.lock` in `.balls/worktree/` never sees contention. This is the lock that makes parallel agent swarms safe.
+- `lock/state-worktree.lock` — store-wide lock held during any write to the state checkout (`commit_task`, `commit_staged`, `remove_task`, `close_and_archive`). Serializes concurrent bl invocations from different tasks so git's `index.lock` in `.balls/state-repo/` never sees contention. This is the lock that makes parallel agent swarms safe.
 
 Both locks use `flock(2)`: if another process holds the lock, the caller blocks until it's released. No polling, no races.
 
@@ -625,7 +628,7 @@ Plugin auth tokens and runtime caches, scoped per plugin name. Plugins own this 
 
 ### Claim
 
-`bl claim bl-a1b2` acquires the per-task flock, flips the task's status to `in_progress` and writes `claimed_by`/`branch` fields on the state branch, commits that change (`balls: claim bl-a1b2 - title`), then creates a git worktree at `.balls-worktrees/bl-a1b2/` on a fresh `work/bl-a1b2` branch. The bl worktree is symlinked to share `.balls/local`, `.balls/worktree`, and `.balls/tasks` with main so task state is visible from inside it. Prints the worktree path on success.
+`bl claim bl-a1b2` acquires the per-task flock, flips the task's status to `in_progress` and writes `claimed_by`/`branch` fields on the state branch, commits that change (`balls: claim bl-a1b2 - title`), then creates a git worktree at `.balls-worktrees/bl-a1b2/` on a fresh `work/bl-a1b2` branch. The bl worktree is symlinked to share `.balls/local`, `.balls/state-repo`, and `.balls/tasks` with main so task state is visible from inside it. Prints the worktree path on success.
 
 None of this touches main. The claim commit lands on `balls/tasks`, not on your project's history.
 
@@ -726,12 +729,11 @@ Detection runs in this order:
 
 One-time setup per clone. `bl init` is idempotent and self-healing — running it on an already-initialized repo verifies and repairs. Specifically:
 
-1. Creates `.balls/local/`, `.balls/plugins/`, `.balls/config.json` and adds the gitignore entries.
-2. Creates or fetches the `balls/tasks` orphan branch. If the branch exists on `origin`, it's tracked; otherwise a fresh orphan is created and pushed (best-effort) so subsequent clones discover it.
-3. Checks the state branch out as a second git worktree at `.balls/worktree/`.
-4. Seeds `.balls/tasks/.gitattributes` with `*.notes.jsonl merge=union` on the state branch.
-5. Creates the `.balls/tasks → worktree/.balls/tasks` symlink in main's working tree.
-6. Commits the main-side additions (`.gitignore`, `config.json`, `plugins/.gitkeep`) as a single `balls: initialize` commit.
+1. Creates `.balls/local/`, `.balls/config.json` and adds the gitignore entries.
+2. Materializes the `.balls/state-repo` state checkout from the tracker address (the code `origin` by default). If `origin` carries a `balls/tasks` branch it is tracked; otherwise a fresh orphan is created and pushed (best-effort) so subsequent clones discover it. An unreachable *explicit* `state_url` hard-fails here.
+3. Seeds `.balls/tasks/.gitattributes` with `*.notes.jsonl merge=union` on the state branch.
+4. Creates the `.balls/tasks → state-repo/.balls/tasks` and `.balls/plugins → state-repo/.balls/plugins` symlinks.
+5. Commits the code-branch additions (`.gitignore`, `config.json`) as a single `balls: initialize` commit.
 
 With `--stealth`, tasks are stored outside the repo at `~/.local/share/balls/<repo-hash>/tasks/` with no state branch at all. Useful for local-only planning that shouldn't appear in any git history. All other bl commands work identically; the orphan-branch topology is simply bypassed.
 
@@ -739,7 +741,7 @@ With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of 
 
 **No-git mode:** `bl init --tasks-dir PATH` also works outside a git repository. In this mode balls stores tasks as flat JSON files at the given path with no git operations at all — no state branch, no commits, no worktrees. All commands work: `create`, `list`, `show`, `update`, `sync` (plugin-only), `ready`, `repair`. The only behavioral difference is that `bl claim` requires `--no-worktree` (since there's no git repo to create a worktree in), and `bl review`/`bl close` are status flips with no merge.
 
-**By hand:** see `SPEC-orphan-branch-state.md` §11 for the full shell sequence (`git switch --orphan balls/tasks`, `git worktree add .balls/worktree balls/tasks`, `ln -s worktree/.balls/tasks .balls/tasks`, gitignore updates, initial commit).
+**By hand:** the full shell sequence is a `git switch --orphan balls/tasks` to create the state branch, a `git clone --single-branch --branch balls/tasks` of the address into `.balls/state-repo`, the `.balls/tasks` / `.balls/plugins` symlinks, gitignore updates, and the initial commit — `docs/SPEC-tracker-state.md` §13 gives the hand-operable form.
 
 **Bare hub:** everything above assumes a working tree. Plain `bl init` (no `--bare`) still cannot initialize a bare repo — there is no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into, and that working-tree wiring is correctly *skipped* at a bare root, not faked. Standing up the recommended bare central-hub deployment is the dedicated `bl init --bare <source> <hubdir>` form (equivalently the by-hand sequence), documented in *The bare central hub → Bootstrapping a bare hub from scratch* above.
 
@@ -749,13 +751,13 @@ With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of 
 bl create "Implement auth middleware" -p 1 -t task --parent bl-x9y8 --dep bl-c3d4 --tag auth
 ```
 
-Generates an ID, writes the task file into the state worktree, commits it on `balls/tasks`. Rejects circular deps and nonexistent dep IDs. Triggers plugin push if configured.
+Generates an ID, writes the task file into the state checkout, commits it on `balls/tasks`. Rejects circular deps and nonexistent dep IDs. Triggers plugin push if configured.
 
 **By hand:**
 ```bash
 $EDITOR .balls/tasks/bl-NEW.json           # write the JSON directly through the symlink
-git -C .balls/worktree add .balls/tasks/bl-NEW.json
-git -C .balls/worktree commit -m "balls: create bl-NEW"
+git -C .balls/state-repo add .balls/tasks/bl-NEW.json
+git -C .balls/state-repo commit -m "balls: create bl-NEW"
 ```
 
 ### bl list [filters]
@@ -822,7 +824,7 @@ A **closed** task's id still resolves: when it's no longer on the state-branch H
 
 If a plugin has populated `task.external.<plugin>` with `remote_key` and/or `remote_url` (the Plugin Protocol convention — see below), `bl show` surfaces them as a `remote:` block so agents don't have to parse `--json` to find a Jira key or issue URL. Plugins whose blob has neither field are skipped — the human view doesn't dump arbitrary plugin internals.
 
-**By hand:** `cat .balls/tasks/bl-a1b2.json | jq .` — the symlink transparently reads from the state worktree.
+**By hand:** `cat .balls/tasks/bl-a1b2.json | jq .` — the symlink transparently reads from the state checkout.
 
 ### bl claim ID [--as IDENTITY] [--no-worktree]
 
@@ -832,7 +834,7 @@ bl claim bl-a1b2 --as dev1/agent-alpha
 bl claim bl-a1b2 --no-worktree
 ```
 
-Validates the task is claimable → flips status/claimed_by/branch on the state branch → commits (`balls: claim bl-a1b2`) → creates a git worktree at `.balls-worktrees/bl-a1b2/` on `work/bl-a1b2` → symlinks `.balls/local`, `.balls/worktree`, and `.balls/tasks` into the new worktree → writes the local claim file → prints the worktree path. Triggers plugin push if configured.
+Validates the task is claimable → flips status/claimed_by/branch on the state branch → commits (`balls: claim bl-a1b2`) → creates a git worktree at `.balls-worktrees/bl-a1b2/` on `work/bl-a1b2` → symlinks `.balls/local`, `.balls/state-repo`, and `.balls/tasks` into the new worktree → writes the local claim file → prints the worktree path. Triggers plugin push if configured.
 
 With `--no-worktree`, skips worktree creation — only flips the task status and writes the claim file. Required in no-git mode; optional in git mode for workflows that don't need branch isolation.
 
@@ -875,7 +877,7 @@ bl update bl-a1b2 status=closed        # closing unclaimed tasks skips the bl cl
 
 Edits fields directly on the state branch (no bl worktree required) and commits `balls: update bl-a1b2 - title`. Notes are appended to the sibling `.notes.jsonl` file. `status=closed` on an unclaimed task goes through the same atomic archive as `bl close`.
 
-**By hand:** see `SPEC-orphan-branch-state.md` §11 for the canonical edit-and-publish shell sequence (`$EDITOR .balls/tasks/bl-a1b2.json; git -C .balls/worktree add .balls/tasks/bl-a1b2.json; git -C .balls/worktree commit -m "bl-a1b2: bumped priority"`).
+**By hand:** see `SPEC-orphan-branch-state.md` §11 for the canonical edit-and-publish shell sequence (`$EDITOR .balls/tasks/bl-a1b2.json; git -C .balls/state-repo add .balls/tasks/bl-a1b2.json; git -C .balls/state-repo commit -m "bl-a1b2: bumped priority"`).
 
 ### bl drop ID [--force]
 
@@ -987,14 +989,14 @@ bl sync
 Reconciles both main and the state branch with `origin`:
 
 1. `git fetch origin` (best-effort; offline is fine).
-2. **State branch first.** In `.balls/worktree/`, merge `origin/balls/tasks`, auto-resolve any task-file conflicts via the field-wise resolver, push `balls/tasks`.
+2. **State branch first.** In `.balls/state-repo/`, merge `origin/balls/tasks`, auto-resolve any task-file conflicts via the field-wise resolver, push `balls/tasks`.
 3. **Main second.** In main, merge `origin/main`, push.
 4. **Half-push detection.** Scan the state branch for `state: close bl-xxxx` commits whose corresponding `[bl-xxxx]` tag is not reachable from main, and surface them as warnings. A half-push happens if the state push succeeded but the main push failed on a previous invocation — next sync naturally retries main, but the warning tells you explicitly if the local repo can't heal it (e.g., on a different machine).
 5. Run plugin sync (if configured). Plugin output is bounded and timed (see Plugin System).
 
 Push ordering matters: state branch goes first so that if the sync is interrupted between pushes, the closing commit is already visible to other workers — they'll see the task as closed even though the feature commit is still coming.
 
-**By hand:** see `SPEC-orphan-branch-state.md` §11. The shell sequence is two `git -C .balls/worktree push origin balls/tasks` plus a `git push origin main`, with `git fetch` and `git merge` between as needed.
+**By hand:** see `SPEC-orphan-branch-state.md` §11. The shell sequence is two `git -C .balls/state-repo push origin balls/tasks` plus a `git push origin main`, with `git fetch` and `git merge` between as needed.
 
 #### Human-gate review (`--review`, `--apply`, `--discard`)
 
@@ -1028,10 +1030,10 @@ Read-only diagnostic for repo/bl state drift. The complaint it answers: an `AGEN
 
 It changes nothing — `repair` remains the only action verb; doctor only diagnoses and suggests. Exit is always 0; the verdict is the text. Checks:
 
-- discovery fails — surfaces the precise reason (wrong directory, untracked repo, broken state worktree, …), and when no `.balls/` exists at all but a doc references bl, says so explicitly: run `bl init` or scrub the docs;
+- discovery fails — surfaces the precise reason (wrong directory, untracked repo, broken state checkout, …), and when no `.balls/` exists at all but a doc references bl, says so explicitly: run `bl init` or scrub the docs;
 - `.balls/config.json` unreadable;
 - `.balls/local/tasks_dir` override pointing at a missing path;
-- the state worktree present but not a valid linked git worktree;
+- the state checkout present but not a valid linked git worktree;
 - stale claim files (no such task, or the task isn't in progress);
 - worktree dirs under `.balls-worktrees/` with no task or claim behind them.
 
@@ -1095,22 +1097,18 @@ Committed to main, shared across the team.
 | `BALLS_PLUGIN_MAX_SYNC_CREATES` | Flood backstop: max tasks created from one plugin sync. Excess is skipped with a warning, the rest of the sync still applies. Set in the thousands; a real tracker never reports this many new issues at once. | 5000 |
 | `BALLS_PLUGIN_MAX_SYNC_FIELD_BYTES` | Per-text-field byte ceiling on a synced title/description/note. An oversize field is truncated with a visible marker (never dropped, never rejected); siblings and the rest of the sync are unaffected. Absurdly generous — real fields are bytes to kilobytes. | 1 MiB |
 
-### The `master.json` pointer
+### The tracker address
 
-`.balls/master.json` is a second committed file, distinct from `config.json` and far smaller. It is the **bootstrap pointer** for *Federated multi-repo state* (above): in federated mode `.balls/config.json` is itself a symlink into the hub clone, so the hub link cannot live inside it — `bl` would have nowhere to read it from before the symlink resolves. `master.json` therefore carries *only* the fields `bl` must read before the canonical config does:
-
-```json
-{ "master_url": "git@host:proj-hub.git" }
-```
+`.balls/config.json` carries two optional fields that name the *tracker* — the git repo hosting the shared `balls/tasks` branch. Together they are the **address** (`docs/SPEC-tracker-state.md` §5):
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `master_url` | string? | `null` | Git URL of the shared task **hub**. When set, `bl` materializes a hub clone at `.balls/state-repo/` and routes every state-branch operation through it. The recommended federation mechanism. |
-| `state_remote` | string? | `null` | *Legacy.* The *name* of an existing project-side git remote whose `balls/tasks` is negotiated against; `null` resolves to `origin`. Deprecated for the cross-repo case as of 0.5.0 in favour of `master_url` — a remote name is not self-bootstrapping, so a fresh `git clone` lands without it and stays unlinked until someone runs `git remote add` by hand. Still read transparently and never auto-rewritten. |
+| `state_url` | string? | the code repo's `origin` | Git URL of the tracker. Absent ⇒ resolved live from `origin` (a standalone repo); set ⇒ an explicit, shared tracker. `bl remaster <url>` writes it; `bl remaster --detach` removes it. |
+| `state_branch` | string? | `balls/tasks` | The tracker's branch name. Lets one tracker host several projects on distinct branches. |
 
-Both fields are optional and independent; `master_url` wins when both are set. An **empty pointer is the standalone signal** — and `bl` deletes the file rather than writing `{}`, so a non-federated repo carries no `master.json` at all. A pre-pointer repo that kept these fields directly in `config.json` is still honoured: `bl` synthesizes a pointer from them (the `Config` struct retains the fields for deserialization only, never reading them) and migrates them into `master.json` on the next `bl remaster`.
+A standalone repo carries neither field — which is why a pre-federation `config.json` is already conformant. The address must be readable *before* anything else resolves (the `.balls/state-repo` checkout is reached *through* it), which is why it lives in `config.json` — a real, never-symlinked workspace file — and not on the state branch.
 
-The "committed to main, shared across the team" line at the top of this section describes the **standalone** layout. In federated mode `.balls/config.json` and `.balls/plugins/` are symlinks into the hub clone — one config file shared by every participant, owned outright by the hub (*master wins*).
+**Legacy migration.** A pre-spec repo may carry the retired `.balls/master.json` pointer, or `master_url` / `state_remote` fields inside `config.json`. All three are read transparently and folded into `state_url` on the next `bl remaster`; the `Config` struct retains `master_url`/`state_remote` for deserialization only, never reading them directly.
 
 ---
 
@@ -1514,15 +1512,15 @@ Core maintains a top-level `synced_at` map on every task, keyed by plugin name, 
 Each developer:
 
 1. Clones the repo. `git clone` fetches `main` and the `balls/tasks` orphan branch automatically.
-2. Runs `bl init` once per clone. This checks out the state branch into `.balls/worktree/`, creates the `.balls/tasks` symlink, and seeds `.balls/local/` for ephemeral state.
+2. Runs `bl init` once per clone. This checks out the state branch into `.balls/state-repo/`, creates the `.balls/tasks` symlink, and seeds `.balls/local/` for ephemeral state.
 3. Runs `bl sync` to stay current — pulls both main and the state branch from origin.
 4. Claims tasks, works in bl worktrees, runs `bl review` to deliver.
 
-A developer and their agents on one machine are just workers sharing the `.balls/local/` cache and a single state worktree. Remote developers are workers on different machines sharing state through git. The coordination model is the same: optimistic concurrency, conflict at merge time, resolution via the text-mergeable schema and the field-wise resolver.
+A developer and their agents on one machine are just workers sharing the `.balls/local/` cache and a single state checkout. Remote developers are workers on different machines sharing state through git. The coordination model is the same: optimistic concurrency, conflict at merge time, resolution via the text-mergeable schema and the field-wise resolver.
 
 ### Parallel workers on one machine
 
-Multiple agent processes running simultaneously on the same clone are safe. The per-task flock at `.balls/local/lock/<id>.lock` serializes writes on a single task, and the store-wide flock at `.balls/local/lock/state-worktree.lock` serializes writes to the state branch's git index so concurrent `bl create` / `bl claim` / `bl review` calls don't race on `.balls/worktree/.git/index.lock`. Empirically: without the store-wide lock, 6 of 8 parallel `bl create` workers fail with `fatal: Unable to create index.lock`; with the lock, 8 of 8 succeed.
+Multiple agent processes running simultaneously on the same clone are safe. The per-task flock at `.balls/local/lock/<id>.lock` serializes writes on a single task, and the store-wide flock at `.balls/local/lock/state-worktree.lock` serializes writes to the state branch's git index so concurrent `bl create` / `bl claim` / `bl review` calls don't race on `.balls/state-repo/.git/index.lock`. Empirically: without the store-wide lock, 6 of 8 parallel `bl create` workers fail with `fatal: Unable to create index.lock`; with the lock, 8 of 8 succeed.
 
 There is no central server. There is no daemon. Git is the coordination layer. Plugins talk to external services when configured, but the core system operates without them.
 
@@ -1618,7 +1616,7 @@ There is no central server. There is no daemon. Git is the coordination layer. P
 
 ### Multi-Dev Workflow
 
-54. Dev A creates tasks and runs `bl sync`, pushing both main and `balls/tasks`. Dev B clones (git fetches both branches), runs `bl init` to set up the state worktree + symlink, runs `bl list` and sees all tasks.
+54. Dev A creates tasks and runs `bl sync`, pushing both main and `balls/tasks`. Dev B clones (git fetches both branches), runs `bl init` to set up the state checkout + symlink, runs `bl list` and sees all tasks.
 55. Dev A claims task, pushes. Dev B's `bl ready` does not show that task.
 56. Multiple devs running agent swarms. Each agent claims distinct tasks. Git push serializes merges.
 57. New dev joins, clones, runs `bl init`. Full task state available immediately.

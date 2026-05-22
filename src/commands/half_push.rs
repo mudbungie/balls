@@ -25,7 +25,7 @@ use balls::{git, git_state};
 /// stale warning (pre-0.3.8 gate reviews that predate the `no-code`
 /// marker, recoveries handled out-of-band, etc.).
 pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
-    let state_dir = store.state_worktree_dir();
+    let state_dir = store.state_repo_dir();
     let state_subjects = git_state::log_subjects(&state_dir, "balls/tasks")?;
     let reviewed: std::collections::HashSet<String> = state_subjects
         .iter()
@@ -97,7 +97,7 @@ pub(super) fn reviewed_target(subject: &str) -> Option<(String, String)> {
 /// Caller is responsible for ensuring the store is git-backed and
 /// non-stealth (`cmd_repair` does this).
 pub fn write_forget_half_push(store: &Store, ids: &[String]) -> Result<()> {
-    let dir = store.state_worktree_dir();
+    let dir = store.state_repo_dir();
     for id in ids {
         let msg = format!("state: forget-half-push {id}");
         git::git_commit_empty(&dir, &msg)?;

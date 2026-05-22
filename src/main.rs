@@ -200,8 +200,7 @@ fn main() {
             target,
             commit,
             detach,
-            force,
-        } => commands::cmd_remaster(target, commit, detach, force),
+        } => commands::cmd_remaster(target, commit, detach),
         Command::Skill => {
             print!("{}", include_str!("../SKILL.md"));
             Ok(())

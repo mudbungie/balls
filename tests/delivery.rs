@@ -161,13 +161,13 @@ fn delivered_in_returns_none_after_main_reset_past_tag() {
     // bl show needs a resurrected task file to read, since close
     // archived it. Restore the archive-pre state from the state
     // branch's parent of the close commit.
-    let state_parent = git(
+    let state_parent = git_state(
         repo.path(),
         &["rev-parse", "balls/tasks~1"],
     )
     .trim()
     .to_string();
-    let content = git(
+    let content = git_state(
         repo.path(),
         &[
             "show",
@@ -232,13 +232,13 @@ fn full_review_close_cycle_persists_delivery_on_state_branch() {
 
     // After close, the task file is gone from the state branch's tip.
     // Check its archived state via the parent commit.
-    let state_head = git(repo.path(), &["rev-parse", "balls/tasks"])
+    let state_head = git_state(repo.path(), &["rev-parse", "balls/tasks"])
         .trim()
         .to_string();
-    let parent = git(repo.path(), &["rev-parse", &format!("{state_head}~1")])
+    let parent = git_state(repo.path(), &["rev-parse", &format!("{state_head}~1")])
         .trim()
         .to_string();
-    let archived = git(
+    let archived = git_state(
         repo.path(),
         &[
             "show",

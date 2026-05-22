@@ -243,7 +243,7 @@ fn update_status_closed_archives_unclaimed_task() {
         "main log should be free of balls close commits: {main_log}"
     );
     // The close commit lives on the state branch instead.
-    let state_log = git(repo.path(), &["log", "--oneline", "balls/tasks"]);
+    let state_log = git_state(repo.path(), &["log", "--oneline", "balls/tasks"]);
     assert!(
         state_log.contains(&format!("close {id}")),
         "state branch should record the close: {state_log}"

@@ -43,7 +43,7 @@ fn bare_hub_bootstrap_reconstructs_the_loose_store() {
     );
     assert!(hub.join(".balls/config.json").exists());
     assert!(hub.join(".balls/tasks").is_symlink());
-    assert!(hub.join(".balls/worktree").exists());
+    assert!(hub.join(".balls/state-repo").exists());
     assert!(hub.join(".balls/local/claims").exists());
     assert!(hub.join(".balls/local/lock").exists());
 

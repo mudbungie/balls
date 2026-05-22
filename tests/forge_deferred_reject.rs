@@ -72,7 +72,7 @@ fn deferred_reject_closes_gate_child_atomically() {
     assert_eq!(v.as_array().unwrap().len(), 0, "no open forge-gate child remains");
 
     // Atomic: the parent flip and the child removal are ONE commit.
-    let state_wt = alice.path().join(".balls/worktree");
+    let state_wt = alice.path().join(".balls/state-repo");
     let head = git(&state_wt, &["rev-parse", "HEAD"]);
     let head = head.trim();
     let names = git(&state_wt, &["show", "--name-status", "--format=%s", "HEAD"]);

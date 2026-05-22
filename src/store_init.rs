@@ -1,120 +1,34 @@
-//! Helpers for `Store::init`: state branch creation, state worktree
-//! setup, main-checkout gitignore wiring, and the bare-hub bootstrap.
-//! Extracted from `store.rs` to keep that file focused on the Store API.
+//! Helpers for `Store::init`: the bare-hub bootstrap, the workspace
+//! `.gitignore` wiring, and the `.balls/tasks` convenience symlink.
+//! Extracted from `store.rs` to keep that file focused on the Store
+//! API. The state checkout itself is materialized by `state_repo`.
 
 use crate::config::Config;
 use crate::error::{BallError, Result};
-use crate::git_state::STATE_BRANCH;
+use crate::tracker_address;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Relative path (from the repo root) of the state worktree's checkout.
-pub(crate) const STATE_WORKTREE_REL: &str = ".balls/worktree";
-
-/// Ensure the orphan state branch exists, is checked out at
-/// `.balls/worktree/`, has its schema scaffolding (`.gitattributes`,
-/// `.gitkeep`) seeded, and is exposed to the main checkout via a stable
-/// `.balls/tasks` symlink.
-///
-/// `remote` is the resolved `state_remote` (default `origin`). It is
-/// the only remote this function touches: tracking, fetch, and the
-/// best-effort publishes all target it, so a client repo pointed at a
-/// shared task hub adopts the hub's `balls/tasks` instead of forking
-/// an unrelated orphan. The code remote is never referenced here.
-/// `linked` is true when the committed config explicitly set
-/// `state_remote` (vs the defaulted `origin`); it gates the
-/// not-yet-joined advisory below.
-///
-/// Safety invariant (bl-8e8f): init is never destructive to a shared
-/// branch. It only ever *tracks* an existing remote branch or
-/// *creates* a local orphan and tries a plain (non-force) push. A
-/// divergent or non-empty remote `balls/tasks` makes that push a
-/// no-op (git rejects the non-fast-forward); init never resets,
-/// force-pushes, or overwrites it. Joining a hub whose history you've
-/// diverged from is `bl remaster`'s job, an explicit reconcile step.
-pub(crate) fn setup_state_branch(root: &Path, remote: &str, linked: bool) -> Result<()> {
-    let has_remote = git::git_has_remote(root, remote);
-    if !git_state::branch_exists(root, STATE_BRANCH) {
-        // Prefer tracking the remote copy: two `bl init`s in separate
-        // clones must not each create a fresh orphan, or their histories
-        // will be unrelated and sync will refuse to merge them.
-        if has_remote {
-            let _ = git::git_fetch(root, remote);
-        }
-        if has_remote && git_state::has_remote_branch(root, remote, STATE_BRANCH) {
-            git_state::create_tracking_branch(root, STATE_BRANCH, remote)?;
-        } else {
-            git_state::create_orphan_branch(root, STATE_BRANCH, "balls state")?;
-            // Best-effort publish so a second clone's init discovers the
-            // branch on the remote and tracks it instead of creating its
-            // own unrelated orphan. Offline? Fine — first sync will push.
-            // A non-empty remote rejects this non-force push: that is
-            // the non-clobber guarantee, not an error.
-            if has_remote {
-                let _ = git::git_push(root, remote, STATE_BRANCH);
-            }
-        }
-    }
-
-    let state_wt = root.join(STATE_WORKTREE_REL);
-    if !state_wt.join(".git").exists() {
-        if let Some(parent) = state_wt.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        // Operator may have removed the checkout dir to fix corruption
-        // (the path doctor's legacy-worktree hint names). Clear any
-        // dangling registry entry so the re-add isn't blocked.
-        let _ = git_state::worktree_prune(root);
-        git_state::worktree_add_existing(root, &state_wt, STATE_BRANCH)?;
-    }
-
-    seed_tasks_dir(&state_wt)?;
-    ensure_tasks_symlink(root, "worktree/.balls/tasks")?;
-
-    // Publish the seed commit if we made one above and the branch is
-    // freshly-local. Best-effort.
-    if has_remote {
-        let _ = git::git_push(root, remote, STATE_BRANCH);
-    }
-
-    // The committed config declares a `state_remote` this clone can't
-    // reach (no git remote of that name): an unaware `bl init` here is
-    // safe-but-unlinked — a usable isolated local store, never a
-    // destructive surprise. Surface that and the explicit join path so
-    // the divergence is a known state, not a silent one.
-    if linked && !has_remote {
-        eprintln!(
-            "note: .balls/config.json sets state_remote `{remote}`, but this \
-             clone has no git remote `{remote}`. Created an isolated local \
-             task store — your tasks are not shared with the project yet. \
-             Add the remote, then run `bl remaster {remote}` to join \
-             (non-destructive)."
-        );
-    }
-    Ok(())
-}
-
 /// Bootstrap a bare central hub at `hubdir` from `source` (a git URL or
-/// path whose `main` already carries a balls-initialized project and
-/// whose `balls/tasks` orphan branch is published — README step 1).
-/// Mechanizes the by-hand README *Bootstrapping a bare hub from scratch*
-/// steps 2–3. Returns the resolved hub root.
+/// path whose `main` carries a balls-initialized project). The hub is
+/// a bare *workspace* (SPEC §3): a bare-cloned gitdir plus the loose
+/// `.balls/` store and a materialized `.balls/state-repo`. Returns the
+/// resolved hub root.
 ///
-/// Idempotent and self-healing, exactly like the working-tree
-/// `Store::init`: a present bare gitdir is reused (a non-bare `.git`
-/// there is refused, never clobbered), scaffolding `create_dir_all`s
-/// are no-ops when present, `config.json` is materialized only when
-/// missing, and the shared `setup_state_branch` already tolerates a
-/// pre-existing worktree/symlink. The working-tree-only work (the
-/// `balls: initialize` commit, main `.gitignore`, plugins `.gitkeep`)
-/// is *correctly* skipped: a bare root has no checkout to write it to.
+/// Idempotent and self-healing: a present bare gitdir is reused (a
+/// non-bare `.git` is refused, never clobbered); scaffolding
+/// `create_dir_all`s are no-ops when present; `config.json` is
+/// materialized only when missing. The state checkout is built by the
+/// shared `state_repo::ensure`, which adopts the hub's bare-cloned
+/// `balls/tasks` in place — no working-tree commit, no checkout to
+/// write a `balls: initialize` to.
 pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf> {
     fs::create_dir_all(hubdir)?;
     let hubdir = fs::canonicalize(hubdir).unwrap_or_else(|_| hubdir.to_path_buf());
     let gitdir = hubdir.join(".git");
 
-    // Step 2: bare-clone into <hub>/.git. Reuse an existing bare gitdir;
+    // Bare-clone into <hub>/.git. Reuse an existing bare gitdir;
     // refuse to clobber a non-bare one (non-destructive, like bl init).
     if gitdir.exists() {
         if !crate::bare_squash::is_bare_repo(&hubdir).unwrap_or(false) {
@@ -131,9 +45,9 @@ pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf>
     let _ = git::git_fetch(&hubdir, "origin");
     git::git_ensure_user(&hubdir)?;
 
-    // Step 3: reconstruct the loose store. Scaffold the per-hub dirs and
-    // materialize the main-tracked config.json (no checkout exists to
-    // copy it from at a bare root), then reuse the shared state wiring.
+    // Reconstruct the loose store: scaffold the per-hub dirs and
+    // materialize the workspace-tracked config.json (no checkout
+    // exists to copy it from at a bare root).
     let balls = hubdir.join(".balls");
     for d in ["plugins", "local/claims", "local/lock", "local/plugins"] {
         fs::create_dir_all(balls.join(d))?;
@@ -149,101 +63,65 @@ pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf>
         })?;
         fs::write(&config_path, cfg)?;
     }
-    let _ = Config::load(&config_path)?;
-    let pointer = crate::master_pointer::MasterPointer::load(&hubdir)?;
-    setup_state_branch(&hubdir, pointer.state_remote(), pointer.state_remote.is_some())?;
+    let cfg = Config::load(&config_path)?;
+    let addr = tracker_address::resolve(&hubdir, &cfg);
+    crate::state_repo::ensure(&hubdir, &addr)?;
     Ok(hubdir)
 }
 
-/// Seed a state-branch checkout's task directory: create `.balls/tasks/`,
-/// drop in the `.gitattributes` rule that activates git's built-in union
-/// merge driver for notes sidecars and a `.gitkeep` anchor, then commit
-/// anything new so the branch has a valid HEAD. Shared by both bootstrap
-/// paths — the legacy worktree (`setup_state_branch`) and the master_url
-/// state-repo clone (`state_repo::ensure`).
-pub(crate) fn seed_tasks_dir(checkout: &Path) -> Result<()> {
-    let tasks = checkout.join(".balls/tasks");
-    fs::create_dir_all(&tasks)?;
-
-    let attrs = tasks.join(".gitattributes");
-    let attrs_line = "*.notes.jsonl merge=union\n";
-    let need_attrs = match fs::read_to_string(&attrs) {
-        Ok(s) => !s.contains("*.notes.jsonl merge=union"),
-        Err(_) => true,
-    };
-    if need_attrs {
-        fs::write(&attrs, attrs_line)?;
+/// Expose the state checkout's task directory to the workspace via a
+/// stable symlink: `<root>/.balls/tasks -> state-repo/.balls/tasks`.
+/// An engineer can `ls .balls/tasks/`, `cat`, and `$EDITOR` files
+/// through it without any balls-specific knowledge.
+///
+/// A pre-existing symlink with a different target is repointed (a repo
+/// migrated off the legacy `.balls/worktree` otherwise keeps a symlink
+/// to the deleted checkout). Matching targets are no-ops.
+pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
+    let link = root.join(".balls/tasks");
+    let want = PathBuf::from(target);
+    if link.is_symlink() {
+        if fs::read_link(&link).ok().as_deref() == Some(want.as_path()) {
+            return Ok(());
+        }
+        fs::remove_file(&link)?;
+    } else if link.exists() {
+        // Pre-existing directory or file at the symlink path is ambiguous:
+        // refuse to overwrite to avoid clobbering uncommitted tasks.
+        return Err(BallError::Other(format!(
+            "unexpected non-symlink at {}; remove it and re-run `bl init`",
+            link.display()
+        )));
     }
-
-    let keep = tasks.join(".gitkeep");
-    if !keep.exists() {
-        fs::write(&keep, "")?;
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&want, &link)?;
     }
-
-    if git::has_uncommitted_changes(checkout)? {
-        git::git_add_all(checkout)?;
-        git::git_commit(checkout, "balls: seed state branch")?;
+    #[cfg(not(unix))]
+    {
+        return Err(BallError::Other(
+            "symlink-mode bl init requires a POSIX filesystem; use stealth mode".into(),
+        ));
     }
     Ok(())
 }
 
-/// Expose the state checkout's task directory to the main checkout via a
-/// stable symlink: `<root>/.balls/tasks -> <target>`. `target` is a path
-/// relative to `<root>/.balls/` — `worktree/.balls/tasks` in legacy
-/// mode, `state-repo/.balls/tasks` in master_url mode. An engineer on
-/// main can `ls .balls/tasks/`, `cat`, and `$EDITOR` files through this
-/// symlink without any balls-specific knowledge.
-///
-/// A pre-existing symlink with a different target is repointed (bl-773e);
-/// matching targets are no-ops. A pre-existing real directory or file at
-/// the path is ambiguous — refuse rather than risk clobbering
-/// uncommitted tasks the operator put there by hand.
-pub(crate) fn ensure_tasks_symlink(root: &Path, target: &str) -> Result<()> {
-    crate::state_repo_symlinks::materialize_symlink(
-        &root.join(".balls/tasks"),
-        target,
-        &|link| {
-            Err(BallError::Other(format!(
-                "unexpected non-symlink at {}; remove it and re-run `bl init`",
-                link.display()
-            )))
-        },
-    )
-}
-
-/// Commit the init-time files (.gitignore, config.json, plugins .gitkeep)
-/// to the main branch. Extracted from Store::init so the no-git path
-/// can skip it without duplicating the line-budget in store.rs.
-///
-/// bl-1098/bl-4432/bl-82a4: in master_url mode `.balls/plugins` *and*
-/// `.balls/config.json` are hub-owned symlinks gitignored under the
-/// `federated` runtime-paths set — there is no project-owned
-/// `.gitkeep` or canonical to seed or stage. The federation signal is
-/// the `MasterPointer` (`.balls/master.json`), not a probe of the
-/// symlinks (which couples to `Store::init` order).
+/// Commit the init-time files to the workspace's code branch:
+/// `.gitignore` and the workspace-owned `.balls/config.json`. The
+/// state checkout's symlinks (`.balls/tasks`, `.balls/plugins`,
+/// `.balls/state-repo`) are gitignored runtime state — never staged.
+/// Stealth mode has no state checkout, so its real `.balls/plugins/`
+/// is committed with a `.gitkeep`.
 pub(crate) fn commit_init(root: &Path, is_stealth: bool, already: bool) -> Result<()> {
-    // `state_repo::ensure` only materializes the symlinks in non-stealth
-    // master_url mode, so that is exactly the federated condition.
-    let federated = !is_stealth
-        && crate::master_pointer::MasterPointer::load_or_empty(root)
-            .master_url()
-            .is_some();
-    crate::gitignore::ensure_main_gitignore(root, is_stealth, federated)?;
+    crate::gitignore::ensure_main_gitignore(root, is_stealth)?;
+    let mut paths: Vec<&Path> = vec![Path::new(".gitignore"), Path::new(".balls/config.json")];
     let keep_rel = Path::new(".balls/plugins/.gitkeep");
-    let mut paths: Vec<&Path> = vec![Path::new(".gitignore")];
-    if federated {
-        // The canonical + gitkeep are gitignored hub-owned state now.
-        git::git_rm_cached(root, &[keep_rel, Path::new(".balls/config.json")])?;
-        if root.join(".balls/master.json").exists() {
-            paths.push(Path::new(".balls/master.json"));
-        }
-    } else {
+    if is_stealth {
         let abs_keep = root.join(keep_rel);
         if !abs_keep.exists() {
             fs::write(&abs_keep, "")?;
         }
         paths.push(keep_rel);
-        paths.push(Path::new(".balls/config.json"));
     }
     git::git_add(root, &paths)?;
     let msg = if already { "balls: reinitialize" } else { "balls: initialize" };

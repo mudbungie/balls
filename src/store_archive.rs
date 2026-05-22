@@ -22,7 +22,7 @@ impl Store {
             return Ok(());
         }
         let _g = state_worktree_flock(self)?;
-        let dir = self.state_worktree_dir();
+        let dir = self.state_repo_dir();
         let json = PathBuf::from(format!(".balls/tasks/{id}.json"));
         let notes = PathBuf::from(format!(".balls/tasks/{id}.notes.jsonl"));
         git::git_add(&dir, &[json.as_path(), notes.as_path()])?;
@@ -61,7 +61,7 @@ impl Store {
             return Ok(());
         }
         let _g = state_worktree_flock(self)?;
-        let dir = self.state_worktree_dir();
+        let dir = self.state_repo_dir();
         if let Some(pid) = task.parent.as_ref().filter(|_| parent_resaved) {
             // Stage the parent's notes sidecar alongside its json: it
             // exists post-`save_task` (mirrors `commit_task`), is a

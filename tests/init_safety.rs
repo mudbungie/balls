@@ -68,19 +68,16 @@ fn adopt_configured_reachable_state_remote_is_silent() {
 }
 
 #[test]
-fn unaware_clone_creates_isolated_store_and_advises() {
+fn unaware_clone_creates_isolated_store() {
     let (code, hub, shared) = onboarded_project();
     let hub_sha = bare_state_sha(hub.path());
 
     // bob clones the code repo (committed config names `hub`) but
-    // never configures a `hub` git remote.
+    // never configures a `hub` git remote — the legacy `state_remote`
+    // name no longer resolves, so the address falls back to the
+    // implicit default and a usable local store materializes.
     let bob = clone_from_remote(code.path(), "bob");
-    bl(bob.path())
-        .arg("init")
-        .assert()
-        .success()
-        .stderr(predicate::str::contains(ADVISORY))
-        .stderr(predicate::str::contains("bl remaster hub"));
+    bl(bob.path()).arg("init").assert().success();
 
     // The isolated store is fully usable...
     let local = create_task(bob.path(), "bob local");
