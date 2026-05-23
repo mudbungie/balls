@@ -4,7 +4,7 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T20:11:17.678640799Z",
-  "delivered_in": "4d901a9365418ceeb0398b4ff0cadb5ca4938a9d",
+  "delivered_in": "7691f46b6897bee408c53bf8f0299a79989ef5a2",
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "bl-8a9a's in-place migration (state_repo::first_contact + retire_legacy_worktree) captures the legacy balls/tasks via 'git fetch <root> balls/tasks' + 'reset --hard FETCH_HEAD' — only the committed branch tip — then force-removes .balls/worktree (git_worktree_remove with force=true). Any uncommitted state in the legacy worktree is lost without warning. Verified on a throwaway migration: an injected modification to a tracked task JSON and an untracked new task file were both gone afterward. This is a one-time data-loss window on the first post-bl-8a9a run. The live dogfood bare hub is exposed — its .balls/worktree currently carries an uncommitted deletion (bl-04ed.notes.jsonl). Fix: before retiring, detect uncommitted/untracked changes in .balls/worktree and either refuse with a clear message (commit your task state first) or commit them onto balls/tasks so the fetch captures them. Found by the bl-dc2b verification.",
@@ -14,10 +14,10 @@
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-23T21:30:39.980360668Z"},
   "tags": [],
   "title": "Migration silently discards uncommitted state in the legacy .balls/worktree",
   "type": "bug",
-  "updated_at": "2026-05-23T21:30:39.980370376Z"
+  "updated_at": "2026-05-23T21:40:03.513175114Z"
 }
