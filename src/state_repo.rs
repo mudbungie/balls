@@ -49,6 +49,13 @@ pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
     crate::store_init::ensure_tasks_symlink(root, "state-repo/.balls/tasks")?;
     ensure_plugins_symlink(root, "state-repo/.balls/plugins")?;
     ensure_project_json_symlink(root, "state-repo/.balls/project.json")?;
+    // Commit after the symlink steps so a legacy `.balls/plugins/*`
+    // absorbed by `ensure_plugins_symlink` lands on the tracker branch
+    // alongside the seed scaffolding instead of dangling untracked.
+    if git::has_uncommitted_changes(&dir)? {
+        git::git_add_all(&dir)?;
+        git::git_commit(&dir, "balls: seed state branch")?;
+    }
     Ok(dir)
 }
 
@@ -181,8 +188,10 @@ fn run_at(dir: &Path, args: &[&str]) -> Result<()> {
 }
 
 /// Seed `.balls/tasks/` scaffolding, the `.balls/plugins/` dir, and the
-/// `.balls/project.json` project config on the state branch, committing
-/// anything new so the branch has a HEAD.
+/// `.balls/project.json` project config on the state branch. The commit
+/// that gives a fresh branch its HEAD is made by `ensure` after the
+/// symlink steps, so an absorbed legacy `.balls/plugins/*` is captured
+/// in the same commit instead of landing untracked.
 fn seed(root: &Path, state_repo: &Path) -> Result<()> {
     let tasks = state_repo.join(".balls/tasks");
     fs::create_dir_all(&tasks)?;
@@ -203,10 +212,6 @@ fn seed(root: &Path, state_repo: &Path) -> Result<()> {
         }
     }
     seed_project_config(root, state_repo)?;
-    if git::has_uncommitted_changes(state_repo)? {
-        git::git_add_all(state_repo)?;
-        git::git_commit(state_repo, "balls: seed state branch")?;
-    }
     Ok(())
 }
 
