@@ -1,8 +1,8 @@
 //! bl-32e5 — `bl plugin enable/disable/list` end-to-end.
 //!
-//! Standalone mode writes the effective config in place (no auto-commit).
-//! master_url mode lands the writes on the state-repo's `balls/tasks`
-//! and commits them, so a `bl sync` will push the change to the hub.
+//! In every workspace (standalone or shared-tracker, post-bl-8a9a),
+//! plugin admin lands the writes on the state checkout's `balls/tasks`
+//! and commits them, so a `bl sync` will push the change to the tracker.
 
 mod common;
 

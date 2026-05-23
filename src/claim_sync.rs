@@ -14,9 +14,8 @@
 //! `push_claim` / `push_state_for` wrappers.
 //!
 //! The remote is resolved (not hardcoded) through the
-//! per-clone/committed `state_remote` seam (bl-19aa); default
-//! `origin`. This is where a client repo retargets `balls/tasks` at
-//! a shared task hub.
+//! per-clone/committed tracker-address seam; default `origin`. This is
+//! where a workspace retargets `balls/tasks` at a shared tracker.
 
 // Remote resolution + push-outcome classification live in
 // `claim_push` to keep this file under the 300-line cap. The public

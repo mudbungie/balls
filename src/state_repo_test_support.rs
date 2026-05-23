@@ -24,8 +24,8 @@ pub(crate) fn implicit() -> Address {
 }
 
 /// A bare repo carrying a seeded `balls/tasks` ref — a reachable
-/// tracker. Returns the temp dir; `hub_url` gives its clone URL.
-pub(super) fn hub_repo() -> TempDir {
+/// tracker. Returns the temp dir; `tracker_url` gives its clone URL.
+pub(super) fn tracker_repo() -> TempDir {
     let scratch = TempDir::new().unwrap();
     let work = scratch.path().join("work");
     std::fs::create_dir_all(&work).unwrap();
@@ -36,7 +36,7 @@ pub(super) fn hub_repo() -> TempDir {
     git_run(&work, &["add", "seed"]);
     git_run(&work, &["commit", "-qm", "seed", "--no-verify"]);
     let kept = TempDir::new().unwrap();
-    let dest = kept.path().join("hub.git");
+    let dest = kept.path().join("tracker.git");
     git_run(
         scratch.path(),
         &["clone", "--bare", "-q", work.to_str().unwrap(), dest.to_str().unwrap()],
@@ -44,16 +44,16 @@ pub(super) fn hub_repo() -> TempDir {
     kept
 }
 
-/// Clone URL of a `hub_repo` temp dir.
-pub(super) fn hub_url(hub: &TempDir) -> String {
-    hub.path().join("hub.git").to_string_lossy().into_owned()
+/// Clone URL of a `tracker_repo` temp dir.
+pub(super) fn tracker_url(tracker: &TempDir) -> String {
+    tracker.path().join("tracker.git").to_string_lossy().into_owned()
 }
 
 /// A bare repo with NO `balls/tasks` ref — a reachable but empty
 /// tracker (first-federation seed case).
-pub(super) fn empty_hub() -> TempDir {
+pub(super) fn empty_tracker() -> TempDir {
     let kept = TempDir::new().unwrap();
-    let dest = kept.path().join("hub.git");
+    let dest = kept.path().join("tracker.git");
     git_run(kept.path(), &["init", "-q", "--bare", dest.to_str().unwrap()]);
     kept
 }

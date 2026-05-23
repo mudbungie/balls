@@ -1,4 +1,4 @@
-//! Helpers for `Store::init`: the bare-hub bootstrap, the workspace
+//! Helpers for `Store::init`: the bare-workspace bootstrap, the
 //! `.gitignore` wiring, and the `.balls/tasks` convenience symlink.
 //! Extracted from `store.rs` to keep that file focused on the Store
 //! API. The state checkout itself is materialized by `state_repo`.
@@ -10,28 +10,29 @@ use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Bootstrap a bare central hub at `hubdir` from `source` (a git URL or
-/// path whose `main` carries a balls-initialized project). The hub is
-/// a bare *workspace* (SPEC §3): a bare-cloned gitdir plus the loose
-/// `.balls/` store and a materialized `.balls/state-repo`. Returns the
-/// resolved hub root.
+/// Bootstrap a bare workspace at `workspace_dir` from `source` (a git
+/// URL or path whose `main` carries a balls-initialized project) per
+/// SPEC §3: a bare-cloned gitdir plus the loose `.balls/` store and a
+/// materialized `.balls/state-repo`. Returns the resolved workspace
+/// root.
 ///
 /// Idempotent and self-healing: a present bare gitdir is reused (a
 /// non-bare `.git` is refused, never clobbered); scaffolding
 /// `create_dir_all`s are no-ops when present; `config.json` is
 /// materialized only when missing. The state checkout is built by the
-/// shared `state_repo::ensure`, which adopts the hub's bare-cloned
-/// `balls/tasks` in place — no working-tree commit, no checkout to
-/// write a `balls: initialize` to.
-pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf> {
-    fs::create_dir_all(hubdir)?;
-    let hubdir = fs::canonicalize(hubdir).unwrap_or_else(|_| hubdir.to_path_buf());
-    let gitdir = hubdir.join(".git");
+/// shared `state_repo::ensure`, which adopts the workspace's
+/// bare-cloned `balls/tasks` in place — no working-tree commit, no
+/// checkout to write a `balls: initialize` to.
+pub(crate) fn bootstrap_bare_workspace(source: &str, workspace_dir: &Path) -> Result<PathBuf> {
+    fs::create_dir_all(workspace_dir)?;
+    let workspace_dir =
+        fs::canonicalize(workspace_dir).unwrap_or_else(|_| workspace_dir.to_path_buf());
+    let gitdir = workspace_dir.join(".git");
 
-    // Bare-clone into <hub>/.git. Reuse an existing bare gitdir;
+    // Bare-clone into <workspace>/.git. Reuse an existing bare gitdir;
     // refuse to clobber a non-bare one (non-destructive, like bl init).
     if gitdir.exists() {
-        if !crate::bare_squash::is_bare_repo(&hubdir).unwrap_or(false) {
+        if !crate::bare_squash::is_bare_repo(&workspace_dir).unwrap_or(false) {
             return Err(BallError::Other(format!(
                 "{} exists and is not a bare repo; refusing to clobber it",
                 gitdir.display()
@@ -41,32 +42,39 @@ pub(crate) fn bootstrap_bare_hub(source: &str, hubdir: &Path) -> Result<PathBuf>
         git::git_clone_bare(source, &gitdir)?;
     }
     // Wire remote-tracking so origin/* refs stay current for bl sync.
-    git::git_config_set(&hubdir, "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")?;
-    let _ = git::git_fetch(&hubdir, "origin");
-    git::git_ensure_user(&hubdir)?;
+    git::git_config_set(
+        &workspace_dir,
+        "remote.origin.fetch",
+        "+refs/heads/*:refs/remotes/origin/*",
+    )?;
+    let _ = git::git_fetch(&workspace_dir, "origin");
+    git::git_ensure_user(&workspace_dir)?;
 
-    // Reconstruct the loose store: scaffold the per-hub dirs and
+    // Reconstruct the loose store: scaffold the per-workspace dirs and
     // materialize the workspace-tracked config.json (no checkout
     // exists to copy it from at a bare root).
-    let balls = hubdir.join(".balls");
+    let balls = workspace_dir.join(".balls");
     for d in ["plugins", "local/claims", "local/lock", "local/plugins"] {
         fs::create_dir_all(balls.join(d))?;
     }
     let config_path = balls.join("config.json");
     if !config_path.exists() {
-        let cfg = git_state::show_file(&hubdir, "main", ".balls/config.json")?.ok_or_else(|| {
-            BallError::Other(
-                "source's `main` has no .balls/config.json — run `bl init` in a \
+        let cfg =
+            git_state::show_file(&workspace_dir, "main", ".balls/config.json")?.ok_or_else(
+                || {
+                    BallError::Other(
+                        "source's `main` has no .balls/config.json — run `bl init` in a \
                  working clone and push first (README bootstrap step 1)"
-                    .into(),
-            )
-        })?;
+                            .into(),
+                    )
+                },
+            )?;
         fs::write(&config_path, cfg)?;
     }
     let cfg = Config::load(&config_path)?;
-    let addr = tracker_address::resolve(&hubdir, &cfg);
-    crate::state_repo::ensure(&hubdir, &addr)?;
-    Ok(hubdir)
+    let addr = tracker_address::resolve(&workspace_dir, &cfg);
+    crate::state_repo::ensure(&workspace_dir, &addr)?;
+    Ok(workspace_dir)
 }
 
 /// Expose the state checkout's task directory to the workspace via a

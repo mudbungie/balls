@@ -73,12 +73,12 @@ fn commit_touches_runtime_flags_code_refs_cache() {
 
 #[test]
 fn commit_touches_runtime_flags_state_repo_clone() {
-    // bl-c439: master_url mode materializes a balls-owned clone of the
-    // task hub at `.balls/state-repo/`. It shares the shape of the
+    // bl-c439: every workspace materializes a balls-owned clone of the
+    // tracker at `.balls/state-repo/`. It shares the shape of the
     // other runtime paths — a deep file under it (here a task JSON in
-    // the hub clone's checked-out tree) must be recognized as runtime
-    // so a stale-gitignore repo cannot squash the entire hub clone into
-    // the integration branch.
+    // the state checkout's tree) must be recognized as runtime so a
+    // stale-gitignore repo cannot squash the entire state checkout
+    // into the integration branch.
     let td = tempdir().unwrap();
     init_repo(td.path());
     std::fs::create_dir_all(td.path().join(".balls/state-repo/.balls/tasks")).unwrap();

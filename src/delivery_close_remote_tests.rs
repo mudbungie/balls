@@ -35,9 +35,9 @@ fn populate_on_close_remote_on_resolves_via_delivered_repo() {
     // with a fetchable delivered_repo writes the sha into the task.
     // bl-6816: a remote hit also keeps `delivered_repo` pointing at
     // the *source* URL the sha was resolved through — NOT the closing
-    // clone's `origin`. Auto-tagging the hub here would aim a later
-    // `--resolve-remote` read at a repo with no `[id]` tag and lose
-    // the provenance the flag exists to recover.
+    // clone's `origin`. Auto-tagging the tracker here would aim a
+    // later `--resolve-remote` read at a repo with no `[id]` tag and
+    // lose the provenance the flag exists to recover.
     let (src, sha) = local_repo_with_tag("bl-abcd");
     let url = src.path().to_string_lossy().into_owned();
     let local_root = TempDir::new().unwrap();

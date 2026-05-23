@@ -3,8 +3,8 @@
 //! `bl remaster <url>` writes `state_url` into `.balls/config.json`
 //! and reconciles local-only tasks onto the new tracker (mechanics in
 //! `balls::remaster`). `--detach` clears the address and re-roots the
-//! state checkout. There is one address and one mechanism — no mode,
-//! no federated flip, no transplant.
+//! state checkout. There is one address and one mechanism — no mode
+//! flip, no transplant (SPEC §8).
 
 use super::discover;
 use balls::config::Config;
