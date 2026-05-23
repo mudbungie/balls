@@ -91,6 +91,7 @@ impl Store {
                 let addr = tracker_address::resolve(root, &cfg);
                 let _ = crate::state_repo::align_warm_branch(&dir, &addr.branch);
             }
+            crate::legacy_plugin_migrate::run(root)?; // bl-de57 warm-path self-heal
             return Ok(dir);
         }
         let cfg = Config::load(&root.join(".balls/config.json"))?;

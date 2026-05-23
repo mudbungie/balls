@@ -14,6 +14,7 @@ fn backstop_paths_are_the_state_checkout_paths() {
             ".balls/tasks",
             ".balls/project.json",
             ".balls/state-repo",
+            ".balls/plugins",
             ".balls/code-refs",
         ],
     );
@@ -62,8 +63,11 @@ fn balls_worktrees_is_gitignored_but_not_a_backstop_path() {
 }
 
 #[test]
-fn plugins_is_gitignored_but_not_a_backstop_path() {
-    // `.balls/plugins` is a gitignored symlink into the state checkout.
+fn plugins_is_gitignored_and_a_backstop_path() {
+    // `.balls/plugins` is a symlink on a fully migrated workspace, but
+    // a pre-bl-de57 legacy repo can still carry the committed
+    // `.balls/plugins/*.json` index entries on a work branch — the
+    // backstop keeps those out of a review squash.
     assert!(gitignore_paths(false).contains(&".balls/plugins"));
-    assert!(!backstop_paths().contains(&".balls/plugins"));
+    assert!(backstop_paths().contains(&".balls/plugins"));
 }
