@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "bl-8a9a moves per-plugin config FILES onto the tracker branch and makes .balls/plugins a symlink into .balls/state-repo. A repo that previously committed .balls/plugins/*.json to its CODE branch (the pre-bl-8a9a layout -- the dogfooded /home/mark/dev/balls is exactly this: .balls/plugins/{github,github-issues}.json + .gitkeep are tracked on main) is not cleanly migrated:\n\n1. absorb_plugins_dir (src/state_repo_symlinks.rs:35) moves the files on the FILESYSTEM (fs::rename + fs::remove_dir_all) into the state checkout but never `git rm`s them from the code-branch index. After migration the code branch shows .balls/plugins/*.json as DELETED and .balls/plugins as a new untracked/typechanged symlink.\n\n2. ensure_main_gitignore runs ONLY from commit_init at `bl init` (src/store_init.rs:116). An existing repo that does not re-run `bl init` never gains `.balls/state-repo` / `.balls/plugins` in its .gitignore. The live repo's .gitignore proves it -- it has .balls/worktree but not .balls/state-repo or .balls/plugins. Consequence: .balls/state-repo (a nested git clone) is untracked and a plain `git add -A` bakes it in as an embedded repo (git emits the 'adding embedded git repository' warning -- observed).\n\n3. SPEC-tracker-state.md S12 (backwards-compat audit) has NO row for a repo with committed .balls/plugins/* on the code branch -- it is an unaudited migration case.\n\nbl review's backstop strips .balls/state-repo etc. from a squash (review_safety.rs) but .balls/plugins has backstop:false (runtime_paths.rs:46, commented 'a gitignored symlink' -- an assumption false for any migrated legacy repo), so the plugin-file deletion + symlink can ride a bl review squash onto main uncontrolled.\n\nOverlaps bl-dc2b (verify the bare-hub in-place migration is safe for the dogfooded balls repo). Fix needs: a migration step that `git rm`s legacy committed .balls/plugins/* from the code branch and refreshes .gitignore for existing repos, plus a SPEC S12 row.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":120,"source":"balls","state":"open","synced_at":"2026-05-21T20:07:58.247861639+00:00","url":"https://github.com/mudbungie/balls/issues/120"}}},
+  "external": {"github-issues":{}},
   "id": "bl-de57",
   "links": [{"link_type":"relates_to","target":"bl-b0b9"},{"link_type":"relates_to","target":"bl-dc2b"},{"link_type":"relates_to","target":"bl-73bb"}],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-21T20:07:58.269489954Z"},
+  "synced_at": {"github-issues":"2026-05-23T19:18:38.504487992Z"},
   "tags": ["plugins","migration"],
   "title": "Legacy repos with committed .balls/plugins/* are not cleanly migrated to the tracker-state split",
   "type": "bug",
-  "updated_at": "2026-05-23T19:18:38.156862995Z"
+  "updated_at": "2026-05-23T19:18:38.504492300Z"
 }
