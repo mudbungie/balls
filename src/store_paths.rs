@@ -74,11 +74,11 @@ fn dirs_base_for(home: Option<&str>, hash: &str) -> String {
 }
 
 /// Gate for `discover_git`: confirm `from` is inside a git repo. A
-/// bare hub has no work tree, so `rev-parse --show-toplevel` (used by
-/// `git_root`) fails there — but it is still a git repo whose gitdir
-/// parent is the main root. Tolerate that; only a genuine non-git dir
-/// keeps the `NotARepo` error so `discover` falls back to no-git
-/// discovery. (bl-8cf7)
+/// bare workspace has no work tree, so `rev-parse --show-toplevel`
+/// (used by `git_root`) fails there — but it is still a git repo
+/// whose gitdir parent is the main root. Tolerate that; only a genuine
+/// non-git dir keeps the `NotARepo` error so `discover` falls back to
+/// no-git discovery. (bl-8cf7)
 pub(crate) fn require_git_repo(from: &Path) -> Result<()> {
     match git::git_root(from) {
         Ok(_) => Ok(()),

@@ -45,7 +45,7 @@ fn show_default_resolves_local_repo_in_resolved_repo_field() {
 
 #[test]
 fn show_resolve_remote_falls_back_via_delivered_repo() {
-    // A bare task hub has no code, so the local tag scan misses. With
+    // A bare tracker workspace has no code, so the local tag scan misses. With
     // `--resolve-remote` and a fetchable `delivered_repo`, the cross-
     // repo lookup must produce the sha and tag
     // `delivered_in_resolved_repo` with the URL we resolved through.

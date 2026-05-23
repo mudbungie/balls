@@ -2,15 +2,15 @@
 //! bare local repos so every branch — online clone, offline fallback,
 //! hard-fail, and in-place legacy migration — runs without a network.
 
-use super::test_support::{empty_hub, explicit, hub_repo, hub_url, implicit, implicit_url, legacy_project};
+use super::test_support::{empty_tracker, explicit, tracker_repo, tracker_url, implicit, implicit_url, legacy_project};
 use super::*;
 use crate::git;
 
 #[test]
 fn ensure_clones_from_reachable_tracker_and_tracks_state_branch() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
-    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let dir = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
 
     assert!(dir.join(".git").exists());
     assert!(git_state::branch_exists(&dir, "balls/tasks"));
@@ -57,9 +57,9 @@ fn ensure_implicit_unreachable_falls_back_to_a_local_orphan() {
 
 #[test]
 fn ensure_seeds_an_orphan_when_the_tracker_has_no_state_branch() {
-    let hub = empty_hub();
+    let tracker = empty_tracker();
     let root = tempfile::TempDir::new().unwrap();
-    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let dir = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     assert!(git_state::branch_exists(&dir, "balls/tasks"));
     assert!(dir.join(".balls/tasks/.gitattributes").exists());
 }
@@ -82,12 +82,12 @@ fn ensure_migrates_a_legacy_worktree_in_place() {
 
 #[test]
 fn ensure_is_idempotent_and_warm_path_skips_the_network() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
-    let dir1 = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let dir1 = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     let sha1 = git::git_resolve_sha(&dir1, "balls/tasks").unwrap();
     // Drop the tracker — a warm checkout must not need it again.
-    drop(hub);
+    drop(tracker);
     let dir2 = ensure(root.path(), &implicit()).unwrap();
     assert_eq!(dir1, dir2);
     assert_eq!(sha1, git::git_resolve_sha(&dir2, "balls/tasks").unwrap());
@@ -97,17 +97,17 @@ fn ensure_is_idempotent_and_warm_path_skips_the_network() {
 fn ensure_warm_repoints_origin_at_the_address_url() {
     let root = tempfile::TempDir::new().unwrap();
     ensure(root.path(), &implicit()).unwrap(); // no origin
-    let hub = hub_repo();
-    let url = hub_url(&hub);
+    let tracker = tracker_repo();
+    let url = tracker_url(&tracker);
     let dir = ensure(root.path(), &explicit(&url)).unwrap();
     assert_eq!(git_state::remote_url(&dir, "origin").as_deref(), Some(url.as_str()));
 }
 
 #[test]
 fn ensure_materializes_the_tasks_and_plugins_symlinks() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
-    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     let balls = root.path().join(".balls");
     assert!(balls.join("tasks").is_symlink());
     assert!(balls.join("plugins").is_symlink());
@@ -120,7 +120,7 @@ fn ensure_materializes_the_tasks_and_plugins_symlinks() {
 
 #[test]
 fn ensure_repoints_a_stale_legacy_tasks_symlink() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls")).unwrap();
     std::os::unix::fs::symlink(
@@ -128,7 +128,7 @@ fn ensure_repoints_a_stale_legacy_tasks_symlink() {
         root.path().join(".balls/tasks"),
     )
     .unwrap();
-    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     assert_eq!(
         fs::read_link(root.path().join(".balls/tasks")).unwrap(),
         Path::new("state-repo/.balls/tasks")
@@ -137,7 +137,7 @@ fn ensure_repoints_a_stale_legacy_tasks_symlink() {
 
 #[test]
 fn ensure_repoints_a_stale_plugins_symlink() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls")).unwrap();
     std::os::unix::fs::symlink(
@@ -145,7 +145,7 @@ fn ensure_repoints_a_stale_plugins_symlink() {
         root.path().join(".balls/plugins"),
     )
     .unwrap();
-    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     assert_eq!(
         fs::read_link(root.path().join(".balls/plugins")).unwrap(),
         Path::new("state-repo/.balls/plugins")
@@ -154,7 +154,7 @@ fn ensure_repoints_a_stale_plugins_symlink() {
 
 #[test]
 fn ensure_repoints_a_stale_project_json_symlink() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls")).unwrap();
     std::os::unix::fs::symlink(
@@ -162,7 +162,7 @@ fn ensure_repoints_a_stale_project_json_symlink() {
         root.path().join(".balls/project.json"),
     )
     .unwrap();
-    ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     assert_eq!(
         fs::read_link(root.path().join(".balls/project.json")).unwrap(),
         Path::new("state-repo/.balls/project.json")
@@ -171,31 +171,31 @@ fn ensure_repoints_a_stale_project_json_symlink() {
 
 #[test]
 fn ensure_refuses_a_pre_existing_non_symlink_at_the_project_json_path() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls")).unwrap();
     fs::write(root.path().join(".balls/project.json"), "{}").unwrap();
-    let err = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap_err();
+    let err = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap_err();
     assert!(err.to_string().contains("unexpected non-symlink"), "{err}");
 }
 
 #[test]
 fn ensure_project_config_migrates_a_warm_pre_split_checkout() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
-    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let dir = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     let link = root.path().join(".balls/project.json");
-    let tracked = dir.join(".balls/project.json");
+    let file = dir.join(".balls/project.json");
 
     // Simulate a checkout from before the config split: drop the
     // project.json file and its workspace symlink, and commit that.
     fs::remove_file(&link).unwrap();
-    fs::remove_file(&tracked).unwrap();
+    fs::remove_file(&file).unwrap();
     git::git_add_all(&dir).unwrap();
     git::git_commit(&dir, "drop project.json").unwrap();
 
     ensure_project_config(root.path(), &dir).unwrap();
-    assert!(link.is_symlink() && tracked.exists(), "migration restores both");
+    assert!(link.is_symlink() && file.exists(), "migration restores both");
 
     // Idempotent: a second call short-circuits on the resolved symlink.
     ensure_project_config(root.path(), &dir).unwrap();
@@ -204,7 +204,7 @@ fn ensure_project_config_migrates_a_warm_pre_split_checkout() {
     // only the link is rebuilt.
     fs::remove_file(&link).unwrap();
     ensure_project_config(root.path(), &dir).unwrap();
-    assert!(link.is_symlink() && tracked.exists());
+    assert!(link.is_symlink() && file.exists());
 }
 
 #[test]
@@ -222,22 +222,22 @@ fn ensure_migration_clears_a_stray_unregistered_worktree_dir() {
 
 #[test]
 fn ensure_refuses_a_pre_existing_non_symlink_at_the_tasks_path() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     fs::create_dir_all(root.path().join(".balls/tasks")).unwrap();
-    let err = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap_err();
+    let err = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap_err();
     assert!(err.to_string().contains("unexpected non-symlink"), "{err}");
 }
 
 #[test]
 fn ensure_absorbs_a_real_plugins_dir_into_the_checkout() {
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     let plugins = root.path().join(".balls/plugins");
     fs::create_dir_all(&plugins).unwrap();
     fs::write(plugins.join("github.json"), "{}\n").unwrap();
     fs::write(plugins.join(".gitkeep"), "").unwrap();
-    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let dir = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     assert!(plugins.is_symlink(), "real plugins dir replaced by a symlink");
     assert!(dir.join(".balls/plugins/github.json").exists(), "config absorbed");
 }
@@ -248,12 +248,12 @@ fn ensure_commits_absorbed_plugin_files_to_the_tracker_branch() {
     // absorbed during in-place migration must land on the tracker
     // branch, not dangle untracked in the state checkout — otherwise
     // they never push and a fresh clone does not inherit them.
-    let hub = hub_repo();
+    let tracker = tracker_repo();
     let root = tempfile::TempDir::new().unwrap();
     let plugins = root.path().join(".balls/plugins");
     fs::create_dir_all(&plugins).unwrap();
     fs::write(plugins.join("github.json"), "{\"k\":\"v\"}\n").unwrap();
-    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    let dir = ensure(root.path(), &explicit(&tracker_url(&tracker))).unwrap();
     assert!(
         !git::has_uncommitted_changes(&dir).unwrap(),
         "absorbed plugin files must be committed, not left in the worktree"

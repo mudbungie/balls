@@ -88,7 +88,7 @@ pub struct Task {
     /// `bl review` (local-squash) and `bl close` (deferred / manual
     /// `--delivered`). Distinct from `repo` because a task may be
     /// created in client A and delivered from client B once tasks
-    /// live on a shared hub (bl-ffb4). Missing on tasks delivered by
+    /// live against a shared tracker (bl-ffb4). Missing on tasks delivered by
     /// a pre-bl-7523 `bl` — readers should interpret a null as "the
     /// locally-checked-out repo," which keeps single-repo
     /// deployments byte-identical. Older `bl` round-trips it via
