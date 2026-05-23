@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-0ca1",
+  "claimed_by": "interdict",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T20:12:45.979200973Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T20:12:47.297452118Z"},
   "tags": [],
   "title": "Flaky test: parallel_bl_create_across_workers_all_succeed races under tarpaulin",
   "type": "bug",
-  "updated_at": "2026-05-21T20:12:47.297459114Z"
+  "updated_at": "2026-05-23T21:20:07.633146972Z"
 }
