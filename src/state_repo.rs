@@ -81,6 +81,7 @@ fn first_contact(root: &Path, dir: &Path, addr: &Address) -> Result<()> {
     // own git. Adopt it locally — offline, no clone — onto the freshly
     // `init`-ed (unborn) state branch, and retire `.balls/worktree`.
     if git_state::branch_exists(root, &addr.branch) {
+        guard_legacy_worktree(root, &addr.branch)?;
         init_repo(dir, &addr.branch, addr.url.as_deref())?;
         run_at(dir, &["fetch", &root.to_string_lossy(), &addr.branch])?;
         git::git_reset_hard(dir, "FETCH_HEAD")?;
@@ -133,6 +134,31 @@ fn init_repo(dir: &Path, branch: &str, url: Option<&str>) -> Result<()> {
         run_at(dir, &["remote", "add", "origin", u])?;
     }
     git::git_ensure_user(dir)
+}
+
+/// Refuse migration if the legacy `.balls/worktree` carries uncommitted
+/// or untracked state. Adoption fetches the committed `branch` tip then
+/// force-removes the worktree, so anything off-branch vanishes silently.
+/// On error no `.balls/state-repo` exists yet — a retry after committing
+/// is a clean first contact.
+fn guard_legacy_worktree(root: &Path, branch: &str) -> Result<()> {
+    let wt = root.join(LEGACY_WORKTREE_REL);
+    if !wt.is_dir() {
+        return Ok(());
+    }
+    let out = git::run_git_in(&wt, &["status", "--porcelain"])?;
+    let dirty = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if !out.status.success() || dirty.is_empty() {
+        return Ok(());
+    }
+    Err(BallError::Other(format!(
+        "the legacy `.balls/worktree` at {wt} carries uncommitted changes:\n\
+         {dirty}\n\
+         Migration to `.balls/state-repo` only adopts the committed tip of `{branch}` — \
+         retiring the worktree would silently discard these edits. Commit them and re-run:\n  \
+         (cd {wt} && git add -A && git commit -m 'preserve pre-migration state' --no-verify)",
+        wt = wt.display(),
+    )))
 }
 
 /// Retire the legacy `.balls/worktree`: drop the linked worktree, its
