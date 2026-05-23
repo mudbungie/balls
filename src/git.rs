@@ -98,6 +98,20 @@ pub fn git_rm_force(dir: &Path, paths: &[&Path]) -> Result<()> {
     Ok(())
 }
 
+/// `git rm --cached`: unstage paths from the index but leave the
+/// working tree alone. Used by the legacy-plugin migration: the on-FS
+/// files have already been moved into the state checkout, so the
+/// cleanup only needs to drop their index entries.
+pub fn git_rm_cached(dir: &Path, paths: &[&Path]) -> Result<()> {
+    let mut args = vec!["rm", "--cached", "--"];
+    let strs: Vec<String> = paths.iter().map(|p| p.to_string_lossy().to_string()).collect();
+    for s in &strs {
+        args.push(s.as_str());
+    }
+    run_git_ok(dir, &args)?;
+    Ok(())
+}
+
 pub fn git_add_all(dir: &Path) -> Result<()> {
     run_git_ok(dir, &["add", "-A"])?;
     Ok(())
