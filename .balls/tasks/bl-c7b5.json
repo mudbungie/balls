@@ -14,10 +14,10 @@
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "review",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-23T21:28:17.470431514Z"},
   "tags": [],
   "title": "Migration silently discards uncommitted state in the legacy .balls/worktree",
   "type": "bug",
-  "updated_at": "2026-05-23T21:28:17.470441713Z"
+  "updated_at": "2026-05-23T21:30:38.927409527Z"
 }
