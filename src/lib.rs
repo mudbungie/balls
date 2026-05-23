@@ -73,6 +73,7 @@ pub mod review_safety;
 mod runtime_paths;
 pub mod sanitize;
 pub mod state_repo;
+mod state_repo_migrate;
 mod state_repo_symlinks;
 pub mod status;
 pub mod store;

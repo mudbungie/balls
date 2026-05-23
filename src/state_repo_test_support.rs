@@ -19,7 +19,7 @@ pub(super) fn implicit_url(url: &str) -> Address {
 }
 
 /// The implicit-default `Address`: no url, offline-bootstrappable.
-pub(super) fn implicit() -> Address {
+pub(crate) fn implicit() -> Address {
     Address { url: None, branch: "balls/tasks".into(), explicit: false }
 }
 
@@ -60,7 +60,7 @@ pub(super) fn empty_hub() -> TempDir {
 
 /// A legacy standalone repo: `balls/tasks` lives in its own git with a
 /// `.balls/worktree` checkout carrying one task — the migration source.
-pub(super) fn legacy_project() -> TempDir {
+pub(crate) fn legacy_project() -> TempDir {
     let d = TempDir::new().unwrap();
     let p = d.path();
     git_run(p, &["init", "-q", "-b", "main"]);
