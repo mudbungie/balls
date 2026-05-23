@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "bl-8a9a's in-place migration (state_repo::ensure) absorbs a legacy real .balls/plugins/ into .balls/state-repo via absorb_plugins_dir, but the files land UNCOMMITTED. ensure() runs seed() — which commits .gitattributes/.gitkeep — BEFORE ensure_plugins_symlink -> absorb_plugins_dir moves the *.json files in; nothing commits them afterward, and bl sync/bl prime do not. The absorbed plugin config works locally (read through the .balls/plugins symlink) but is not on the tracker branch, so it is never pushed and a fresh tracker clone does not inherit it. It self-heals only when the next bl plugin enable/disable/policy runs (plugin_admin::commit_change does a blanket git_add_all). Verified on a throwaway migration of a faithful dogfood bare-hub copy: post-migration 'git -C .balls/state-repo status' shows github.json + github-issues.json untracked, and they stay untracked across a bl prime sync. Fix: commit the absorbed files within state_repo::ensure after absorb_plugins_dir (move the seed commit after the symlink/absorb step, or add an explicit commit). Found by the bl-dc2b verification.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":122,"source":"balls","state":"open","synced_at":"2026-05-23T21:20:13.602716989+00:00","url":"https://github.com/mudbungie/balls/issues/122"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":122,"source":"balls","state":"open","synced_at":"2026-05-23T21:27:26.315340720+00:00","url":"https://github.com/mudbungie/balls/issues/122"}}},
   "id": "bl-73bb",
   "links": [{"link_type":"relates_to","target":"bl-dc2b"}],
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-23T21:20:13.629435991Z"},
+  "synced_at": {"github-issues":"2026-05-23T21:27:26.323024945Z"},
   "tags": [],
   "title": "Migration leaves absorbed .balls/plugins/* uncommitted in the state checkout",
   "type": "bug",
-  "updated_at": "2026-05-23T21:27:25.389597876Z"
+  "updated_at": "2026-05-23T21:27:26.323029954Z"
 }
