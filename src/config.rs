@@ -126,12 +126,10 @@ impl Config {
         Ok(c)
     }
 
-    /// Reject `worktree_dir` values that would escape the repo root,
-    /// and a tracker address this `bl` cannot honor
-    /// (`tracker_address::ensure_supported`, bl-022c). `pub` so bl-32e5's
-    /// admin surface re-runs the gate before persisting. The
-    /// schema-version and plugin-policy gates moved to
-    /// `ProjectConfig::validate` with their fields (SPEC §7).
+    /// Reject `worktree_dir` values that would escape the repo root.
+    /// `pub` so bl-32e5's admin surface re-runs the gate before
+    /// persisting. The schema-version and plugin-policy gates moved
+    /// to `ProjectConfig::validate` with their fields (SPEC §7).
     pub fn validate(&self) -> Result<()> {
         if self.worktree_dir.starts_with('/') || self.worktree_dir.contains("..") {
             return Err(BallError::Other(format!(
@@ -139,7 +137,7 @@ impl Config {
                 self.worktree_dir
             )));
         }
-        crate::tracker_address::ensure_supported(self)
+        Ok(())
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {

@@ -75,7 +75,7 @@ fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     // skipped, parity with offline git.
     let mut state_synced = false;
     if !store.stealth && git::git_has_remote(&store.state_repo_dir(), "origin") {
-        sync_branch(&store.state_repo_dir(), "origin", "balls/tasks")?;
+        sync_branch(&store.state_repo_dir(), "origin", store.state_branch())?;
         state_synced = true;
     }
     if code_present {

@@ -388,8 +388,8 @@ The address is the pair `(state_url, state_branch)`, both optional fields in the
 
 | Command | Effect |
 |---|---|
-| `bl remaster <url>` [`--commit`] | Write `state_url` into `config.json` and reconcile this workspace's local-only tasks onto the new tracker, renaming any id clashes. `--commit` also `git commit`s the `config.json` change so a fresh clone carries it. |
-| `bl remaster --detach` | Clear the address (reverting to the implicit `origin`) and re-root `balls/tasks` as a fresh local orphan carrying its current tasks. Offline-capable — a workspace is never trapped in a tracker it cannot reach. |
+| `bl remaster <url>` [`--branch B`] [`--commit`] | Write `state_url` (and `state_branch` if `--branch` is given) into `config.json` and reconcile this workspace's local-only tasks onto the new tracker, renaming any id clashes. `--branch B` lets one tracker host several projects on distinct branches; default `balls/tasks`. `--commit` also `git commit`s the `config.json` change so a fresh clone carries it. |
+| `bl remaster --detach` | Clear the address (reverting to the implicit `origin`, branch `balls/tasks`) and re-root the state branch as a fresh local orphan carrying its current tasks. Offline-capable — a workspace is never trapped in a tracker it cannot reach. |
 
 There is no transplant and no federated "flip": detach is an address edit plus an ordinary reconcile, and re-mastering to a different tracker is the same. A legacy `.balls/master.json` pointer, or `master_url` / `state_remote` fields in an old `config.json`, are read transparently and rewritten to `state_url` on the next `bl remaster`.
 

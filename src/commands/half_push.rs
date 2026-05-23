@@ -26,7 +26,11 @@ use balls::{git, git_state};
 /// marker, recoveries handled out-of-band, etc.).
 pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
     let state_dir = store.state_repo_dir();
-    let state_subjects = git_state::log_subjects(&state_dir, "balls/tasks")?;
+    // The state branch IS HEAD in `.balls/state-repo` (SPEC §4: one
+    // checkout, the branch is the only thing checked out), so `HEAD`
+    // resolves to whatever the workspace's configured `state_branch`
+    // is — without this module needing the name.
+    let state_subjects = git_state::log_subjects(&state_dir, "HEAD")?;
     let reviewed: std::collections::HashSet<String> = state_subjects
         .iter()
         .filter_map(|s| delivered_review_id(s))

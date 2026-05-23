@@ -13,6 +13,19 @@ use std::fs;
 use std::path::PathBuf;
 
 impl Store {
+    /// Directory where state-branch git ops run — `.balls/state-repo`
+    /// (SPEC-tracker-state §4). Meaningless in stealth mode.
+    pub fn state_repo_dir(&self) -> PathBuf {
+        self.state_repo_path.clone()
+    }
+
+    /// The tracker's state branch (SPEC-tracker-state §5) — the
+    /// authoritative name every push/fetch/merge refspec on the state
+    /// checkout targets. Default `balls/tasks` in stealth modes.
+    pub fn state_branch(&self) -> &str {
+        &self.state_branch_name
+    }
+
     /// Stage and commit a task file change on the state branch. No-op
     /// in stealth mode. Stages the sibling notes file too (always
     /// present after a `Task::save`). Holds the store-wide

@@ -18,7 +18,6 @@
 //! the squash on main via the permanent `[bl-id]` tag.
 
 use crate::git::clean_git_command;
-use crate::git_state::STATE_BRANCH;
 use crate::store::Store;
 use crate::task::{Status, Task};
 use chrono::{DateTime, Utc};
@@ -70,6 +69,9 @@ fn id_from_path(line: &str) -> Option<&str> {
 /// task's JSON, with that commit's timestamp. Most-recent wins so a
 /// recreate-then-reclose of the same id resolves to the latest close.
 fn deletion_commit(dir: &Path, id: &str) -> Option<(String, DateTime<Utc>)> {
+    // The state branch IS HEAD in `.balls/state-repo` (SPEC §4), so
+    // `HEAD` resolves to whatever the workspace's configured
+    // `state_branch` is — recovery never needs to name it.
     let out = git_out(
         dir,
         &[
@@ -77,7 +79,7 @@ fn deletion_commit(dir: &Path, id: &str) -> Option<(String, DateTime<Utc>)> {
             "-1",
             "--diff-filter=D",
             "--format=%H%x09%cI",
-            STATE_BRANCH,
+            "HEAD",
             "--",
             &task_rel_path(id),
         ],
@@ -158,7 +160,7 @@ pub fn recover_all(store: &Store) -> Vec<Task> {
             "--diff-filter=D",
             "--name-only",
             "--format=format:%x01%H%x09%cI",
-            STATE_BRANCH,
+            "HEAD",
             "--",
             ".balls/tasks/",
         ],
