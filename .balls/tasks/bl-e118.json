@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-21T07:17:05.588792446Z","id":"bl-40e9","title":"SPEC sweep: rewrite for the unified tracker model"},{"closed_at":"2026-05-21T19:28:31.298521208Z","id":"bl-8a9a","title":"Unify the state checkout — retire federated mode"},{"closed_at":"2026-05-21T22:06:32.227860523Z","id":"bl-e609","title":"Split config: config.json (workspace) vs project.json (project)"},{"closed_at":"2026-05-23T21:27:30.741687417Z","id":"bl-73bb","title":"Migration leaves absorbed .balls/plugins/* uncommitted in the state checkout"},{"closed_at":"2026-05-23T21:28:24.855596063Z","id":"bl-dc79","title":"Audit the bl-8a9a delivery against SPEC-tracker-state.md"},{"closed_at":"2026-05-23T21:42:42.634452042Z","id":"bl-c7b5","title":"Migration silently discards uncommitted state in the legacy .balls/worktree"},{"closed_at":"2026-05-23T21:45:38.512128544Z","id":"bl-3f59","title":"Wire state_branch end to end — claim/review/close/sync still hardcode balls/tasks"}],
+  "closed_children": [{"closed_at":"2026-05-21T07:17:05.588792446Z","id":"bl-40e9","title":"SPEC sweep: rewrite for the unified tracker model"},{"closed_at":"2026-05-21T19:28:31.298521208Z","id":"bl-8a9a","title":"Unify the state checkout — retire federated mode"},{"closed_at":"2026-05-21T22:06:32.227860523Z","id":"bl-e609","title":"Split config: config.json (workspace) vs project.json (project)"},{"closed_at":"2026-05-23T21:27:30.741687417Z","id":"bl-73bb","title":"Migration leaves absorbed .balls/plugins/* uncommitted in the state checkout"},{"closed_at":"2026-05-23T21:28:24.855596063Z","id":"bl-dc79","title":"Audit the bl-8a9a delivery against SPEC-tracker-state.md"},{"closed_at":"2026-05-23T21:42:42.634452042Z","id":"bl-c7b5","title":"Migration silently discards uncommitted state in the legacy .balls/worktree"},{"closed_at":"2026-05-23T21:45:38.512128544Z","id":"bl-3f59","title":"Wire state_branch end to end — claim/review/close/sync still hardcode balls/tasks"},{"closed_at":"2026-05-23T21:48:06.051761544Z","id":"bl-1d46","title":"Terminology + docs sweep: tracker / workspace"}],
   "created_at": "2026-05-21T07:03:52.085932027Z",
   "delivered_in": null,
   "depends_on": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Unified tracker-state model",
   "type": "epic",
-  "updated_at": "2026-05-23T21:45:38.512162518Z"
+  "updated_at": "2026-05-23T21:48:06.051798353Z"
 }
