@@ -46,7 +46,7 @@ pub fn deferred_review(
 
     // 2. Open the forge-gate child. It carries the `forge-gate` tag so
     //    it is filterable, and inherits the parent's repo provenance so
-    //    it reads correctly on a shared hub. It is deliberately left
+    //    it reads correctly on a shared tracker. It is deliberately left
     //    `open` and unclaimed: closing it is the forge plugin's job (or
     //    a human's, post-merge). SKILL.md's "don't claim a gate target"
     //    guidance keeps agents off it — no enforcement code needed.

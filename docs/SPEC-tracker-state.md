@@ -32,7 +32,7 @@ Invariants. An implementation that violates one is out of scope; revisit the spe
 ## 3. Terminology
 
 - **tracker**: the git repo hosting the shared `balls/tasks` branch. In a solo project this is the code repo's own origin; in a multi-repo project it is a dedicated, usually code-free repo. (Distinct from an **external tracker** — Jira, Linear, GitHub Issues — which a plugin mirrors to. When this document says "tracker" unqualified it means the balls tracker.)
-- **workspace**: the repo where `bl` runs and from which task worktrees (`.balls-worktrees/<id>/`) span. The README's "bare central hub" is a bare workspace.
+- **workspace**: the repo where `bl` runs and from which task worktrees (`.balls-worktrees/<id>/`) span. The recommended deployment, the README's "bare workspace", is one of these with `core.bare = true` (older docs called it the "bare central hub" — same concept).
 - **tracker address**: the pair `(state_url, state_branch)` — where the state branch lives and what it is named. Implicit default: `(origin, balls/tasks)`.
 - **state-repo**: `.balls/state-repo/` — the balls-owned checkout of the tracker address. The single checkout, standalone or federated.
 - **repo config**: `.balls/config.json` — workspace-owned, committed to the workspace's code branch.
@@ -72,7 +72,7 @@ The address lives in the workspace's `config.json` as two optional fields:
 
 Both absent is the implicit default `(origin, balls/tasks)` — a standalone repo's `config.json` carries neither field, which is why a pre-federation config is already conformant. `bl remaster <url>` writes `state_url`; `bl remaster --detach` removes it. `state_branch` lets one tracker host several projects on distinct branches, or a workspace point at a non-default branch; it is referenced exactly as any branch name.
 
-The address must be readable *before* anything else resolves, which is why it lives in `config.json` — a plain, never-symlinked file — and not in the project config (which is reached *through* the address). The retired `master.json` pointer existed only because the old model symlinked `config.json` to the hub; with `config.json` workspace-owned and never symlinked (§7), the address simply folds in. A repo carrying the legacy `master.json`, or the older in-`config.json` `master_url`/`state_remote` fields, is migrated to `state_url`/`state_branch` on the next `bl remaster` and read transparently until then.
+The address must be readable *before* anything else resolves, which is why it lives in `config.json` — a plain, never-symlinked file — and not in the project config (which is reached *through* the address). The retired `master.json` pointer existed only because the old model symlinked `config.json` to the tracker; with `config.json` workspace-owned and never symlinked (§7), the address simply folds in. A repo carrying the legacy `master.json`, or the older in-`config.json` `master_url`/`state_remote` fields, is migrated to `state_url`/`state_branch` on the next `bl remaster` and read transparently until then.
 
 ## 6. Materialization
 

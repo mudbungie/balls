@@ -124,7 +124,7 @@ pub fn ls_task_ids(dir: &Path, refname: &str) -> Result<BTreeSet<String>> {
 }
 
 /// Contents of `path` at `refname`, or `None` if it does not exist
-/// there. Used to compare a local task file against the hub's copy.
+/// there. Used to compare a local task file against the tracker's copy.
 pub fn show_file(dir: &Path, refname: &str, path: &str) -> Result<Option<String>> {
     let out = clean_git_command(dir)
         .args(["show", &format!("{refname}:{path}")])
@@ -138,11 +138,11 @@ pub fn show_file(dir: &Path, refname: &str, path: &str) -> Result<Option<String>
 
 /// Re-root `branch` (checked out in `dir`) as a fresh parentless
 /// commit carrying its current tree. The content is preserved; the
-/// shared ancestry with any hub is severed, so the repo can no longer
-/// fast-forward into — or be pushed onto — the hub. This is the
-/// history half of `bl remaster --detach` (the config half clears
-/// `state_remote`). The worktree is reset to the new commit so HEAD
-/// and the index match.
+/// shared ancestry with any tracker is severed, so the repo can no
+/// longer fast-forward into — or be pushed onto — the tracker. This
+/// is the history half of `bl remaster --detach` (the config half
+/// clears the tracker address). The worktree is reset to the new
+/// commit so HEAD and the index match.
 pub fn reroot_orphan(dir: &Path, branch: &str, message: &str) -> Result<()> {
     let tree = run_git_ok(dir, &["rev-parse", &format!("{branch}^{{tree}}")])?
         .trim()
