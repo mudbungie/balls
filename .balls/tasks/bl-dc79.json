@@ -13,10 +13,10 @@
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-23T21:28:08.811255486Z"},
   "tags": [],
   "title": "Audit the bl-8a9a delivery against SPEC-tracker-state.md",
   "type": "epic",
-  "updated_at": "2026-05-23T21:28:08.811258141Z"
+  "updated_at": "2026-05-23T21:28:18.702598131Z"
 }
