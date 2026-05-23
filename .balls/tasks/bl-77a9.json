@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-77a9",
+  "claimed_by": "interdict",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-23T21:23:38.046778234Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-23T21:23:39.031494860Z"},
   "tags": [],
   "title": "Re-check task id under the per-task lock — generate_task_id mint races the commit",
   "type": "bug",
-  "updated_at": "2026-05-23T21:23:45.116064422Z"
+  "updated_at": "2026-05-23T21:27:51.946985127Z"
 }
