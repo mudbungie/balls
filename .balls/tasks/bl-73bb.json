@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-73bb",
+  "claimed_by": "Unjust",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T20:11:16.410142037Z",
@@ -13,10 +13,10 @@
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T20:11:17.630761909Z"},
   "tags": [],
   "title": "Migration leaves absorbed .balls/plugins/* uncommitted in the state checkout",
   "type": "bug",
-  "updated_at": "2026-05-21T20:11:19.010884609Z"
+  "updated_at": "2026-05-23T21:20:12.739811658Z"
 }
