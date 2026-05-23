@@ -7,7 +7,6 @@
 //! `remaster_detach`; the CLI in `commands::remaster`.
 
 use crate::error::{BallError, Result};
-use crate::git_state::STATE_BRANCH;
 use crate::store::Store;
 use crate::task::Task;
 use crate::{git, git_state};
@@ -44,25 +43,26 @@ struct LocalTask {
 /// history. Idempotent.
 pub fn reconcile(store: &Store, url: &str) -> Result<Reconciled> {
     let sd = store.state_repo_dir();
+    let branch = store.state_branch();
     git_state::set_remote(&sd, "origin", url)?;
     if !git::git_fetch(&sd, "origin")? {
         return Err(BallError::Other(format!("could not reach tracker `{url}`")));
     }
-    if !git_state::has_remote_branch(&sd, "origin", STATE_BRANCH) {
+    if !git_state::has_remote_branch(&sd, "origin", branch) {
         // A fresh tracker with no state branch: this workspace's
         // history seeds it. The first-federation race is just this —
         // the loser of the push is an ordinary diverged checkout.
-        git::git_push(&sd, "origin", STATE_BRANCH)?;
+        git::git_push(&sd, "origin", branch)?;
         return Ok(Reconciled::Seeded);
     }
-    let target_ref = format!("refs/remotes/origin/{STATE_BRANCH}");
+    let target_ref = format!("refs/remotes/origin/{branch}");
     let target_sha = git::git_resolve_sha(&sd, &target_ref)?;
-    if git::git_is_ancestor(&sd, &target_sha, STATE_BRANCH) {
+    if git::git_is_ancestor(&sd, &target_sha, branch) {
         return Ok(Reconciled::AlreadyUpToDate);
     }
     let outcome = replay_onto(store, &sd, &target_ref)?;
     // Publish the reconciled history so a re-run is a clean no-op.
-    let _ = git::git_push(&sd, "origin", STATE_BRANCH);
+    let _ = git::git_push(&sd, "origin", branch);
     Ok(outcome)
 }
 

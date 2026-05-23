@@ -23,7 +23,10 @@ pub struct Store {
     /// Where state-branch git ops run — the unified `.balls/state-repo`
     /// checkout for every non-stealth repo. A meaningless sentinel in
     /// stealth mode; callers branch on `stealth` first.
-    state_repo_path: PathBuf,
+    pub(crate) state_repo_path: PathBuf,
+    /// The tracker's state branch (SPEC-tracker-state §5), cached at
+    /// discovery from `.balls/state-repo`'s HEAD. Default in stealth.
+    pub(crate) state_branch_name: String,
 }
 
 impl Store {
@@ -52,30 +55,42 @@ impl Store {
                 no_git: false,
                 tasks_dir_path,
                 state_repo_path,
+                state_branch_name: tracker_address::DEFAULT_BRANCH.to_string(),
             });
         }
         // The unified model resolves ONE checkout, `.balls/state-repo`,
-        // for every repo — materialized from the tracker address on
-        // first discover after a fresh `git clone` (and migrated in
-        // place from a legacy `.balls/worktree`). An unreachable
-        // explicit tracker hard-fails here (SPEC §9).
+        // materialized from the tracker address (SPEC §6). An
+        // unreachable explicit tracker hard-fails here (§9).
         let state_repo_path = Self::ensure_state_repo(&main_root)?;
         let tasks_dir_path = state_repo_path.join(".balls/tasks");
         if !tasks_dir_path.exists() {
             return Err(BallError::state_worktree_missing(&main_root, &tasks_dir_path));
         }
-        Ok(Store { root: main_root, stealth: false, no_git: false, tasks_dir_path, state_repo_path })
+        let state_branch_name = resolve_state_branch(&state_repo_path);
+        Ok(Store {
+            root: main_root,
+            stealth: false,
+            no_git: false,
+            tasks_dir_path,
+            state_repo_path,
+            state_branch_name,
+        })
     }
 
     /// Materialize `.balls/state-repo` if absent, returning its path.
-    /// A warm checkout is returned untouched — no network round-trip.
+    /// A warm checkout is returned with best-effort project-config
+    /// migration and branch alignment — no network round-trip.
+    /// Failures in the warm fast path fall through silently so a
+    /// broken state-repo or corrupt config stays discoverable for
+    /// `bl doctor` to surface the real problem.
     fn ensure_state_repo(root: &Path) -> Result<PathBuf> {
         let dir = root.join(crate::state_repo::STATE_REPO_REL);
         if dir.join(".git").exists() {
-            // A warm checkout skips re-materialization, but one built
-            // before the SPEC §7 split has no `project.json` — bring it
-            // up to date in place (a no-op once it exists).
             crate::state_repo::ensure_project_config(root, &dir)?;
+            if let Ok(cfg) = Config::load(&root.join(".balls/config.json")) {
+                let addr = tracker_address::resolve(root, &cfg);
+                let _ = crate::state_repo::align_warm_branch(&dir, &addr.branch);
+            }
             return Ok(dir);
         }
         let cfg = Config::load(&root.join(".balls/config.json"))?;
@@ -93,6 +108,7 @@ impl Store {
                 root,
                 stealth: true,
                 no_git: true,
+                state_branch_name: tracker_address::DEFAULT_BRANCH.to_string(),
             });
         }
         let had = tasks_dir.is_some();
@@ -137,23 +153,29 @@ impl Store {
         }
 
         let use_stealth = stealth || tasks_dir.is_some();
-        let (tasks_dir_path, state_repo_path) = if use_stealth {
+        let default_branch = || tracker_address::DEFAULT_BRANCH.to_string();
+        let (tasks_dir_path, state_repo_path, state_branch_name) = if use_stealth {
             let td = init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?;
-            (td, repo_root.join(crate::state_repo::STATE_REPO_REL))
+            (td, repo_root.join(crate::state_repo::STATE_REPO_REL), default_branch())
         } else {
-            // The unified checkout: `state_repo::ensure` materializes
-            // `.balls/state-repo` from the resolved tracker address
-            // (the code `origin` by default).
             let cfg = Config::load(&config_path)?;
             let addr = tracker_address::resolve(&repo_root, &cfg);
             let sr = crate::state_repo::ensure(&repo_root, &addr)?;
-            (sr.join(".balls/tasks"), sr)
+            let branch = resolve_state_branch(&sr);
+            (sr.join(".balls/tasks"), sr, branch)
         };
 
         if !no_git {
             commit_init(&repo_root, use_stealth, already)?;
         }
-        Ok(Store { root: repo_root, stealth: use_stealth, no_git, tasks_dir_path, state_repo_path })
+        Ok(Store {
+            root: repo_root,
+            stealth: use_stealth,
+            no_git,
+            tasks_dir_path,
+            state_repo_path,
+            state_branch_name,
+        })
     }
 
     /// Bootstrap a bare central hub at `hubdir` from `source` and open
@@ -162,7 +184,15 @@ impl Store {
         let root = bootstrap_bare_hub(source, hubdir)?;
         let state_repo_path = root.join(crate::state_repo::STATE_REPO_REL);
         let tasks_dir_path = state_repo_path.join(".balls/tasks");
-        Ok(Store { root, stealth: false, no_git: false, tasks_dir_path, state_repo_path })
+        let state_branch_name = resolve_state_branch(&state_repo_path);
+        Ok(Store {
+            root,
+            stealth: false,
+            no_git: false,
+            tasks_dir_path,
+            state_repo_path,
+            state_branch_name,
+        })
     }
 
     pub fn balls_dir(&self) -> PathBuf {
@@ -171,14 +201,6 @@ impl Store {
 
     pub fn tasks_dir(&self) -> PathBuf {
         self.tasks_dir_path.clone()
-    }
-
-    /// Directory where git operations against task state run — the
-    /// unified `.balls/state-repo/` checkout (SPEC-tracker-state §4).
-    /// In stealth mode the concept is meaningless — callers branch on
-    /// `stealth` first.
-    pub fn state_repo_dir(&self) -> PathBuf {
-        self.state_repo_path.clone()
     }
 
     pub fn local_dir(&self) -> PathBuf {
@@ -264,3 +286,10 @@ impl Store {
 // The state-branch write methods — `commit_task`, `close_and_archive`,
 // `all_tasks` — are a second `impl Store` block in `store_archive.rs`,
 // split out to keep this file under the 300-line cap.
+
+/// Resolve the state branch from `.balls/state-repo`'s HEAD. Falls
+/// back to the SPEC default for stealth/no-git (no checkout exists).
+fn resolve_state_branch(state_repo: &Path) -> String {
+    git::git_current_branch(state_repo)
+        .unwrap_or_else(|_| tracker_address::DEFAULT_BRANCH.to_string())
+}
