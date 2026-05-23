@@ -76,13 +76,12 @@ fn apply_created(
         description,
         tags: item.tags.clone(),
     };
-    let id = balls::task_id::generate_task_id(store, &title)?;
+    let (id, _g) = balls::task_id::mint_and_lock(store, &title)?;
     let mut task = Task::new(opts, id.clone());
     task.status = status;
     task.external
         .insert(plugin_name.to_string(), Value::Object(item.external.clone()));
     task.synced_at.insert(plugin_name.to_string(), Utc::now());
-    let _g = task_lock(store, &id)?;
     store.save_task(&task)?;
     store.commit_task(&id, &format!("balls: sync-create {id} from {plugin_name}"))?;
     Ok(())

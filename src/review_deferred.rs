@@ -51,7 +51,7 @@ pub fn deferred_review(
     //    a human's, post-merge). SKILL.md's "don't claim a gate target"
     //    guidance keeps agents off it — no enforcement code needed.
     let title = format!("Forge: PR merged for {id}");
-    let child_id = task_id::generate_task_id(store, &title)?;
+    let (child_id, _child_guard) = task_id::mint_and_lock(store, &title)?;
     let mut child = Task::new(
         NewTaskOpts {
             title: title.clone(),
