@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-dc79",
+  "claimed_by": "Hector",
   "closed_at": null,
   "closed_children": [{"closed_at":"2026-05-21T20:09:12.653053859Z","id":"bl-b0b9","title":"Verify the interim plugin-config split (map on code branch, files on tracker) is coherent"},{"closed_at":"2026-05-21T20:11:58.206315276Z","id":"bl-dc2b","title":"Verify the bare-hub in-place migration is safe for the dogfooded /home/mark/dev/balls"},{"closed_at":"2026-05-21T20:14:26.187412031Z","id":"bl-022c","title":"Verify or gate state_branch — it materializes but push/sync hardcode balls/tasks"},{"closed_at":"2026-05-21T20:24:38.465153823Z","id":"bl-2b49","title":"Conformance test 13 asserts new-bl behaviour, not the pre-spec-bl fixture SPEC 16.13 intends"}],
   "created_at": "2026-05-21T19:44:46.209259265Z",
@@ -13,10 +13,10 @@
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-21T20:08:57.787023380Z"},
   "tags": [],
   "title": "Audit the bl-8a9a delivery against SPEC-tracker-state.md",
   "type": "epic",
-  "updated_at": "2026-05-21T20:24:38.465205317Z"
+  "updated_at": "2026-05-23T21:20:29.767469539Z"
 }
