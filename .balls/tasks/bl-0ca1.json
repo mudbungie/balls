@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "tests/concurrent_writes.rs::parallel_bl_create_across_workers_all_succeed intermittently fails under 'cargo tarpaulin' (the make check / pre-commit coverage gate): one worker's task is missing from 'bl list' (observed 2026-05-21: 'list missing parallel-4', 7 of 8 tasks present). It passes deterministically under plain 'cargo test' (5/5 standalone re-runs) — tarpaulin's llvm-instrumented, slower binary widens a real race window in concurrent 'bl create' against the balls/tasks state branch.\n\nNot introduced by bl-022c (whose only runtime change is a pure Config::validate check). Pre-existing; surfaced while running the coverage gate for bl-022c. Related to the env-race family already fixed under bl-bfa8 / bl-ad4b but this one is a state-branch write race, not an env race.\n\nImpact: make check and the pre-commit hook fail randomly for everyone. Either harden the concurrent-create commit path (retry/lock on the state-branch index) or make the test tolerant of tarpaulin timing.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":125,"source":"balls","state":"open","synced_at":"2026-05-21T20:12:47.288860824+00:00","url":"https://github.com/mudbungie/balls/issues/125"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":125,"source":"balls","state":"open","synced_at":"2026-05-23T21:20:08.548301452+00:00","url":"https://github.com/mudbungie/balls/issues/125"}}},
   "id": "bl-0ca1",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-21T20:12:47.297452118Z"},
+  "synced_at": {"github-issues":"2026-05-23T21:20:08.569595870Z"},
   "tags": [],
   "title": "Flaky test: parallel_bl_create_across_workers_all_succeed races under tarpaulin",
   "type": "bug",
-  "updated_at": "2026-05-23T21:20:07.633146972Z"
+  "updated_at": "2026-05-23T21:20:08.569604497Z"
 }
