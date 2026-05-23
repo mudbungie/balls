@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-1d81",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-21T20:07:55.209824430Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-23T19:18:38.871921432Z"},
   "tags": ["plugins"],
   "title": "bl plugin enable writes a config_file the plugin runtime cannot resolve",
   "type": "bug",
-  "updated_at": "2026-05-23T19:18:38.871927433Z"
+  "updated_at": "2026-05-23T21:20:02.553814623Z"
 }
