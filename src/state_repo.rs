@@ -57,9 +57,11 @@ pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// Warm path: the checkout already exists. Keep `origin` aligned with
-/// the address (a hand-edited `state_url`) but never fetch — discover
-/// stays offline-fast; `bl sync`/`bl prime` do the network round-trip.
+/// Warm path: the checkout already exists. Keep `origin` and the
+/// checked-out branch aligned with the address (a hand-edited
+/// `state_url`/`state_branch`, or a `bl remaster --branch B`) but
+/// never fetch — discover stays offline-fast; `bl sync`/`bl prime` do
+/// the network round-trip.
 fn warm(dir: &Path, addr: &Address) -> Result<()> {
     git::git_ensure_user(dir)?;
     if let Some(url) = &addr.url {
@@ -69,7 +71,26 @@ fn warm(dir: &Path, addr: &Address) -> Result<()> {
             let _ = run_at(dir, &["remote", "add", "origin", url]);
         }
     }
+    align_branch(dir, &addr.branch)?;
     Ok(())
+}
+
+/// Align the state checkout's HEAD with `branch` — the configured
+/// `state_branch` (SPEC §5). A no-op when HEAD already matches; a
+/// `git checkout -B branch` when not, which both points the local
+/// branch at the current commit (preserving local-only tasks for the
+/// seed case) and switches HEAD to it. Lets a `bl remaster --branch
+/// B` re-target without nuking the checkout. `pub` so `Store`'s warm
+/// fast-path can call it without going through the full `ensure`.
+pub fn align_warm_branch(dir: &Path, branch: &str) -> Result<()> {
+    align_branch(dir, branch)
+}
+
+fn align_branch(dir: &Path, branch: &str) -> Result<()> {
+    if git::git_current_branch(dir).is_ok_and(|h| h == branch) {
+        return Ok(());
+    }
+    run_at(dir, &["checkout", "-q", "-B", branch])
 }
 
 /// First contact: no `.balls/state-repo` yet. Adopt a legacy worktree

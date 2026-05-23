@@ -91,26 +91,19 @@ fn worktree_dir_rejects_parent_segment() {
     assert!(matches!(err, BallError::Other(ref s) if s.contains("worktree_dir")));
 }
 
-// `state_branch` is resolved and materialized (bl-8a9a) but the
-// lifecycle traffic still hardcodes `balls/tasks`; `validate` rejects a
-// non-default value rather than let it silently misroute (bl-022c). The
-// gate lives in `tracker_address::ensure_supported`; this asserts
-// `Config::load` actually fronts it. The explicit-default and absent
-// cases stay green via every other load test here.
 #[test]
-fn load_rejects_non_default_state_branch() {
+fn load_accepts_non_default_state_branch() {
+    // bl-3f59 wired state_branch end to end (push/fetch/merge refspecs
+    // and bl remaster --branch); a non-default branch is now a
+    // first-class supported value, not a gate-rejected one.
     let dir = TempDir::new().unwrap();
     let p = write_cfg(
         &dir,
         r#"{"stale_threshold_seconds":60,
             "worktree_dir":".balls-worktrees","state_branch":"project-x"}"#,
     );
-    let err = Config::load(&p).unwrap_err();
-    assert!(
-        matches!(err, BallError::Other(ref s)
-            if s.contains("state_branch") && s.contains("project-x")),
-        "expected non-default state_branch rejection, got: {err:?}",
-    );
+    let cfg = Config::load(&p).unwrap();
+    assert_eq!(cfg.state_branch.as_deref(), Some("project-x"));
 }
 
 #[test]

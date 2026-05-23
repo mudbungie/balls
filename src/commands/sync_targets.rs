@@ -24,7 +24,9 @@ use std::path::Path;
 /// no per-task overrides records no `target=` markers, so the push set
 /// is byte-identical to before this change.
 pub(super) fn push_recorded_targets(store: &Store, remote: &str, repo_main: &str) -> Result<()> {
-    let subjects = git_state::log_subjects(&store.state_repo_dir(), "balls/tasks")?;
+    // `HEAD` in `.balls/state-repo` is the configured state branch
+    // (SPEC §4), so this module never has to name it.
+    let subjects = git_state::log_subjects(&store.state_repo_dir(), "HEAD")?;
     let mut seen = std::collections::HashSet::new();
     for subj in &subjects {
         let Some((_, branch)) = reviewed_target(subj) else { continue };

@@ -13,7 +13,12 @@ use balls::remaster::{self, Reconciled};
 use balls::{git, git_state, state_repo};
 use std::path::{Path, PathBuf};
 
-pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Result<()> {
+pub fn cmd_remaster(
+    target: Option<String>,
+    branch: Option<String>,
+    commit: bool,
+    detach: bool,
+) -> Result<()> {
     if detach && target.is_some() {
         return Err(BallError::Other(
             "remaster --detach takes no TARGET (it goes standalone)".into(),
@@ -35,14 +40,18 @@ pub fn cmd_remaster(target: Option<String>, commit: bool, detach: bool) -> Resul
     let target = target.ok_or_else(|| {
         BallError::Other("remaster needs a TARGET tracker URL (or use --detach)".into())
     })?;
-    remaster_to(&root, &target, commit)
+    remaster_to(&root, &target, branch.as_deref(), commit)
 }
 
-/// `bl remaster <url>`: reconcile onto the new tracker, then record
-/// the address. Reconcile runs first so a failed join leaves the
-/// committed address untouched.
-fn remaster_to(root: &Path, target: &str, commit: bool) -> Result<()> {
+/// `bl remaster <url> [--branch B]`: reconcile onto the new tracker
+/// (on `B`, default `balls/tasks`), then record the address.
+/// Reconcile runs first so a failed join leaves the committed address
+/// untouched. The branch is written into `config.json` BEFORE
+/// reconcile so `Store::discover` materializes `.balls/state-repo` on
+/// `B` rather than the previous branch.
+fn remaster_to(root: &Path, target: &str, branch: Option<&str>, commit: bool) -> Result<()> {
     let url = resolve_target(root, target);
+    write_address(root, Some(&url), branch, commit)?;
     let store = discover()?;
     if store.no_git || store.stealth {
         return Err(BallError::Other(
@@ -50,7 +59,6 @@ fn remaster_to(root: &Path, target: &str, commit: bool) -> Result<()> {
         ));
     }
     let outcome = remaster::reconcile(&store, &url)?;
-    write_address(root, Some(&url), commit)?;
     match outcome {
         Reconciled::Seeded => println!("remastered to `{url}` — seeded a fresh tracker"),
         Reconciled::AlreadyUpToDate => println!("already up to date with `{url}`"),
@@ -63,9 +71,11 @@ fn remaster_to(root: &Path, target: &str, commit: bool) -> Result<()> {
 
 /// `bl remaster --detach`: clear the address (reverting to the
 /// implicit code `origin`) and re-root the state checkout. Offline.
+/// Re-roots before clearing config so `detach()` can read the
+/// pre-change branch from the state checkout's HEAD.
 fn detach_path(root: &Path) -> Result<()> {
-    write_address(root, None, true)?;
     remaster::detach(root)?;
+    write_address(root, None, None, true)?;
     println!(
         "detached: cleared the tracker address; .balls/state-repo re-rooted \
          as a standalone local store"
@@ -75,13 +85,23 @@ fn detach_path(root: &Path) -> Result<()> {
 
 /// Write (or clear, when `url` is `None`) the tracker address in
 /// `.balls/config.json`, migrating the legacy `master_url` /
-/// `state_remote` fields away. `commit` also stages and commits it.
-fn write_address(root: &Path, url: Option<&str>, commit: bool) -> Result<()> {
+/// `state_remote` fields away. A `Some(branch)` writes
+/// `state_branch`; `None` keeps the existing value on a remaster and
+/// clears it on a detach (the `url.is_none()` branch). `commit` also
+/// stages and commits it.
+fn write_address(
+    root: &Path,
+    url: Option<&str>,
+    branch: Option<&str>,
+    commit: bool,
+) -> Result<()> {
     let cfg_path = root.join(".balls/config.json");
     let mut cfg = Config::load(&cfg_path)?;
     cfg.state_url = url.map(str::to_string);
     if url.is_none() {
         cfg.state_branch = None;
+    } else if let Some(b) = branch {
+        cfg.state_branch = Some(b.to_string());
     }
     cfg.master_url = None;
     cfg.state_remote = None;

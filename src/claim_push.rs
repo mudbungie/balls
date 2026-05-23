@@ -1,11 +1,10 @@
-//! State-branch push: the `git push balls/tasks` → `AttemptClass`
+//! State-branch push: the `git push <state_branch>` → `AttemptClass`
 //! mapping (conflict vs. unreachable vs. other). Split out of
 //! `claim_sync` so the `Protocol`/`Participant` wiring there stays
 //! focused on the negotiation shape. Re-exported from `claim_sync`.
 
 use crate::error::Result;
 use crate::git;
-use crate::git_state::STATE_BRANCH;
 use crate::negotiation::AttemptClass;
 use std::path::Path;
 use std::process::Output;
@@ -16,12 +15,15 @@ use std::process::Output;
 /// name to resolve.
 pub(crate) const STATE_REMOTE: &str = "origin";
 
-/// Run `git push <state_remote> balls/tasks` from `dir` and classify
-/// the outcome. Spawn failures propagate as Err — they're
-/// catastrophic (no git on PATH) rather than a remote-state condition.
-pub fn push_state_classified(dir: &Path, remote: &str) -> Result<AttemptClass> {
+/// Run `git push <state_remote> <branch>` from `dir` and classify the
+/// outcome. Spawn failures propagate as Err — they're catastrophic
+/// (no git on PATH) rather than a remote-state condition. The branch
+/// is the workspace's resolved tracker state branch (SPEC-tracker-state
+/// §5), threaded in from the Store so a non-default `state_branch`
+/// pushes to the same name it materialized.
+pub fn push_state_classified(dir: &Path, remote: &str, branch: &str) -> Result<AttemptClass> {
     let out = git::clean_git_command(dir)
-        .args(["push", remote, STATE_BRANCH])
+        .args(["push", remote, branch])
         .output()?;
     Ok(classify_push_output(&out))
 }

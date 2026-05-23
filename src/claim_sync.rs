@@ -26,7 +26,6 @@ pub use crate::claim_push::push_state_classified;
 use crate::claim_push::STATE_REMOTE;
 use crate::error::{BallError, Result};
 use crate::git;
-use crate::git_state::STATE_BRANCH;
 use crate::negotiation::{AttemptClass, FailurePolicy, Protocol};
 use crate::participant::{self, Event, EventCtx, Participant, Projection};
 use crate::store::Store;
@@ -70,12 +69,15 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
     type Outcome = SyncedClaimResult;
 
     fn propose(&mut self) -> Result<AttemptClass> {
-        push_state_classified(&self.state_dir, STATE_REMOTE)
+        push_state_classified(&self.state_dir, STATE_REMOTE, self.store.state_branch())
     }
 
     fn fetch_remote_view(&mut self) -> Result<()> {
         let _ = git::git_fetch(&self.state_dir, STATE_REMOTE);
-        let merge = git::git_merge(&self.state_dir, &format!("{STATE_REMOTE}/{STATE_BRANCH}"))?;
+        let merge = git::git_merge(
+            &self.state_dir,
+            &format!("{STATE_REMOTE}/{}", self.store.state_branch()),
+        )?;
         if matches!(merge, git::MergeResult::Conflict) {
             crate::sync_resolve::auto_resolve_task_conflicts(&self.state_dir)?;
             git::git_commit(&self.state_dir, "state: auto-resolve lifecycle conflicts")?;
@@ -99,7 +101,7 @@ impl Protocol for GitRemoteClaimProtocol<'_> {
         // Best-effort post-merge push so the remote sees the resolved
         // state. Failure here doesn't change the outcome — we already
         // know we lost.
-        let _ = push_state_classified(&self.state_dir, STATE_REMOTE);
+        let _ = push_state_classified(&self.state_dir, STATE_REMOTE, self.store.state_branch());
         Ok(Some(SyncedClaimResult::Lost { winner }))
     }
 
