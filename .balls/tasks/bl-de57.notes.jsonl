@@ -1,0 +1,1 @@
+{"ts":"2026-05-23T19:18:38.157184127Z","author":"Mechanism","text":"Companion to bl-73bb: bl-73bb covers the state-repo side (absorbed files never committed to the tracker branch); this covers the code-branch side (legacy files not git-rm'd, .gitignore not refreshed, .balls/state-repo embedded-repo hazard). The pair is the complete migration fix."}

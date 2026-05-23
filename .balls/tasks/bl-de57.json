@@ -18,5 +18,5 @@
   "tags": ["plugins","migration"],
   "title": "Legacy repos with committed .balls/plugins/* are not cleanly migrated to the tracker-state split",
   "type": "bug",
-  "updated_at": "2026-05-23T19:18:38.121592590Z"
+  "updated_at": "2026-05-23T19:18:38.156862995Z"
 }
