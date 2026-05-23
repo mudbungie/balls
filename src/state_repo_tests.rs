@@ -266,6 +266,7 @@ fn ensure_commits_absorbed_plugin_files_to_the_tracker_branch() {
     );
 }
 
+
 #[test]
 fn looks_like_url_recognizes_common_forms() {
     assert!(looks_like_url("https://example.com/x.git"));

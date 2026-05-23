@@ -47,13 +47,20 @@ pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
     crate::store_init::ensure_tasks_symlink(root, "state-repo/.balls/tasks")?;
     ensure_plugins_symlink(root, "state-repo/.balls/plugins")?;
     ensure_project_json_symlink(root, "state-repo/.balls/project.json")?;
-    // Commit after the symlink steps so a legacy `.balls/plugins/*`
-    // absorbed by `ensure_plugins_symlink` lands on the tracker branch
-    // alongside the seed scaffolding instead of dangling untracked.
+    // bl-73bb: commit after the symlink steps so a legacy
+    // `.balls/plugins/*` absorbed by `ensure_plugins_symlink` lands on
+    // the tracker branch alongside the seed scaffolding instead of
+    // dangling untracked.
     if git::has_uncommitted_changes(&dir)? {
         git::git_add_all(&dir)?;
         git::git_commit(&dir, "balls: seed state branch")?;
     }
+    // bl-de57 (code-branch companion to bl-73bb): after the absorb,
+    // drop the now-orphan `.balls/plugins/*` index entries from the
+    // workspace's code branch and refresh `.gitignore` for the unified
+    // runtime paths. A no-op on a workspace that never carried the
+    // legacy layout.
+    crate::legacy_plugin_migrate::run(root)?;
     Ok(dir)
 }
 

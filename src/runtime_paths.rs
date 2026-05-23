@@ -31,10 +31,14 @@ pub(crate) struct RuntimePath {
     pub in_stealth: bool,
     /// Whether the `bl review` squash backstop covers this path —
     /// `add_user_changes` unstages it and `commit_touches_runtime`
-    /// rejects a squash carrying it. True for the `.balls/` state
-    /// paths a `work/<id>` tree can plausibly track; false for
+    /// rejects a squash carrying it. True for every `.balls/` state
+    /// path a `work/<id>` tree can plausibly track; false only for
     /// `.balls-worktrees` (the *parent* of work worktrees, never a
-    /// subpath of one) and `.balls/plugins` (a gitignored symlink).
+    /// subpath of one). `.balls/plugins` is a symlink on a fully
+    /// migrated workspace but a legacy repo (bl-de57) can still carry
+    /// the pre-bl-8a9a `.balls/plugins/*.json` index entries on a work
+    /// branch branched off the pre-migration base; the backstop keeps
+    /// those deletions from riding a review squash.
     pub backstop: bool,
 }
 
@@ -45,7 +49,7 @@ pub(crate) const RUNTIME_PATHS: &[RuntimePath] = &[
     RuntimePath { rel: ".balls/tasks", in_stealth: false, backstop: true },
     RuntimePath { rel: ".balls/project.json", in_stealth: false, backstop: true },
     RuntimePath { rel: ".balls/state-repo", in_stealth: false, backstop: true },
-    RuntimePath { rel: ".balls/plugins", in_stealth: false, backstop: false },
+    RuntimePath { rel: ".balls/plugins", in_stealth: false, backstop: true },
     RuntimePath { rel: ".balls/code-refs", in_stealth: true, backstop: true },
     RuntimePath { rel: ".balls-worktrees", in_stealth: true, backstop: false },
 ];
