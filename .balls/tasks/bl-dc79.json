@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "bl-8a9a (delivered on main as 87fdd38) collapsed the master_url 'federated mode' into the unified tracker-state model. This epic is the systematic checkup: walk SPEC-tracker-state.md end to end — the §2 invariants, the §12 backwards-compat audit, and each §16 conformance test — against the shipped code, confirming every behaviour is faithful to the intent, not merely that the test suite is green. The children below carry the specific areas the implementing agent flagged as uncertain or knowingly-incomplete; this parent exists to catch what those did not. Verdict: either 'conformant, closed' or concrete follow-up bugs filed.",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":130,"source":"balls","state":"open","synced_at":"2026-05-23T21:28:19.534533071+00:00","url":"https://github.com/mudbungie/balls/issues/130"}}},
   "id": "bl-dc79",
   "links": [],
   "parent": "bl-e118",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-23T21:28:08.811255486Z"},
+  "synced_at": {"github-issues":"2026-05-23T21:28:19.547106481Z"},
   "tags": [],
   "title": "Audit the bl-8a9a delivery against SPEC-tracker-state.md",
   "type": "epic",
-  "updated_at": "2026-05-23T21:28:18.702598131Z"
+  "updated_at": "2026-05-23T21:28:19.547116259Z"
 }
