@@ -45,7 +45,15 @@ pub(crate) fn validate_name(name: &str) -> Result<()> {
 }
 
 /// Reject `config_file` values that would escape the plugins root.
-/// Mirrors `Config::validate`'s worktree_dir rule.
+/// The runtime resolves `config_file` against the workspace root
+/// (bl-1d81), and per-plugin config files must travel with their
+/// `project.json` entry — they live in the state-checkout. The
+/// conventional landing zone is `.balls/plugins/` (the symlinked
+/// subtree under the state checkout), so we require that prefix:
+/// anything else either escapes the project (absolute / `..`) or
+/// lands outside the tracked subtree where commits cannot reach it.
+pub(crate) const PLUGIN_CONFIG_PREFIX: &str = ".balls/plugins/";
+
 fn validate_config_file(value: &str) -> Result<()> {
     if value.is_empty() {
         return Err(BallError::Other("--config-file must not be empty".into()));
@@ -53,6 +61,12 @@ fn validate_config_file(value: &str) -> Result<()> {
     if value.starts_with('/') || value.contains("..") {
         return Err(BallError::Other(format!(
             "--config-file {value:?}: must be a relative path with no '..' segments"
+        )));
+    }
+    if !value.starts_with(PLUGIN_CONFIG_PREFIX) {
+        return Err(BallError::Other(format!(
+            "--config-file {value:?}: must live under {PLUGIN_CONFIG_PREFIX:?} \
+             so the file is committed to the tracker alongside its project.json entry"
         )));
     }
     Ok(())
@@ -69,6 +83,13 @@ pub fn load_effective(store: &Store) -> Result<BTreeMap<String, PluginEntry>> {
 /// observable-state sense, not field-preserving. The `participant`
 /// block (set elsewhere) is preserved so this surface never silently
 /// drops policy a maintainer set by hand.
+///
+/// `config_file` is stored and written as a *workspace-root-relative*
+/// path, the same base `Plugin::resolve` joins against at runtime
+/// (bl-1d81). The default `.balls/plugins/<name>.json` lands the file
+/// in the conventional plugin-config directory and round-trips through
+/// the runtime as a single source of truth — no `<plugins-dir>` vs
+/// `<root>` disagreement.
 pub fn enable(
     store: &Store,
     name: &str,
@@ -78,7 +99,8 @@ pub fn enable(
     validate_name(name)?;
     let cfg_path = effective_config_path(store);
     ensure_parent(&cfg_path)?;
-    let resolved_file = config_file.unwrap_or_else(|| format!("{name}.json"));
+    let resolved_file =
+        config_file.unwrap_or_else(|| format!(".balls/plugins/{name}.json"));
     validate_config_file(&resolved_file)?;
 
     let mut cfg = load_or_default(&cfg_path)?;
@@ -94,14 +116,12 @@ pub fn enable(
     );
     cfg.validate()?;
 
-    let plugins_dir = effective_plugins_dir(store);
-    fs::create_dir_all(&plugins_dir)?;
-    let file_path = plugins_dir.join(&resolved_file);
+    let file_path = store.plugin_config_root().join(&resolved_file);
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let file_created = !file_path.exists();
     if file_created {
-        if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
         fs::write(&file_path, "{}\n")?;
     }
     cfg.save(&cfg_path)?;

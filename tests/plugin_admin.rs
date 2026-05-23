@@ -26,7 +26,12 @@ fn enable_standalone_inserts_entry_and_creates_file() {
     let entry = &cfg["plugins"]["github"];
     assert_eq!(entry["enabled"], Value::Bool(true));
     assert_eq!(entry["sync_on_change"], Value::Bool(true));
-    assert_eq!(entry["config_file"], Value::String("github.json".into()));
+    // bl-1d81: config_file is workspace-root-relative — the same base
+    // `Plugin::resolve` joins against at runtime.
+    assert_eq!(
+        entry["config_file"],
+        Value::String(".balls/plugins/github.json".into())
+    );
     assert!(repo.path().join(".balls/plugins/github.json").exists());
 }
 
@@ -36,7 +41,7 @@ fn enable_standalone_respects_explicit_config_file() {
     init_in(repo.path());
 
     bl(repo.path())
-        .args(["plugin", "enable", "ci", "--config-file", "ci/conf.json"])
+        .args(["plugin", "enable", "ci", "--config-file", ".balls/plugins/ci/conf.json"])
         .assert()
         .success();
 
@@ -45,7 +50,7 @@ fn enable_standalone_respects_explicit_config_file() {
             .unwrap();
     assert_eq!(
         cfg["plugins"]["ci"]["config_file"],
-        Value::String("ci/conf.json".into())
+        Value::String(".balls/plugins/ci/conf.json".into())
     );
     assert!(repo.path().join(".balls/plugins/ci/conf.json").exists());
 }

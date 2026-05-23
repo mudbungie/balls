@@ -40,8 +40,12 @@ fn validate_config_file_rejects_traversal_and_absolute() {
     assert!(validate_config_file("").is_err());
     assert!(validate_config_file("/etc/passwd").is_err());
     assert!(validate_config_file("../escape.json").is_err());
-    assert!(validate_config_file("ok.json").is_ok());
-    assert!(validate_config_file("nested/ok.json").is_ok());
+    // bl-1d81: rooted at workspace root — must be under .balls/plugins/
+    // so the file commits alongside the project.json entry.
+    assert!(validate_config_file("ok.json").is_err());
+    assert!(validate_config_file("nested/ok.json").is_err());
+    assert!(validate_config_file(".balls/plugins/ok.json").is_ok());
+    assert!(validate_config_file(".balls/plugins/nested/ok.json").is_ok());
 }
 
 #[test]
@@ -54,8 +58,52 @@ fn enable_standalone_writes_config_and_creates_file() {
     let entry = cfg.plugins.get("github").expect("entry");
     assert!(entry.enabled);
     assert!(entry.sync_on_change);
-    assert_eq!(entry.config_file, "github.json");
+    // bl-1d81: stored path is workspace-root-relative — the same base
+    // `Plugin::resolve` joins against at runtime.
+    assert_eq!(entry.config_file, ".balls/plugins/github.json");
     assert!(report.file_path.exists());
+}
+
+#[test]
+fn enable_stores_path_runtime_can_resolve() {
+    // bl-1d81 regression gate: the path `enable` records must round-
+    // trip through `Plugin::resolve` to the file `enable` wrote.
+    // Without this, `enable` could silently produce a config the
+    // plugin subprocess can never find — the suite would stay green
+    // while every `bl plugin enable` shipped a broken entry.
+    use crate::plugin::Plugin;
+    let (_td, store) = standalone_store();
+    let report = enable(&store, "github", None, false).unwrap();
+    assert!(report.file_path.exists());
+
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
+    let entry = cfg.plugins.get("github").unwrap();
+    let plugin = Plugin::resolve(&store, "github", entry);
+    assert_eq!(plugin.config_path, report.file_path);
+    assert!(plugin.config_path.exists(), "runtime must find what enable wrote");
+}
+
+#[test]
+fn enable_with_explicit_config_file_resolves_to_same_file() {
+    // bl-1d81: an explicit `--config-file <ROOT-RELATIVE>` must
+    // round-trip the same way the default does — otherwise the bug
+    // returns the moment a user passes an explicit value.
+    use crate::plugin::Plugin;
+    let (_td, store) = standalone_store();
+    let report = enable(
+        &store,
+        "ci",
+        Some(".balls/plugins/ci-custom.json".into()),
+        false,
+    )
+    .unwrap();
+    assert!(report.file_path.exists());
+
+    let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
+    let entry = cfg.plugins.get("ci").unwrap();
+    assert_eq!(entry.config_file, ".balls/plugins/ci-custom.json");
+    let plugin = Plugin::resolve(&store, "ci", entry);
+    assert_eq!(plugin.config_path, report.file_path);
 }
 
 #[test]
@@ -74,7 +122,7 @@ fn enable_preserves_participant_block_on_replace() {
         PluginEntry {
             enabled: false,
             sync_on_change: false,
-            config_file: "p.json".into(),
+            config_file: ".balls/plugins/p.json".into(),
             participant: Some(ParticipantConfig {
                 subscriptions: subs,
             }),
@@ -82,7 +130,7 @@ fn enable_preserves_participant_block_on_replace() {
     );
     cfg.save(&store.project_config_path()).unwrap();
 
-    enable(&store, "p", Some("p.json".into()), false).unwrap();
+    enable(&store, "p", Some(".balls/plugins/p.json".into()), false).unwrap();
     let cfg = ProjectConfig::load(&store.project_config_path()).unwrap();
     let entry = cfg.plugins.get("p").unwrap();
     assert!(entry.enabled);
