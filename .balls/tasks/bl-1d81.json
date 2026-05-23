@@ -18,5 +18,5 @@
   "tags": ["plugins"],
   "title": "bl plugin enable writes a config_file the plugin runtime cannot resolve",
   "type": "bug",
-  "updated_at": "2026-05-21T20:08:03.853239950Z"
+  "updated_at": "2026-05-23T19:18:38.525771006Z"
 }
