@@ -198,9 +198,10 @@ fn main() {
         } => commands::cmd_repair(fix, forget_half_push, forget_all_half_pushes),
         Command::Remaster {
             target,
+            branch,
             commit,
             detach,
-        } => commands::cmd_remaster(target, commit, detach),
+        } => commands::cmd_remaster(target, branch, commit, detach),
         Command::Skill => {
             print!("{}", include_str!("../SKILL.md"));
             Ok(())

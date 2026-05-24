@@ -262,17 +262,19 @@ pub enum Command {
         forget_all_half_pushes: bool,
     },
 
-    /// Re-point this repo's task state branch at TARGET (a configured
-    /// tracker URL) and reconcile local-only tasks onto it, writing
-    /// the address to `.balls/config.json`. `--commit` also commits
-    /// that change. `--detach` instead clears the address and returns
-    /// the workspace to standalone (the implicit code `origin`).
+    /// Re-point this repo's task state branch at TARGET (a tracker
+    /// URL) and reconcile local-only tasks onto it, writing the
+    /// address to `.balls/config.json`. `--commit` also commits.
+    /// `--detach` clears the address and returns to standalone.
     Remaster {
-        /// Tracker URL whose `balls/tasks` becomes authoritative.
+        /// Tracker URL whose state branch becomes authoritative.
         /// Omit only with `--detach`.
         target: Option<String>,
-        /// Also `git commit` the `config.json` address change so a
-        /// fresh clone carries it.
+        /// State branch on the tracker (SPEC §5/§8). Default
+        /// `balls/tasks`. Persists in `config.json`; `--detach` clears.
+        #[arg(long = "branch", value_name = "B", conflicts_with = "detach")]
+        branch: Option<String>,
+        /// Also `git commit` the `config.json` address change.
         #[arg(long, conflicts_with = "detach")]
         commit: bool,
         /// Sever shared history and the link: go standalone again.

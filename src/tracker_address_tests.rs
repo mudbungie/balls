@@ -44,28 +44,6 @@ fn explicit_state_url_and_branch_win() {
 }
 
 #[test]
-fn ensure_supported_accepts_absent_state_branch() {
-    ensure_supported(&Config::default()).unwrap();
-}
-
-#[test]
-fn ensure_supported_accepts_explicit_default_branch() {
-    let cfg = Config { state_branch: Some(DEFAULT_BRANCH.into()), ..Config::default() };
-    ensure_supported(&cfg).unwrap();
-}
-
-#[test]
-fn ensure_supported_rejects_non_default_branch() {
-    let cfg = Config { state_branch: Some("project-x".into()), ..Config::default() };
-    let err = ensure_supported(&cfg).unwrap_err();
-    assert!(
-        matches!(&err, BallError::Other(s)
-            if s.contains("state_branch") && s.contains("not yet supported")),
-        "expected an unsupported-state_branch error, got: {err:?}"
-    );
-}
-
-#[test]
 fn legacy_master_json_pointer_is_read_transparently() {
     let d = repo();
     fs::create_dir_all(d.path().join(".balls")).unwrap();

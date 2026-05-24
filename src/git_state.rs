@@ -8,13 +8,6 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Stdio;
 
-/// The orphan branch every balls store keeps its task JSON on. The one
-/// canonical declaration: `store_init`, `state_repo`, `remaster`,
-/// `remaster_detach`, `claim_push`/`claim_sync`, `federate`, and
-/// `archive_recovery` all import it from here, so a rename can't miss
-/// a site (it had already drifted to a bare literal in `federate`).
-pub(crate) const STATE_BRANCH: &str = "balls/tasks";
-
 /// Resolved fetch URL of remote `remote` in `dir`, or `None` when no
 /// such remote exists. Works in a bare repo (reads `.git/config`).
 pub fn remote_url(dir: &Path, remote: &str) -> Option<String> {
