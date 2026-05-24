@@ -55,8 +55,8 @@ fn cmd_sync_run(remote: &str, task_filter: Option<&str>) -> Result<()> {
 fn sync_with_remote(store: &Store, remote: &str) -> Result<()> {
     // The main-branch and state-branch presence gates are independent
     // (bl-88c7) — pre-bl-88c7 a single code-remote gate fronted both,
-    // so a hub-linked client with a reachable hub but no code `origin`
-    // silently skipped the `balls/tasks` leg.
+    // so a tracker-linked client with a reachable tracker but no code
+    // `origin` silently skipped the `balls/tasks` leg.
     let code_present = git::git_has_remote(&store.root, remote);
 
     if code_present && !git::git_fetch(&store.root, remote)? {

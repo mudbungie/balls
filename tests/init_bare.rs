@@ -1,5 +1,5 @@
-//! `bl init --bare` — first-class bare central-hub bootstrap. The
-//! tool-mechanized form of README *Bootstrapping a bare hub from
+//! `bl init --bare` — first-class bare-workspace bootstrap. The
+//! tool-mechanized form of README *Bootstrapping a bare workspace from
 //! scratch* steps 2–3 (bl-9e8a). Idempotent and non-destructive,
 //! exactly like the working-tree `bl init`.
 
@@ -17,38 +17,38 @@ fn published_remote() -> (Repo, String) {
     let dev = clone_from_remote(remote.path(), "alice");
     bl(dev.path()).arg("init").assert().success();
     push(dev.path());
-    let _id = create_task(dev.path(), "hub task");
+    let _id = create_task(dev.path(), "workspace task");
     push(dev.path());
-    (remote, "hub task".to_string())
+    (remote, "workspace task".to_string())
 }
 
 #[test]
-fn bare_hub_bootstrap_reconstructs_the_loose_store() {
+fn bare_workspace_bootstrap_reconstructs_the_loose_store() {
     let (remote, title) = published_remote();
     let run = tmp();
-    let hub = run.path().join("proj-hub");
+    let workspace = run.path().join("proj-workspace");
 
     bl(run.path())
         .args(["init", "--bare"])
         .arg(remote.path())
-        .arg(&hub)
+        .arg(&workspace)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Initialized bare balls hub"));
+        .stdout(predicate::str::contains("Initialized bare balls workspace"));
 
-    // Bare gitdir at <hub>/.git, plus the loose store reconstructed.
+    // Bare gitdir at <workspace>/.git, plus the loose store reconstructed.
     assert_eq!(
-        git(&hub, &["rev-parse", "--is-bare-repository"]).trim(),
+        git(&workspace, &["rev-parse", "--is-bare-repository"]).trim(),
         "true"
     );
-    assert!(hub.join(".balls/config.json").exists());
-    assert!(hub.join(".balls/tasks").is_symlink());
-    assert!(hub.join(".balls/state-repo").exists());
-    assert!(hub.join(".balls/local/claims").exists());
-    assert!(hub.join(".balls/local/lock").exists());
+    assert!(workspace.join(".balls/config.json").exists());
+    assert!(workspace.join(".balls/tasks").is_symlink());
+    assert!(workspace.join(".balls/state-repo").exists());
+    assert!(workspace.join(".balls/local/claims").exists());
+    assert!(workspace.join(".balls/local/lock").exists());
 
-    // The hub serves the project's tasks from the bare root (bl-8cf7).
-    bl(&hub)
+    // The workspace serves the project's tasks from the bare root (bl-8cf7).
+    bl(&workspace)
         .args(["list", "--plain"])
         .assert()
         .success()
@@ -56,22 +56,22 @@ fn bare_hub_bootstrap_reconstructs_the_loose_store() {
 }
 
 #[test]
-fn bare_hub_bootstrap_is_idempotent() {
+fn bare_workspace_bootstrap_is_idempotent() {
     let (remote, title) = published_remote();
     let run = tmp();
-    let hub = run.path().join("proj-hub");
+    let workspace = run.path().join("proj-workspace");
 
     for _ in 0..2 {
         bl(run.path())
             .args(["init", "--bare"])
             .arg(remote.path())
-            .arg(&hub)
+            .arg(&workspace)
             .assert()
             .success();
     }
     // Second run reused the bare gitdir and the materialized config; the
     // store still resolves and lists the task.
-    bl(&hub)
+    bl(&workspace)
         .args(["list", "--plain"])
         .assert()
         .success()
@@ -79,13 +79,13 @@ fn bare_hub_bootstrap_is_idempotent() {
 }
 
 #[test]
-fn bare_hub_rejects_stealth_or_tasks_dir_combo() {
+fn bare_workspace_rejects_stealth_or_tasks_dir_combo() {
     let run = tmp();
-    let hub = run.path().join("proj-hub");
+    let workspace = run.path().join("proj-workspace");
     bl(run.path())
         .args(["init", "--bare"])
         .arg("/some/source")
-        .arg(&hub)
+        .arg(&workspace)
         .arg("--stealth")
         .assert()
         .failure()
@@ -95,7 +95,7 @@ fn bare_hub_rejects_stealth_or_tasks_dir_combo() {
 }
 
 #[test]
-fn bare_hub_source_without_balls_errors_clearly() {
+fn bare_workspace_source_without_balls_errors_clearly() {
     // A remote whose `main` was never `bl init`ed: no config.json to
     // materialize from.
     let remote = new_bare_remote();
@@ -106,31 +106,31 @@ fn bare_hub_source_without_balls_errors_clearly() {
     git(dev.path(), &["push", "-q", "origin", "main"]);
 
     let run = tmp();
-    let hub = run.path().join("proj-hub");
+    let workspace = run.path().join("proj-workspace");
     bl(run.path())
         .args(["init", "--bare"])
         .arg(remote.path())
-        .arg(&hub)
+        .arg(&workspace)
         .assert()
         .failure()
         .stderr(predicate::str::contains("no .balls/config.json"));
 }
 
 #[test]
-fn bare_hub_refuses_to_clobber_a_non_bare_gitdir() {
+fn bare_workspace_refuses_to_clobber_a_non_bare_gitdir() {
     let (remote, _title) = published_remote();
     let run = tmp();
-    let hub = run.path().join("proj-hub");
-    // Pre-existing *non-bare* .git at the hub path: must be refused, not
-    // overwritten (non-destructive, like working-tree `bl init`).
-    std::fs::create_dir_all(&hub).unwrap();
-    git(&hub, &["init", "-q", "-b", "main"]);
-    assert!(hub.join(".git").is_dir());
+    let workspace = run.path().join("proj-workspace");
+    // Pre-existing *non-bare* .git at the workspace path: must be refused,
+    // not overwritten (non-destructive, like working-tree `bl init`).
+    std::fs::create_dir_all(&workspace).unwrap();
+    git(&workspace, &["init", "-q", "-b", "main"]);
+    assert!(workspace.join(".git").is_dir());
 
     bl(run.path())
         .args(["init", "--bare"])
         .arg(remote.path())
-        .arg(&hub)
+        .arg(&workspace)
         .assert()
         .failure()
         .stderr(predicate::str::contains("is not a bare repo"));

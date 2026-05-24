@@ -26,8 +26,8 @@ pub struct Delivery {
     /// Identifier of the code repo whose history yielded `sha` (bl-f37b).
     /// Always `Some` whenever `sha` is `Some`. Local hits report
     /// `repo_url::current(repo_root)` so tooling on a sibling clone or
-    /// hub knows the resolution came from this clone; remote hits
-    /// (cross-repo lookup via `delivered_repo`) report the task's
+    /// the tracker knows the resolution came from this clone; remote
+    /// hits (cross-repo lookup via `delivered_repo`) report the task's
     /// `delivered_repo` value verbatim. Callers thread this back to
     /// the JSON contract as `delivered_in_resolved_repo`.
     pub resolved_repo: Option<String>,
@@ -153,7 +153,7 @@ fn local_resolve(repo_root: &Path, main_branch: &str, task: &Task, tag: &str) ->
 /// `resolve_remote` (`bl close --resolve-remote`, bl-e454) routes the
 /// local-miss case through the cross-repo cache when the task carries
 /// `delivered_repo`. It is the symmetric write-side counterpart to
-/// `bl show --resolve-remote` (bl-f37b): on the hub or a sibling
+/// `bl show --resolve-remote` (bl-f37b): on the tracker or a sibling
 /// clone whose history doesn't carry the `[bl-xxxx]` squash, an
 /// unattended `bl close` would otherwise archive the task with
 /// `delivered_in: null` even though the sha is one fetch away.
@@ -163,9 +163,9 @@ fn local_resolve(repo_root: &Path, main_branch: &str, task: &Task, tag: &str) ->
 /// sync hook gets resolution without a flag. A remote hit also
 /// carries the source URL into `delivered_repo` (bl-6816): the
 /// closing clone is not the delivering repo, so auto-tagging its
-/// own `origin` would aim a later `--resolve-remote` read at a hub
-/// that holds no `[bl-xxxx]` tag — the flag would destroy the
-/// provenance it exists to recover.
+/// own `origin` would aim a later `--resolve-remote` read at a
+/// tracker that holds no `[bl-xxxx]` tag — the flag would destroy
+/// the provenance it exists to recover.
 ///
 /// Returns `true` iff anything changed, so the close path knows to
 /// persist the task to the state branch before archiving it (the
@@ -179,7 +179,7 @@ pub fn populate_on_close(
     resolve_remote: bool,
 ) -> bool {
     // bl-7523: whenever we *set* `delivered_in` we also tag the
-    // delivery's source repo so a reader on a hub (or a sibling
+    // delivery's source repo so a reader on the tracker (or a sibling
     // client) can resolve the sha. bl-6816: the source is the repo
     // the sha was *resolved through* — `repo_url::current` for a
     // local hit or a hand-supplied sha (the operator has it locally,

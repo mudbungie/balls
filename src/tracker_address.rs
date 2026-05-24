@@ -64,7 +64,7 @@ pub fn resolve(root: &Path, cfg: &Config) -> Address {
     }
 
     // Legacy: a state_remote *name* — resolve it to a URL live. It
-    // stays non-explicit (safe-but-unlinked on an unreachable hub,
+    // stays non-explicit (safe-but-unlinked on an unreachable tracker,
     // bl-8e8f); an unresolvable name degrades to the implicit default.
     if let Some(name) = legacy.state_remote.or_else(|| cfg.state_remote.clone()) {
         if let Some(url) = git_state::remote_url(root, &name) {

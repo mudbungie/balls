@@ -260,7 +260,7 @@ pub fn doctor(cwd: &Path) -> String {
 }
 
 /// Flip the repo's `core.bare` flag on directly, mimicking a
-/// bare-converted hub without going through `bl`.
+/// bare-converted workspace without going through `bl`.
 pub fn set_core_bare(repo_root: &Path) {
     git(repo_root, &["config", "core.bare", "true"]);
 }

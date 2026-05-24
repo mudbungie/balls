@@ -1,6 +1,6 @@
 //! bl-8cf7: read-only/root commands must work from a bare repo root.
 //!
-//! The recommended balls layout is a bare central hub (`core.bare =
+//! The recommended balls layout is a bare workspace (`core.bare =
 //! true`) with work in linked `.balls-worktrees/<id>/` checkouts.
 //! `Store::discover` used to bail when `rev-parse --show-toplevel`
 //! failed (it always fails with no work tree) and fall through to

@@ -118,7 +118,7 @@ pub enum PluginCmd {
     /// per-plugin config file is kept so credentials survive a
     /// temporary disable.
     Disable { name: String },
-    /// Show the effective plugins map and its source (project vs hub).
+    /// Show the effective plugins map, sourced from `.balls/project.json`.
     List {
         #[arg(long)]
         json: bool,

@@ -1,4 +1,4 @@
-//! `bl init` — working-tree setup and the `--bare` central-hub
+//! `bl init` — working-tree setup and the `--bare` workspace
 //! bootstrap. Split from `basic.rs` so both stay under the line cap
 //! and the bare path has a clear home.
 
@@ -20,7 +20,7 @@ pub fn cmd_init(
         }
         // clap enforces num_args = 2, so exactly two values are present.
         let store = Store::init_bare(&args[0], Path::new(&args[1]))?;
-        println!("Initialized bare balls hub in {}", store.root.display());
+        println!("Initialized bare balls workspace in {}", store.root.display());
         return Ok(());
     }
     let cwd = env::current_dir()?;

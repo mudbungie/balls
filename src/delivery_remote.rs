@@ -2,17 +2,18 @@
 //!
 //! When `delivered_in` cannot be resolved against the local integration
 //! branch — because the local clone is a sibling code repo, or a bare
-//! task hub with no code at all — `delivered_repo` names the repo whose
-//! history holds the squash sha. This module materializes a balls-owned
-//! bare git cache under `.balls/code-refs/<hash>.git`, fetches its
-//! refs, and re-runs the `[bl-xxxx]` tag scan against the fetched
-//! history.
+//! tracker workspace with no code at all — `delivered_repo` names the
+//! repo whose history holds the squash sha. This module materializes a
+//! balls-owned bare git cache under `.balls/code-refs/<hash>.git`,
+//! fetches its refs, and re-runs the `[bl-xxxx]` tag scan against the
+//! fetched history.
 //!
 //! Soft-fail on every remote failure: warn once and return `None`. A
-//! failed fetch is a degraded read, not a broken command — the master
-//! hub's `master_url` is allowed to hard-fail because nothing else
-//! works without it (bl-dcd3); here the cost of failure is just an
-//! unresolvable sha, and `bl show` keeps working without provenance.
+//! failed fetch is a degraded read, not a broken command — the
+//! tracker address (`state_url`) is allowed to hard-fail because
+//! nothing else works without it (bl-dcd3); here the cost of failure
+//! is just an unresolvable sha, and `bl show` keeps working without
+//! provenance.
 //!
 //! Fetches ask for `--filter=blob:none` so we pay for commit metadata
 //! only. Older servers that do not speak partial clone reject the
