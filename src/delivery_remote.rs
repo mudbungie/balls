@@ -2,7 +2,7 @@
 //!
 //! When `delivered_in` cannot be resolved against the local integration
 //! branch — because the local clone is a sibling code repo, or a bare
-//! tracker workspace with no code at all — `delivered_repo` names the
+//! tracker clone with no code at all — `delivered_repo` names the
 //! repo whose history holds the squash sha. This module materializes a
 //! balls-owned bare git cache under `.balls/code-refs/<hash>.git`,
 //! fetches its refs, and re-runs the `[bl-xxxx]` tag scan against the

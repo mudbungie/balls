@@ -1,6 +1,6 @@
 //! `bl remaster` reconcile core (SPEC-tracker-state §8). `bl remaster
 //! <url>` re-points `.balls/state-repo`'s `origin` at the new tracker
-//! and reconciles the workspace's local-only tasks onto its history,
+//! and reconciles the clone's local-only tasks onto its history,
 //! renaming any id clashes. There is one mechanism — the address is
 //! the only thing that varies — so a fresh tracker, a divergent one,
 //! and an up-to-date one are the same code path. Detach lives in
@@ -21,7 +21,7 @@ const TASKS_REL: &str = ".balls/tasks";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reconciled {
-    /// The tracker had no state branch — this workspace's history
+    /// The tracker had no state branch — this clone's history
     /// seeded it.
     Seeded,
     /// The tracker is already an ancestor of the local state branch —
@@ -39,7 +39,7 @@ struct LocalTask {
 }
 
 /// Re-point `.balls/state-repo`'s `origin` at `url`, fetch, and
-/// reconcile this workspace's local-only tasks onto the tracker's
+/// reconcile this clone's local-only tasks onto the tracker's
 /// history. Idempotent.
 pub fn reconcile(store: &Store, url: &str) -> Result<Reconciled> {
     let sd = store.state_repo_dir();
@@ -49,7 +49,7 @@ pub fn reconcile(store: &Store, url: &str) -> Result<Reconciled> {
         return Err(BallError::Other(format!("could not reach tracker `{url}`")));
     }
     if !git_state::has_remote_branch(&sd, "origin", branch) {
-        // A fresh tracker with no state branch: this workspace's
+        // A fresh tracker with no state branch: this clone's
         // history seeds it. The first-federation race is just this —
         // the loser of the push is an ordinary diverged checkout.
         git::git_push(&sd, "origin", branch)?;

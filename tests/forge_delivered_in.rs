@@ -21,7 +21,7 @@ fn stored_delivered_in(repo: &Path, id: &str) -> serde_json::Value {
 }
 
 /// Drive a task through deferred review and return its id plus the
-/// alice workspace; leaves the parent in `review`, gated by its child.
+/// alice clone; leaves the parent in `review`, gated by its child.
 fn deferred_reviewed() -> (Repo, Repo, String) {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");

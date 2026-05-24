@@ -10,8 +10,8 @@
 //!
 //! Writes land in the same effective config `plugin_admin` mutates —
 //! `.balls/project.json` on the tracker branch (SPEC §7), inherited by
-//! every workspace. There is deliberately no per-clone `--local`
-//! surface: a workspace overriding the project's plugin policy locally
+//! every clone. There is deliberately no per-clone `--local`
+//! surface: a clone overriding the project's plugin policy locally
 //! is the exact drift project-owned config exists to prevent.
 
 use crate::config::PluginEntry;

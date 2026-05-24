@@ -1,6 +1,6 @@
 //! bl-32e5 — `bl plugin enable/disable/list` end-to-end.
 //!
-//! In every workspace (standalone or shared-tracker, post-bl-8a9a),
+//! In every clone (standalone or shared-tracker, post-bl-8a9a),
 //! plugin admin lands the writes on the state checkout's `balls/tasks`
 //! and commits them, so a `bl sync` will push the change to the tracker.
 
@@ -26,7 +26,7 @@ fn enable_standalone_inserts_entry_and_creates_file() {
     let entry = &cfg["plugins"]["github"];
     assert_eq!(entry["enabled"], Value::Bool(true));
     assert_eq!(entry["sync_on_change"], Value::Bool(true));
-    // bl-1d81: config_file is workspace-root-relative — the same base
+    // bl-1d81: config_file is clone-root-relative — the same base
     // `Plugin::resolve` joins against at runtime.
     assert_eq!(
         entry["config_file"],

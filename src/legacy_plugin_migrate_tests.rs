@@ -6,10 +6,10 @@ use super::*;
 use crate::git_test_support::{git_run, git_stdout, init_repo, init_repo_no_commit};
 use tempfile::TempDir;
 
-/// A workspace shaped like a pre-bl-8a9a repo: an initial commit on
+/// A clone shaped like a pre-bl-8a9a repo: an initial commit on
 /// `main` with `.balls/plugins/{github.json,.gitkeep}` tracked and a
 /// stale `.gitignore` that lacks the unified runtime paths.
-fn legacy_workspace() -> TempDir {
+fn legacy_clone() -> TempDir {
     let d = TempDir::new().unwrap();
     let p = d.path();
     init_repo_no_commit(p);
@@ -31,7 +31,7 @@ fn head_sha(p: &std::path::Path) -> String {
 
 #[test]
 fn run_rms_legacy_plugin_files_and_refreshes_gitignore() {
-    let d = legacy_workspace();
+    let d = legacy_clone();
     let p = d.path();
     let before = head_sha(p);
 
@@ -58,7 +58,7 @@ fn run_rms_legacy_plugin_files_and_refreshes_gitignore() {
 }
 
 #[test]
-fn run_is_a_no_op_on_a_clean_post_migration_workspace() {
+fn run_is_a_no_op_on_a_clean_post_migration_clone() {
     let d = TempDir::new().unwrap();
     let p = d.path();
     init_repo_no_commit(p);
@@ -97,7 +97,7 @@ fn run_handles_a_legacy_index_with_a_fresh_gitignore() {
 
 #[test]
 fn run_writes_a_gitignore_when_one_does_not_exist() {
-    // The legacy workspace shape that has no `.gitignore` at all: the
+    // The legacy clone shape that has no `.gitignore` at all: the
     // file is created with the runtime-path entries and committed.
     let d = TempDir::new().unwrap();
     let p = d.path();
@@ -130,7 +130,7 @@ fn run_skips_a_non_git_directory() {
 
 #[test]
 fn run_skips_a_repo_with_no_commits() {
-    // A freshly `git init`-ed workspace has no HEAD; the migration must
+    // A freshly `git init`-ed clone has no HEAD; the migration must
     // not invent an initial commit.
     let d = TempDir::new().unwrap();
     let p = d.path();
@@ -162,16 +162,16 @@ fn legacy_paths_in_head_returns_empty_on_an_unborn_head() {
 }
 
 #[test]
-fn state_repo_ensure_drives_the_migration_on_a_legacy_workspace() {
+fn state_repo_ensure_drives_the_migration_on_a_legacy_clone() {
     // bl-de57 wiring check: `state_repo::ensure`, the cold-path
-    // entry, calls `run` so a legacy workspace migrates without an
+    // entry, calls `run` so a legacy clone migrates without an
     // explicit user step. Tracker shape is the minimum a bare URL
     // needs to materialize the state checkout.
     use crate::tracker_address::Address;
     let tracker = TempDir::new().unwrap();
     let tdir = tracker.path().join("t.git");
     git_run(tracker.path(), &["init", "-q", "--bare", tdir.to_str().unwrap()]);
-    let d = legacy_workspace();
+    let d = legacy_clone();
     let addr = Address {
         url: Some(tdir.to_string_lossy().into_owned()),
         branch: "balls/tasks".into(),

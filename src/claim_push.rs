@@ -18,7 +18,7 @@ pub(crate) const STATE_REMOTE: &str = "origin";
 /// Run `git push <state_remote> <branch>` from `dir` and classify the
 /// outcome. Spawn failures propagate as Err — they're catastrophic
 /// (no git on PATH) rather than a remote-state condition. The branch
-/// is the workspace's resolved tracker state branch (SPEC-tracker-state
+/// is the clone's resolved tracker state branch (SPEC-tracker-state
 /// §5), threaded in from the Store so a non-default `state_branch`
 /// pushes to the same name it materialized.
 pub fn push_state_classified(dir: &Path, remote: &str, branch: &str) -> Result<AttemptClass> {

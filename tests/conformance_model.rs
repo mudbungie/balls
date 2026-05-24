@@ -67,7 +67,7 @@ fn t2_one_checkout_both_addresses() {
     assert!(!fed.path().join(".balls/worktree").exists());
 }
 
-/// Test 13 — Old-`bl` caveat (§12 / §16.13). A workspace with
+/// Test 13 — Old-`bl` caveat (§12 / §16.13). A clone with
 /// `state_url` set routes task state to the tracker; the new binary
 /// never falls back to its own git's `.balls/worktree` — which is
 /// exactly what a pre-spec binary, ignorant of the field, would do.
@@ -96,7 +96,7 @@ fn t13_state_url_routes_to_tracker_not_local_worktree() {
     );
     assert!(
         !ws.path().join(".balls/worktree").exists(),
-        "a state_url workspace must not resolve its own git's .balls/worktree"
+        "a state_url clone must not resolve its own git's .balls/worktree"
     );
 }
 
@@ -107,7 +107,7 @@ fn t13_state_url_routes_to_tracker_not_local_worktree() {
 fn t14_hand_operable_join_sequence() {
     let tracker = new_tracker();
     let ws = new_repo();
-    // The workspace carries only its committed config.json with the
+    // The clone carries only its committed config.json with the
     // address — no .balls/state-repo, no symlinks yet.
     seed_config(ws.path(), &[("state_url", &url_of(&tracker))]);
 
@@ -131,8 +131,8 @@ fn t14_hand_operable_join_sequence() {
 
     // Store::discover must accept the hand-built layout.
     bl(ws.path()).arg("list").assert().success();
-    let id = create_task(ws.path(), "hand-built workspace");
+    let id = create_task(ws.path(), "hand-built clone");
     let listed = bl(ws.path()).arg("list").assert().success();
     let out = String::from_utf8(listed.get_output().stdout.clone()).unwrap();
-    assert!(out.contains(&id), "hand-built workspace must be fully usable: {out}");
+    assert!(out.contains(&id), "hand-built clone must be fully usable: {out}");
 }

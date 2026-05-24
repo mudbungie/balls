@@ -1,15 +1,15 @@
 //! Single source of truth for balls' internal runtime paths (bl-228d).
 //!
-//! `bl` materializes several paths inside a workspace that are its own
+//! `bl` materializes several paths inside a clone that are its own
 //! state, not deliverables: the per-clone `.balls/local/` dir, the
 //! state checkout at `.balls/state-repo/`, its `.balls/tasks`,
 //! `.balls/plugins`, and `.balls/project.json` convenience symlinks,
 //! the `--resolve-remote` code-refs cache, and the task worktrees
 //! under `.balls-worktrees/`.
-//! Two consumers must keep every one of them off the workspace's
+//! Two consumers must keep every one of them off the clone's
 //! integration branch, and each used to hand-maintain its own list:
 //!
-//!   - `gitignore::ensure_main_gitignore` writes them to the workspace
+//!   - `gitignore::ensure_main_gitignore` writes them to the clone's
 //!     checkout's `.gitignore` at `bl init`;
 //!   - `review_safety` strips them from the `bl review` squash and
 //!     rejects any squash that carries one in anyway.
@@ -17,7 +17,7 @@
 //! This table is the one declaration both consumers derive from: a new
 //! runtime path is a single row here, and the invariant is structural.
 //! `.balls/config.json` is *not* here — it is a committed,
-//! workspace-owned deliverable under the unified model.
+//! repo-owned deliverable under the unified model.
 
 /// One balls-internal runtime path, with the facts that decide how
 /// each consumer treats it.
@@ -35,7 +35,7 @@ pub(crate) struct RuntimePath {
     /// path a `work/<id>` tree can plausibly track; false only for
     /// `.balls-worktrees` (the *parent* of work worktrees, never a
     /// subpath of one). `.balls/plugins` is a symlink on a fully
-    /// migrated workspace but a legacy repo (bl-de57) can still carry
+    /// migrated clone but a legacy repo (bl-de57) can still carry
     /// the pre-bl-8a9a `.balls/plugins/*.json` index entries on a work
     /// branch branched off the pre-migration base; the backstop keeps
     /// those deletions from riding a review squash.
@@ -64,7 +64,7 @@ pub(crate) fn backstop_paths() -> Vec<&'static str> {
         .collect()
 }
 
-/// Paths `bl init` writes to the workspace checkout's `.gitignore`:
+/// Paths `bl init` writes to the clone's checkout `.gitignore`:
 /// every runtime path, dropping the ones absent under stealth.
 pub(crate) fn gitignore_paths(is_stealth: bool) -> Vec<&'static str> {
     RUNTIME_PATHS

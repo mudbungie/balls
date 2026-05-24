@@ -12,7 +12,7 @@ pub use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
 // for the callers that predate the split.
 pub use crate::project_config::PluginEntry;
 
-/// Workspace-owned configuration (SPEC-tracker-state §7): how *this*
+/// Repo-owned configuration (SPEC-tracker-state §7): how *this* code
 /// repo builds, integrates, and where its task state lives. A real,
 /// never-symlinked `.balls/config.json`, committed to the code branch.
 /// The project-owned half — schema version, id width, plugin map — is
