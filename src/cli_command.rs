@@ -16,12 +16,12 @@ pub enum Command {
         /// Custom absolute path for task storage. Implies --stealth.
         #[arg(long)]
         tasks_dir: Option<String>,
-        /// Bootstrap a bare workspace: bare-clone SOURCE into
-        /// WORKSPACE_DIR/.git and reconstruct the loose store there.
+        /// Bootstrap a bare clone: bare-clone SOURCE into
+        /// CLONE_DIR/.git and reconstruct the loose store there.
         /// Idempotent. SOURCE's `main` must already be
         /// balls-initialized (run `bl init` in a working clone and
         /// push first). Mutually exclusive with --stealth/--tasks-dir.
-        #[arg(long, num_args = 2, value_names = ["SOURCE", "WORKSPACE_DIR"])]
+        #[arg(long, num_args = 2, value_names = ["SOURCE", "CLONE_DIR"])]
         bare: Option<Vec<String>>,
     },
 

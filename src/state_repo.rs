@@ -1,6 +1,6 @@
 //! The unified state checkout — `.balls/state-repo/` (SPEC-tracker-state §6).
 //!
-//! Every workspace, standalone or federated, resolves ONE checkout:
+//! Every clone, standalone or federated, resolves ONE checkout:
 //! a balls-owned git clone of the tracker address at
 //! `.balls/state-repo/`. `Store` materializes it from the resolved
 //! `Address` (`tracker_address::resolve`); there is no mode flag and
@@ -57,8 +57,8 @@ pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
     }
     // bl-de57 (code-branch companion to bl-73bb): after the absorb,
     // drop the now-orphan `.balls/plugins/*` index entries from the
-    // workspace's code branch and refresh `.gitignore` for the unified
-    // runtime paths. A no-op on a workspace that never carried the
+    // clone's code branch and refresh `.gitignore` for the unified
+    // runtime paths. A no-op on a clone that never carried the
     // legacy layout.
     crate::legacy_plugin_migrate::run(root)?;
     Ok(dir)
@@ -248,7 +248,7 @@ fn seed_project_config(root: &Path, state_repo: &Path) -> Result<()> {
 /// `Store::discover` skips `ensure` once `.balls/state-repo` is warm.
 /// This runs on the warm path instead: it materializes `project.json`
 /// on the tracker branch (migrating the pre-split `config.json`) and
-/// its workspace symlink. A no-op — two `stat`s — once both exist.
+/// its clone symlink. A no-op — two `stat`s — once both exist.
 pub fn ensure_project_config(root: &Path, state_repo: &Path) -> Result<()> {
     let link = root.join(".balls/project.json");
     if link.is_symlink() && link.exists() {

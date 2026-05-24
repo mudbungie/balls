@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::project_config::ProjectConfig;
 use crate::git;
-use crate::store_init::{bootstrap_bare_workspace, commit_init};
+use crate::store_init::{bootstrap_bare_clone, commit_init};
 use crate::store_paths::{find_balls_root, find_main_root, init_stealth_tasks, stealth_tasks_override};
 use crate::task::{self, Task};
 use crate::tracker_address;
@@ -179,11 +179,10 @@ impl Store {
         })
     }
 
-    /// Bootstrap a bare workspace at `workspace_dir` from `source` and
-    /// open a Store rooted there. Heavy lifting is in
-    /// `bootstrap_bare_workspace`.
-    pub fn init_bare(source: &str, workspace_dir: &Path) -> Result<Self> {
-        let root = bootstrap_bare_workspace(source, workspace_dir)?;
+    /// Bootstrap a bare clone at `clone_dir` from `source` and open a
+    /// Store rooted there. Heavy lifting is in `bootstrap_bare_clone`.
+    pub fn init_bare(source: &str, clone_dir: &Path) -> Result<Self> {
+        let root = bootstrap_bare_clone(source, clone_dir)?;
         let state_repo_path = root.join(crate::state_repo::STATE_REPO_REL);
         let tasks_dir_path = state_repo_path.join(".balls/tasks");
         let state_branch_name = resolve_state_branch(&state_repo_path);
@@ -225,9 +224,9 @@ impl Store {
         self.balls_dir().join("config.json")
     }
 
-    /// The workspace's config. `config.json` is a real, never-symlinked
-    /// workspace file under the unified model (SPEC §7), so the load
-    /// is a plain read — no symlink-into-the-tracker indirection, no
+    /// The clone's repo config. `config.json` is a real, never-symlinked
+    /// repo file under the unified model (SPEC §7), so the load is a
+    /// plain read — no symlink-into-the-tracker indirection, no
     /// per-owner merge.
     pub fn load_config(&self) -> Result<Config> {
         Config::load(&self.config_path())
@@ -240,7 +239,7 @@ impl Store {
     }
 
     /// The project's config (SPEC §7): the schema version, id width,
-    /// `min_bl_version` floor, and plugin map shared by every workspace
+    /// `min_bl_version` floor, and plugin map shared by every clone
     /// on the tracker. `.balls/project.json` resolves through a symlink
     /// into the state checkout; a repo without one — stealth, or a
     /// checkout predating the config split — falls its project-owned
@@ -251,7 +250,7 @@ impl Store {
 
     /// Root that a plugin's `config_file` path is joined against. The
     /// `.balls/plugins` symlink redirects into the state checkout, so
-    /// the workspace root always works.
+    /// the clone root always works.
     pub fn plugin_config_root(&self) -> PathBuf {
         self.root.clone()
     }

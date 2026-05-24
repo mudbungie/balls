@@ -2,7 +2,7 @@
 //!
 //! Test 11: federation routes task *state* to the tracker, never
 //! code — `bl review`'s squash and `[bl-xxxx]` tag land on the
-//! workspace's own `origin`. Test 12: the merge-cleanliness gate,
+//! clone's own `origin`. Test 12: the merge-cleanliness gate,
 //! run unconditionally in the two-participant topology.
 
 mod common;
@@ -23,8 +23,8 @@ fn deliver(ws: &Path, title: &str) -> String {
     id
 }
 
-/// Test 11 — Code/state split. In a federated workspace the squash and
-/// the `[bl-xxxx]` delivery tag land on the workspace's own `origin`;
+/// Test 11 — Code/state split. In a federated clone the squash and
+/// the `[bl-xxxx]` delivery tag land on the clone's own `origin`;
 /// only the state-branch transition reaches the tracker.
 #[test]
 fn t11_code_and_state_route_to_different_remotes() {
@@ -43,7 +43,7 @@ fn t11_code_and_state_route_to_different_remotes() {
     let code_log = git(code.path(), &["log", "--format=%s", "main"]);
     assert!(
         code_log.contains(&format!("[{id}]")),
-        "the delivery tag must land on the workspace's own origin: {code_log}"
+        "the delivery tag must land on the clone's own origin: {code_log}"
     );
     // The tracker carries the task-state lifecycle but never the code squash.
     let tracker_log = git(tracker.path(), &["log", "--format=%s", "balls/tasks"]);

@@ -40,7 +40,7 @@ fn validate_config_file_rejects_traversal_and_absolute() {
     assert!(validate_config_file("").is_err());
     assert!(validate_config_file("/etc/passwd").is_err());
     assert!(validate_config_file("../escape.json").is_err());
-    // bl-1d81: rooted at workspace root — must be under .balls/plugins/
+    // bl-1d81: rooted at clone root — must be under .balls/plugins/
     // so the file commits alongside the project.json entry.
     assert!(validate_config_file("ok.json").is_err());
     assert!(validate_config_file("nested/ok.json").is_err());
@@ -58,7 +58,7 @@ fn enable_standalone_writes_config_and_creates_file() {
     let entry = cfg.plugins.get("github").expect("entry");
     assert!(entry.enabled);
     assert!(entry.sync_on_change);
-    // bl-1d81: stored path is workspace-root-relative — the same base
+    // bl-1d81: stored path is clone-root-relative — the same base
     // `Plugin::resolve` joins against at runtime.
     assert_eq!(entry.config_file, ".balls/plugins/github.json");
     assert!(report.file_path.exists());

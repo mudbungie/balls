@@ -18,7 +18,7 @@ const PROJECT_BRANCH: &str = "project-x";
 
 /// `bl init` against a tracker URL with `state_branch=project-x`:
 /// `.balls/state-repo` materializes on `project-x`, not `balls/tasks`.
-fn workspace_on_custom_branch(tracker_url: &str, name: &str) -> Repo {
+fn clone_on_custom_branch(tracker_url: &str, name: &str) -> Repo {
     let ws = new_repo();
     seed_config(
         ws.path(),
@@ -83,7 +83,7 @@ fn state_branch_round_trip_on_custom_branch() {
     // The tracker carries `project-x` and never gained a `balls/tasks`
     // ref. If `claim_push`/`claim_sync`/`commands::sync` had still
     // hardcoded the default — the bl-022c gate's exact failure mode —
-    // the workspace's push would have created `balls/tasks` here.
+    // the clone's push would have created `balls/tasks` here.
     assert!(
         git_ok(
             tracker.path(),
@@ -112,11 +112,11 @@ fn state_branch_round_trip_on_custom_branch() {
         "the task-state lifecycle must reach the tracker's {PROJECT_BRANCH}: {tracker_log}",
     );
 
-    // bl-3f59 closure: a second workspace cloned from the same tracker
+    // bl-3f59 closure: a second clone cloned from the same tracker
     // sees the closed task in its archive view, proving the
     // archive-recovery path resolves through `HEAD` rather than a
     // hardcoded `balls/tasks`.
-    let peer = workspace_on_custom_branch(&url_of(&tracker), "peer");
+    let peer = clone_on_custom_branch(&url_of(&tracker), "peer");
     let closed = bl(peer.path())
         .args(["list", "--closed", "--json"])
         .output()
@@ -131,7 +131,7 @@ fn state_branch_round_trip_on_custom_branch() {
         .collect();
     assert!(
         ids.contains(&id.as_str()),
-        "peer workspace must see {id} in --closed view: {ids:?}",
+        "peer clone must see {id} in --closed view: {ids:?}",
     );
 }
 

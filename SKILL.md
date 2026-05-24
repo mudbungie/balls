@@ -18,13 +18,13 @@ So the rule reads as a consequence: while you hold a claim, edits go in the work
 
 This binds the balls workflow, not your repo. Outside a claimed task, your tree is yours. But once `bl claim` has printed a path, that path is where the work goes.
 
-## Operating against a bare workspace
+## Operating against a bare clone
 
-The recommended deployment is a **bare workspace** (`core.bare = true` on the workspace repo): no work tree at the root, every change in a `.balls-worktrees/<id>/` checkout. The "repo root" the close rule names *is* that bare directory — `cd` there and `bl close` works. Three things that bite if you don't expect them:
+The recommended deployment is a **bare clone** (`core.bare = true` on the clone's repo): no work tree at the root, every change in a `.balls-worktrees/<id>/` checkout. The "repo root" the close rule names *is* that bare directory — `cd` there and `bl close` works. Three things that bite if you don't expect them:
 
 - `git status` at the bare root is **fatal by design** (`fatal: this operation must be run in a work tree`), not a broken repo. To see state: `bl list` for tasks; `git status`/`git diff` *inside* your `.balls-worktrees/<id>/` worktree for code.
 - Read-only and root commands (`bl prime`/`ready`/`list`/`show`, and `bl close`) all work from the bare root. `bl review` does its own squash via an internal detached worktree — nothing extra for you to do.
-- The inviolable rule is unchanged and really means "not from inside the bl worktree." On a bare workspace there is no checked-out main to stand in, so `cd <repo root>` before `bl close` means `cd` to the bare directory.
+- The inviolable rule is unchanged and really means "not from inside the bl worktree." On a bare clone there is no checked-out main to stand in, so `cd <repo root>` before `bl close` means `cd` to the bare directory.
 
 ## Session Start
 
@@ -70,7 +70,7 @@ If you're scripting against a fresh repo, expect `bl init` to add one commit to 
 | `bl drop TASK_ID` | Release a claim, remove worktree. |
 | `bl dep tree` [`--json`] | Show parent/child tree with deps and gates as inline annotations. |
 | `bl remaster TARGET` [`--branch B`] [`--commit`] / `bl remaster --detach` | Write the tracker address (`TARGET`'s URL, optional `B` as the state branch) into `.balls/config.json` and reconcile local-only tasks onto it; `--commit` also commits that change so a clone carries it. `--branch B` lets one tracker host several projects on distinct branches (default `balls/tasks`). `--detach` clears the address and goes standalone. Idempotent. See **Multi-repo: one project, many repos**. |
-| `bl plugin enable NAME` [`--config-file PATH`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] / `bl plugin policy NAME EVENT=KIND...` / `bl plugin show NAME` [`--json`] | Manage the effective plugins map. `policy` sets SPEC §11 per-event participant policy (`KIND` ∈ `required`/`best-effort`/`gating`); `--rm EVENT` drops one subscription, `--clear` removes the block (legacy `sync_on_change` fallback), `--no-legacy` writes an explicit empty map (the plugin participates in nothing). `show` prints one plugin's resolved per-event policy. The `plugins` map lives in the workspace `.balls/config.json` (commit it yourself); per-plugin config files ride the state branch (committed for you). `enable --sync-on-change` is deprecated — use `policy` to set per-event policy explicitly. |
+| `bl plugin enable NAME` [`--config-file PATH`] / `bl plugin disable NAME` / `bl plugin list` [`--json`] / `bl plugin policy NAME EVENT=KIND...` / `bl plugin show NAME` [`--json`] | Manage the effective plugins map. `policy` sets SPEC §11 per-event participant policy (`KIND` ∈ `required`/`best-effort`/`gating`); `--rm EVENT` drops one subscription, `--clear` removes the block (legacy `sync_on_change` fallback), `--no-legacy` writes an explicit empty map (the plugin participates in nothing). `show` prints one plugin's resolved per-event policy. The `plugins` map lives in the clone's `.balls/config.json` (commit it yourself); per-plugin config files ride the state branch (committed for you). `enable --sync-on-change` is deprecated — use `policy` to set per-event policy explicitly. |
 | `bl doctor` | Read-only drift check. Reports the specific reason bl can't run here (or that it can but state has drifted) and names the command that fixes each. Never mutates — `repair` stays the only action verb. Run it when bl behaves unexpectedly or before trusting an unfamiliar repo. |
 
 > **Note for agents:** the human-facing output of `bl list`, `bl ready`, `bl show`, and `bl dep tree` uses status glyphs and colors when stdout is a tty. Always prefer `--json` for parsing. If you must scrape human output, pass `--plain` (or set `NO_COLOR=1`) for stable, glyph-free, ASCII-only text — but the `--json` shape is the supported machine contract.
@@ -217,7 +217,7 @@ several code repos can instead share **one** task store on a dedicated
 *tracker*.
 
 There is one mechanism — a **tracker address** — not a mode. Every
-workspace's committed `.balls/config.json` may carry two optional
+clone's committed `.balls/config.json` may carry two optional
 fields:
 
 - **`state_url`** — the tracker's git URL. Absent ⇒ the code repo's
@@ -229,13 +229,13 @@ fields:
 `bl` materializes one checkout of the address at `.balls/state-repo/`
 and routes every state-branch op through it. `.balls/tasks` and
 `.balls/plugins` are gitignored symlinks into that checkout;
-`.balls/config.json` is a real, never-symlinked workspace file (it
+`.balls/config.json` is a real, never-symlinked repo file (it
 carries the address, so it must be readable first). claim / review /
 close / sync are unchanged — only the orphan ref's home varies. The
 code remote is never disturbed.
 
 - **Onboard:** `bl remaster <tracker-url> --commit` writes `state_url`
-  into `config.json`, reconciles this workspace's local-only tasks
+  into `config.json`, reconciles this clone's local-only tasks
   onto the tracker (renaming any id clashes), and commits the config
   change. Push it; everyone else's next `git pull && bl prime` joins
   automatically — the clone carries `config.json`, and
@@ -255,7 +255,7 @@ code remote is never disturbed.
   offline-bootstrappable.
 - **Leave:** `bl remaster --detach` clears the address (reverting to
   the implicit `origin`) and re-roots `balls/tasks` as a fresh local
-  orphan carrying its current tasks. Offline-capable — a workspace is
+  orphan carrying its current tasks. Offline-capable — a clone is
   never trapped in a tracker it cannot reach.
 
 ### Plugin config under a shared tracker
@@ -264,10 +264,10 @@ Plugin config files (`.balls/plugins/*.json`) ride the state branch:
 `.balls/plugins` resolves into `.balls/state-repo`, so a fresh clone
 inherits them. `bl plugin enable|disable|policy` commit those files
 onto the tracker branch automatically; the `plugins` *map* in
-`config.json` is workspace config the operator commits, like any other
+`config.json` is repo config the operator commits, like any other
 `config.json` change. Plugin *auth* (tokens, under
 `.balls/local/plugins/`) and the worker's `BALLS_IDENTITY` stay
-per-workspace — gitignored, never on the tracker.
+per-clone — gitignored, never on the tracker.
 
 ### Working in a multi-repo project
 

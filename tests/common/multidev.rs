@@ -1,5 +1,5 @@
 //! Multi-developer scenario fixtures: the standard three-way topology
-//! (a bare remote plus two cloned dev workspaces) and the small
+//! (a bare remote plus two cloned dev clones) and the small
 //! remote-failure / worktree-edit helpers its sync tests share.
 
 #![allow(dead_code)]
@@ -8,7 +8,7 @@ use super::{bl, clone_from_remote, git, new_bare_remote, push, Repo};
 use std::fs;
 use std::path::Path;
 
-/// A bare remote with two initialized, cloned dev workspaces. Alice has
+/// A bare remote with two initialized, cloned dev clones. Alice has
 /// pushed `bl init`; Bob is initialized but unpushed — the standard
 /// starting point for the multi-dev sync and lifecycle-sync stories.
 pub fn three_way() -> (Repo, Repo, Repo) {

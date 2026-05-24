@@ -1,10 +1,10 @@
 //! `bl remaster --detach` — sever the tracker link and return the
-//! workspace to the implicit default (the code repo's own `origin`).
+//! clone to the implicit default (the code repo's own `origin`).
 //!
 //! There is one mechanism and one layout, so detach is not a
 //! transplant — it is an address edit (the caller clears `state_url`)
 //! plus a re-root of the existing `.balls/state-repo`. It is
-//! offline-capable: a workspace whose explicit tracker never
+//! offline-capable: a clone whose explicit tracker never
 //! materialized is detached purely by the config edit, and a warm
 //! checkout is re-rooted with no network round-trip.
 

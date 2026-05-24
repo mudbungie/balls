@@ -77,7 +77,7 @@ fn print_enable(name: &str, r: &EnableReport) {
 /// The plugins map (`.balls/project.json`) and the per-plugin config
 /// files all live on the tracker branch, and `plugin_admin` already
 /// committed them there. `bl sync` is what pushes that branch so the
-/// other workspaces on the tracker inherit the change.
+/// other clones on the tracker inherit the change.
 fn follow_up_hint() {
     println!("  run `bl sync` to publish the change to the tracker");
 }

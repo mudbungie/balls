@@ -31,7 +31,7 @@ pub fn cmd_remaster(
     let root = project_root(&cwd)?;
     if !root.join(".balls/config.json").exists() {
         return Err(BallError::Other(
-            "not a balls workspace — run `bl init` before `bl remaster`".into(),
+            "not a balls clone — run `bl init` before `bl remaster`".into(),
         ));
     }
     if detach {
@@ -132,12 +132,12 @@ fn resolve_target(root: &Path, target: &str) -> String {
     git_state::remote_url(root, target).unwrap_or_else(|| target.to_string())
 }
 
-/// Resolve the workspace root with git plumbing only.
+/// Resolve the clone root with git plumbing only.
 fn project_root(from: &Path) -> Result<PathBuf> {
     let common = git::git_common_dir(from)?;
     let canon = std::fs::canonicalize(&common).unwrap_or(common);
     canon
         .parent()
         .map(Path::to_path_buf)
-        .ok_or_else(|| BallError::Other("could not find the workspace root".into()))
+        .ok_or_else(|| BallError::Other("could not find the clone root".into()))
 }

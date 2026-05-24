@@ -76,7 +76,7 @@ pub fn new_bare_remote() -> Repo {
     Repo { dir }
 }
 
-/// Clone a bare remote into a fresh temp dir as a developer workspace.
+/// Clone a bare remote into a fresh temp dir as a developer clone.
 /// If the remote is empty (no commits yet), a new git repo is initialized
 /// and origin is set to the remote.
 pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
@@ -207,14 +207,14 @@ pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// Run git against the workspace's state checkout (`.balls/state-repo`),
+/// Run git against the clone's state checkout (`.balls/state-repo`),
 /// where the `balls/tasks` branch and its history live under the
 /// unified model. The asserting sibling of `git`.
 pub fn git_state(repo: &Path, args: &[&str]) -> String {
     git(&repo.join(".balls/state-repo"), args)
 }
 
-/// Commit everything pending in the workspace's state checkout
+/// Commit everything pending in the clone's state checkout
 /// (`.balls/state-repo`). Under the unified model `.balls/plugins`
 /// resolves into that checkout, so plugin config files written by the
 /// test helpers are committed here, not on the code branch.
@@ -260,7 +260,7 @@ pub fn doctor(cwd: &Path) -> String {
 }
 
 /// Flip the repo's `core.bare` flag on directly, mimicking a
-/// bare-converted workspace without going through `bl`.
+/// bare-converted clone without going through `bl`.
 pub fn set_core_bare(repo_root: &Path) {
     git(repo_root, &["config", "core.bare", "true"]);
 }

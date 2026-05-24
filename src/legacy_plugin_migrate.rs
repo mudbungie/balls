@@ -5,8 +5,8 @@
 //! code branch; bl-8a9a moves the *filesystem* files into the state
 //! checkout (`absorb_plugins_dir`) and points `.balls/plugins` at it
 //! via a symlink, but never `git rm`s the legacy index entries or
-//! refreshes the workspace's `.gitignore`. The shipping bl-8a9a code
-//! therefore leaves a migrated workspace dirty: the code branch shows
+//! refreshes the clone's `.gitignore`. The shipping bl-8a9a code
+//! therefore leaves a migrated clone dirty: the code branch shows
 //! `.balls/plugins/*.json` as deleted and `.balls/plugins` as a
 //! typechanged symlink, and `.balls/state-repo` is untracked — a
 //! plain `git add -A` bakes it in as an embedded git repo (bl-de57).
@@ -15,7 +15,7 @@
 //! warm discover it: `git rm --cached`s any `.balls/plugins/*` paths
 //! still tracked in `HEAD`, refreshes `.gitignore` with the unified
 //! runtime paths (via `runtime_paths`, the single source of truth),
-//! and commits the result on the code branch. Idempotent: a workspace
+//! and commits the result on the code branch. Idempotent: a clone
 //! with neither legacy index entries nor missing gitignore lines
 //! produces no commit. A bare hub has no working tree to commit from
 //! and is skipped — the bare hub gets the migration commit pushed in
@@ -27,10 +27,10 @@ use std::path::{Path, PathBuf};
 
 const COMMIT_MSG: &str = "balls: migrate plugins to state checkout";
 
-/// Migration entry-point: clean the workspace's code branch of legacy
+/// Migration entry-point: clean the clone's code branch of legacy
 /// committed plugin files and refresh `.gitignore`. A no-op on a bare
-/// hub, a non-git dir, or a workspace with an unborn HEAD. A
-/// fully-migrated workspace exits without touching the index — the
+/// hub, a non-git dir, or a clone with an unborn HEAD. A
+/// fully-migrated clone exits without touching the index — the
 /// read-only fast path keeps `bl`'s discover phase out of the
 /// `index.lock` race a parallel `bl` storm otherwise creates.
 pub(crate) fn run(root: &Path) -> Result<()> {
@@ -54,7 +54,7 @@ pub(crate) fn run(root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Whether the workspace is shaped so a migration commit makes sense:
+/// Whether the clone is shaped so a migration commit makes sense:
 /// a non-bare repo with at least one existing commit on HEAD.
 fn shape_supports_commit(root: &Path) -> bool {
     if !root.join(".git").exists() {
@@ -82,7 +82,7 @@ fn legacy_paths_in_head(root: &Path) -> Result<Vec<PathBuf>> {
     Ok(s.lines().filter(|l| !l.is_empty()).map(PathBuf::from).collect())
 }
 
-/// Runtime-path entries the workspace `.gitignore` is missing.
+/// Runtime-path entries the clone's `.gitignore` is missing.
 /// A read-only check: no file is written here. An absent `.gitignore`
 /// counts every entry as missing — the migration path will create it.
 fn gitignore_missing_entries(root: &Path) -> Vec<&'static str> {

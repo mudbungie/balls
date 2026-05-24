@@ -29,7 +29,7 @@ fn remaster_on_a_non_balls_repo_errors() {
         .assert()
         .failure();
     let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
-    assert!(stderr.contains("not a balls workspace"), "{stderr}");
+    assert!(stderr.contains("not a balls clone"), "{stderr}");
 }
 
 #[test]

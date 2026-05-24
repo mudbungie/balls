@@ -48,7 +48,7 @@ pub(crate) fn worktree_path(store: &Store, id: &str) -> Result<PathBuf> {
 /// `bl claim`. That clone is definitionally the code home: the skill
 /// guide says "claim from the clone whose code the ball touches,"
 /// whereas `bl create` only knows where the ball was *filed*, which
-/// on a bare workspace or a forge-sync bridge is not a code repo at
+/// on a bare clone or a forge-sync bridge is not a code repo at
 /// all. So claim, not create, is where `repo` gets its authoritative
 /// value.
 ///

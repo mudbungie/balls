@@ -62,7 +62,7 @@ fn t9_detach_offline_against_unreachable_tracker() {
     assert!(repo.path().join(".balls/state-repo/.git").exists());
 }
 
-/// Test 10 — Reconcile. `bl remaster <url>` replays the workspace's
+/// Test 10 — Reconcile. `bl remaster <url>` replays the clone's
 /// local-only tasks onto the target history; a second run against the
 /// same tracker is a no-op.
 #[test]

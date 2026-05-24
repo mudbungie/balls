@@ -28,7 +28,7 @@ pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
     let state_dir = store.state_repo_dir();
     // The state branch IS HEAD in `.balls/state-repo` (SPEC §4: one
     // checkout, the branch is the only thing checked out), so `HEAD`
-    // resolves to whatever the workspace's configured `state_branch`
+    // resolves to whatever the clone's configured `state_branch`
     // is — without this module needing the name.
     let state_subjects = git_state::log_subjects(&state_dir, "HEAD")?;
     let reviewed: std::collections::HashSet<String> = state_subjects
