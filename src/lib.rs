@@ -42,6 +42,7 @@ mod git_test_support;
 pub mod gitignore;
 mod hash;
 pub mod human_gate;
+mod legacy_plugin_migrate;
 pub mod link;
 pub mod min_version;
 pub mod negotiation;
