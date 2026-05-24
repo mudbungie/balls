@@ -1,6 +1,6 @@
-//! Workspace-checkout `.gitignore` maintenance.
+//! Clone-checkout `.gitignore` maintenance.
 //!
-//! `bl init` keeps the workspace's `.gitignore` carrying every
+//! `bl init` keeps the clone's `.gitignore` carrying every
 //! balls-internal runtime path so a careless `git add -A` can't bake
 //! balls's own filesystem state into the shared repo. *Which* paths
 //! those are is the `runtime_paths` table's job (the single source of

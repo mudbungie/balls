@@ -41,7 +41,7 @@ make hooks     # one-time: install the repo-local pre-commit hook
 `make hooks` is recommended, not required. A pre-commit hook and a **bare core repo** are two valid paths to the same guarantee — that the 300-line and 100%-coverage gates can't be bypassed — and which one fits depends on circumstance:
 
 - **Local hook** — for an ordinary clone where the working branch can be committed to directly, when you want the gate to fail at commit time, or when there is no CI. Strength: fast local feedback. Cost: a per-clone install, a `tarpaulin` run on every commit, and `git commit --no-verify` slips past it.
-- **Bare core** — for the worktree/merge model this repo uses: a bare core, every change arriving via a worktree and a `bl review` squash-merge, the gates enforced in CI. A bare repo has no working tree, so the working branch *cannot* be edited directly — the architecture makes the bypass impossible rather than merely discouraging it. Cost: a violation surfaces at review/CI, not at the commit. Standing one up is *The bare workspace → Bootstrapping a bare workspace from scratch*, below.
+- **Bare core** — for the worktree/merge model this repo uses: a bare core, every change arriving via a worktree and a `bl review` squash-merge, the gates enforced in CI. A bare repo has no working tree, so the working branch *cannot* be edited directly — the architecture makes the bypass impossible rather than merely discouraging it. Cost: a violation surfaces at review/CI, not at the commit. Standing one up is *The bare clone → Bootstrapping a bare clone from scratch*, below.
 
 The two compose rather than exclude: a bare core can still install the hook (one install in the shared common dir covers every worktree) for at-commit feedback layered on top of the structural guarantee.
 
@@ -167,7 +167,7 @@ cargo publish
 4. **Derived state is computed, never stored.** Completion percentages, ready queues, dependency trees — all calculated at read time. The one exception is `delivered_in`, an explicit self-healing cache backed by the delivery tag.
 5. **Local cache is disposable.** The `.balls/local/` directory is gitignored ephemeral state. Deleting it loses nothing durable.
 6. **Offline-safe.** All operations produce valid local state. Conflicts are resolved at merge time, never prevented by connectivity checks.
-7. **Worktrees are first-class.** Claiming a task creates a git worktree. The worktree name is the task ID. One task, one workspace.
+7. **Worktrees are first-class.** Claiming a task creates a git worktree. The worktree name is the task ID. One task, one isolated checkout.
 8. **The CLI is a convenience, not a requirement.** Every operation is expressible as file edits + standard git commands. A human with `vim`, `ln`, and `git` can do everything `bl` does — `SPEC-orphan-branch-state.md` §11 publishes the shell sequences.
 9. **Plugins extend, core stays small.** External integrations (Jira, Linear, GitHub Issues) are handled by a plugin interface. Auth, sync logic, and API specifics never enter the core.
 
@@ -180,10 +180,10 @@ cargo publish
 | **task** | A unit of work. One JSON file on the `balls/tasks` orphan branch, exposed to main via a symlink. |
 | **state branch** | The orphan git branch `balls/tasks` that holds all task state. No shared history with main. |
 | **state checkout** | The balls-owned git clone at `.balls/state-repo/` with the state branch checked out. Where task files physically live. One checkout for every repo — see *Multi-repo state*. |
-| **workspace** | The repo where `bl` runs and from which task worktrees (`.balls-worktrees/<id>/`) span. Distinct from the **tracker** that hosts the shared state branch. |
-| **bare workspace** | The recommended deployment: a workspace whose repo is bare (`core.bare = true`) with no work tree. All work happens in `.balls-worktrees/<id>/` checkouts; direct commits to the operating branch are a git-level impossibility, not a discouraged convention. Its "repo root" is the bare gitdir's parent. See *The bare workspace* below. |
+| **clone** | A specific on-disk checkout of a code repo where `bl` runs and from which task worktrees (`.balls-worktrees/<id>/`) span. Distinct from the **tracker** that hosts the shared state branch. (Older docs called this a "workspace.") |
+| **bare clone** | The recommended deployment: a clone whose repo is bare (`core.bare = true`) with no work tree. All work happens in `.balls-worktrees/<id>/` checkouts; direct commits to the operating branch are a git-level impossibility, not a discouraged convention. Its "repo root" is the bare gitdir's parent. See *The bare clone* below. |
 | **tracker** | The git repo hosting the shared `balls/tasks` branch. For a solo project it is the code repo's own `origin`; for a multi-repo project, a dedicated, usually code-free repo. Not to be confused with an **external tracker** — Jira, Linear, GitHub Issues — which a plugin mirrors to. |
-| **tracker address** | The `(state_url, state_branch)` pair in `.balls/config.json` naming the tracker. Absent ⇒ the implicit default `(origin, balls/tasks)`. A standalone workspace's address points at its own `origin`; a multi-repo workspace's points at a dedicated tracker — see *Multi-repo state*. |
+| **tracker address** | The `(state_url, state_branch)` pair in `.balls/config.json` naming the tracker. Absent ⇒ the implicit default `(origin, balls/tasks)`. A standalone clone's address points at its own `origin`; a multi-repo clone's points at a dedicated tracker — see *Multi-repo state*. |
 | **ready** | A task that is open, has all dependencies met, and is unclaimed. |
 | **claim** | Taking ownership of a task. Creates a git worktree under `.balls-worktrees/<id>/` for the work. |
 | **review** | Squash-merges the work branch into main as a single feature commit tagged `[bl-xxxx]` and flips the task to `review` on the state branch. A checkpoint state; the default flow is to follow it with `bl close`. |
@@ -208,7 +208,7 @@ Balls stores task state on a dedicated orphan git branch called `balls/tasks`. I
 ### File and Folder Layout
 
 Two deployment shapes share one store format. The **ordinary clone** has
-a working tree; the **bare workspace** has none. The state checkout,
+a working tree; the **bare clone** has none. The state checkout,
 the `.balls/tasks` symlink, the orphan branch, and `.balls-worktrees/`
 are byte-for-byte identical in both — bare-ness changes only the root,
 never the orphan-branch machinery.
@@ -220,7 +220,7 @@ project/
 ├── .git/                            # the code repo's git (code origin untouched)
 ├── .balls/
 │   ├── config.json                      # committed to the code branch — the
-│   │                                    #   tracker address + workspace settings
+│   │                                    #   tracker address + repo settings
 │   ├── state-repo/                       # gitignored — balls-owned clone of the tracker
 │   │   └── .balls/
 │   │       ├── tasks/
@@ -240,29 +240,29 @@ project/
 └── ... (project files on the code branch)
 ```
 
-The `.balls/tasks` symlink is the key to naïve visibility. It points at `state-repo/.balls/tasks`, the state checkout's tree — where task files physically live. Reading `.balls/tasks/bl-abc.json` follows the symlink into the checkout and returns the canonical file. `bl` commands and hand-editing agree. `config.json` is a real, never-symlinked workspace file: it carries the *tracker address* that everything else resolves through, so it must be readable before the checkout exists.
+The `.balls/tasks` symlink is the key to naïve visibility. It points at `state-repo/.balls/tasks`, the state checkout's tree — where task files physically live. Reading `.balls/tasks/bl-abc.json` follows the symlink into the checkout and returns the canonical file. `bl` commands and hand-editing agree. `config.json` is a real, never-symlinked repo file: it carries the *tracker address* that everything else resolves through, so it must be readable before the checkout exists.
 
-**Bare workspace (no working tree — the recommended deployment):**
+**Bare clone (no working tree — the recommended deployment):**
 
 ```
-workspace/                           # "repo root" = the bare gitdir's parent
+clone/                               # "repo root" = the bare gitdir's parent
 ├── .git/                            # bare gitdir (core.bare = true); no checkout
 ├── .balls/                          # loose on-disk store — NOT a tracked working set
-│   ├── config.json                      # workspace settings (materialized here)
+│   ├── config.json                      # repo settings (materialized here)
 │   ├── state-repo/                       # balls-owned clone of the tracker (unchanged)
 │   │   └── .balls/{tasks,plugins}/
 │   ├── tasks   → state-repo/.balls/tasks      # symlink — same as the ordinary clone
 │   ├── plugins → state-repo/.balls/plugins
-│   └── local/                            # ephemeral per-workspace state
+│   └── local/                            # ephemeral per-clone state
 │       ├── claims/
 │       ├── lock/
 │       └── plugins/
-└── .balls-worktrees/                    # the only working trees on a bare workspace
+└── .balls-worktrees/                    # the only working trees on a bare clone
     ├── bl-a1b2/                         # full checkout on work/bl-a1b2 branch
     └── bl-c3d4/
 ```
 
-At a bare workspace there is no `project/` working tree, and nothing is "gitignored on main" — there is no checked-out main to ignore from. `.balls/` and `.balls-worktrees/` are the store itself, ordinary directories sitting next to the bare gitdir, not a tracked working set. The state checkout, the symlinks, and the state branch are exactly as in the ordinary clone. How the loose store comes to exist at a fresh bare root is the bootstrap sequence — see *The bare workspace* and the `bl init` section.
+At a bare clone there is no `project/` working tree, and nothing is "gitignored on main" — there is no checked-out main to ignore from. `.balls/` and `.balls-worktrees/` are the store itself, ordinary directories sitting next to the bare gitdir, not a tracked working set. The state checkout, the symlinks, and the state branch are exactly as in the ordinary clone. How the loose store comes to exist at a fresh bare root is the bootstrap sequence — see *The bare clone* and the `bl init` section.
 
 ### .gitignore entries
 
@@ -276,7 +276,7 @@ At a bare workspace there is no `project/` working tree, and nothing is "gitigno
 .balls-worktrees
 ```
 
-`.balls/config.json` is *not* ignored — it is a committed, workspace-owned deliverable. A bare workspace has no checked-out code branch and no `.gitignore` governing it: the same paths are never a tracked working set there, so nothing has to be ignored. These entries matter only for the working-tree case.
+`.balls/config.json` is *not* ignored — it is a committed, repo-owned deliverable. A bare clone has no checked-out code branch and no `.gitignore` governing it: the same paths are never a tracked working set there, so nothing has to be ignored. These entries matter only for the working-tree case.
 
 ### State branch history
 
@@ -295,37 +295,37 @@ Every lifecycle transition (create, claim, review, close, update, note, dep, lin
 
 ---
 
-## The bare workspace (recommended deployment)
+## The bare clone (recommended deployment)
 
-The recommended production topology is a **bare** workspace (`core.bare = true`) — a workspace whose own repo has no working tree. Every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses; `bl init --bare <source> <workspace-dir>` stands one up in a single command, with the *Bootstrapping a bare workspace from scratch* subsection below documenting both it and the equivalent by-hand sequence.
+The recommended production topology is a **bare** clone (`core.bare = true`) — a clone whose own repo has no working tree. Every change arrives through a `bl claim` worktree under `.balls-worktrees/<id>/` and a `bl review` squash-merge. This is the deployment this very repo uses; `bl init --bare <source> <clone-dir>` stands one up in a single command, with the *Bootstrapping a bare clone from scratch* subsection below documenting both it and the equivalent by-hand sequence.
 
-**Why bare-ness is load-bearing, not incidental.** The rest of these docs preach a worktree-only rule — *edits go in the worktree, never directly on the operating branch*. A pre-commit hook can only *discourage* the bypass; `git commit --no-verify` slips past it. A bare repo makes the bypass a **git-level impossibility**: a bare repo has no working tree, so git itself refuses to commit or even stage on the operating branch from the root (`fatal: this operation must be run in a work tree`). The convention becomes a hard invariant that no agent or human can violate, by mistake or on purpose. That structural guarantee — not mere tidiness — is why bare is the recommended workspace topology.
+**Why bare-ness is load-bearing, not incidental.** The rest of these docs preach a worktree-only rule — *edits go in the worktree, never directly on the operating branch*. A pre-commit hook can only *discourage* the bypass; `git commit --no-verify` slips past it. A bare repo makes the bypass a **git-level impossibility**: a bare repo has no working tree, so git itself refuses to commit or even stage on the operating branch from the root (`fatal: this operation must be run in a work tree`). The convention becomes a hard invariant that no agent or human can violate, by mistake or on purpose. That structural guarantee — not mere tidiness — is why bare is the recommended clone topology.
 
-**Where the root is, and what's in it.** balls resolves the repo root of a bare workspace as the bare gitdir's parent directory (`find_main_root`). That directory holds the bare `.git`, plus the on-disk store directories — `.balls/` and `.balls-worktrees/` — as ordinary files. They are *not* a tracked working set; they are the store itself, sitting next to the bare gitdir.
+**Where the root is, and what's in it.** balls resolves the repo root of a bare clone as the bare gitdir's parent directory (`find_main_root`). That directory holds the bare `.git`, plus the on-disk store directories — `.balls/` and `.balls-worktrees/` — as ordinary files. They are *not* a tracked working set; they are the store itself, sitting next to the bare gitdir.
 
 **Observing state — `git status` at the root is fatal by design.** At a bare root, `git status` does not print a clean tree; it exits with `fatal: this operation must be run in a work tree`. That is correct behavior, not a broken repo: there is no work tree to report on, and the loose files at the root are the store, not git's working set. Read state the two ways that *do* work:
 
 - **Tasks:** `bl list` (and `bl show`, `bl ready`, `bl prime`) — all read-only, all run from the bare root.
 - **Code in flight:** `git status` / `git diff` / `git log` *inside* the active `.balls-worktrees/<id>/` checkout, which is an ordinary worktree where those commands behave normally.
 
-**Where `bl` must run.** As of bl-8cf7, `Store::discover` tolerates a bare root, so every read-only and root command works from the bare workspace directly. (Before that fix they failed with a misleading `not initialized. Run bl init` even on a healthy workspace; bl-597e additionally made discovery errors path-aware so the wrong-directory case is obvious.) Two commands have bare-specific mechanics, both transparent to the caller:
+**Where `bl` must run.** As of bl-8cf7, `Store::discover` tolerates a bare root, so every read-only and root command works from the bare clone directly. (Before that fix they failed with a misleading `not initialized. Run bl init` even on a healthy clone; bl-597e additionally made discovery errors path-aware so the wrong-directory case is obvious.) Two commands have bare-specific mechanics, both transparent to the caller:
 
 - `bl review` cannot run a working-tree squash at a bare root, so it provisions an ephemeral detached worktree under `.balls/local/`, performs the squash there, and fast-forwards the operating branch from the bare gitdir afterward (see `bare_squash.rs`). You invoke it exactly as on a normal repo.
-- `bl close` runs from the bare root normally. Its only hard constraint is that it must **not** be run from inside the bl worktree it is about to delete — and a bare workspace's root is, by construction, never inside a worktree.
+- `bl close` runs from the bare root normally. Its only hard constraint is that it must **not** be run from inside the bl worktree it is about to delete — and a bare clone's root is, by construction, never inside a worktree.
 
-**Reconciling "run from the repo root."** Every "run `bl close` from the repo root" instruction in this README and in SKILL.md is correct for a bare workspace: the bare directory *is* that repo root, and `bl close` prints it on success so you can `cd` back. The rule was never "find the checked-out main branch" — it is "not from within the bl worktree." On a bare workspace there is no checked-out main to stand in; that absence is the entire point of choosing bare.
+**Reconciling "run from the repo root."** Every "run `bl close` from the repo root" instruction in this README and in SKILL.md is correct for a bare clone: the bare directory *is* that repo root, and `bl close` prints it on success so you can `cd` back. The rule was never "find the checked-out main branch" — it is "not from within the bl worktree." On a bare clone there is no checked-out main to stand in; that absence is the entire point of choosing bare.
 
-### Bootstrapping a bare workspace from scratch
+### Bootstrapping a bare clone from scratch
 
-**The one-liner: `bl init --bare`.** Once the project's `balls/tasks` orphan branch is published (step 1 below — a no-op if the project already uses balls), one command stands the workspace up:
+**The one-liner: `bl init --bare`.** Once the project's `balls/tasks` orphan branch is published (step 1 below — a no-op if the project already uses balls), one command stands the clone up:
 
 ```bash
-bl init --bare git@host:proj.git /srv/proj-workspace
+bl init --bare git@host:proj.git /srv/proj-clone
 ```
 
-It bare-clones the source into `/srv/proj-workspace/.git`, wires the `origin` fetch refspec, reconstructs the loose store (the `.balls/` scaffolding, `config.json` materialized from `main`'s tree), and materializes the `.balls/state-repo` checkout plus its `.balls/tasks` / `.balls/plugins` symlinks. It is idempotent and non-destructive in exactly the way the working-tree `bl init` is: re-running it reuses an existing bare gitdir (and refuses to clobber a *non*-bare `.git` there), re-creates only what is missing, and never force-pushes or resets a shared branch. The source's `main` must already be balls-initialized; if it has no `.balls/config.json` the command stops with that message rather than guessing.
+It bare-clones the source into `/srv/proj-clone/.git`, wires the `origin` fetch refspec, reconstructs the loose store (the `.balls/` scaffolding, `config.json` materialized from `main`'s tree), and materializes the `.balls/state-repo` checkout plus its `.balls/tasks` / `.balls/plugins` symlinks. It is idempotent and non-destructive in exactly the way the working-tree `bl init` is: re-running it reuses an existing bare gitdir (and refuses to clobber a *non*-bare `.git` there), re-creates only what is missing, and never force-pushes or resets a shared branch. The source's `main` must already be balls-initialized; if it has no `.balls/config.json` the command stops with that message rather than guessing.
 
-**The by-hand sequence (still canonical).** `bl init --bare` is a convenience wrapper over standard git plumbing, not a new primitive — per the orphan-branch design principle that standard tools must suffice, the manual sequence below remains valid and is what the wrapper mechanizes (steps 2–3). Use it when you want to see exactly what the wrapper does, or when scripting around a constraint the wrapper doesn't cover. The sequence is short because the orphan-branch design means a bare workspace is just a loose store wrapped around an already-published `balls/tasks`:
+**The by-hand sequence (still canonical).** `bl init --bare` is a convenience wrapper over standard git plumbing, not a new primitive — per the orphan-branch design principle that standard tools must suffice, the manual sequence below remains valid and is what the wrapper mechanizes (steps 2–3). Use it when you want to see exactly what the wrapper does, or when scripting around a constraint the wrapper doesn't cover. The sequence is short because the orphan-branch design means a bare clone is just a loose store wrapped around an already-published `balls/tasks`:
 
 ```bash
 # 1. ONE working-tree clone creates the balls/tasks orphan branch and
@@ -336,12 +336,12 @@ bl init        # writes `balls: initialize` on main, creates + pushes balls/task
 bl sync        # ensure both main and balls/tasks are on origin
 cd / && rm -rf /tmp/proj-init        # the seeding clone is disposable
 
-# 2. The workspace is a BARE repo whose gitdir is a `.git` directory inside
-#    the workspace root, so the gitdir's parent (the workspace root) is
+# 2. The clone is a BARE repo whose gitdir is a `.git` directory inside
+#    the clone root, so the gitdir's parent (the clone root) is
 #    where the loose store lives. Clone bare into that `.git`.
-mkdir -p /srv/proj-workspace
-git clone --bare git@host:proj.git /srv/proj-workspace/.git
-cd /srv/proj-workspace
+mkdir -p /srv/proj-clone
+git clone --bare git@host:proj.git /srv/proj-clone/.git
+cd /srv/proj-clone
 git --git-dir=.git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
 git --git-dir=.git fetch origin
 
@@ -349,7 +349,7 @@ git --git-dir=.git fetch origin
 #    would do in a working-tree clone but cannot here. config.json IS
 #    tracked on main, so materialize it from main's tree (no checkout
 #    exists to copy it from at a bare root). The state checkout is a
-#    single-branch clone of the workspace's own balls/tasks.
+#    single-branch clone of the clone's own balls/tasks.
 mkdir -p .balls/local/claims .balls/local/lock .balls/local/plugins
 git show main:.balls/config.json > .balls/config.json
 git clone --single-branch --branch balls/tasks .git .balls/state-repo
@@ -364,24 +364,24 @@ The `.balls/state-repo` clone added in step 3 already carries `.gitattributes` a
 
 ---
 
-## Multi-repo state: one tracker, many workspaces
+## Multi-repo state: one tracker, many clones
 
 The deployments above weld the task store to one code repo: `balls/tasks` is an orphan ref negotiated against that repo's own `origin`. One repo, one disjoint backlog. A project that spans **several** code repos — a `frontend`, an `api`, an `infra` — wants the opposite: one backlog, one ready queue, cross-repo dependency edges, and one place to run an issue-tracker plugin.
 
-balls handles this with **one mechanism, no mode**. Every workspace resolves a *tracker address* and materializes one checkout of it at `.balls/state-repo/`. "Standalone" is the case where the address is the code repo's own `origin`; "federated" is the case where it is a dedicated, shared tracker. The same code path, the same checkout, the same commands — only the address value differs. A repo with no address configured resolves the implicit default and behaves bit-identically to every pre-federation version.
+balls handles this with **one mechanism, no mode**. Every clone resolves a *tracker address* and materializes one checkout of it at `.balls/state-repo/`. "Standalone" is the case where the address is the code repo's own `origin`; "federated" is the case where it is a dedicated, shared tracker. The same code path, the same checkout, the same commands — only the address value differs. A repo with no address configured resolves the implicit default and behaves bit-identically to every pre-federation version.
 
 The full design — invariants, the backwards-compatibility audit, the conformance-test list — is [docs/SPEC-tracker-state.md](docs/SPEC-tracker-state.md), the authoritative contract; this section is the operational summary, and SKILL.md §*Multi-repo: one project, many repos* is the agent-facing companion.
 
 ### The tracker address
 
-The address is the pair `(state_url, state_branch)`, both optional fields in the workspace's committed `.balls/config.json`:
+The address is the pair `(state_url, state_branch)`, both optional fields in the clone's committed `.balls/config.json`:
 
 | Field | Absent ⇒ | Set ⇒ |
 |---|---|---|
 | `state_url` | the code repo's `origin`, resolved live | an explicit tracker URL |
 | `state_branch` | `balls/tasks` | an explicit branch name |
 
-`config.json` is a real, never-symlinked workspace file — it has to be, since the address it carries is what every other path resolves through. `Store::discover` materializes `.balls/state-repo` (a balls-owned clone of the address) and the `.balls/tasks` / `.balls/plugins` symlinks into it; all three are gitignored runtime state, fully re-materializable from the address, so deleting them loses nothing durable. A teammate's `git clone` carries `config.json`, so the clone plus `bl prime` is a complete onboard — no manual `git remote add`.
+`config.json` is a real, never-symlinked repo file — it has to be, since the address it carries is what every other path resolves through. `Store::discover` materializes `.balls/state-repo` (a balls-owned clone of the address) and the `.balls/tasks` / `.balls/plugins` symlinks into it; all three are gitignored runtime state, fully re-materializable from the address, so deleting them loses nothing durable. A teammate's `git clone` carries `config.json`, so the clone plus `bl prime` is a complete onboard — no manual `git remote add`.
 
 ### `bl remaster`: changing the address
 
@@ -389,22 +389,22 @@ The address is the pair `(state_url, state_branch)`, both optional fields in the
 
 | Command | Effect |
 |---|---|
-| `bl remaster <url>` [`--branch B`] [`--commit`] | Write `state_url` (and `state_branch` if `--branch` is given) into `config.json` and reconcile this workspace's local-only tasks onto the new tracker, renaming any id clashes. `--branch B` lets one tracker host several projects on distinct branches; default `balls/tasks`. `--commit` also `git commit`s the `config.json` change so a fresh clone carries it. |
-| `bl remaster --detach` | Clear the address (reverting to the implicit `origin`, branch `balls/tasks`) and re-root the state branch as a fresh local orphan carrying its current tasks. Offline-capable — a workspace is never trapped in a tracker it cannot reach. |
+| `bl remaster <url>` [`--branch B`] [`--commit`] | Write `state_url` (and `state_branch` if `--branch` is given) into `config.json` and reconcile this clone's local-only tasks onto the new tracker, renaming any id clashes. `--branch B` lets one tracker host several projects on distinct branches; default `balls/tasks`. `--commit` also `git commit`s the `config.json` change so a fresh clone carries it. |
+| `bl remaster --detach` | Clear the address (reverting to the implicit `origin`, branch `balls/tasks`) and re-root the state branch as a fresh local orphan carrying its current tasks. Offline-capable — a clone is never trapped in a tracker it cannot reach. |
 
 There is no transplant and no federated "flip": detach is an address edit plus an ordinary reconcile, and re-mastering to a different tracker is the same. A legacy `.balls/master.json` pointer, or `master_url` / `state_remote` fields in an old `config.json`, are read transparently and rewritten to `state_url` on the next `bl remaster`.
 
 ### Reachability
 
-First contact with an unreachable *explicit* tracker **hard-fails** loudly — the error names the URL, the underlying `git` failure, and three remediation paths — rather than dropping the workspace to a silent local orphan that would drift from the project. The implicit default (no `state_url` — a solo repo, possibly pre-remote) falls back to a local `git init` instead: a solo project is offline-bootstrappable. Once `.balls/state-repo` has materialized, an unreachable tracker is a **soft-fail**: `bl` works from the checkout, parity with ordinary offline git.
+First contact with an unreachable *explicit* tracker **hard-fails** loudly — the error names the URL, the underlying `git` failure, and three remediation paths — rather than dropping the clone to a silent local orphan that would drift from the project. The implicit default (no `state_url` — a solo repo, possibly pre-remote) falls back to a local `git init` instead: a solo project is offline-bootstrappable. Once `.balls/state-repo` has materialized, an unreachable tracker is a **soft-fail**: `bl` works from the checkout, parity with ordinary offline git.
 
 ### Code delivery is never routed
 
-Federation routes task *state* to the tracker; it never routes code. `bl review` squashes onto the workspace's own integration branch and pushes to the workspace's own `origin` — the `[bl-xxxx]` delivery tag lands there. Only the state-branch transition reaches the tracker. The two remotes are independent and may be entirely unrelated repos.
+Federation routes task *state* to the tracker; it never routes code. `bl review` squashes onto the clone's own integration branch and pushes to the clone's own `origin` — the `[bl-xxxx]` delivery tag lands there. Only the state-branch transition reaches the tracker. The two remotes are independent and may be entirely unrelated repos.
 
 ### Bridging to an external tracker
 
-A multi-repo project usually wants one external system (Jira, Linear, GitHub Issues) as its human-facing record. Wire that issue-tracker plugin into *one* workspace — the **bridge** — and the rest operate through the shared state branch as a proxy: they never install the plugin, never hold its credential, never run its sync. Plugin config files ride the state branch (`.balls/plugins` resolves into the state checkout), so the bridge role moves without reconfiguration. SKILL.md carries the diagram and the operating detail.
+A multi-repo project usually wants one external system (Jira, Linear, GitHub Issues) as its human-facing record. Wire that issue-tracker plugin into *one* clone — the **bridge** — and the rest operate through the shared state branch as a proxy: they never install the plugin, never hold its credential, never run its sync. Plugin config files ride the state branch (`.balls/plugins` resolves into the state checkout), so the bridge role moves without reconfiguration. SKILL.md carries the diagram and the operating detail.
 
 ---
 
@@ -472,7 +472,7 @@ Both modes above can run a project-defined check before `bl review` delivers. Se
 
 `bl review` runs `pre_check` once it has committed the worker's work and merged the integration branch into the worktree — so the check sees the exact end-state being delivered — and *before* the squash (local-squash) or the branch push (deferred). A non-zero exit aborts the review: no squash, no push, no status flip. The integration-branch merge stays in the worktree, so you fix the failure there and re-run `bl review`; the check's own output streams to your terminal.
 
-This is where a repo's quality gate belongs. balls commits every state-branch write — and the squash itself — with `git commit --no-verify`, so a git `pre-commit` hook structurally cannot see the merge to the integration branch, and CI sees it only after it has landed. `pre_check` is the one gate that runs *at* the merge. It lives in the workspace-owned `.balls/config.json` — a build/test gate is a property of *this* code repo, not of a shared tracker. Unset (the default) ⇒ no gate, byte-identical to before.
+This is where a repo's quality gate belongs. balls commits every state-branch write — and the squash itself — with `git commit --no-verify`, so a git `pre-commit` hook structurally cannot see the merge to the integration branch, and CI sees it only after it has landed. `pre_check` is the one gate that runs *at* the merge. It lives in the repo-owned `.balls/config.json` — a build/test gate is a property of *this* code repo, not of a shared tracker. Unset (the default) ⇒ no gate, byte-identical to before.
 
 ### Backwards-compatibility caveat
 
@@ -744,7 +744,7 @@ With `--tasks-dir PATH`, tasks are stored at the given absolute path instead of 
 
 **By hand:** the full shell sequence is a `git switch --orphan balls/tasks` to create the state branch, a `git clone --single-branch --branch balls/tasks` of the address into `.balls/state-repo`, the `.balls/tasks` / `.balls/plugins` symlinks, gitignore updates, and the initial commit — `docs/SPEC-tracker-state.md` §13 gives the hand-operable form.
 
-**Bare workspace:** everything above assumes a working tree. Plain `bl init` (no `--bare`) still cannot initialize a bare repo — there is no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into, and that working-tree wiring is correctly *skipped* at a bare root, not faked. Standing up the recommended bare-workspace deployment is the dedicated `bl init --bare <source> <workspace-dir>` form (equivalently the by-hand sequence), documented in *The bare workspace → Bootstrapping a bare workspace from scratch* above.
+**Bare clone:** everything above assumes a working tree. Plain `bl init` (no `--bare`) still cannot initialize a bare repo — there is no work tree to write the `balls: initialize` commit, the `.gitignore`, or the `.balls/tasks` symlink into, and that working-tree wiring is correctly *skipped* at a bare root, not faked. Standing up the recommended bare-clone deployment is the dedicated `bl init --bare <source> <clone-dir>` form (equivalently the by-hand sequence), documented in *The bare clone → Bootstrapping a bare clone from scratch* above.
 
 ### bl create TITLE [options]
 
@@ -862,7 +862,7 @@ If the reviewer rejects (`bl update bl-a1b2 status=in_progress`), the worker res
 bl close bl-a1b2 -m "approved"
 ```
 
-Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back. On a bare workspace the repo root is the bare directory itself (there is no checked-out main to stand in); `bl close` runs there normally — see *The bare workspace*.
+Reviewer approval. Removes the bl worktree, deletes `work/bl-a1b2`, and archives the task on the state branch (parent bookkeeping, `git rm` of `.json` and `.notes.jsonl`, and the `state: close` commit in one atomic locked sequence). **Rejects if run from inside the worktree** — must run from the repo root, which `bl close` prints on success so you can `cd` back. On a bare clone the repo root is the bare directory itself (there is no checked-out main to stand in); `bl close` runs there normally — see *The bare clone*.
 
 The reviewer message is embedded in the state-branch close commit's body (not appended to a notes file, which is about to be deleted). It's still in git history on `balls/tasks`. `-m` is repeatable here too — each value becomes its own paragraph.
 
@@ -1107,7 +1107,7 @@ Committed to main, shared across the team.
 | `state_url` | string? | the code repo's `origin` | Git URL of the tracker. Absent ⇒ resolved live from `origin` (a standalone repo); set ⇒ an explicit, shared tracker. `bl remaster <url>` writes it; `bl remaster --detach` removes it. |
 | `state_branch` | string? | `balls/tasks` | The tracker's branch name. Lets one tracker host several projects on distinct branches. |
 
-A standalone repo carries neither field — which is why a pre-federation `config.json` is already conformant. The address must be readable *before* anything else resolves (the `.balls/state-repo` checkout is reached *through* it), which is why it lives in `config.json` — a real, never-symlinked workspace file — and not on the state branch.
+A standalone repo carries neither field — which is why a pre-federation `config.json` is already conformant. The address must be readable *before* anything else resolves (the `.balls/state-repo` checkout is reached *through* it), which is why it lives in `config.json` — a real, never-symlinked repo file — and not on the state branch.
 
 **Legacy migration.** A pre-spec repo may carry the retired `.balls/master.json` pointer, or `master_url` / `state_remote` fields inside `config.json`. All three are read transparently and folded into `state_url` on the next `bl remaster`; the `Config` struct retains `master_url`/`state_remote` for deserialization only, never reading them directly.
 

@@ -1,7 +1,7 @@
 //! Helpers for the unified tracker-state model
 //! (`docs/SPEC-tracker-state.md`): standing up a bare *tracker* — a
 //! git repo hosting the shared `balls/tasks` branch — and reading the
-//! tracker address out of a workspace's committed `config.json`.
+//! tracker address out of a clone's committed `config.json`.
 
 #![allow(dead_code)]
 
@@ -36,12 +36,12 @@ pub fn url_of(repo: &Repo) -> String {
     repo.path().to_string_lossy().to_string()
 }
 
-/// Read `state_url` from a workspace's committed `.balls/config.json`.
+/// Read `state_url` from a clone's committed `.balls/config.json`.
 pub fn state_url(repo: &Path) -> Option<String> {
     config_field(repo, "state_url")
 }
 
-/// Read a string-valued field from a workspace's `.balls/config.json`.
+/// Read a string-valued field from a clone's `.balls/config.json`.
 pub fn config_field(repo: &Path, key: &str) -> Option<String> {
     let s = std::fs::read_to_string(repo.join(".balls/config.json")).ok()?;
     let v: serde_json::Value = serde_json::from_str(&s).ok()?;

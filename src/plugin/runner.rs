@@ -21,10 +21,10 @@ pub struct Plugin {
 impl Plugin {
     pub fn resolve(store: &Store, name: &str, entry: &PluginEntry) -> Self {
         let executable = plugin_executable(name);
-        // `config_file` is workspace-root-relative (SPEC §7, bl-1d81).
+        // `config_file` is clone-root-relative (SPEC §7, bl-1d81).
         // The conventional `.balls/plugins/` subtree is a symlink into
         // the state checkout, so the join lands the path on the
-        // tracker-tracked file regardless of whether the workspace
+        // tracker-tracked file regardless of whether the clone
         // bind-mounts the state checkout or holds its own copy.
         let config_path = store.plugin_config_root().join(&entry.config_file);
         let auth_dir = store.local_plugins_dir().join(name);

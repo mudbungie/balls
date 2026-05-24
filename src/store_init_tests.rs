@@ -1,5 +1,5 @@
-//! Unit coverage for `commit_init`: the workspace-checkout commit at
-//! `bl init`. Non-stealth commits `.gitignore` and the workspace-owned
+//! Unit coverage for `commit_init`: the clone-checkout commit at
+//! `bl init`. Non-stealth commits `.gitignore` and the repo-owned
 //! `.balls/config.json`; the state checkout's symlinks are gitignored
 //! runtime state. Stealth has no state checkout, so it additionally
 //! owns a real `.balls/plugins/` with a `.gitkeep`.
@@ -9,7 +9,7 @@ use crate::git_test_support::{git_stdout, init_repo};
 use tempfile::TempDir;
 
 /// Scaffold the `.balls/` layout `commit_init` expects: a real plugins
-/// directory and a workspace `config.json`.
+/// directory and a repo `config.json`.
 fn scaffold(root: &Path) {
     fs::create_dir_all(root.join(".balls/plugins")).unwrap();
     Config::default().save(&root.join(".balls/config.json")).unwrap();

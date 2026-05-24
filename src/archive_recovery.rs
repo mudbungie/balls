@@ -70,7 +70,7 @@ fn id_from_path(line: &str) -> Option<&str> {
 /// recreate-then-reclose of the same id resolves to the latest close.
 fn deletion_commit(dir: &Path, id: &str) -> Option<(String, DateTime<Utc>)> {
     // The state branch IS HEAD in `.balls/state-repo` (SPEC §4), so
-    // `HEAD` resolves to whatever the workspace's configured
+    // `HEAD` resolves to whatever the clone's configured
     // `state_branch` is — recovery never needs to name it.
     let out = git_out(
         dir,

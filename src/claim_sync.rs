@@ -15,7 +15,7 @@
 //!
 //! The remote is resolved (not hardcoded) through the
 //! per-clone/committed tracker-address seam; default `origin`. This is
-//! where a workspace retargets `balls/tasks` at a shared tracker.
+//! where a clone retargets `balls/tasks` at a shared tracker.
 
 // Remote resolution + push-outcome classification live in
 // `claim_push` to keep this file under the 300-line cap. The public

@@ -1,6 +1,6 @@
 //! Tracker-address resolution (SPEC-tracker-state §5).
 //!
-//! A workspace's address is the pair `(state_url, state_branch)`,
+//! A clone's address is the pair `(state_url, state_branch)`,
 //! both optional in `.balls/config.json`. Absent ⇒ the implicit
 //! default: the code repo's own `origin`, branch `balls/tasks`. This
 //! module is the one seam that turns a `Config` plus a repo root into
@@ -44,7 +44,7 @@ struct LegacyPointer {
     state_remote: Option<String>,
 }
 
-/// Resolve the tracker address for the workspace at `root`, given its
+/// Resolve the tracker address for the clone at `root`, given its
 /// already-loaded `config.json`. Never touches the network.
 pub fn resolve(root: &Path, cfg: &Config) -> Address {
     let branch = cfg

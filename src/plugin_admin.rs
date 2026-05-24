@@ -45,7 +45,7 @@ pub(crate) fn validate_name(name: &str) -> Result<()> {
 }
 
 /// Reject `config_file` values that would escape the plugins root.
-/// The runtime resolves `config_file` against the workspace root
+/// The runtime resolves `config_file` against the clone root
 /// (bl-1d81), and per-plugin config files must travel with their
 /// `project.json` entry — they live in the state-checkout. The
 /// conventional landing zone is `.balls/plugins/` (the symlinked
@@ -84,7 +84,7 @@ pub fn load_effective(store: &Store) -> Result<BTreeMap<String, PluginEntry>> {
 /// block (set elsewhere) is preserved so this surface never silently
 /// drops policy a maintainer set by hand.
 ///
-/// `config_file` is stored and written as a *workspace-root-relative*
+/// `config_file` is stored and written as a *clone-root-relative*
 /// path, the same base `Plugin::resolve` joins against at runtime
 /// (bl-1d81). The default `.balls/plugins/<name>.json` lands the file
 /// in the conventional plugin-config directory and round-trips through
