@@ -5,6 +5,8 @@ Scope: defines where a balls project's task state lives, how `bl` checks it out,
 
 This is the authoritative contract. README §"Multi-repo" and SKILL.md are operational summaries; where they disagree with this file, this file wins. It supersedes the `.balls/worktree` checkout described in [SPEC-orphan-branch-state.md](SPEC-orphan-branch-state.md) §4/§8/§10 (see §4 below); SPEC-orphan-branch-state.md §5's merge invariant it depends on and restates (§11).
 
+> **Supersession.** [SPEC-workspace-layout.md](SPEC-workspace-layout.md) supersedes §4 (the model), §5 (the address), §6 (materialization), §7 (config ownership location), and §13 (hand-operable sequences) of this document. The invariants in §2 (Principles) and the contracts in §8 (`bl remaster`), §9 (Reachability), §10 (Code/state split), §11 (Merge cleanliness), and §12 (Backwards-compat audit) carry forward unchanged; the realization in those sections — `.balls/state-repo` in the workspace's working tree, `.balls/config.json` committed on `main`, `.balls/project.json` symlinked into the state checkout — is replaced by XDG dirs and an orphan-branch bootstrap convention. Where the two documents disagree on physical layout or read-order, SPEC-workspace-layout.md wins.
+
 ## 1. Motivation
 
 The orphan-branch design ([SPEC-orphan-branch-state.md](SPEC-orphan-branch-state.md)) welds the task store to the code repo: `balls/tasks` is an orphan ref in the project's own git, checked out as a worktree. One repo, one task store. That is correct for a solo project.
