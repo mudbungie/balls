@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-24T05:50:20.027967453Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "The bl-1d46 sweep (d8bbf94, 2026-05-23) settled on 'workspace' for what was previously 'the bare central hub' / 'the bl-using repo.' The term is overloaded — in most developer tooling, a 'workspace' is a multi-root container (VS Code workspaces, Cargo workspaces, npm workspaces). What bl needs a name for is *a specific on-disk clone of a code repo* — the thing that holds claims, locks, and task worktrees, distinct from the shared origin URL.\n\n## Why\n\nThe XDG-layout pivot (bl-f021, bl-ed32) made the distinction sharper: an 'origin-key' identifies the code repo (shared across all clones), and a 'path-hash' identifies the specific clone on disk. Calling the path-hash thing a 'workspace' invites the multi-root reading; calling the origin-key thing a 'workspace' is closer to 'project.' Neither lands cleanly.\n\n'Clone' is the natural noun. It aligns with 'git clone' — a clone IS a specific on-disk checkout — and it's a noun rather than a verb in this context (one would say 'this clone' not 'do a clone'), so the verb-noun ambiguity that usually nixes it isn't a problem here.\n\n## Scope\n\n- SPEC sweep: SPEC-tracker-state.md, SPEC-workspace-layout.md, SPEC-orphan-branch-state.md, SPEC-forge-gated-delivery.md, SPEC-lifecycle-sync-participants.md — replace 'workspace' with 'clone' where the meaning is per-on-disk-checkout. Where 'workspace' meant 'the bl-using repo as a whole' (origin-key scope), use 'repo' or rephrase.\n- README.md, SKILL.md, agent skill guide: same treatment.\n- Code identifiers: rename workspace-scoped types/fields/functions to clone-scoped. The bl-e609 'workspace-owned config' becomes 'repo-owned config' (per the three-file model: tracker.json / repo.json / project.json).\n- bl-1d46 was the previous sweep; this ball reverses its terminology call. Cross-reference in the commit.\n\n## Out of scope\n\n- The XDG layout itself (bl-f021 / bl-ed32 et al).\n- Any behavior change. Pure rename.\n- 'workspace' in the multi-root sense (we don't have that concept and aren't introducing it).\n\n## Sequencing\n\nDo this AFTER the SPEC-workspace-layout.md rewrite (the follow-up to bl-ed32 under the three-file model) lands, so the rewrite doesn't need a second sweep mid-flight. Otherwise the rename touches the same paragraphs twice.",
+  "external": {},
+  "id": "bl-fc50",
+  "links": [],
+  "parent": null,
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Terminology: 'workspace' → 'clone' for the per-on-disk-checkout concept",
+  "type": "docs",
+  "updated_at": "2026-05-24T05:50:20.027967453Z"
+}
