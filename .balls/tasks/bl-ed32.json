@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-ed32",
+  "claimed_by": "conducing",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-24T03:28:40.703017602Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-24T03:28:41.346199466Z"},
   "tags": [],
   "title": "SPEC: XDG layout and orphan-branch bootstrap",
   "type": "task",
-  "updated_at": "2026-05-24T03:28:41.346205778Z"
+  "updated_at": "2026-05-24T03:40:27.553019790Z"
 }
