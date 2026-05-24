@@ -28,12 +28,10 @@ use std::path::{Path, PathBuf};
 // The `.balls/plugins` and `.balls/project.json` symlink materializers
 // live in `state_repo_symlinks`; re-exported so callers are unchanged.
 pub(crate) use crate::state_repo_symlinks::{ensure_plugins_symlink, ensure_project_json_symlink};
+use crate::state_repo_migrate::{guard_legacy_worktree, retire_legacy_worktree};
 
 /// Relative path (from the repo root) of the balls-owned state clone.
 pub(crate) const STATE_REPO_REL: &str = ".balls/state-repo";
-
-/// The legacy project-worktree checkout retired by the unified model.
-const LEGACY_WORKTREE_REL: &str = ".balls/worktree";
 
 /// Materialize `.balls/state-repo/` for `addr`. Idempotent: a warm
 /// checkout is reused with no network round-trip; a missing one is
@@ -134,44 +132,6 @@ fn init_repo(dir: &Path, branch: &str, url: Option<&str>) -> Result<()> {
         run_at(dir, &["remote", "add", "origin", u])?;
     }
     git::git_ensure_user(dir)
-}
-
-/// Refuse migration if the legacy `.balls/worktree` carries uncommitted
-/// or untracked state. Adoption fetches the committed `branch` tip then
-/// force-removes the worktree, so anything off-branch vanishes silently.
-/// On error no `.balls/state-repo` exists yet — a retry after committing
-/// is a clean first contact.
-fn guard_legacy_worktree(root: &Path, branch: &str) -> Result<()> {
-    let wt = root.join(LEGACY_WORKTREE_REL);
-    if !wt.is_dir() {
-        return Ok(());
-    }
-    let out = git::run_git_in(&wt, &["status", "--porcelain"])?;
-    let dirty = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if !out.status.success() || dirty.is_empty() {
-        return Ok(());
-    }
-    Err(BallError::Other(format!(
-        "the legacy `.balls/worktree` at {wt} carries uncommitted changes:\n\
-         {dirty}\n\
-         Migration to `.balls/state-repo` only adopts the committed tip of `{branch}` — \
-         retiring the worktree would silently discard these edits. Commit them and re-run:\n  \
-         (cd {wt} && git add -A && git commit -m 'preserve pre-migration state' --no-verify)",
-        wt = wt.display(),
-    )))
-}
-
-/// Retire the legacy `.balls/worktree`: drop the linked worktree, its
-/// registry entry, and the project git's now-adopted `balls/tasks`
-/// branch. Entirely best-effort — migration succeeds on the clone.
-fn retire_legacy_worktree(root: &Path, branch: &str) {
-    let wt = root.join(LEGACY_WORKTREE_REL);
-    let _ = git::git_worktree_remove(root, &wt, true);
-    let _ = git_state::worktree_prune(root);
-    if wt.exists() {
-        let _ = fs::remove_dir_all(&wt);
-    }
-    let _ = git::git_branch_delete(root, branch, true);
 }
 
 /// Capture success and stderr from `git fetch origin`. The stderr is
@@ -297,7 +257,7 @@ fn ssh_shorthand(s: &str) -> bool {
 
 #[cfg(test)]
 #[path = "state_repo_test_support.rs"]
-mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 #[path = "state_repo_tests.rs"]
 mod tests;
