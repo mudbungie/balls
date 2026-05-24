@@ -243,6 +243,30 @@ fn ensure_absorbs_a_real_plugins_dir_into_the_checkout() {
 }
 
 #[test]
+fn ensure_commits_absorbed_plugin_files_to_the_tracker_branch() {
+    // Regression for bl-73bb: legacy `.balls/plugins/*.json` files
+    // absorbed during in-place migration must land on the tracker
+    // branch, not dangle untracked in the state checkout — otherwise
+    // they never push and a fresh clone does not inherit them.
+    let hub = hub_repo();
+    let root = tempfile::TempDir::new().unwrap();
+    let plugins = root.path().join(".balls/plugins");
+    fs::create_dir_all(&plugins).unwrap();
+    fs::write(plugins.join("github.json"), "{\"k\":\"v\"}\n").unwrap();
+    let dir = ensure(root.path(), &explicit(&hub_url(&hub))).unwrap();
+    assert!(
+        !git::has_uncommitted_changes(&dir).unwrap(),
+        "absorbed plugin files must be committed, not left in the worktree"
+    );
+    let out = git::run_git_in(&dir, &["ls-tree", "-r", "HEAD", "--name-only"]).unwrap();
+    let names = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        names.lines().any(|n| n == ".balls/plugins/github.json"),
+        "absorbed file is reachable from HEAD; got tree:\n{names}"
+    );
+}
+
+#[test]
 fn looks_like_url_recognizes_common_forms() {
     assert!(looks_like_url("https://example.com/x.git"));
     assert!(looks_like_url("ssh://git@host/path"));
