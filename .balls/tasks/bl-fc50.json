@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-fc50",
+  "claimed_by": "whats",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-24T05:50:20.027967453Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-24T05:50:21.011260743Z"},
   "tags": [],
   "title": "Terminology: 'workspace' → 'clone' for the per-on-disk-checkout concept",
   "type": "docs",
-  "updated_at": "2026-05-24T05:58:23.134929749Z"
+  "updated_at": "2026-05-24T06:22:41.358104091Z"
 }
