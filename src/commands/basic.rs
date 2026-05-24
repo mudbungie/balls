@@ -8,7 +8,6 @@ use balls::participant::Event;
 use balls::participant_config::InvocationOverrides;
 use balls::ready;
 use balls::render_list;
-use balls::store::task_lock;
 use balls::task::{NewTaskOpts, Status, Task, TaskType};
 use std::env;
 
@@ -62,7 +61,12 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
         tags: tag,
     };
 
-    let id = balls::task_id::generate_task_id(&store, &title)?;
+    // Mint the id and acquire its per-task lock together: a bare
+    // mint-then-lock leaves a window in which two concurrent creators
+    // can pre-pick the same id and the per-task lock then safely
+    // overwrites one with the other. `mint_and_lock` re-checks
+    // `task_exists` under the lock so a losing race remints.
+    let (id, id_guard) = balls::task_id::mint_and_lock(&store, &title)?;
     // New-task cycle check is unnecessary: a fresh id has no dependants yet,
     // so no chain through `dep` can reach it. Existing deps were already
     // validated above.
@@ -75,6 +79,7 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
     task.repo = balls::repo_url::origin_url(&store.root);
     task.target_branch = target_branch;
 
+    let printed_id = id.clone();
     // SPEC §6.1: task birth is its own event, not an `Update`. A
     // mirror-on-create plugin can finally tell creation from change.
     // No pre-image — `create` has no prior (SPEC §5.1, correctly
@@ -86,15 +91,25 @@ pub fn cmd_create(args: CreateArgs) -> Result<()> {
         &overrides,
         false,
         false,
-        || {
-            let _g = task_lock(&store, &id)?;
-            store.save_task(&task)?;
-            store.commit_task(&id, &format!("balls: create {id} - {title}"))?;
-            Ok((None, task))
+        {
+            let store = &store;
+            move || {
+                // Drop the per-task flock here, at the end of
+                // `mutate`, so it is released BEFORE plugin::finish
+                // (called by finish_state_event after this closure
+                // returns) re-takes the same per-task lock from
+                // apply_push_contributions — that recursive flock
+                // attempt would otherwise deadlock for any plugin
+                // subscribed to `create`.
+                let _g = id_guard;
+                store.save_task(&task)?;
+                store.commit_task(&id, &format!("balls: create {id} - {title}"))?;
+                Ok((None, task))
+            }
         },
     )?;
 
-    println!("{id}");
+    println!("{printed_id}");
     Ok(())
 }
 
