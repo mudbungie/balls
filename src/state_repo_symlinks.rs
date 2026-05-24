@@ -30,7 +30,7 @@ pub(crate) fn ensure_plugins_symlink(root: &Path, target: &str) -> Result<()> {
 
 /// Materialize `.balls/project.json` as a symlink to `target` (a path
 /// relative to `<root>/.balls/`). The project config is a single file
-/// on the tracker branch; the symlink lets a workspace read it through
+/// on the tracker branch; the symlink lets a clone read it through
 /// `.balls/project.json` (SPEC §7). Idempotent; repoints a stale
 /// symlink. A real (non-symlink) file at the path is refused — it is
 /// ambiguous with hand-placed config the migration must not shadow.

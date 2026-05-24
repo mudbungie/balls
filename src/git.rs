@@ -155,7 +155,7 @@ pub fn git_push(dir: &Path, remote: &str, branch: &str) -> Result<()> {
 
 /// `git clone --bare <source> <gitdir>`. Runs from `gitdir`'s parent
 /// (created if absent) so the bare gitdir lands at exactly that path,
-/// e.g. `<workspace>/.git`. Used by the `bl init --bare` bootstrap.
+/// e.g. `<clone>/.git`. Used by the `bl init --bare` bootstrap.
 pub fn git_clone_bare(source: &str, gitdir: &Path) -> Result<()> {
     let parent = gitdir.parent().unwrap_or(gitdir);
     std::fs::create_dir_all(parent)?;

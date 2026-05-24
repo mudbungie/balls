@@ -188,7 +188,7 @@ fn ensure_project_config_migrates_a_warm_pre_split_checkout() {
     let file = dir.join(".balls/project.json");
 
     // Simulate a checkout from before the config split: drop the
-    // project.json file and its workspace symlink, and commit that.
+    // project.json file and its clone symlink, and commit that.
     fs::remove_file(&link).unwrap();
     fs::remove_file(&file).unwrap();
     git::git_add_all(&dir).unwrap();

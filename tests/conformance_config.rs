@@ -22,7 +22,7 @@ fn set_field(path: &Path, key: &str, val: serde_json::Value) {
 
 /// Test 5 — Config ownership. `.balls/project.json` is reached through
 /// a symlink into the state checkout; a project-owned field set in
-/// *both* files resolves to `project.json`'s value; a workspace-owned
+/// *both* files resolves to `project.json`'s value; a repo-owned
 /// field is read from `config.json`.
 #[test]
 fn t5_config_ownership_split() {
@@ -40,7 +40,7 @@ fn t5_config_ownership_split() {
     );
     assert!(
         !balls.join("config.json").is_symlink(),
-        ".balls/config.json must be a real workspace file, never symlinked",
+        ".balls/config.json must be a real repo file, never symlinked",
     );
 
     // A project-owned field (`id_length`) set in BOTH files: the
@@ -55,7 +55,7 @@ fn t5_config_ownership_split() {
         "id_length must resolve to project.json's 9, got {id}",
     );
 
-    // A workspace-owned field (`worktree_dir`) is read from config.json.
+    // A repo-owned field (`worktree_dir`) is read from config.json.
     set_field(&balls.join("config.json"), "worktree_dir", "wt".into());
     bl(repo.path()).args(["claim", &id]).assert().success();
     assert!(
@@ -66,7 +66,7 @@ fn t5_config_ownership_split() {
 
 /// Test 6 — Plugin split. The plugins map (`.balls/project.json`) and
 /// the per-plugin config files (`.balls/plugins/`) ride the tracker
-/// branch; a fresh clone inherits them; per-workspace plugin auth
+/// branch; a fresh clone inherits them; per-clone plugin auth
 /// under `.balls/local/plugins/` never reaches the tracker.
 #[test]
 fn t6_plugin_config_rides_the_tracker_branch() {
@@ -80,7 +80,7 @@ fn t6_plugin_config_rides_the_tracker_branch() {
         .assert()
         .success();
 
-    // Per-workspace plugin auth — must never leave the workspace.
+    // Per-clone plugin auth — must never leave the clone.
     let auth = ws.path().join(".balls/local/plugins/github-issues");
     std::fs::create_dir_all(&auth).unwrap();
     std::fs::write(auth.join("token.json"), r#"{"token":"secret"}"#).unwrap();
@@ -88,7 +88,7 @@ fn t6_plugin_config_rides_the_tracker_branch() {
     bl(ws.path()).arg("sync").assert().success();
 
     // The project config and the plugin config file are on the tracker
-    // branch; the per-workspace auth is not.
+    // branch; the per-clone auth is not.
     let tree = git(tracker.path(), &["ls-tree", "-r", "--name-only", "balls/tasks"]);
     assert!(
         tree.contains(".balls/project.json"),
@@ -100,7 +100,7 @@ fn t6_plugin_config_rides_the_tracker_branch() {
     );
     assert!(
         !tree.contains(".balls/local"),
-        "per-workspace plugin auth must never reach the tracker:\n{tree}",
+        "per-clone plugin auth must never reach the tracker:\n{tree}",
     );
 
     // A fresh clone of the same tracker inherits the enabled plugin.

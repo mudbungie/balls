@@ -1,12 +1,12 @@
 //! `.balls/project.json` — the project-owned half of balls config
 //! (SPEC-tracker-state §7).
 //!
-//! Config has two owners. The *workspace* owns how a repo builds and
-//! integrates (`Config`, `.balls/config.json`, committed to the code
-//! branch). The *project* owns the shared backlog policy — the store
-//! schema version, the task-id width, the advisory `bl` floor, and the
-//! plugin map — and that lives here, on the tracker branch, inherited
-//! by every workspace through the `.balls/project.json` symlink.
+//! Config has two owners. The *repo* owns how this code repo builds
+//! and integrates (`Config`, `.balls/config.json`, committed to the
+//! code branch). The *project* owns the shared backlog policy — the
+//! store schema version, the task-id width, the advisory `bl` floor,
+//! and the plugin map — and that lives here, on the tracker branch,
+//! inherited by every clone through the `.balls/project.json` symlink.
 //!
 //! On overlap `project.json` wins outright: a stale `config.json` copy
 //! of a project-owned field is shadowed, never honored. A repo
@@ -54,7 +54,7 @@ fn default_id_length() -> usize {
     4
 }
 
-/// Project-owned configuration: the fields every workspace sharing a
+/// Project-owned configuration: the fields every clone sharing a
 /// tracker inherits. Read through the `.balls/project.json` symlink.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConfig {
@@ -89,7 +89,7 @@ impl Default for ProjectConfig {
 impl ProjectConfig {
     /// Load and validate a `project.json`. The same struct also reads a
     /// `config.json`'s project-owned fields — serde drops the
-    /// workspace-owned keys — which is how the pre-split fallback and
+    /// repo-owned keys — which is how the pre-split fallback and
     /// the `state_repo::seed` migration share one parser.
     pub fn load(path: &Path) -> Result<Self> {
         let s = fs::read_to_string(path).map_err(|e| match e.kind() {
@@ -105,8 +105,8 @@ impl ProjectConfig {
 
     /// The project-owned view of a `config.json`, for a repo predating
     /// the config split. Lenient: a missing or unparseable file yields
-    /// built-in defaults — the file's validity is the workspace
-    /// `Config` loader's concern, surfaced there.
+    /// built-in defaults — the file's validity is the repo `Config`
+    /// loader's concern, surfaced there.
     pub fn from_config_file(config_path: &Path) -> Self {
         let Ok(s) = fs::read_to_string(config_path) else {
             return Self::default();

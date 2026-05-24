@@ -73,7 +73,7 @@ fn commit_touches_runtime_flags_code_refs_cache() {
 
 #[test]
 fn commit_touches_runtime_flags_state_repo_clone() {
-    // bl-c439: every workspace materializes a balls-owned clone of the
+    // bl-c439: every clone materializes a balls-owned clone of the
     // tracker at `.balls/state-repo/`. It shares the shape of the
     // other runtime paths — a deep file under it (here a task JSON in
     // the state checkout's tree) must be recognized as runtime so a

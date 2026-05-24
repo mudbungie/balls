@@ -10,7 +10,7 @@ mod common;
 use common::tracker::*;
 use common::*;
 
-/// Test 4 — Fresh-clone onboard. A `git clone` of a workspace whose
+/// Test 4 — Fresh-clone onboard. A `git clone` of a clone whose
 /// committed `config.json` carries `state_url` materializes
 /// `.balls/state-repo` and the symlinks on `bl prime`, and `bl ready`
 /// then lists the tracker's tasks.
@@ -47,7 +47,7 @@ fn t4_fresh_clone_onboards_on_prime() {
     assert!(teammate.path().join(".balls/plugins").is_symlink());
     assert!(
         !teammate.path().join(".balls/config.json").is_symlink(),
-        "config.json is a real workspace file — never symlinked"
+        "config.json is a real repo file — never symlinked"
     );
 
     let ready = bl(teammate.path()).arg("ready").assert().success();

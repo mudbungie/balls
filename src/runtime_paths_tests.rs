@@ -49,7 +49,7 @@ fn gitignore_paths_stealth_drops_the_state_checkout() {
 
 #[test]
 fn config_json_is_never_a_runtime_path() {
-    // `.balls/config.json` is a committed, workspace-owned deliverable.
+    // `.balls/config.json` is a committed, repo-owned deliverable.
     assert!(!gitignore_paths(false).contains(&".balls/config.json"));
     assert!(!backstop_paths().contains(&".balls/config.json"));
 }
@@ -64,7 +64,7 @@ fn balls_worktrees_is_gitignored_but_not_a_backstop_path() {
 
 #[test]
 fn plugins_is_gitignored_and_a_backstop_path() {
-    // `.balls/plugins` is a symlink on a fully migrated workspace, but
+    // `.balls/plugins` is a symlink on a fully migrated clone, but
     // a pre-bl-de57 legacy repo can still carry the committed
     // `.balls/plugins/*.json` index entries on a work branch — the
     // backstop keeps those out of a review squash.
