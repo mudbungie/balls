@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-e9c2",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-24T07:42:07.309902213Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-25T06:48:47.672007913Z"},
   "tags": ["spec"],
   "title": "SPEC-clone-layout: resolve open questions surfaced while implementing Phase 1",
   "type": "docs",
-  "updated_at": "2026-05-25T06:48:47.672015870Z"
+  "updated_at": "2026-05-25T07:01:21.713440268Z"
 }
