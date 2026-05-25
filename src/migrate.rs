@@ -92,7 +92,7 @@ enum Detection {
 }
 
 fn detect(root: &Path) -> Result<Detection> {
-    if root.join(".balls/config.json").exists() {
+    if crate::legacy_layout::is_legacy(root) {
         return Ok(Detection::Legacy);
     }
     let bases = XdgBases::from_env()
