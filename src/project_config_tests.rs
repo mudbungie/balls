@@ -249,3 +249,4 @@ fn resolve_fallback_validates_the_config_json_view() {
     let err = ProjectConfig::resolve(&dir.path().join("project.json"), &config).unwrap_err();
     assert!(matches!(err, BallError::Other(ref s) if s.contains("observe-only")));
 }
+
