@@ -130,12 +130,13 @@ fn resolve_state_branch(state_repo: &Path) -> String {
         .unwrap_or_else(|_| tracker_address::DEFAULT_BRANCH.to_string())
 }
 
-/// SPEC §12 row 2: one-line nudge to migrate. Single line so it does
-/// not drown out real command output — `bl migrate` is opt-in
-/// throughout Phase 1.
+/// SPEC §12 row 2: one-line nudge to migrate. Phase 3 (bl-05e5) makes
+/// the line *specific* — it names the legacy marker found (e.g.
+/// `.balls/config.json`) and suggests `bl prime --migrate` so the
+/// user has a one-step off-ramp from the surface they already use.
 fn emit_legacy_warning(root: &Path) {
-    eprintln!(
-        "warning: legacy layout in use at {}; run `bl migrate` to relocate",
-        root.display()
-    );
+    let markers = crate::legacy_layout::detect(root);
+    if !markers.is_empty() {
+        eprintln!("{}", crate::legacy_layout::warning_line(&markers));
+    }
 }

@@ -131,6 +131,9 @@ pub(super) fn move_per_clone_state(root: &Path, plan: &MigrationPlan) -> Result<
     copy_tree_contents(&local.join("claims"), &plan.per_clone.claims)?;
     copy_tree_contents(&local.join("lock"), &plan.per_clone.locks)?;
     copy_tree_contents(&local.join("plugins"), &plan.per_clone.plugins_auth)?;
+    // Drop the SPEC §8 moved-clone breadcrumb at materialization time
+    // so `bl doctor` can detect a future `mv`. Phase 3 (bl-05e5).
+    crate::clone_breadcrumb::write_at(&plan.per_clone.claims, root)?;
     Ok(())
 }
 

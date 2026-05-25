@@ -39,7 +39,7 @@ pub use plugin::{
 };
 pub use ready_cmd::cmd_ready;
 pub use remaster::cmd_remaster;
-pub use repair::cmd_repair;
+pub use repair::{cmd_repair, RepairArgs};
 pub use sync::{cmd_prime, cmd_resolve, cmd_sync, SyncArgs};
 pub use update::cmd_update;
 

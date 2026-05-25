@@ -189,13 +189,16 @@ fn main() {
             list_staged,
         }),
         Command::Resolve { file } => commands::cmd_resolve(file),
-        Command::Prime { identity, json } => commands::cmd_prime(identity, json),
+        Command::Prime { identity, json, migrate } => {
+            commands::cmd_prime(identity, json, migrate)
+        }
         Command::Doctor => commands::cmd_doctor(),
-        Command::Repair {
-            fix,
-            forget_half_push,
-            forget_all_half_pushes,
-        } => commands::cmd_repair(fix, forget_half_push, forget_all_half_pushes),
+        Command::Repair { args } => commands::cmd_repair(commands::RepairArgs {
+            fix: args.fix,
+            forget_half_push: args.forget_half_push,
+            forget_all_half_pushes: args.forget_all_half_pushes,
+            rebind_path: args.rebind_path,
+        }),
         Command::Migrate => commands::cmd_migrate(),
         Command::Remaster {
             target,

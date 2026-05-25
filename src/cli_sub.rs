@@ -73,6 +73,30 @@ pub struct CloseArgs {
     pub participant: ParticipantFlags,
 }
 
+/// `bl repair` arguments. Flattened into `Command::Repair` so the
+/// enum stays under the 300-line cap (mirrors `CloseArgs`).
+#[derive(Args, Debug)]
+pub struct RepairFlags {
+    #[arg(long)]
+    pub fix: bool,
+    /// Retract a stale half-push warning for ID. Writes a
+    /// `state: forget-half-push <id>` commit on the state branch so
+    /// the detector stops flagging it. ID must currently be flagged.
+    /// Repeatable.
+    #[arg(long = "forget-half-push", value_name = "ID")]
+    pub forget_half_push: Vec<String>,
+    /// Retract every half-push warning currently detected.
+    #[arg(long = "forget-all-half-pushes", conflicts_with = "forget_half_push")]
+    pub forget_all_half_pushes: bool,
+    /// Move per-clone state under `~/.local/state/balls/` to this
+    /// clone's current `<nested-clone-path>`. Use after a clone `mv`
+    /// to re-bind the orphaned subtrees `bl doctor` reports. Refuses
+    /// if the destination already exists with content.
+    /// (SPEC-clone-layout §8 / §14.14, Phase 3 / bl-05e5.)
+    #[arg(long = "rebind-path")]
+    pub rebind_path: bool,
+}
+
 #[derive(Clone, Debug, ValueEnum)]
 pub enum ShellArg {
     Bash,
