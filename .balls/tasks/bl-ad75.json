@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-7997"],
   "description": "Three groups of integration tests whose fixtures construct or assert on specific legacy layouts; each needs bespoke rewiring against XDG before the cmd_init flip can land.\n\n## Scope\n\n### `tests/doctor.rs` (~15 failing tests pre-flip)\n\n`bl doctor` walks the on-disk state and reports drift. Many assertions check stdout/stderr text that names `.balls/state-repo`, `.balls/local/claims`, `.balls-worktrees/`, etc. Migrate so:\n\n- The fixture paths (`fs::remove_dir_all(.balls/state-repo)`, `fs::write(.balls/local/claims/bl-xxxx)`) target the XDG locations via the Phase 1B-1 helpers.\n- The expected stdout/stderr matches what `bl doctor` emits when reading an XDG-layout clone.\n- Doctor itself should already be XDG-aware via Phase 1A's read-side seam, but verify in this slice (any output-string drift is doctor's bug, fix it here).\n\n### `tests/conformance_federated.rs`\n\nFederated trackers under XDG live at `trackers/<enc-tracker-origin>/<enc-state-branch>/` (separate from the code repo's own checkout). The fixtures need to:\n\n- Stop seeding `.balls/config.json` with `state_url` on the code branch (that field is gone in XDG; the redirect is the `tracker.json` file on the code repo's own `balls/tasks` branch).\n- Materialize both the own checkout AND the federated tracker checkout under the XDG bases.\n- Verify the redirect resolution path through `Store::discover` (Phase 1A wired `xdg_discover::resolve_redirect`; this slice confirms the integration fixture exercises it).\n\n### `tests/conformance_migrate*.rs` (migrate, migrate_dirty, migrate_renames)\n\nThese test `bl migrate` (Phase 2, bl-717e), which converts legacy → XDG. They are already largely correct (they hand-construct legacy fixtures and run migrate). What needs adjusting:\n\n- Post-migrate assertions: the migration commit message says `balls: migrate to XDG layout`; the asserted target paths should be the XDG ones already.\n- Verify the fixtures still build a *legacy* pre-migration shape (this slice does not change migrate itself, just confirms it survives the helper-rewires).\n\n## Why it can land alone\n\nEach fixture is self-contained. None of the changes touch shared helpers or `Store`'s API. Lands as a final test-suite migration step before `cmd_init` flips.\n\n## Dependency\n\nDepends on Phase 1B-3 (the bulk assertion migration) — once that lands, only these three bespoke groups remain pre-flip.\n\n## Out of scope\n\n- The actual `cmd_init` flip — sibling Phase 1B-5.\n- bl remaster / bl --bare XDG-awareness — sibling Phase 1B-7.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":165,"source":"balls","state":"open","synced_at":"2026-05-25T23:02:39.867286130+00:00","url":"https://github.com/mudbungie/balls/issues/165"}}},
   "id": "bl-ad75",
   "links": [],
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-25T23:02:39.891559659Z"},
   "tags": ["xdg"],
   "title": "Phase 1B-4: migrate doctor + conformance_federated + conformance_migrate fixtures",
   "type": "task",
-  "updated_at": "2026-05-25T23:02:38.616756243Z"
+  "updated_at": "2026-05-25T23:02:39.891567664Z"
 }
