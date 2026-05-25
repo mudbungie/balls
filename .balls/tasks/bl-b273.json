@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-25T23:01:56.212176230Z",
+  "delivered_in": null,
+  "depends_on": ["bl-27af"],
+  "description": "Add the XDG `bl init` implementation as a new function and gate it with the four conformance tests, but leave `cmd_init` routing through legacy `Store::init`. The flip itself is sibling Phase 1B-5 (after test assertions are migrated).\n\n## Scope\n\n- New module `src/store_init_xdg.rs` with `pub fn init(from, stealth, tasks_dir)` per SPEC-clone-layout §3, §5, §6.4, §11. Non-stealth requires `origin`; materializes `trackers/<enc-origin>/balls%2Ftasks/`, seeds `.balls/{tasks,repo.json,project.json}` on the bootstrap branch (solo: no `tracker.json`), commits, best-effort pushes. Stealth writes `~/.config/balls/<nested>/clone.json` (`stealth=true` + `tasks_dir`), no tracker checkout, no origin. SPEC §4.1.\n- Wrap as `Store::init_xdg` (delegates to the new module) so the conformance tests can reach it through the `Store` surface without the binary path being flipped.\n- `Store::discover` routes the no-git branch through `xdg_discover::try_open` so a stealth clone resolves end-to-end.\n- `Store::load_config` grows an XDG branch that synthesizes a `Config` view from `RepoJson` + `ProjectConfig` (`integrate ↔ delivery`, `gate_command ↔ pre_check`) so the 15+ `load_config` call sites stay layout-agnostic through Phase 1B. Migrating individual call sites to `EffectiveConfig` is sibling Phase 1B-6 work.\n- New test `tests/conformance_xdg_init.rs` covering §14.1 (XDG paths from `bl init`, no `.balls/` at clone root, no `balls:` commit on main), §14.4 (bootstrap branch is constant: `repo.json` cannot override), §14.15 (stealth init writes `clone.json` keyed by `--tasks-dir`), §14.19 half-gated (init + create do not commit on main; full lifecycle gate needs claim XDG too — Phase 1C).\n\n## Why it can land alone\n\n`cmd_init` is unchanged in this slice, so existing integration tests still call legacy `bl init`. The new `Store::init_xdg` is exercised only by the four new conformance tests, which build their own clone fixture via `new_repo` + a custom HOME (`bl_xdg` helper).\n\n`Store::discover` change: the no-git → XDG path is additive. Legacy stealth still resolves via `store_legacy::discover_no_git`. XDG stealth gains a path that did not exist before.\n\n`Store::load_config` change: dispatches on `self.layout`. Legacy clones (every existing test) still hit `Config::load(config.json)` byte-identically. XDG clones get the synthesizer. No behavior change for legacy.\n\n## Dependency\n\nDepends on Phase 1B-1 (test helpers). The conformance tests use the per-thread HOME tempdir from the helpers; without it they pollute the user's real `~/.local/state/balls/`.\n\n## Source\n\nThe stash on `work/bl-e802` carries this work. Cherry-pick:\n\n- `src/store_init_xdg.rs` (new file).\n- `src/store.rs` (`init_xdg`, `discover` no-git tweak, `synthesize_xdg_config`, `state_repo` accessor if landed).\n- `src/lib.rs` (`mod store_init_xdg`).\n- `tests/conformance_xdg_init.rs` (new file).\n\nDo NOT pull the `cmd_init` edit, the bulk test-assertion rewrites, or the bare-remote new_repo edits into this slice; those are siblings.\n\n## Conformance\n\n§14.1, §14.4, §14.15, §14.19 (half-gated).",
+  "external": {},
+  "id": "bl-b273",
+  "links": [],
+  "parent": "bl-e802",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["architecture","xdg"],
+  "title": "Phase 1B-2: Store::init_xdg + §14.1/4/15/19 conformance (cmd_init still legacy)",
+  "type": "task",
+  "updated_at": "2026-05-25T23:01:56.212176230Z"
+}
