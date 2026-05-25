@@ -141,6 +141,83 @@ fn ready_queue_respects_transitive_deps() {
 }
 
 #[test]
+fn ready_hides_parent_with_live_child() {
+    // bl-c79c: a parent with an open child must not surface in `bl ready`
+    // or in `bl prime --json`'s ready array — the child is the claimable
+    // unit, the parent is not. Closing the last child re-exposes the
+    // parent (its `bl close` is then the remaining action).
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "epic");
+    let child_out = bl(repo.path())
+        .args(["create", "kid", "--parent", &parent])
+        .output()
+        .unwrap();
+    let child = String::from_utf8_lossy(&child_out.stdout).trim().to_string();
+
+    let ready = bl(repo.path()).args(["ready", "--json"]).output().unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&ready.stdout).unwrap();
+    let ids: Vec<String> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap().to_string())
+        .collect();
+    assert!(!ids.contains(&parent), "parent should be hidden: {ids:?}");
+    assert!(ids.contains(&child), "child should be ready: {ids:?}");
+
+    // Same filter must apply to `bl prime --json`'s ready array.
+    let prime = bl_as(repo.path(), "agent")
+        .args(["prime", "--json"])
+        .output()
+        .unwrap();
+    let pv: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&prime.stdout).trim()).unwrap();
+    let pids: Vec<String> = pv["ready"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(ids, pids, "prime ready must match ready --json");
+
+    // Close the child — parent now has no live children and reappears.
+    bl(repo.path())
+        .args(["update", &child, "status=closed"])
+        .assert()
+        .success();
+    let ready = bl(repo.path()).args(["ready", "--json"]).output().unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&ready.stdout).unwrap();
+    let ids: Vec<String> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["id"].as_str().unwrap().to_string())
+        .collect();
+    assert!(ids.contains(&parent), "parent should reappear: {ids:?}");
+}
+
+#[test]
+fn claim_rejects_parent_with_live_child() {
+    // bl-c79c: claiming a parent directly by id must fail with a message
+    // naming a live child, so a shell wrapper that passes through a
+    // parent id doesn't silently misroute the work.
+    let repo = new_repo();
+    init_in(repo.path());
+    let parent = create_task(repo.path(), "epic");
+    let child_out = bl(repo.path())
+        .args(["create", "kid", "--parent", &parent])
+        .output()
+        .unwrap();
+    let child = String::from_utf8_lossy(&child_out.stdout).trim().to_string();
+    bl_as(repo.path(), "agent")
+        .args(["claim", &parent])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(&child));
+}
+
+#[test]
 fn ready_json_output() {
     let repo = new_repo();
     init_in(repo.path());

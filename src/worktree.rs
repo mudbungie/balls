@@ -93,6 +93,7 @@ pub fn create_worktree(
         if crate::ready::is_dep_blocked(&all, &task) {
             return Err(BallError::DepsUnmet(id.to_string()));
         }
+        reject_if_has_live_child(&all, id)?;
 
         let wt_path = worktree_path(store, id)?;
         if wt_path.exists() {
@@ -178,6 +179,21 @@ fn link_state_path(src: PathBuf, dst: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+/// A parent task with any non-closed child is not directly claimable —
+/// the children are the actual work. Surfacing one live child id in the
+/// error gives the agent a concrete next handle without listing the
+/// whole tree.
+fn reject_if_has_live_child(all: &[crate::task::Task], id: &str) -> Result<()> {
+    let live = crate::ready::live_children(all, id);
+    if let Some(child) = live.first() {
+        return Err(BallError::NotClaimable(format!(
+            "{id} (has live child {})",
+            child.id
+        )));
+    }
+    Ok(())
+}
+
 fn rollback_claim(store: &Store, id: &str) -> Result<()> {
     if let Ok(mut t) = store.load_task(id) {
         t.status = Status::Open;
@@ -215,6 +231,7 @@ pub fn claim_no_worktree(
         if crate::ready::is_dep_blocked(&all, &task) {
             return Err(BallError::DepsUnmet(id.to_string()));
         }
+        reject_if_has_live_child(&all, id)?;
         task.status = Status::InProgress;
         task.claimed_by = Some(identity.to_string());
         anchor_repo(store, &mut task);
