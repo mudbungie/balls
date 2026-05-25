@@ -18,5 +18,5 @@
   "tags": ["architecture","xdg"],
   "title": "Phase 1B-6: migrate load_config call sites to EffectiveConfig (retire the XDG synthesizer)",
   "type": "task",
-  "updated_at": "2026-05-25T23:03:10.295773539Z"
+  "updated_at": "2026-05-25T23:10:48.264730351Z"
 }
