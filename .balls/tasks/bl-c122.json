@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-213e"],
   "description": "Retire `Store::load_config`'s XDG synthesizer (the temporary `Config` view built from `RepoJson` + `ProjectConfig` to keep legacy call sites compiling through Phase 1B). Replace each `store.load_config()?` with the right narrow `EffectiveConfig` read, so the binary stops translating between schemas at runtime.\n\n## Scope\n\n15+ call sites: `review_close.rs`, `review.rs`, `review_safety.rs`, `store.rs` (`worktrees_root`), `doctor.rs`, `commands/ready_cmd.rs`, `commands/sync.rs` (×3), `commands/basic.rs`, `commands/plumbing.rs`, `commands/lifecycle.rs`, `commands/half_push.rs`, `commands/claim.rs`.\n\nFor each: identify which fields the call site actually reads from the synthesized `Config` (most read just `worktree_dir`, `integration_branch`, `delivery_mode`, or one of the `require_remote_on_*` booleans) and rewrite to read from `store.load_effective_config()` returning `EffectiveConfig`.\n\nThen drop `synthesize_xdg_config` from `store.rs` and inline `load_config` on the legacy path (or retire `load_config` entirely once no caller remains; the legacy path becomes `Config::load(store.config_path())` at the single `bl migrate` site).\n\n## Why it can land alone\n\nBy the time Phase 1B-5 has flipped `cmd_init` to XDG, every running clone reads through the synthesizer. This slice is a refactor that strips the translation layer; behavior unchanged.\n\n## Dependency\n\nDepends on Phase 1B-5 (the flip). Before the flip, legacy call sites still need `Config`-shaped reads.\n\n## Out of scope\n\n- Any field added to `EffectiveConfig` — its schema is fixed by SPEC §6.5.\n- `bl remaster` / `bl --bare` XDG — sibling Phase 1B-7.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":167,"source":"balls","state":"open","synced_at":"2026-05-25T23:03:10.281972015+00:00","url":"https://github.com/mudbungie/balls/issues/167"}}},
   "id": "bl-c122",
   "links": [],
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-25T23:03:10.295765263Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1B-6: migrate load_config call sites to EffectiveConfig (retire the XDG synthesizer)",
   "type": "task",
-  "updated_at": "2026-05-25T23:03:09.471381412Z"
+  "updated_at": "2026-05-25T23:03:10.295773539Z"
 }
