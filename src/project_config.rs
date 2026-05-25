@@ -14,6 +14,7 @@
 //! are read from `config.json` until `state_repo::seed` migrates them.
 
 use crate::error::{BallError, Result};
+use crate::layered_fields::{Integrate, ReviewBlock};
 use crate::participant::Event;
 use crate::participant_config::{ParticipantConfig, PolicyKind};
 use serde::{Deserialize, Serialize};
@@ -73,6 +74,30 @@ pub struct ProjectConfig {
     /// The plugin map: which external-tracker plugins the project runs.
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginEntry>,
+
+    // ---- SPEC-clone-layout §6.2 layered-field project-wide defaults ----
+    //
+    // Each is optional; `None` means "no project-wide default for
+    // this field — fall through to built-in." The new XDG `bl init`
+    // writes them; pre-XDG `project.json` files don't carry them and
+    // serde reads them as `None` (lenient unknown is the project-wide
+    // §6.9 invariant). The precedence merge happens in
+    // `crate::effective_config`.
+    /// Project-wide default for `integrate.mode` (§6.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub integrate: Option<Integrate>,
+    /// Project-wide default for `review.gate_command` (§6.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<ReviewBlock>,
+    /// Project-wide default for `require_remote_on_claim` (§6.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_remote_on_claim: Option<bool>,
+    /// Project-wide default for `require_remote_on_review` (§6.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_remote_on_review: Option<bool>,
+    /// Project-wide default for `require_remote_on_close` (§6.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_remote_on_close: Option<bool>,
 }
 
 impl Default for ProjectConfig {
@@ -82,6 +107,11 @@ impl Default for ProjectConfig {
             id_length: default_id_length(),
             min_bl_version: None,
             plugins: BTreeMap::new(),
+            integrate: None,
+            review: None,
+            require_remote_on_claim: None,
+            require_remote_on_review: None,
+            require_remote_on_close: None,
         }
     }
 }
@@ -194,3 +224,7 @@ fn validate_drop_policies(plugins: &BTreeMap<String, PluginEntry>) -> Result<()>
 #[cfg(test)]
 #[path = "project_config_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "project_config_layered_tests.rs"]
+mod layered_tests;
