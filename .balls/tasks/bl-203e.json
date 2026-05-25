@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-77cb"],
   "description": "test",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":151,"source":"balls","state":"open","synced_at":"2026-05-25T18:50:04.644731363+00:00","url":"https://github.com/mudbungie/balls/issues/151"}}},
+  "external": {"github-issues":{}},
   "id": "bl-203e",
   "links": [],
   "parent": "bl-f021",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-25T18:50:04.669359911Z"},
+  "synced_at": {"github-issues":"2026-05-25T19:15:45.396728006Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1 integration: Store::discover + bl init + bl claim + dual-read",
   "type": "task",
-  "updated_at": "2026-05-25T19:15:45.029780064Z"
+  "updated_at": "2026-05-25T19:15:45.396733095Z"
 }
