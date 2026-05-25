@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-203e"],
   "description": "Phase 1B of bl-f021, sibling of bl-203e (Phase 1A). Filed 2026-05-25 when bl-203e was split.\n\n## Scope\n\nPer SPEC-clone-layout §3, §5, §6.4, §7, §11, §12.\n\n### Implements\n\n1. **`bl init` rewrite — XDG only.**\n   - No `.balls/` at the clone root, no `.gitignore` entry, no `balls: initialize` commit on main.\n   - Pushes a `balls/tasks` orphan branch with default `repo.json` + `project.json`, no `tracker.json` (solo case).\n   - `bl init --stealth [--tasks-dir <path>]` writes `~/.config/balls/<nested-clone-path>/clone.json` with `stealth: true` + `tasks_dir`. No origin requirement; no `trackers/` subtree.\n   - §14.1, §14.19 (no on-main writes in steady state).\n\n2. **Mass migration of init-touching tests.** Each test that called `bl init` now gets XDG paths back; assertions update from `repo.path().join(\".balls/...\")` to the XDG tracker checkout / per-clone tree. `tests/common/mod.rs` helpers (`read_task_json`, `git_state`, `commit_state_repo`, `push`) gain a layout-aware discovery hook (resolve the state checkout via balls::store::Store).\n\n### Conformance tests\n\n§14.1 (XDG paths from `bl init`), §14.4 (bootstrap branch constant — bl init writes `origin balls/tasks`, no config field overrides), §14.15 stealth init writing clone.json, §14.19 (no main commits across full lifecycle — half-gated; full gate needs claim XDG too).\n\n### Explicitly NOT in scope\n\n- `bl claim` worktree relocation — Phase 1C.\n- Tests that don't touch `bl init` — Phase 1C.\n- `bl migrate` — Phase 2.\n\n## Dependencies\n\nHard depends on bl-203e (Phase 1A landed).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":153,"source":"balls","state":"open","synced_at":"2026-05-25T19:16:56.075153646+00:00","url":"https://github.com/mudbungie/balls/issues/153"}}},
   "id": "bl-e802",
   "links": [],
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-25T19:16:56.088307527Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1B: bl init XDG-only flip",
   "type": "task",
-  "updated_at": "2026-05-25T19:16:55.396478063Z"
+  "updated_at": "2026-05-25T19:16:56.088316023Z"
 }
