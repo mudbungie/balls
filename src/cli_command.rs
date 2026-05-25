@@ -262,10 +262,10 @@ pub enum Command {
         forget_all_half_pushes: bool,
     },
 
+    /// Relocate this clone to the nested XDG layout (SPEC §11.1).
+    Migrate,
     /// Re-point this repo's task state branch at TARGET (a tracker
-    /// URL) and reconcile local-only tasks onto it, writing the
-    /// address to `.balls/config.json`. `--commit` also commits.
-    /// `--detach` clears the address and returns to standalone.
+    /// URL) and reconcile local-only tasks onto it.
     Remaster {
         /// Tracker URL whose state branch becomes authoritative.
         /// Omit only with `--detach`.

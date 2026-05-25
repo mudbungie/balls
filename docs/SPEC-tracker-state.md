@@ -94,12 +94,12 @@ Two files, two owners, no field owned by both:
 | `config.json` — **repo** (committed to the code branch) | `project.json` — **project** (committed on the tracker branch) |
 |---|---|
 | `state_url`, `state_branch` (the tracker address) | `version` (store schema) |
-| `target_branch`, `delivery`, `review.pre_check` | `id_length` |
+| `integrate`, `review.gate_command` | `id_length` |
 | `worktree_dir`, `protected_main` | `min_bl_version` |
 | `require_remote_on_claim` / `_review` / `_close` | `plugins` (config + §11 participant policy) |
 | `auto_fetch_on_ready`, `stale_threshold_seconds` | |
 
-The split follows ownership, not convenience. `review.pre_check` is the proof case: a Rust tracker's `make check` cannot gate a JavaScript participant, so the build/test gate is *repo* property. `target_branch` and `delivery` describe how *this code repo* integrates — repo. `id_length` must be consistent for every task ID minted into the shared store — project. Plugin config describes the project's mirror to an external tracker — project.
+The split follows ownership, not convenience. `review.gate_command` is the proof case: a Rust tracker's `make check` cannot gate a JavaScript participant, so the build/test gate is *repo* property. `integrate` describes how *this code repo* integrates — repo (repo-level `target_branch` was removed in SPEC-clone-layout §6.7; per-task `target_branch` survives on the task file). `id_length` must be consistent for every task ID minted into the shared store — project. Plugin config describes the project's mirror to an external tracker — project.
 
 `project.json` is read through the `.balls/project.json` symlink, so a clone always has it (the tracker hosts it even for a solo project, on the repo's own `balls/tasks`). **On overlap, `project.json` wins.** That precedence is load-bearing: it makes project ownership *enforced* — a stale or rogue `config.json` value for a project-owned field is ignored, not honored — and it is the migration path: move a field from `config.json` to `project.json`, new clients converge on the project value, old clients that do not know `project.json` fall back to their built-in default. A field never needs to live in both; the precedence exists for the transition and for integrity, not as a steady state.
 
