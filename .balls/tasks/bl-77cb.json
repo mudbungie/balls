@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-77cb",
-  "claimed_by": "mark",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-24T07:15:29.678311218Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-25T17:14:01.691593970Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1: dual-read XDG layout, bl init writes XDG only",
   "type": "task",
-  "updated_at": "2026-05-25T17:14:01.691602817Z"
+  "updated_at": "2026-05-25T17:14:13.242754438Z"
 }
