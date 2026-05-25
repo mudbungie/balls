@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "test",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":136,"source":"balls","state":"open","synced_at":"2026-05-24T07:17:56.821896471+00:00","url":"https://github.com/mudbungie/balls/issues/136"}}},
+  "external": {"github-issues":{}},
   "id": "bl-77cb",
   "links": [],
   "parent": "bl-f021",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-24T07:17:56.833660107Z"},
+  "synced_at": {"github-issues":"2026-05-25T17:13:01.870689884Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1: dual-read XDG layout, bl init writes XDG only",
   "type": "task",
-  "updated_at": "2026-05-25T17:13:01.376681054Z"
+  "updated_at": "2026-05-25T17:13:01.870692148Z"
 }
