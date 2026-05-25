@@ -8,10 +8,17 @@ use common::*;
 use std::fs;
 
 #[test]
-fn clean_repo_is_silent() {
+fn clean_repo_reports_only_the_pending_xdg_migration() {
+    // Pre-Phase-1B, `bl init` writes the legacy layout, so the
+    // SPEC-clone-layout §12 row 2 nudge from bl-05e5 always fires
+    // on a fresh-init clone. The only finding is the migration hint;
+    // no drift, no orphans.
     let repo = new_repo();
     init_in(repo.path());
-    assert!(doctor(repo.path()).contains("no problems detected"));
+    let out = doctor(repo.path());
+    assert!(out.contains("legacy layout in use"));
+    assert!(out.contains("bl prime --migrate"));
+    assert!(out.contains("1 problem"));
 }
 
 #[test]
@@ -88,11 +95,15 @@ fn stale_tasks_symlink_target_is_flagged() {
 fn deleted_state_checkout_rebuilds_via_doctors_hint() {
     // `.balls/state-repo` is re-materializable runtime state — the
     // doctor hint says re-run `bl prime`, and doing so self-heals.
+    // The legacy-layout finding still fires (pre-Phase-1B init writes
+    // legacy); the state-checkout finding does not.
     let repo = new_repo();
     init_in(repo.path());
     fs::remove_dir_all(repo.path().join(".balls/state-repo")).unwrap();
     bl(repo.path()).arg("prime").assert().success();
-    assert!(doctor(repo.path()).contains("no problems detected"));
+    let out = doctor(repo.path());
+    assert!(!out.contains("not a valid git clone"));
+    assert!(out.contains("legacy layout in use"));
 }
 
 #[test]
@@ -117,14 +128,18 @@ fn claim_file_for_task_not_in_progress() {
 }
 
 #[test]
-fn properly_claimed_task_is_silent() {
+fn properly_claimed_task_is_silent_beyond_migration_hint() {
     // Exercises the in-progress claim arm and a worktree that *does*
-    // have a matching claim — neither is drift.
+    // have a matching claim — neither is drift. The legacy-layout
+    // finding still fires until Phase 1B flips `bl init` to XDG.
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "real work");
     bl(repo.path()).args(["claim", &id]).assert().success();
-    assert!(doctor(repo.path()).contains("no problems detected"));
+    let out = doctor(repo.path());
+    assert!(!out.contains("orphan"));
+    assert!(!out.contains("but no such task"));
+    assert!(out.contains("legacy layout in use"));
 }
 
 #[test]
@@ -168,9 +183,12 @@ fn tasks_dir_override_points_nowhere() {
 }
 
 #[test]
-fn healthy_stealth_store_is_silent() {
+fn healthy_stealth_store_only_reports_migration_hint() {
     // --tasks-dir points the override at a real directory: not drift,
     // and the state-worktree check is correctly skipped for stealth.
+    // Stealth `bl init` still writes `.balls/config.json`, so the
+    // legacy-layout finding fires for the same reason as the
+    // non-stealth case.
     let repo = new_repo();
     let ext = tmp();
     bl(repo.path())
@@ -178,15 +196,20 @@ fn healthy_stealth_store_is_silent() {
         .arg(ext.path())
         .assert()
         .success();
-    assert!(doctor(repo.path()).contains("no problems detected"));
+    let out = doctor(repo.path());
+    assert!(out.contains("legacy layout in use"));
+    assert!(!out.contains("not a valid git clone"));
 }
 
 #[test]
-fn missing_claims_dir_is_not_an_error() {
+fn missing_claims_dir_is_not_a_stale_claim_finding() {
     let repo = new_repo();
     init_in(repo.path());
     fs::remove_dir_all(repo.path().join(".balls/local/claims")).unwrap();
-    assert!(doctor(repo.path()).contains("no problems detected"));
+    let out = doctor(repo.path());
+    assert!(!out.contains("but no such task"));
+    assert!(!out.contains("but its status"));
+    // The legacy-layout migration hint still fires; that's expected.
 }
 
 // master_url-mode probes live in tests/doctor_master_url.rs — split

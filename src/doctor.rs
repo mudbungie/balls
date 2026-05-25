@@ -8,8 +8,9 @@
 //! `repair` stays the only action verb; doctor only ever suggests.
 
 use crate::doctor_symlink::check_tasks_symlink;
-use crate::store::Store;
+use crate::store::{Layout, Store};
 use crate::task::Status;
+use crate::xdg_paths::XdgBases;
 use std::fs;
 use std::path::Path;
 
@@ -22,7 +23,7 @@ pub struct Finding {
 }
 
 impl Finding {
-    pub(crate) fn flag(problem: impl Into<String>, hint: impl Into<String>) -> Self {
+    pub fn flag(problem: impl Into<String>, hint: impl Into<String>) -> Self {
         Finding { problem: problem.into(), hint: Some(hint.into()) }
     }
     fn note(problem: impl Into<String>) -> Self {
@@ -77,7 +78,52 @@ fn check_store(store: &Store) -> Vec<Finding> {
     check_state_repo(store, &mut out);
     check_stale_claims(store, &mut out);
     check_orphan_worktrees(store, &mut out);
+    check_legacy_layout(store, &mut out);
+    check_moved_clone(store, &mut out);
     out
+}
+
+/// Phase 3 (bl-05e5) / SPEC-clone-layout §12: when the resolved store
+/// is the legacy layout, list the markers and name `bl prime --migrate`
+/// or `bl migrate` as the fix. Read-only — never converts.
+fn check_legacy_layout(store: &Store, out: &mut Vec<Finding>) {
+    if store.layout != Layout::Legacy {
+        return;
+    }
+    if let Some(finding) = legacy_layout_finding(&store.root) {
+        out.push(finding);
+    }
+}
+
+/// Pure helper: build the legacy-layout finding for `root`, or
+/// `None` when no markers are present. Pulled out so the empty-arm
+/// has a direct unit test (a Layout::Legacy store with no markers
+/// is unreachable from `bl init`, but the gate stays defensive).
+pub(crate) fn legacy_layout_finding(root: &Path) -> Option<Finding> {
+    let markers = crate::legacy_layout::detect(root);
+    if markers.is_empty() {
+        return None;
+    }
+    let paths: Vec<String> = markers.iter().map(|m| m.path.display().to_string()).collect();
+    Some(Finding::flag(
+        format!("legacy layout in use; markers: {}", paths.join(", ")),
+        "run `bl prime --migrate` (or `bl migrate`) to relocate this clone \
+         onto the XDG layout (SPEC-clone-layout §11.1)",
+    ))
+}
+
+/// Phase 3 (bl-05e5) / SPEC §8 + §14.14: surface orphaned per-clone
+/// state from a moved clone. Each orphan becomes one finding naming
+/// the old subtree, the orphan task IDs, and the `bl repair
+/// --rebind-path` command. Stealth/legacy clones have no XDG
+/// per-clone tree to walk; skip them.
+fn check_moved_clone(store: &Store, out: &mut Vec<Finding>) {
+    if store.stealth || store.layout != Layout::Xdg {
+        return;
+    }
+    let Some(bases) = XdgBases::from_env() else { return };
+    let orphans = crate::doctor_moved::find_orphans(&bases, &store.root);
+    out.extend(crate::doctor_moved::to_findings(&orphans, &store.root));
 }
 
 fn check_config(store: &Store, out: &mut Vec<Finding>) {
@@ -142,6 +188,12 @@ fn check_stale_claims(store: &Store, out: &mut Vec<Finding>) {
     };
     for e in entries.flatten() {
         let id = e.file_name().to_string_lossy().to_string();
+        // The Phase 3 (bl-05e5) moved-clone breadcrumb sits in
+        // `claims/<nested>/clone-path.json`. It is not a claim;
+        // filter it out so it doesn't surface as a phantom orphan.
+        if !id.starts_with("bl-") {
+            continue;
+        }
         match store.load_task(&id) {
             Err(_) => out.push(Finding::flag(
                 format!("claim file for {id} but no such task in the store"),
@@ -178,5 +230,27 @@ fn check_orphan_worktrees(store: &Store, out: &mut Vec<Finding>) {
                 "run `bl repair --fix` to remove orphaned worktrees",
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod legacy_finding_tests {
+    use super::legacy_layout_finding;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn returns_none_when_no_markers() {
+        let dir = TempDir::new().unwrap();
+        assert!(legacy_layout_finding(dir.path()).is_none());
+    }
+
+    #[test]
+    fn returns_some_when_marker_present() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join(".balls")).unwrap();
+        fs::write(dir.path().join(".balls/config.json"), "{}").unwrap();
+        let f = legacy_layout_finding(dir.path()).unwrap();
+        assert!(f.problem.contains("legacy layout in use"));
     }
 }
