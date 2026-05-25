@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-e802",
-  "claimed_by": "Threshes",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-25T19:16:55.396478063Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-25T22:27:45.841041069Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1B: bl init XDG-only flip",
   "type": "task",
-  "updated_at": "2026-05-25T22:28:09.351887732Z"
+  "updated_at": "2026-05-25T23:03:53.444814225Z"
 }
