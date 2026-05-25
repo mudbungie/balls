@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "A parent task whose children are not all closed should not surface in `bl ready` (or `bl prime`'s ready section). It cannot be picked up — `bl claim` on an epic is wrong work; the children are what's actually claimable. Today `ready_queue` in src/ready.rs:6 filters only on status / claim / `depends_on`, ignoring parenthood, so epics get surfaced and a shell wrapper that maps \"ready\" → \"spawn an agent\" wastes a session.\n\n## Behavior\n\n- A task with any non-closed child is hidden from `bl ready` and `bl prime`'s ready section.\n- It re-appears in `ready` the moment the last child closes — at that point the parent itself is the only remaining work and `bl close <epic>` is the next action.\n- `bl claim <id>` against a parent with live children should fail fast with a clear error pointing at the live children (so direct claims by id also don't silently misroute).\n- Independent of task `type` (\"epic\", \"task\", etc.) — the rule is \"has live children\", structural not tag-based.\n\n## Out of scope\n\n- Changing how a parent auto-closes when its last child closes (current behavior preserved — closing the last child does not close the parent; the parent must be explicitly closed).\n- Changing what `bl list` / `bl dep tree` show. Those are inventory views; ready is the \"spawn me an agent\" view.\n\n## Why\n\nHit while picking up bl-f021 (epic) via a shell wrapper that reads `bl ready` and starts a session per id. The epic surfaced as ready alongside its real children; the wrapper had no way to know the difference. `ready` should mean \"claimable right now,\" not \"open with deps satisfied.\"\n\n## Tests gated\n\n- `ready_queue` excludes a parent with at least one non-closed child.\n- `ready_queue` includes a parent once all its children are closed.\n- `ready_queue` is unchanged for leaf tasks (no children).\n- `bl claim` against a parent with live children errors with a message naming a live child id.\n- `bl prime --json` ready array matches `bl ready --json` (same filter applies in both surfaces).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":147,"source":"balls","state":"open","synced_at":"2026-05-24T08:07:51.033604971+00:00","url":"https://github.com/mudbungie/balls/issues/147"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":147,"source":"balls","state":"open","synced_at":"2026-05-25T07:36:35.285936198+00:00","url":"https://github.com/mudbungie/balls/issues/147"}}},
   "id": "bl-c79c",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-24T08:07:51.050970037Z"},
+  "synced_at": {"github-issues":"2026-05-25T07:36:35.305107996Z"},
   "tags": [],
   "title": "bl ready hides parents with live children",
   "type": "bug",
-  "updated_at": "2026-05-25T07:36:34.373185192Z"
+  "updated_at": "2026-05-25T07:36:35.305116933Z"
 }
