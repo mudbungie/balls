@@ -12,6 +12,7 @@ pub mod doctor;
 pub mod init;
 mod half_push;
 pub mod lifecycle;
+pub mod migrate;
 pub mod plugin;
 mod plumbing;
 mod prime_status;
@@ -27,6 +28,7 @@ pub mod update;
 
 pub use basic::{cmd_create, cmd_list, cmd_show, CreateArgs};
 pub use init::cmd_init;
+pub use migrate::cmd_migrate;
 pub use completions::{install_completions, uninstall_completions};
 pub use dep_link::{cmd_dep, cmd_link};
 pub use doctor::cmd_doctor;
