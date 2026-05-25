@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-ad75"],
   "description": "Route `cmd_init` through `Store::init_xdg` so production `bl init` writes the XDG layout. By this point every integration test is layout-tolerant; the flip flips green.\n\n## Scope\n\n- `src/commands/init.rs`: replace `Store::init(&cwd, stealth, tasks_dir)` with `Store::init_xdg(&cwd, stealth, tasks_dir)` on the non-`--bare` path. Update the module-doc.\n- Verify the four §14.x gates from Phase 1B-2 still pass (they should — they hit `init_xdg` directly, not `cmd_init`).\n- Add the rest of §14.19: a full lifecycle (init → create → claim → review → close) on a post-flip clone leaves `git log main` with exactly the one `[bl-xxxx]` delivery commit and nothing else. Half of this gate landed in Phase 1B-2; this slice closes it.\n- Run the full `scripts/pre-commit` gate (clippy + line lengths + tests + tarpaulin 100% coverage). The pre-commit hook will fail the commit if any test or the coverage check fails — this is the load-bearing gate for the slice.\n\n## Why it can land alone\n\nBy dependency, Phase 1B-1 through 1B-4 have already moved every assertion site off legacy paths. The flip is then a one-function-call change.\n\n## Dependency\n\nHard depends on Phase 1B-4 (and transitively on 1B-1 through 1B-3). Without those the test suite breaks the moment `cmd_init` changes.\n\n## Out of scope\n\n- `bl --bare` XDG-awareness — sibling Phase 1B-7.\n- `bl remaster` XDG-awareness — sibling Phase 1B-7.\n- EffectiveConfig migration of `load_config` call sites — sibling Phase 1B-6.\n\n## Conformance\n\nCloses §14.19 (full lifecycle no-on-main-writes). The other gates (§14.1, §14.4, §14.15) already pass from Phase 1B-2.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":166,"source":"balls","state":"open","synced_at":"2026-05-25T23:02:55.125553631+00:00","url":"https://github.com/mudbungie/balls/issues/166"}}},
   "id": "bl-213e",
   "links": [],
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-25T23:02:55.145314003Z"},
   "tags": ["xdg"],
   "title": "Phase 1B-5: flip cmd_init to Store::init_xdg, close §14.19 lifecycle gate",
   "type": "task",
-  "updated_at": "2026-05-25T23:02:54.191750490Z"
+  "updated_at": "2026-05-25T23:02:55.145325115Z"
 }
