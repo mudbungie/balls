@@ -2,11 +2,9 @@ use crate::config::Config;
 use crate::error::{BallError, Result};
 use crate::project_config::ProjectConfig;
 use crate::git;
-use crate::store_init::{bootstrap_bare_clone, commit_init};
-use crate::store_paths::{find_balls_root, find_main_root, init_stealth_tasks, stealth_tasks_override};
+use crate::store_paths::find_main_root;
 use crate::task::{self, Task};
-use crate::tracker_address;
-use std::fs;
+use crate::xdg_discover;
 use std::path::{Path, PathBuf};
 
 // flock primitives live in `store_lock` to keep this file under the
@@ -14,19 +12,52 @@ use std::path::{Path, PathBuf};
 // API path `balls::store::{task_lock, LockGuard}` is unchanged.
 pub use crate::store_lock::{task_lock, LockGuard};
 
+/// Which on-disk layout the resolved Store is operating against —
+/// SPEC-clone-layout's nested XDG layout (the new shape), or the
+/// pre-XDG in-repo layout (`.balls/` colocated, `.balls-worktrees/`
+/// in tree). Phase 1A reads either; Phase 1B (bl init) writes only
+/// `Xdg`. The discriminant is consulted by the few sites that need
+/// layout-specific behavior (`bl migrate`, `bl doctor`); the path
+/// accessors return the resolved field so most callers do not care.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    /// Nested XDG layout per SPEC-clone-layout §3 — `trackers/`,
+    /// `worktrees/`, `claims/`, `locks/`, `plugins-auth/` under
+    /// `~/.local/state/balls/`; `clone.json` under `~/.config/balls/`.
+    Xdg,
+    /// Pre-XDG in-repo layout: `.balls/config.json` committed to main,
+    /// `.balls/state-repo/` runtime checkout, `.balls-worktrees/` in
+    /// tree. Phase 1 reads this when no XDG state is materialized;
+    /// `bl migrate` (Phase 2, bl-717e) relocates it.
+    Legacy,
+}
+
 pub struct Store {
     pub root: PathBuf,
     pub stealth: bool,
     /// True when no git repository is available. Implies stealth.
     pub no_git: bool,
-    tasks_dir_path: PathBuf,
-    /// Where state-branch git ops run — the unified `.balls/state-repo`
-    /// checkout for every non-stealth repo. A meaningless sentinel in
-    /// stealth mode; callers branch on `stealth` first.
+    /// Which on-disk layout `discover` resolved against (§12 dual-read).
+    pub layout: Layout,
+    pub(crate) tasks_dir_path: PathBuf,
+    /// Where state-branch git ops run — the tracker checkout under XDG
+    /// (`~/.local/state/balls/trackers/<enc-origin>/<enc-branch>/`) or
+    /// `.balls/state-repo` under legacy. Meaningless in stealth mode.
     pub(crate) state_repo_path: PathBuf,
     /// The tracker's state branch (SPEC-tracker-state §5), cached at
-    /// discovery from `.balls/state-repo`'s HEAD. Default in stealth.
+    /// discovery.
     pub(crate) state_branch_name: String,
+    /// Layout-aware per-clone path fields. Populated at discovery /
+    /// init; accessor methods return the resolved value so callers
+    /// stay layout-agnostic. Under legacy these are all under
+    /// `<root>/.balls/`; under XDG they live under XDG bases.
+    pub(crate) claims_dir_path: PathBuf,
+    pub(crate) lock_dir_path: PathBuf,
+    pub(crate) local_plugins_dir_path: PathBuf,
+    pub(crate) worktrees_root_path: PathBuf,
+    pub(crate) local_dir_path: PathBuf,
+    pub(crate) config_file_path: PathBuf,
+    pub(crate) project_config_file_path: PathBuf,
 }
 
 impl Store {
@@ -34,7 +65,7 @@ impl Store {
     /// In a worktree, returns the main repo root so that all writes go there.
     pub fn discover(from: &Path) -> Result<Self> {
         match Self::discover_git(from) {
-            Err(BallError::NotARepo) => Self::discover_no_git(from),
+            Err(BallError::NotARepo) => crate::store_legacy::discover_no_git(from),
             other => other,
         }
     }
@@ -43,161 +74,16 @@ impl Store {
         crate::store_paths::require_git_repo(from)?;
         let common_dir = git::git_common_dir(from)?;
         let main_root = find_main_root(&common_dir)?;
+        git::git_ensure_user(&main_root)?;
+        // SPEC §12 row 2: prefer the new layout when present, fall
+        // back to legacy with a one-line nudge to migrate.
+        if let Some(store) = xdg_discover::try_open(&main_root)? {
+            return Ok(store);
+        }
         if !main_root.join(".balls").exists() {
             return Err(BallError::git_repo_no_balls(&main_root));
         }
-        git::git_ensure_user(&main_root)?;
-        if let Some(tasks_dir_path) = stealth_tasks_override(&main_root) {
-            let state_repo_path = main_root.join(crate::state_repo::STATE_REPO_REL);
-            return Ok(Store {
-                root: main_root,
-                stealth: true,
-                no_git: false,
-                tasks_dir_path,
-                state_repo_path,
-                state_branch_name: tracker_address::DEFAULT_BRANCH.to_string(),
-            });
-        }
-        // The unified model resolves ONE checkout, `.balls/state-repo`,
-        // materialized from the tracker address (SPEC §6). An
-        // unreachable explicit tracker hard-fails here (§9).
-        let state_repo_path = Self::ensure_state_repo(&main_root)?;
-        let tasks_dir_path = state_repo_path.join(".balls/tasks");
-        if !tasks_dir_path.exists() {
-            return Err(BallError::state_worktree_missing(&main_root, &tasks_dir_path));
-        }
-        let state_branch_name = resolve_state_branch(&state_repo_path);
-        Ok(Store {
-            root: main_root,
-            stealth: false,
-            no_git: false,
-            tasks_dir_path,
-            state_repo_path,
-            state_branch_name,
-        })
-    }
-
-    /// Materialize `.balls/state-repo` if absent, returning its path.
-    /// A warm checkout is returned with best-effort project-config
-    /// migration and branch alignment — no network round-trip.
-    /// Failures in the warm fast path fall through silently so a
-    /// broken state-repo or corrupt config stays discoverable for
-    /// `bl doctor` to surface the real problem.
-    fn ensure_state_repo(root: &Path) -> Result<PathBuf> {
-        let dir = root.join(crate::state_repo::STATE_REPO_REL);
-        if dir.join(".git").exists() {
-            crate::state_repo::ensure_project_config(root, &dir)?;
-            if let Ok(cfg) = Config::load(&root.join(".balls/config.json")) {
-                let addr = tracker_address::resolve(root, &cfg);
-                let _ = crate::state_repo::align_warm_branch(&dir, &addr.branch);
-            }
-            crate::legacy_plugin_migrate::run(root)?; // bl-de57 warm-path self-heal
-            return Ok(dir);
-        }
-        let cfg = Config::load(&root.join(".balls/config.json"))?;
-        let addr = tracker_address::resolve(root, &cfg);
-        crate::state_repo::ensure(root, &addr)
-    }
-
-    fn discover_no_git(from: &Path) -> Result<Self> {
-        let root = find_balls_root(from)?;
-        let tasks_dir = stealth_tasks_override(&root);
-        if let Some(p) = tasks_dir.as_ref().filter(|p| p.exists()) {
-            return Ok(Store {
-                state_repo_path: root.join(crate::state_repo::STATE_REPO_REL),
-                tasks_dir_path: p.clone(),
-                root,
-                stealth: true,
-                no_git: true,
-                state_branch_name: tracker_address::DEFAULT_BRANCH.to_string(),
-            });
-        }
-        let had = tasks_dir.is_some();
-        let shown = tasks_dir.unwrap_or_else(|| root.join(".balls/tasks"));
-        Err(BallError::no_git_store_unusable(&root, &shown, had))
-    }
-
-    pub fn init(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
-        if let Some(ref td) = tasks_dir {
-            if !Path::new(td).is_absolute() {
-                return Err(BallError::Other(format!("--tasks-dir must be an absolute path, got: {td}")));
-            }
-        }
-        let (repo_root, no_git) = match git::git_root(from) {
-            Ok(r) => (r, false),
-            Err(BallError::NotARepo) if tasks_dir.is_some() => {
-                (fs::canonicalize(from).unwrap_or_else(|_| from.to_path_buf()), true)
-            }
-            Err(e) => return Err(e),
-        };
-        if !no_git {
-            git::git_ensure_user(&repo_root)?;
-            git::git_init_commit(&repo_root)?;
-        }
-
-        let balls_dir = repo_root.join(".balls");
-        let local_dir = balls_dir.join("local");
-        let already = balls_dir.join("config.json").exists();
-        // On a non-stealth repo `.balls/plugins` becomes a symlink into
-        // the state checkout; a re-init must not `create_dir_all`
-        // through that symlink (it dangles until `ensure` rebuilds).
-        let plugins = balls_dir.join("plugins");
-        if !plugins.is_symlink() {
-            fs::create_dir_all(&plugins)?;
-        }
-        fs::create_dir_all(local_dir.join("claims"))?;
-        fs::create_dir_all(local_dir.join("lock"))?;
-        fs::create_dir_all(local_dir.join("plugins"))?;
-        let config_path = balls_dir.join("config.json");
-        if !config_path.exists() {
-            Config::default().save(&config_path)?;
-        }
-
-        let use_stealth = stealth || tasks_dir.is_some();
-        let default_branch = || tracker_address::DEFAULT_BRANCH.to_string();
-        let (tasks_dir_path, state_repo_path, state_branch_name) = if use_stealth {
-            let td = init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?;
-            (td, repo_root.join(crate::state_repo::STATE_REPO_REL), default_branch())
-        } else {
-            let cfg = Config::load(&config_path)?;
-            let addr = tracker_address::resolve(&repo_root, &cfg);
-            let sr = crate::state_repo::ensure(&repo_root, &addr)?;
-            let branch = resolve_state_branch(&sr);
-            (sr.join(".balls/tasks"), sr, branch)
-        };
-
-        if !no_git {
-            commit_init(&repo_root, use_stealth, already)?;
-        }
-        Ok(Store {
-            root: repo_root,
-            stealth: use_stealth,
-            no_git,
-            tasks_dir_path,
-            state_repo_path,
-            state_branch_name,
-        })
-    }
-
-    /// Bootstrap a bare clone at `clone_dir` from `source` and open a
-    /// Store rooted there. Heavy lifting is in `bootstrap_bare_clone`.
-    pub fn init_bare(source: &str, clone_dir: &Path) -> Result<Self> {
-        let root = bootstrap_bare_clone(source, clone_dir)?;
-        let state_repo_path = root.join(crate::state_repo::STATE_REPO_REL);
-        let tasks_dir_path = state_repo_path.join(".balls/tasks");
-        let state_branch_name = resolve_state_branch(&state_repo_path);
-        Ok(Store {
-            root,
-            stealth: false,
-            no_git: false,
-            tasks_dir_path,
-            state_repo_path,
-            state_branch_name,
-        })
-    }
-
-    pub fn balls_dir(&self) -> PathBuf {
-        self.root.join(".balls")
+        crate::store_legacy::discover(&main_root)
     }
 
     pub fn tasks_dir(&self) -> PathBuf {
@@ -205,45 +91,39 @@ impl Store {
     }
 
     pub fn local_dir(&self) -> PathBuf {
-        self.balls_dir().join("local")
+        self.local_dir_path.clone()
     }
 
     pub fn claims_dir(&self) -> PathBuf {
-        self.local_dir().join("claims")
+        self.claims_dir_path.clone()
     }
 
     pub fn lock_dir(&self) -> PathBuf {
-        self.local_dir().join("lock")
+        self.lock_dir_path.clone()
     }
 
     pub fn local_plugins_dir(&self) -> PathBuf {
-        self.local_dir().join("plugins")
+        self.local_plugins_dir_path.clone()
     }
 
     pub fn config_path(&self) -> PathBuf {
-        self.balls_dir().join("config.json")
+        self.config_file_path.clone()
     }
 
-    /// The clone's repo config. `config.json` is a real, never-symlinked
-    /// repo file under the unified model (SPEC §7), so the load is a
-    /// plain read — no symlink-into-the-tracker indirection, no
-    /// per-owner merge.
+    /// The clone's repo config. Legacy: a real `.balls/config.json`.
+    /// XDG: a `repo.json` on the tracker branch — read through the
+    /// same `Config` schema so call sites stay unchanged.
     pub fn load_config(&self) -> Result<Config> {
         Config::load(&self.config_path())
     }
 
-    /// Path of the project config — `.balls/project.json`, a symlink
-    /// into the state checkout for every non-stealth repo (SPEC §7).
     pub fn project_config_path(&self) -> PathBuf {
-        self.balls_dir().join("project.json")
+        self.project_config_file_path.clone()
     }
 
-    /// The project's config (SPEC §7): the schema version, id width,
-    /// `min_bl_version` floor, and plugin map shared by every clone
-    /// on the tracker. `.balls/project.json` resolves through a symlink
-    /// into the state checkout; a repo without one — stealth, or a
-    /// checkout predating the config split — falls its project-owned
-    /// fields back to `config.json`.
+    /// The project's config (SPEC §7). Legacy: read through the
+    /// `.balls/project.json` symlink. XDG: read from the tracker
+    /// checkout's `.balls/project.json` directly.
     pub fn load_project_config(&self) -> Result<ProjectConfig> {
         ProjectConfig::resolve(&self.project_config_path(), &self.config_path())
     }
@@ -256,8 +136,17 @@ impl Store {
     }
 
     pub fn worktrees_root(&self) -> Result<PathBuf> {
-        let cfg = self.load_config()?;
-        Ok(self.root.join(cfg.worktree_dir))
+        // XDG: the per-clone worktrees path is resolved at discover.
+        // Legacy: honor the configured `worktree_dir` override
+        // (`.balls/config.json` field). New XDG clones cannot override
+        // the worktrees path — the layout is the layout (SPEC §13).
+        match self.layout {
+            Layout::Xdg => Ok(self.worktrees_root_path.clone()),
+            Layout::Legacy => {
+                let cfg = self.load_config()?;
+                Ok(self.root.join(cfg.worktree_dir))
+            }
+        }
     }
 
     pub fn task_path(&self, id: &str) -> Result<PathBuf> {
@@ -286,12 +175,7 @@ impl Store {
 }
 
 // The state-branch write methods — `commit_task`, `close_and_archive`,
-// `all_tasks` — are a second `impl Store` block in `store_archive.rs`,
-// split out to keep this file under the 300-line cap.
-
-/// Resolve the state branch from `.balls/state-repo`'s HEAD. Falls
-/// back to the SPEC default for stealth/no-git (no checkout exists).
-fn resolve_state_branch(state_repo: &Path) -> String {
-    git::git_current_branch(state_repo)
-        .unwrap_or_else(|_| tracker_address::DEFAULT_BRANCH.to_string())
-}
+// `all_tasks` — are a second `impl Store` block in `store_archive.rs`.
+// `init`/`init_bare` live in `store_init.rs`. Legacy in-repo discovery
+// (the SPEC §12 dual-read fallback) lives in `store_legacy.rs`. All
+// extracted to keep this file under the 300-line cap.

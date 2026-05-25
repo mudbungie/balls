@@ -5,10 +5,99 @@
 
 use crate::config::Config;
 use crate::error::{BallError, Result};
+use crate::store::Store;
+use crate::store_legacy::legacy_with;
+use crate::store_paths::init_stealth_tasks;
 use crate::tracker_address;
 use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+impl Store {
+    /// Initialize a balls store at `from`. Phase 1A keeps the legacy
+    /// in-repo layout — `.balls/` at the clone root, a runtime state
+    /// checkout under `.balls/state-repo/`, and the `balls: initialize`
+    /// commit on main. Phase 1B (bl-e802) flips this to the XDG layout
+    /// (SPEC §5, §14.1) and stops writing on main.
+    pub fn init(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
+        if let Some(ref td) = tasks_dir {
+            if !Path::new(td).is_absolute() {
+                return Err(BallError::Other(format!(
+                    "--tasks-dir must be an absolute path, got: {td}"
+                )));
+            }
+        }
+        let (repo_root, no_git) = match git::git_root(from) {
+            Ok(r) => (r, false),
+            Err(BallError::NotARepo) if tasks_dir.is_some() => (
+                fs::canonicalize(from).unwrap_or_else(|_| from.to_path_buf()),
+                true,
+            ),
+            Err(e) => return Err(e),
+        };
+        if !no_git {
+            git::git_ensure_user(&repo_root)?;
+            git::git_init_commit(&repo_root)?;
+        }
+
+        let balls_dir = repo_root.join(".balls");
+        let local_dir = balls_dir.join("local");
+        let already = balls_dir.join("config.json").exists();
+        let plugins = balls_dir.join("plugins");
+        if !plugins.is_symlink() {
+            fs::create_dir_all(&plugins)?;
+        }
+        fs::create_dir_all(local_dir.join("claims"))?;
+        fs::create_dir_all(local_dir.join("lock"))?;
+        fs::create_dir_all(local_dir.join("plugins"))?;
+        let config_path = balls_dir.join("config.json");
+        if !config_path.exists() {
+            Config::default().save(&config_path)?;
+        }
+
+        let use_stealth = stealth || tasks_dir.is_some();
+        let (tasks_dir_path, state_repo_path, state_branch_name) = if use_stealth {
+            let td = init_stealth_tasks(&repo_root, &local_dir, tasks_dir)?;
+            (
+                td,
+                repo_root.join(crate::state_repo::STATE_REPO_REL),
+                tracker_address::DEFAULT_BRANCH.to_string(),
+            )
+        } else {
+            let cfg = Config::load(&config_path)?;
+            let addr = tracker_address::resolve(&repo_root, &cfg);
+            let sr = crate::state_repo::ensure(&repo_root, &addr)?;
+            let branch = git::git_current_branch(&sr)
+                .unwrap_or_else(|_| tracker_address::DEFAULT_BRANCH.to_string());
+            (sr.join(".balls/tasks"), sr, branch)
+        };
+
+        if !no_git {
+            commit_init(&repo_root, use_stealth, already)?;
+        }
+        let mut store =
+            legacy_with(repo_root, tasks_dir_path, state_repo_path, state_branch_name, use_stealth);
+        store.no_git = no_git;
+        Ok(store)
+    }
+
+    /// Bootstrap a bare clone at `clone_dir` from `source` and open a
+    /// Store rooted there. Heavy lifting is in `bootstrap_bare_clone`.
+    pub fn init_bare(source: &str, clone_dir: &Path) -> Result<Self> {
+        let root = bootstrap_bare_clone(source, clone_dir)?;
+        let state_repo_path = root.join(crate::state_repo::STATE_REPO_REL);
+        let tasks_dir_path = state_repo_path.join(".balls/tasks");
+        let state_branch_name = git::git_current_branch(&state_repo_path)
+            .unwrap_or_else(|_| tracker_address::DEFAULT_BRANCH.to_string());
+        Ok(legacy_with(
+            root,
+            tasks_dir_path,
+            state_repo_path,
+            state_branch_name,
+            false,
+        ))
+    }
+}
 
 /// Bootstrap a bare clone at `clone_dir` from `source` (a git
 /// URL or path whose `main` carries a balls-initialized project) per
