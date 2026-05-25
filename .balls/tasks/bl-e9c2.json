@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "-",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":140,"source":"balls","state":"open","synced_at":"2026-05-24T07:42:08.117889269+00:00","url":"https://github.com/mudbungie/balls/issues/140"}}},
+  "external": {"github-issues":{}},
   "id": "bl-e9c2",
   "links": [],
   "parent": "bl-f021",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-24T07:42:08.141140711Z"},
+  "synced_at": {"github-issues":"2026-05-25T06:48:12.578813287Z"},
   "tags": ["spec"],
   "title": "SPEC-clone-layout: resolve open questions surfaced while implementing Phase 1",
   "type": "docs",
-  "updated_at": "2026-05-25T06:48:12.165466091Z"
+  "updated_at": "2026-05-25T06:48:12.578818758Z"
 }
