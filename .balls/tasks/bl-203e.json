@@ -16,7 +16,7 @@
   "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-25T19:15:45.396728006Z"},
   "tags": ["architecture","xdg"],
-  "title": "Phase 1 integration: Store::discover + bl init + bl claim + dual-read",
+  "title": "Phase 1A: Store::discover XDG-first with legacy dual-read",
   "type": "task",
-  "updated_at": "2026-05-25T19:15:45.396733095Z"
+  "updated_at": "2026-05-25T19:15:53.989434468Z"
 }
