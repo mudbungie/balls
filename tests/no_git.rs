@@ -257,6 +257,24 @@ fn claim_no_worktree_rejects_dep_blocked_task() {
 }
 
 #[test]
+fn claim_no_worktree_rejects_parent_with_live_child() {
+    // bl-c79c: the parent-has-live-children guard fires in the
+    // `--no-worktree` claim path too, naming a live child.
+    let (dir, _t, _p) = init_no_git();
+    let parent = create_task(dir.path(), "epic");
+    let out = bl(dir.path())
+        .args(["create", "kid", "--parent", &parent])
+        .output()
+        .unwrap();
+    let child = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    bl(dir.path())
+        .args(["claim", &parent, "--no-worktree"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(&child));
+}
+
+#[test]
 fn no_worktree_claim_works_in_git_mode_too() {
     let repo = new_repo();
     init_in(repo.path());
