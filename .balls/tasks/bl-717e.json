@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-717e",
+  "claimed_by": "Victualed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-24T07:16:11.559294656Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-24T07:16:12.493730829Z"},
   "tags": ["architecture","migration"],
   "title": "Phase 2: bl migrate — pre-XDG and bl-ed32 conversion",
   "type": "task",
-  "updated_at": "2026-05-25T18:54:43.923382516Z"
+  "updated_at": "2026-05-25T20:00:52.095567072Z"
 }
