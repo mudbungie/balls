@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-203e","bl-e802"],
   "description": "Phase 1C of bl-f021, sibling of bl-203e (Phase 1A, archived) and bl-e802 (Phase 1B). Filed 2026-05-25 when bl-203e was split; revised 2026-05-25.\n\n## Scope\n\nPer SPEC-clone-layout §8, §14.\n\n### Implements\n\n1. **`bl claim` worktree relocation** (§8, §14.13).\n   - `git worktree add` against `~/.local/state/balls/worktrees/<nested-clone-path>/<bl-id>/`.\n   - On a legacy-detected clone, the legacy `.balls-worktrees/<bl-id>/` path is preserved (until Phase 2 migrate moves them).\n   - `worktree::link_shared_state` updates to point the in-worktree symlinks at the XDG tracker checkout when XDG.\n\n2. **Remaining test migration.** Every test that asserts `.balls-worktrees/` paths or directly pokes the worktree directory updates to the XDG path. ~25–35 tests, mostly in `tests/claim.rs`, `tests/coverage_claim.rs`, `tests/close_drop*.rs`, `tests/review*.rs`. Reuse the Phase-1A helpers (`bl_xdg`, `fresh_clone_into`, etc.) from `tests/conformance_xdg_layout.rs`.\n\n3. **Remaining §14 conformance tests.**\n   - §14.13 (worktrees relocated).\n   - §14.14 read-only (bl doctor surfaces orphaned per-clone state on moved clone; the `--rebind-path` action is a follow-up).\n   - §14.19 full gate (no main commits across the full `init`/`create`/`claim`/`review`/`close` lifecycle on a post-migration clone — needs both 1B's init flip and 1C's claim relocation in place).\n   - §14.20 (hand-operable join — exercises the §10 shell sequence end-to-end now that init, claim, and discover all line up).\n\n4. **Legacy warning ergonomics audit.** Phase 1A's `emit_legacy_warning` fires on every `bl` invocation against a pre-XDG clone. After 1B + 1C land and `bl migrate` (Phase 2) is the suggested escape, evaluate whether the warning needs rate-limiting (once per day via a marker under the per-clone tree) or whether the noise is the point. Defer until real users dogfood the warning's cadence.\n\n### Explicitly NOT in scope\n\n- `bl migrate` command — Phase 2 (bl-717e).\n- `bl repair --rebind-path` action — follow-up, called out in §14.14.\n- `min_bl_version` bump — Phase 4.\n- SPEC-forge-gated-delivery §5 cross-doc rename — lands with Phase 2.\n\n## Dependencies\n\nHard depends on bl-203e and bl-e802 (Phase 1A read + Phase 1B init both landed).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":154,"source":"balls","state":"open","synced_at":"2026-05-25T19:17:09.071576425+00:00","url":"https://github.com/mudbungie/balls/issues/154"}}},
+  "external": {"github-issues":{}},
   "id": "bl-bb6c",
   "links": [],
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-25T19:17:09.087874681Z"},
+  "synced_at": {"github-issues":"2026-05-25T22:27:28.416153955Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1C: bl claim XDG worktree + remaining test migration",
   "type": "task",
-  "updated_at": "2026-05-25T22:27:28.064134303Z"
+  "updated_at": "2026-05-25T22:27:28.416158884Z"
 }
