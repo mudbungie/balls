@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-24T03:28:01.507059166Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-05-26T02:00:37.864925786Z"},
   "tags": [],
   "title": "Relocate balls off the code branch — XDG layout, orphan-branch bootstrap",
   "type": "epic",
-  "updated_at": "2026-05-25T23:16:47.217230268Z"
+  "updated_at": "2026-05-26T02:00:37.864927329Z"
 }
