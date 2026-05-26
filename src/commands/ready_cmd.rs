@@ -49,7 +49,8 @@ fn maybe_auto_fetch(store: &Store, stale_threshold_seconds: u64) {
     if store.no_git {
         return;
     }
-    let last_fetch = store.local_dir().join("last_fetch");
+    let cache_dir = store.cache_dir();
+    let last_fetch = cache_dir.join("last_fetch");
     let stale = match fs::metadata(&last_fetch).and_then(|m| m.modified()) {
         Ok(t) => std::time::SystemTime::now()
             .duration_since(t)
@@ -58,6 +59,7 @@ fn maybe_auto_fetch(store: &Store, stale_threshold_seconds: u64) {
     };
     if stale && git::git_has_remote(&store.root, "origin") {
         let _ = git::git_fetch(&store.root, "origin");
+        let _ = fs::create_dir_all(&cache_dir);
         let _ = fs::write(&last_fetch, "");
     }
 }

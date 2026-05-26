@@ -88,7 +88,7 @@ fn ready_auto_fetch_hits_remote_path() {
     create_task(alice.path(), "t");
     push(alice.path());
 
-    let last_fetch = alice.path().join(".balls/local/last_fetch");
+    let last_fetch = cache_last_fetch(alice.path());
     let _ = std::fs::remove_file(&last_fetch);
     bl(alice.path()).arg("ready").assert().success();
     assert!(last_fetch.exists());
