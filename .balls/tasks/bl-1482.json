@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-24T07:55:34.434283165Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-05-26T02:00:37.800482576Z"},
   "tags": ["testing","coordination"],
   "title": "Phase 9: inter-version upgrade schedule proof (layouts × bl versions matrix)",
   "type": "task",
-  "updated_at": "2026-05-24T07:55:34.434291450Z"
+  "updated_at": "2026-05-26T02:00:37.800483878Z"
 }
