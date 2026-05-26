@@ -27,7 +27,7 @@ pub fn cmd_claim(
             "no git repo: use `bl claim --no-worktree` to claim without a worktree".into(),
         ));
     }
-    let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
+    let (cli, cfg, local) = sync_inputs(&store, sync, no_sync);
     let claim_policy = policy::resolve(
         cfg.as_ref().is_some_and(|c| c.require_remote_on_claim),
         local.as_ref(),

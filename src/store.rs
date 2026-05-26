@@ -1,3 +1,4 @@
+use crate::clone_json::CloneJson;
 use crate::config::Config;
 use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
 use crate::encoding::nested_clone_path;
@@ -58,9 +59,14 @@ pub struct Store {
     pub(crate) lock_dir_path: PathBuf,
     pub(crate) local_plugins_dir_path: PathBuf,
     pub(crate) worktrees_root_path: PathBuf,
-    pub(crate) local_dir_path: PathBuf,
     pub(crate) config_file_path: PathBuf,
     pub(crate) project_config_file_path: PathBuf,
+    /// Parsed `clone.json` for this on-disk checkout (SPEC §6.4).
+    /// Populated under XDG when the file exists; `None` under legacy
+    /// (clone.json is XDG-only — legacy clones used `.balls/local/
+    /// config.json` which bl-5a03 retired) and under XDG when no
+    /// per-clone overrides have been set.
+    pub(crate) clone_json: Option<CloneJson>,
 }
 
 impl Store {
@@ -102,8 +108,12 @@ impl Store {
         self.tasks_dir_path.clone()
     }
 
-    pub fn local_dir(&self) -> PathBuf {
-        self.local_dir_path.clone()
+    /// This on-disk checkout's `clone.json` overrides (SPEC §6.4).
+    /// `None` ⇒ no per-clone override is in effect (either no file or
+    /// the clone is on the legacy layout, where clone.json has no
+    /// place to live).
+    pub fn clone_json(&self) -> Option<&CloneJson> {
+        self.clone_json.as_ref()
     }
 
     /// SPEC-clone-layout §3 — `~/.cache/balls/<nested-clone-path>/`,
