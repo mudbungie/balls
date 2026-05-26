@@ -79,8 +79,19 @@ fn check_store(store: &Store) -> Vec<Finding> {
     check_stale_claims(store, &mut out);
     check_orphan_worktrees(store, &mut out);
     check_legacy_layout(store, &mut out);
+    check_legacy_pending_sync(store, &mut out);
     check_moved_clone(store, &mut out);
     out
+}
+
+/// bl-341b: surface the pre-bl-6969 `<repo>/.balls/local/pending-sync/`
+/// tree if a clone still carries one. Implementation lives in the
+/// sibling `doctor_pending_sync` module for the file-size budget;
+/// doctor is read-only, so we only suggest a manual cleanup.
+fn check_legacy_pending_sync(store: &Store, out: &mut Vec<Finding>) {
+    if let Some(f) = crate::doctor_pending_sync::finding(&store.root) {
+        out.push(f);
+    }
 }
 
 /// Phase 3 (bl-05e5) / SPEC-clone-layout §12: when the resolved store

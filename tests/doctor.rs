@@ -212,5 +212,35 @@ fn missing_claims_dir_is_not_a_stale_claim_finding() {
     // The legacy-layout migration hint still fires; that's expected.
 }
 
+#[test]
+fn legacy_pending_sync_dir_with_files_is_flagged() {
+    // bl-341b: the standalone `pending_sync_legacy::warn_if_present`
+    // hook on every `bl` invocation was retired. `bl doctor` now
+    // surfaces a populated `<repo>/.balls/local/pending-sync/` tree
+    // on demand instead.
+    let repo = new_repo();
+    init_in(repo.path());
+    let staged = repo.path().join(".balls/local/pending-sync/sync");
+    fs::create_dir_all(&staged).unwrap();
+    fs::write(staged.join("abcd.json"), b"{}").unwrap();
+    let out = doctor(repo.path());
+    assert!(out.contains("1 staged sync reports"), "{out}");
+    assert!(out.contains(".balls/local/pending-sync"), "{out}");
+    assert!(out.contains("bl-6969"), "{out}");
+    assert!(
+        staged.join("abcd.json").exists(),
+        "doctor is read-only — the staged report must survive"
+    );
+}
+
+#[test]
+fn empty_legacy_pending_sync_dir_is_silent() {
+    let repo = new_repo();
+    init_in(repo.path());
+    fs::create_dir_all(repo.path().join(".balls/local/pending-sync/sync")).unwrap();
+    let out = doctor(repo.path());
+    assert!(!out.contains("staged sync reports"), "{out}");
+}
+
 // master_url-mode probes live in tests/doctor_master_url.rs — split
 // out for the file-size budget. Legacy and structural probes stay here.
