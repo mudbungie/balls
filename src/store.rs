@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
 use crate::error::{BallError, Result};
 use crate::project_config::ProjectConfig;
 use crate::git;
@@ -65,7 +66,15 @@ impl Store {
     /// In a worktree, returns the main repo root so that all writes go there.
     pub fn discover(from: &Path) -> Result<Self> {
         let store = match Self::discover_git(from) {
-            Err(BallError::NotARepo) => crate::store_legacy::discover_no_git(from)?,
+            Err(BallError::NotARepo) => {
+                // SPEC §4.1: a stealth XDG clone has no git and resolves
+                // via `clone.json` keyed by the cwd (or --tasks-dir).
+                if let Some(store) = xdg_discover::try_open(from)? {
+                    store
+                } else {
+                    crate::store_legacy::discover_no_git(from)?
+                }
+            }
             other => other?,
         };
         crate::pending_sync_legacy::warn_if_present(&store);
@@ -113,10 +122,73 @@ impl Store {
     }
 
     /// The clone's repo config. Legacy: a real `.balls/config.json`.
-    /// XDG: a `repo.json` on the tracker branch — read through the
-    /// same `Config` schema so call sites stay unchanged.
+    /// XDG: synthesized from `repo.json` + `project.json` (defaults
+    /// fall through per SPEC-clone-layout §6.5) into a `Config` shape
+    /// so legacy callers stay unchanged through Phase 1B. Migrating
+    /// individual call sites to `EffectiveConfig` is follow-on work.
     pub fn load_config(&self) -> Result<Config> {
-        Config::load(&self.config_path())
+        match self.layout {
+            Layout::Legacy => Config::load(&self.config_path()),
+            Layout::Xdg => self.synthesize_xdg_config(),
+        }
+    }
+
+    fn synthesize_xdg_config(&self) -> Result<Config> {
+        use crate::layered_fields::IntegrateMode;
+        use crate::repo_json::RepoJson;
+        let repo = RepoJson::read_or_default(&self.config_path())?;
+        let project = ProjectConfig::resolve(&self.project_config_path(), Path::new(""))
+            .unwrap_or_default();
+        let delivery = repo
+            .integrate
+            .as_ref()
+            .or(project.integrate.as_ref())
+            .map(|integ| Delivery {
+                mode: match integ.mode {
+                    IntegrateMode::Direct => DeliveryMode::LocalSquash,
+                    IntegrateMode::ForgePr => DeliveryMode::Deferred,
+                },
+            });
+        let review = repo
+            .review
+            .as_ref()
+            .or(project.review.as_ref())
+            .map(|rev| ReviewConfig {
+                pre_check: rev.gate_command.clone(),
+            });
+        let cfg = Config {
+            stale_threshold_seconds: repo.stale_threshold_seconds,
+            auto_fetch_on_ready: repo.auto_fetch_on_ready,
+            worktree_dir: repo
+                .worktree_dir
+                .clone()
+                .unwrap_or_else(|| ".balls-worktrees".into()),
+            protected_main: repo.protected_main,
+            require_remote_on_claim: repo
+                .require_remote_on_claim
+                .or(project.require_remote_on_claim)
+                .unwrap_or(true),
+            require_remote_on_review: repo
+                .require_remote_on_review
+                .or(project.require_remote_on_review)
+                .unwrap_or(true),
+            require_remote_on_close: repo
+                .require_remote_on_close
+                .or(project.require_remote_on_close)
+                .unwrap_or(true),
+            // XDG: tracker address is the encoded-path layout, not
+            // config fields. Leave them None so the rest of the binary
+            // treats the clone as solo (own balls/tasks on origin).
+            state_url: None,
+            state_branch: None,
+            state_remote: None,
+            master_url: None,
+            target_branch: None,
+            delivery,
+            review,
+        };
+        cfg.validate()?;
+        Ok(cfg)
     }
 
     pub fn project_config_path(&self) -> PathBuf {
@@ -176,8 +248,23 @@ impl Store {
     }
 }
 
+impl Store {
+    /// XDG `bl init` per SPEC-clone-layout §3, §5, §6 (Phase 1B).
+    /// Body in [`crate::store_init_xdg`] to keep this file under the
+    /// 300-line cap. Production entrypoint (`cmd_init`) routes here;
+    /// in-source tests keep using the legacy `Store::init` until
+    /// their HOME-isolation seam lands.
+    pub fn init_xdg(from: &Path, stealth: bool, tasks_dir: Option<String>) -> Result<Self> {
+        crate::store_init_xdg::init(from, stealth, tasks_dir)
+    }
+}
+
 // The state-branch write methods — `commit_task`, `close_and_archive`,
 // `all_tasks` — are a second `impl Store` block in `store_archive.rs`.
 // `init`/`init_bare` live in `store_init.rs`. Legacy in-repo discovery
 // (the SPEC §12 dual-read fallback) lives in `store_legacy.rs`. All
 // extracted to keep this file under the 300-line cap.
+
+#[cfg(test)]
+#[path = "store_synth_tests.rs"]
+mod synth_tests;
