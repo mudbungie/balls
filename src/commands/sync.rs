@@ -8,7 +8,7 @@ use super::{default_identity, discover};
 use balls::error::Result;
 use balls::store::Store;
 use balls::task::{Status, Task};
-use balls::{git, policy, ready, resolve, sanitize, sync_resolve};
+use balls::{git, ready, resolve, sanitize, sync_resolve};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -146,8 +146,6 @@ pub fn cmd_prime(identity: Option<String>, json: bool, migrate: bool) -> Result<
         list_staged: false,
     });
 
-    notify_claim_policy(&store);
-
     // Phase 3 (bl-05e5): back-fill the moved-clone breadcrumb when
     // the per-clone tree exists but the breadcrumb does not. A clone
     // that materialized state before bl-05e5 shipped has no
@@ -232,19 +230,4 @@ pub fn cmd_prime(identity: Option<String>, json: bool, migrate: bool) -> Result<
     }
     println!("===");
     Ok(())
-}
-
-/// One-time hint when a new clone first sees a remote-set
-/// `require_remote_on_claim`. Uses the resolved policy with no CLI
-/// override (prime isn't a claim — it's just the bootstrap moment to
-/// show the policy).
-fn notify_claim_policy(store: &Store) {
-    let Ok(cfg) = store.load_config() else { return };
-    let local = policy::LocalConfig::load(store).ok().flatten();
-    let resolved = policy::resolve(
-        cfg.require_remote_on_claim,
-        local.as_ref(),
-        policy::SyncOverride::Unset,
-    );
-    policy::notify_repo_default_once(store, resolved);
 }

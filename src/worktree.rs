@@ -3,7 +3,7 @@
 //! files under the 300-line cap.
 
 use crate::error::{BallError, Result};
-use crate::policy::ClaimPolicy;
+use crate::policy::{self, ClaimPolicy};
 use crate::store::{task_lock, Store};
 use crate::task::{self, Status};
 use crate::{claim_sync, git};
@@ -114,6 +114,7 @@ pub fn create_worktree(
         store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
 
         if policy.require_remote && !store.stealth {
+            policy::emit_repo_default_sync_notice(policy);
             sync_or_rollback(store, id, identity)?;
         }
 
@@ -239,6 +240,7 @@ pub fn claim_no_worktree(
         store.save_task(&task)?;
         store.commit_task(id, &format!("balls: claim {} - {}", id, task.title))?;
         if policy.require_remote && !store.stealth {
+            policy::emit_repo_default_sync_notice(policy);
             sync_or_rollback(store, id, identity)?;
         }
         write_claim_file(store, id, identity)?;

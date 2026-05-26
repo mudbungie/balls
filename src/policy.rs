@@ -17,7 +17,6 @@ use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 /// Per-clone override of the repo-default `Config`. Stored at
@@ -149,38 +148,22 @@ fn resolve_inner(
     ClaimPolicy { require_remote, from_repo_default }
 }
 
-/// Marker file path (under `.balls/local/`) recording that this clone
-/// has already seen — and been notified about — the repo-default
-/// claim-sync policy. The file's mere existence is the signal; its
-/// contents are informative only.
-fn seen_marker_path(store: &Store) -> PathBuf {
-    store.local_dir().join("seen-claim-sync-policy")
-}
-
-/// One-time hint, written to stderr the first time a clone sees the
-/// repo-default `require_remote_on_claim` set to true. Mitigates the
-/// "surprise: my claims are hitting the network" risk for new devs
-/// onboarding to a project. Subsequent invocations are silent.
+/// Reactive sync-notice: written to stderr right before `bl claim`
+/// (or `claim_no_worktree`) rounds-trips through `origin/balls/tasks`
+/// because of the repo-default policy. Answers "why did claim just
+/// talk to origin?" at the moment of the action — no marker state.
 ///
-/// Writing the marker is best-effort: if `.balls/local/` isn't
-/// writable, we'd rather repeat the hint than fail the prime.
-pub fn notify_repo_default_once(store: &Store, policy: ClaimPolicy) {
-    if !policy.from_repo_default || !policy.require_remote {
+/// Skipped when the user opted in explicitly (CLI `--sync` or
+/// `clone.json: require_remote_on_claim: true`), since they already
+/// know why the sync is happening.
+pub fn emit_repo_default_sync_notice(policy: ClaimPolicy) {
+    if !policy.require_remote || !policy.from_repo_default {
         return;
     }
-    let marker = seen_marker_path(store);
-    if marker.exists() {
-        return;
-    }
-    let _ = writeln!(
-        std::io::stderr(),
-        "this repo requests synced claims (remote default; override with --no-sync \
-         or `.balls/local/config.json` `require_remote_on_claim: false`)"
+    eprintln!(
+        "syncing claim through origin/balls/tasks (repo default; \
+         override with --no-sync or `clone.json: require_remote_on_claim: false`)"
     );
-    if let Some(parent) = marker.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let _ = fs::write(&marker, "shown\n");
 }
 
 #[cfg(test)]
