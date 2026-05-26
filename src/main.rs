@@ -196,6 +196,7 @@ fn main() {
             forget_half_push,
             forget_all_half_pushes,
         } => commands::cmd_repair(fix, forget_half_push, forget_all_half_pushes),
+        Command::Migrate => commands::cmd_migrate(),
         Command::Remaster {
             target,
             branch,

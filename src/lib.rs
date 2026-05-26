@@ -52,6 +52,7 @@ mod hash;
 pub mod human_gate;
 mod legacy_plugin_migrate;
 pub mod link;
+pub mod migrate;
 pub mod min_version;
 pub mod negotiation;
 pub mod participant;
