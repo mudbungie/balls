@@ -48,6 +48,7 @@ mod doctor_symlink;
 pub mod error;
 pub mod git;
 pub mod git_merge;
+pub mod git_plumbing;
 pub mod git_state;
 #[cfg(test)]
 mod git_test_support;
