@@ -36,7 +36,7 @@ fn claim_review_close_accept_bare_hex() {
         .assert()
         .success();
 
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("work.txt"), "done").unwrap();
 
     bl_as(repo.path(), "agent")

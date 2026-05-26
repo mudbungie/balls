@@ -75,7 +75,7 @@ fn link_add_bad_type_fails() {
 fn closed_task(repo_path: &std::path::Path, title: &str) -> String {
     let id = create_task(repo_path, title);
     bl(repo_path).args(["claim", &id]).assert().success();
-    let wt = repo_path.join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo_path, &id);
     std::fs::write(wt.join("feature.txt"), title).unwrap();
     bl(repo_path)
         .args(["review", &id, "-m", "ship"])

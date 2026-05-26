@@ -171,7 +171,7 @@ fn prime_warns_when_main_overlaps_work_files() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
 
     std::fs::write(wt.join("shared.txt"), "agent edit").unwrap();
     git(&wt, &["add", "shared.txt"]);

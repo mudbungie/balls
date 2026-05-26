@@ -21,7 +21,7 @@ fn show_default_resolves_local_repo_in_resolved_repo_field() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("f.txt"), "x").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "go"])
@@ -56,7 +56,7 @@ fn show_resolve_remote_falls_back_via_delivered_repo() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = code.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(code.path(), &id);
     std::fs::write(wt.join("f.txt"), "x").unwrap();
     bl(code.path())
         .args(["review", &id, "-m", "go"])

@@ -22,7 +22,7 @@ fn sync_warns_when_main_is_behind_state_close() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "content").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "ready"])
