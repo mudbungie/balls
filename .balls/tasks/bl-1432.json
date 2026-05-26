@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-1432",
+  "claimed_by": "examine",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-25T23:05:13.785557839Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-25T23:05:14.661690966Z"},
   "tags": ["refactor"],
   "title": "Drop seen-claim-sync-policy marker: emit sync hint reactively in bl claim",
   "type": "task",
-  "updated_at": "2026-05-25T23:05:14.661697709Z"
+  "updated_at": "2026-05-26T02:00:56.067395736Z"
 }
