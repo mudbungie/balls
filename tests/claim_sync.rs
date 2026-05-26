@@ -192,27 +192,57 @@ fn no_worktree_claim_also_syncs() {
 }
 
 #[test]
-fn prime_announces_repo_default_once() {
-    let (_r, alice, _bob) = three_way();
-    flip_repo_policy_on(alice.path());
+fn claim_announces_repo_default_sync() {
+    // Reactive sync-notice (bl-1432): the line lands on stderr when
+    // `bl claim` is *about to* round-trip because of the repo default,
+    // not preemptively at prime. Three cases, one fixture each:
+    //   1. repo default on, no override        → notice present
+    //   2. --no-sync overrides                 → notice absent
+    //   3. clone-level override turns it off   → notice absent
+    let notice_hit = |s: &str| {
+        s.contains("syncing claim through origin/balls/tasks")
+            && s.contains("repo default")
+    };
 
-    // Force config visibility: alice's local clone has the policy in
-    // its checked-out config, and no marker file yet.
-    let marker = alice.path().join(".balls/local/seen-claim-sync-policy");
-    let _ = fs::remove_file(&marker);
-
-    let out1 = bl(alice.path()).arg("prime").output().unwrap();
+    // (1) Repo default kicks in.
+    let (_r1, alice1, bob1) = three_way();
+    flip_repo_policy_on(alice1.path());
+    bl(bob1.path()).arg("sync").assert().success();
+    let id1 = create_task(alice1.path(), "default-on");
+    let out1 = bl_as(alice1.path(), "alice")
+        .args(["claim", &id1])
+        .output()
+        .unwrap();
+    assert!(out1.status.success(), "stderr: {}", String::from_utf8_lossy(&out1.stderr));
     let s1 = String::from_utf8_lossy(&out1.stderr).to_string();
-    assert!(
-        s1.contains("synced claims") || s1.contains("require_remote_on_claim"),
-        "first prime should hint, got: {s1}"
-    );
-    assert!(marker.exists(), "marker should be written after first hint");
+    assert!(notice_hit(&s1), "expected reactive notice, got: {s1}");
 
-    let out2 = bl(alice.path()).arg("prime").output().unwrap();
+    // (2) --no-sync wins; sync doesn't fire, no notice.
+    let (_r2, alice2, _bob2) = three_way();
+    flip_repo_policy_on(alice2.path());
+    let id2 = create_task(alice2.path(), "no-sync-flag");
+    let out2 = bl_as(alice2.path(), "alice")
+        .args(["claim", &id2, "--no-sync"])
+        .output()
+        .unwrap();
+    assert!(out2.status.success());
     let s2 = String::from_utf8_lossy(&out2.stderr).to_string();
-    assert!(
-        !s2.contains("synced claims") && !s2.contains("require_remote_on_claim"),
-        "second prime should be silent, got: {s2}"
-    );
+    assert!(!notice_hit(&s2), "expected no notice with --no-sync, got: {s2}");
+
+    // (3) Clone-level config says false; no sync, no notice — from_repo_default is false.
+    let (_r3, alice3, _bob3) = three_way();
+    flip_repo_policy_on(alice3.path());
+    fs::write(
+        alice3.path().join(".balls/local/config.json"),
+        r#"{"require_remote_on_claim": false}"#,
+    )
+    .unwrap();
+    let id3 = create_task(alice3.path(), "clone-override-off");
+    let out3 = bl_as(alice3.path(), "alice")
+        .args(["claim", &id3])
+        .output()
+        .unwrap();
+    assert!(out3.status.success());
+    let s3 = String::from_utf8_lossy(&out3.stderr).to_string();
+    assert!(!notice_hit(&s3), "expected no notice with clone-level override, got: {s3}");
 }
