@@ -14,6 +14,15 @@
 //! `<new-nested>/` already exists with content, the rebind aborts.
 //! A user staring at two real per-clone subtrees needs to decide
 //! manually which to keep; we won't merge them silently.
+//!
+//! Reverse-on-failure (bl-a7dd): true POSIX atomicity across four
+//! independent sibling renames is impossible — they share no common
+//! parent under SPEC §3's flat layout. Instead, on any sibling rename
+//! failure, already-completed renames are reversed in LIFO order so
+//! the clone lands back at the original nested path. A reverse-rename
+//! that itself fails is recorded in the surfaced error rather than
+//! aborting the rest of the reversal: a half-moved-half-reversed
+//! state is strictly worse than a fully-moved one.
 
 use crate::clone_breadcrumb;
 use crate::doctor_moved::{find_orphans, OrphanClone};
@@ -75,11 +84,35 @@ pub fn run_with(bases: &XdgBases, current_clone_root: &Path) -> Result<Vec<Rebin
 /// pre-existing source subtree moves to the matching destination.
 /// After all moves succeed, the breadcrumb at the destination is
 /// rewritten so the recorded path matches the new clone path.
+///
+/// On a rename failure mid-loop the in-flight renames are reversed
+/// (LIFO) so the clone lands back at the original nested path; see
+/// [`rebind_one_with`] for the rename-fn seam tests use to drive the
+/// reverse-failure path.
 fn rebind_one(
     bases: &XdgBases,
     orphan: &OrphanClone,
     nested_to: &Path,
     current_clone_root: &Path,
+) -> Result<RebindReport> {
+    rebind_one_with(bases, orphan, nested_to, current_clone_root, &mut |from, to| {
+        fs::rename(from, to)
+    })
+}
+
+/// Rebind implementation with the rename operation injected. The
+/// production path is the thin wrapper [`rebind_one`]; tests that
+/// need to drive the reverse-on-failure path call this directly
+/// with a closure that fails the chosen forward and/or reverse
+/// renames. Following the `&mut dyn FnMut` pattern from
+/// [`crate::doctor_moved::walk_for_breadcrumbs`] keeps tarpaulin's
+/// generic-monomorphization gap (bl-ad4b note) off the table.
+fn rebind_one_with(
+    bases: &XdgBases,
+    orphan: &OrphanClone,
+    nested_to: &Path,
+    current_clone_root: &Path,
+    rename: &mut dyn FnMut(&Path, &Path) -> std::io::Result<()>,
 ) -> Result<RebindReport> {
     let from = PerClonePaths::new(bases, &orphan.nested);
     let to = PerClonePaths::new(bases, nested_to);
@@ -103,7 +136,7 @@ fn rebind_one(
         }
     }
 
-    let mut moved = Vec::new();
+    let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
     for mv in &pending {
         if !mv.from.exists() {
             continue;
@@ -115,14 +148,10 @@ fn rebind_one(
         if let Some(parent) = mv.to.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::rename(&mv.from, &mv.to).map_err(|e| {
-            BallError::Other(format!(
-                "rename {} → {} failed: {e}",
-                mv.from.display(),
-                mv.to.display()
-            ))
-        })?;
-        moved.push(mv.to.clone());
+        if let Err(e) = rename(&mv.from, &mv.to) {
+            return Err(reverse_on_failure(&mv.from, &mv.to, &e, &moved, rename));
+        }
+        moved.push((mv.from.clone(), mv.to.clone()));
     }
 
     // Rewrite the breadcrumb at the new location so a future doctor
@@ -132,8 +161,44 @@ fn rebind_one(
     Ok(RebindReport {
         nested_from: orphan.nested.clone(),
         nested_to: nested_to.to_path_buf(),
-        moved,
+        moved: moved.into_iter().map(|(_, t)| t).collect(),
     })
+}
+
+/// Compose the failure error after an in-loop rename failed: walk
+/// `moved` in reverse and rename each `(from, to)` back. Reverse
+/// outcomes — both successes and failures — are folded into the
+/// surfaced error so the user sees the full picture in one message
+/// and can recover by hand from any partial-reversal state.
+fn reverse_on_failure(
+    failed_from: &Path,
+    failed_to: &Path,
+    primary_err: &std::io::Error,
+    moved: &[(PathBuf, PathBuf)],
+    rename: &mut dyn FnMut(&Path, &Path) -> std::io::Result<()>,
+) -> BallError {
+    let mut parts = vec![format!(
+        "rename {} → {} failed: {primary_err}",
+        failed_from.display(),
+        failed_to.display()
+    )];
+    let mut rolled: Vec<String> = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
+    for (from, to) in moved.iter().rev() {
+        match rename(to, from) {
+            Ok(()) => rolled.push(format!("{} → {}", to.display(), from.display())),
+            Err(re) => failures.push(format!(
+                "reverse FAILED for {} → {}: {re}",
+                to.display(),
+                from.display()
+            )),
+        }
+    }
+    if !rolled.is_empty() {
+        parts.push(format!("reverse-rolled {}", rolled.join(", ")));
+    }
+    parts.extend(failures);
+    BallError::Other(parts.join("; "))
 }
 
 /// True when `dir` exists and contains any entry. A bare directory

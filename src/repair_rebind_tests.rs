@@ -141,6 +141,10 @@ fn rebind_surfaces_rename_failure_with_detail() {
     // errors → false) and survives the silent remove_dir (also
     // errors), then trips fs::rename. The error message names both
     // ends so the user can recover by hand.
+    //
+    // The pending order is worktrees, claims, locks, plugins_auth.
+    // Worktrees moves first (empty seed dir), then claims fails;
+    // reverse rolls worktrees back to its original nested path.
     let home = tmp();
     let bases = bases_at(home.path());
     let (clone, old, new) = seed_moved(home.path(), "home/u/old", "dev/here");
@@ -152,6 +156,90 @@ fn rebind_surfaces_rename_failure_with_detail() {
     let s = err.to_string();
     assert!(s.contains("rename"), "error must name the failed operation: {s}");
     assert!(s.contains(&old.claims.display().to_string()));
+    assert!(s.contains("reverse-rolled"), "rollback segment missing: {s}");
+    // worktrees was rolled back to its original nested path.
+    assert!(old.worktrees.exists());
+    assert!(!new.worktrees.exists());
+}
+
+#[test]
+fn rebind_rolls_back_multiple_moved_siblings_on_failure() {
+    // Conformance: a rebind whose third sibling rename fails leaves
+    // all four siblings at the original nested path. With pending
+    // order worktrees, claims, locks, plugins_auth — putting a
+    // regular file at new.locks makes the third forward rename fail
+    // after worktrees and claims already moved; both must reverse.
+    let home = tmp();
+    let bases = bases_at(home.path());
+    let (clone, old, new) = seed_moved(home.path(), "home/u/old", "dev/here");
+    fs::write(old.worktrees.join("marker"), "w").unwrap();
+    fs::write(old.claims.join("bl-aaaa"), "c").unwrap();
+    fs::write(old.locks.join("bl-aaaa"), "l").unwrap();
+    fs::create_dir_all(new.locks.parent().unwrap()).unwrap();
+    fs::write(&new.locks, "i am a file, not a dir").unwrap();
+
+    let err = run_with(&bases, &clone).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains(&old.locks.display().to_string()), "primary names locks: {s}");
+    assert!(
+        s.contains(&format!("{} → {}", new.claims.display(), old.claims.display())),
+        "rollback names claims: {s}"
+    );
+    assert!(
+        s.contains(&format!("{} → {}", new.worktrees.display(), old.worktrees.display())),
+        "rollback names worktrees: {s}"
+    );
+    // Both pre-failure siblings are restored at their original
+    // nested paths; the failed sibling never moved.
+    assert!(old.worktrees.join("marker").exists());
+    assert!(old.claims.join("bl-aaaa").exists());
+    assert!(old.locks.join("bl-aaaa").exists());
+    assert!(!new.worktrees.exists());
+    assert!(!new.claims.exists());
+}
+
+#[test]
+fn rebind_surfaces_reverse_rename_failure() {
+    // Conformance: a rebind whose forward rename fails AND whose
+    // reverse-rename also fails surfaces both failures and leaves
+    // the data wherever it actually sits. Driven via the rename-fn
+    // seam: a real reverse-rename failure is impractical to engineer
+    // on a healthy filesystem without root, but the error-composition
+    // path is what matters to the user.
+    use crate::doctor_moved::OrphanClone;
+    let home = tmp();
+    let bases = bases_at(home.path());
+    let (clone, old, _new) = seed_moved(home.path(), "home/u/old", "dev/here");
+    fs::write(old.claims.join("bl-aaaa"), "x").unwrap();
+    let nested_to = nested_clone_path(&clone);
+    let orphan = OrphanClone {
+        claims_dir: old.claims.clone(),
+        nested: PathBuf::from("home/u/old"),
+        recorded_path: home
+            .path()
+            .join("phantom-old/home/u/old")
+            .to_string_lossy()
+            .into_owned(),
+        orphan_task_ids: vec![],
+    };
+    let mut calls = 0;
+    let mut rename = |from: &Path, to: &Path| -> std::io::Result<()> {
+        calls += 1;
+        match calls {
+            1 => fs::rename(from, to),
+            2 => Err(std::io::Error::other("synthetic forward failure")),
+            _ => Err(std::io::Error::other("synthetic reverse failure")),
+        }
+    };
+    let err =
+        rebind_one_with(&bases, &orphan, &nested_to, &clone, &mut rename).unwrap_err();
+    let s = err.to_string();
+    assert!(s.contains("synthetic forward failure"), "primary missing: {s}");
+    assert!(s.contains("reverse FAILED"), "reverse-failure segment missing: {s}");
+    assert!(s.contains("synthetic reverse failure"), "reverse error missing: {s}");
+    // Forward rolled back nothing; the reverse-rolled segment must
+    // not appear when no reverse rename succeeded.
+    assert!(!s.contains("reverse-rolled"), "unexpected rolled segment: {s}");
 }
 
 #[test]
