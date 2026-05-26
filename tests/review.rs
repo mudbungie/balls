@@ -15,7 +15,7 @@ fn review_merges_work_keeps_worktree() {
         .assert()
         .success();
 
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "work").unwrap();
 
     bl(repo.path())
@@ -43,7 +43,7 @@ fn close_after_review_archives_and_removes_worktree() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("work.txt"), "done").unwrap();
 
     bl(repo.path())
@@ -72,7 +72,7 @@ fn close_rejects_from_inside_worktree() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
 
     bl(repo.path())
         .args(["review", &id])
@@ -98,7 +98,7 @@ fn review_as_attributes_note_to_override_identity() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "x").unwrap();
 
     bl_as(repo.path(), "ignored-by-as-flag")
@@ -126,7 +126,7 @@ fn close_as_overrides_identity() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "x").unwrap();
     bl(repo.path())
         .args(["review", &id])
@@ -147,7 +147,7 @@ fn review_reject_back_to_in_progress() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("v1.txt"), "first attempt").unwrap();
 
     bl(repo.path())

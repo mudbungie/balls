@@ -29,7 +29,7 @@ fn deferred_review_pushes_branch_and_opens_gate() {
     let main_before = sha(code.path(), "main");
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();
 
     bl(alice.path())
@@ -82,7 +82,7 @@ fn close_blocked_until_gate_child_closes() {
 
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("f.txt"), "w").unwrap();
     bl(alice.path()).args(["review", &id, "-m", "go"]).assert().success();
     let child = gate_child(alice.path());
@@ -124,7 +124,7 @@ fn deferred_review_requires_explicit_target_branch() {
 
     let id = create_task(repo.path(), "feature");
     bl(repo.path()).args(["claim", &id]).assert().success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     fs::write(wt.join("f.txt"), "w").unwrap();
 
     bl(repo.path())

@@ -14,7 +14,7 @@ fn story_33_review_then_close() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "code").unwrap();
 
     // Agent submits for review (from worktree — safe, worktree stays)
@@ -134,7 +134,7 @@ fn story_38_drop_resets_task() {
     assert_eq!(j["status"], "open");
     assert!(j["claimed_by"].is_null());
     assert!(j["branch"].is_null());
-    assert!(!repo.path().join(".balls-worktrees").join(&id).exists());
+    assert!(!worktree_path(repo.path(), &id).exists());
     assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
 }
 
@@ -147,7 +147,7 @@ fn story_39_drop_uncommitted_requires_force() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("dirty.txt"), "work").unwrap();
     bl(repo.path())
         .args(["drop", &id])

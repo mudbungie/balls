@@ -101,7 +101,7 @@ fn close_worktree_path_also_enforces_gates() {
         .stderr(predicate::str::contains("blocked by open gate"));
 
     // Worktree still exists — close was rejected before teardown.
-    assert!(repo.path().join(".balls-worktrees").join(&parent).exists());
+    assert!(worktree_path(repo.path(), &parent).exists());
 }
 
 #[test]

@@ -31,7 +31,7 @@ fn deferred_reviewed() -> (Repo, Repo, String) {
 
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();
     bl(alice.path())
         .args(["review", &id, "-m", "Ship it"])

@@ -17,7 +17,7 @@ fn forget_half_push_suppresses_subsequent_warning() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "content").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "ready"])
@@ -106,7 +106,7 @@ fn forget_all_half_pushes_clears_every_warning() {
             .args(["claim", id])
             .assert()
             .success();
-        let wt = repo.path().join(".balls-worktrees").join(id);
+        let wt = worktree_path(repo.path(), id);
         std::fs::write(wt.join(format!("{id}.txt")), "c").unwrap();
         bl(repo.path())
             .args(["review", id, "-m", "ready"])

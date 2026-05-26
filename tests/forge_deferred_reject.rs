@@ -29,7 +29,7 @@ fn deferred_reject_closes_gate_child_atomically() {
 
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("f.txt"), "w").unwrap();
     bl(alice.path()).args(["review", &id, "-m", "go"]).assert().success();
     let child = gate_child(alice.path());
@@ -120,7 +120,7 @@ fn deferred_reject_refused_when_gate_child_claimed() {
 
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("f.txt"), "w").unwrap();
     bl(alice.path()).args(["review", &id, "-m", "go"]).assert().success();
     let child = gate_child(alice.path());

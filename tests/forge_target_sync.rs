@@ -43,7 +43,7 @@ fn create_with_target(repo: &Path, title: &str, branch: &str) -> String {
 fn deliver(repo: &Path, title: &str, target: &str, file: &str) -> String {
     let id = create_with_target(repo, title, target);
     bl(repo).args(["claim", &id]).assert().success();
-    let wt = repo.join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo, &id);
     fs::write(wt.join(file), "work").unwrap();
     bl(repo)
         .args(["review", &id, "-m", "ready"])
@@ -172,7 +172,7 @@ fn no_override_review_subject_is_byte_identical() {
     let id = create_task(plain.path(), "plain");
     bl(plain.path()).args(["claim", &id]).assert().success();
     fs::write(
-        plain.path().join(".balls-worktrees").join(&id).join("f.txt"),
+        worktree_path(plain.path(), &id).join("f.txt"),
         "x",
     )
     .unwrap();

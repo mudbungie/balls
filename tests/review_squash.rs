@@ -88,7 +88,7 @@ fn review_creates_squash_commit_with_title() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("work.txt"), "code").unwrap();
 
     bl(repo.path())
