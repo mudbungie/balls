@@ -16,7 +16,7 @@
   "status": "open",
   "synced_at": {"github-issues":"2026-05-25T23:00:35.978947262Z"},
   "tags": ["spec","xdg"],
-  "title": "SPEC clarification: per-clone runtime state outside the four named subdirs",
+  "title": "Delete Store::local_dir() and the state/<nested>/ catch-all path; verify no consumers remain",
   "type": "task",
-  "updated_at": "2026-05-26T01:33:44.534003632Z"
+  "updated_at": "2026-05-26T01:34:08.632713697Z"
 }
