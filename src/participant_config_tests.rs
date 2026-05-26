@@ -39,9 +39,10 @@ fn policy_kind_into_failure_policy_round_trip() {
         PolicyKind::BestEffort.into_failure_policy(),
         FailurePolicy::BestEffort
     );
+    // Gating degrades to Required while staging is deferred (bl-6969).
     assert_eq!(
         PolicyKind::Gating.into_failure_policy(),
-        FailurePolicy::Gating
+        FailurePolicy::Required
     );
 }
 
@@ -156,7 +157,9 @@ fn layered_override_inherits_unspecified_events_from_repo() {
         &InvocationOverrides::default(),
     );
     assert_eq!(resolved.get(&Event::Claim), Some(&FailurePolicy::Required));
-    assert_eq!(resolved.get(&Event::Close), Some(&FailurePolicy::Gating));
+    // The local Gating override degrades to Required via bl-6969;
+    // the layered-inheritance shape is what this test still exercises.
+    assert_eq!(resolved.get(&Event::Close), Some(&FailurePolicy::Required));
 }
 
 #[test]
@@ -221,6 +224,41 @@ fn participant_config_round_trip_through_full_config() {
         part.subscriptions.get(&Event::Close).map(|p| p.policy),
         Some(PolicyKind::Required)
     );
+}
+
+#[test]
+fn gating_policy_in_project_config_resolves_to_required() {
+    // bl-6969: `"policy": "gating"` parses successfully and the
+    // resolved FailurePolicy degrades to Required while staging is
+    // deferred. The schema surface stays intact so existing projects
+    // don't have to edit their config.
+    let s = r#"{
+        "version": 1,
+        "id_length": 4,
+        "stale_threshold_seconds": 60,
+        "worktree_dir": ".balls-worktrees",
+        "plugins": {
+            "audit": {
+                "enabled": true,
+                "sync_on_change": false,
+                "config_file": ".balls/plugins/audit.json",
+                "participant": {
+                    "subscriptions": {
+                        "close": { "policy": "gating" }
+                    }
+                }
+            }
+        }
+    }"#;
+    let cfg: ProjectConfig = serde_json::from_str(s).unwrap();
+    let entry = cfg.plugins.get("audit").unwrap();
+    let resolved = effective_subscriptions(
+        "audit",
+        entry,
+        None,
+        &InvocationOverrides::default(),
+    );
+    assert_eq!(resolved.get(&Event::Close), Some(&FailurePolicy::Required));
 }
 
 #[test]
