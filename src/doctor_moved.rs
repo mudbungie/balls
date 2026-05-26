@@ -14,19 +14,16 @@
 //! 1. Walk `~/.local/state/balls/claims/` recursively for every file
 //!    named `clone-path.json` (the breadcrumb dropped by
 //!    [`crate::clone_breadcrumb`] at materialization time).
-//! 2. For each breadcrumb whose `hostname` matches this host, check
-//!    whether the recorded `path` resolves to the directory the
-//!    breadcrumb itself sits under. A match means the clone is still
-//!    there; a mismatch means the clone moved (or the breadcrumb is
-//!    stale).
-//! 3. Compare each orphan's recorded path against the current clone's
-//!    absolute path — if equal, surface a "rebind to <new-nested>"
-//!    finding with the orphan's task IDs and the rebind command.
-//!
-//! Cross-host scoping: the hostname filter is the SPEC §12 NFS guard.
-//! A per-clone subtree owned by another host on a shared `$HOME` is
-//! not "moved from this host's perspective" — it is owned by that
-//! host. Doctor reports nothing for it.
+//! 2. Filter to breadcrumbs whose `hostname` matches this host (the
+//!    SPEC §12 NFS guard — subtrees owned by another host on a shared
+//!    `$HOME` are not "moved from this host's perspective").
+//! 3. A subtree is moved-from-here when the breadcrumb sits at a
+//!    different nested path than the current clone, records a path
+//!    other than the current clone's path, and that recorded path no
+//!    longer exists on disk. The last check disambiguates a real move
+//!    from a second active clone living elsewhere on the same host —
+//!    if `/home/u/old` still exists as a directory, the breadcrumb is
+//!    owned by that live clone, not orphaned by a move.
 
 use crate::clone_breadcrumb::{self, BREADCRUMB_FILE};
 use crate::doctor::Finding;
@@ -45,19 +42,20 @@ pub struct OrphanClone {
     /// `<nested-clone-path>` of the orphaned subtree, relative to
     /// `~/.local/state/balls/claims/`.
     pub nested: PathBuf,
-    /// Clone path the breadcrumb recorded — `None` if the breadcrumb
-    /// is missing/corrupt (a different kind of orphan; we still report
-    /// it so the user knows the subtree exists).
-    pub recorded_path: Option<String>,
+    /// Clone path the breadcrumb recorded — the path the user `mv`d
+    /// away from. Always present: a breadcrumb that won't parse can't
+    /// be classified as moved-from-here, so the walk skips it.
+    pub recorded_path: String,
     /// Task IDs the orphaned claims/ holds. Drawn from the file names
     /// of every regular file under `claims_dir` *except* the breadcrumb.
     pub orphan_task_ids: Vec<String>,
 }
 
-/// Run the moved-clone walk. Returns the orphans whose recorded path
-/// equals `current_clone_root`'s absolute path — i.e. the clone moved
-/// and these are its old subtrees. Same-host filtering happens here so
-/// the doctor caller doesn't have to know about hostnames.
+/// Run the moved-clone walk. Returns orphans whose breadcrumb records
+/// a clone path that differs from `current_clone_root` and no longer
+/// exists on disk — i.e. the user `mv`d the clone away from there.
+/// Same-host filtering happens here so the doctor caller doesn't have
+/// to know about hostnames.
 ///
 /// `bases` is the resolved XDG bases (test override surface);
 /// `current_clone_root` is the clone's absolute path as `Store::root`
@@ -73,27 +71,35 @@ pub fn find_orphans(bases: &XdgBases, current_clone_root: &Path) -> Vec<OrphanCl
     let host = clone_breadcrumb::hostname();
     let mut orphans = Vec::new();
     walk_for_breadcrumbs(&claims_root, &claims_root, &mut |claims_dir, nested| {
-        let bc = clone_breadcrumb::read_at(claims_dir);
-        // Cross-host guard: breadcrumb hostname must match this host.
-        if bc.as_ref().is_some_and(|b| b.hostname != host) {
+        // Decision needs a readable breadcrumb. A corrupt one is a
+        // different failure mode — we don't have a recorded path to
+        // classify against, so we can't call it moved-from-here.
+        let Some(bc) = clone_breadcrumb::read_at(claims_dir) else { return };
+        // Cross-host guard: SPEC §12 NFS scoping.
+        if bc.hostname != host {
             return;
         }
-        // Same-nested as current clone → not an orphan, just our tree.
+        // Same-nested as current clone → our own tree, not an orphan.
         if nested == current_nested {
             return;
         }
-        // Only surface orphans recorded as the *same clone* we're
-        // running against — i.e. the clone moved. A breadcrumb for a
-        // different clone on the same host is owned by that clone;
-        // doctor running here has nothing to say.
-        let recorded_path = bc.as_ref().map(|b| b.path.clone());
-        if recorded_path.as_deref() != Some(&*current_path_str) {
+        // Breadcrumb pointing at this very clone from a different
+        // nested path is defensive-only (writer shouldn't produce it);
+        // either way, the clone isn't moved-away-from-here.
+        if bc.path == current_path_str {
+            return;
+        }
+        // Disambiguate move from "another active clone on this host":
+        // a still-present recorded path belongs to a live sibling, not
+        // an orphan. A gone recorded path is a move (or delete, which
+        // the rebind also fixes).
+        if Path::new(&bc.path).exists() {
             return;
         }
         orphans.push(OrphanClone {
             claims_dir: claims_dir.to_path_buf(),
             nested: nested.to_path_buf(),
-            recorded_path,
+            recorded_path: bc.path,
             orphan_task_ids: collect_task_ids(claims_dir),
         });
     });
@@ -113,12 +119,11 @@ pub fn to_findings(orphans: &[OrphanClone], current_clone_root: &Path) -> Vec<Fi
             } else {
                 format!("claimed tasks: {}", o.orphan_task_ids.join(", "))
             };
-            let recorded = o.recorded_path.as_deref().unwrap_or("<missing breadcrumb>");
             Finding::flag(
                 format!(
                     "moved clone detected: per-clone state at {} records path {} ({})",
                     o.claims_dir.display(),
-                    recorded,
+                    o.recorded_path,
                     id_summary,
                 ),
                 format!(
