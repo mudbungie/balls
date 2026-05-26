@@ -132,7 +132,7 @@ pub fn cmd_resolve(file: String) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
+pub fn cmd_prime(identity: Option<String>, json: bool, migrate: bool) -> Result<()> {
     let store = discover()?;
     let ident = identity.unwrap_or_else(default_identity);
 
@@ -147,6 +147,29 @@ pub fn cmd_prime(identity: Option<String>, json: bool) -> Result<()> {
     });
 
     notify_claim_policy(&store);
+
+    // Phase 3 (bl-05e5): back-fill the moved-clone breadcrumb when
+    // the per-clone tree exists but the breadcrumb does not. A clone
+    // that materialized state before bl-05e5 shipped has no
+    // breadcrumb at `claims/<nested>/clone-path.json` — back-fill on
+    // first XDG prime so `bl doctor`'s moved-clone walk has the
+    // recording it expects (SPEC §8).
+    if store.layout == balls::store::Layout::Xdg && !store.stealth {
+        let _ = balls::clone_breadcrumb::backfill(&store.claims_dir(), &store.root);
+    }
+
+    // Phase 3 (bl-05e5): `--migrate` is the prime-driven off-ramp for
+    // the legacy layout. Idempotent — a clone already on XDG yields
+    // "nothing to migrate" and exits zero. The dirty-clone refuses
+    // baked into `balls::migrate::run` carry through; the migration
+    // runs *before* the ready/claimed listing so a successful migrate
+    // shows the post-move world, not the pre-move one.
+    if migrate && balls::legacy_layout::is_legacy(&store.root) {
+        let report = balls::migrate::run(&store.root)?;
+        for line in report.lines() {
+            println!("{line}");
+        }
+    }
 
     let tasks = store.all_tasks()?;
     let ready_tasks = ready::ready_queue(&tasks);

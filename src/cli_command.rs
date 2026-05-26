@@ -4,7 +4,9 @@
 
 use clap::Subcommand;
 
-use crate::cli_sub::{CloseArgs, DepCmd, LinkCmd, ParticipantFlags, PluginCmd, ShellArg};
+use crate::cli_sub::{
+    CloseArgs, DepCmd, LinkCmd, ParticipantFlags, PluginCmd, RepairFlags, ShellArg,
+};
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
@@ -238,6 +240,13 @@ pub enum Command {
         identity: Option<String>,
         #[arg(long)]
         json: bool,
+        /// After priming, run `bl migrate` if the clone still carries
+        /// pre-XDG layout markers (SPEC-clone-layout §11.1). No-op on
+        /// a clone already on the XDG layout. Refuses if the clone or
+        /// any task worktree has uncommitted changes — the same
+        /// dirty-clone gate `bl migrate` enforces. (Phase 3 / bl-05e5.)
+        #[arg(long)]
+        migrate: bool,
     },
 
     /// Read-only health check: report repo/bl state drift and the
@@ -246,20 +255,8 @@ pub enum Command {
 
     /// Scan and repair malformed task files and orphaned state.
     Repair {
-        #[arg(long)]
-        fix: bool,
-        /// Retract a stale half-push warning for ID. Writes a
-        /// `state: forget-half-push <id>` commit on the state branch
-        /// so the detector stops flagging it. ID must currently be
-        /// flagged. Repeatable.
-        #[arg(long = "forget-half-push", value_name = "ID")]
-        forget_half_push: Vec<String>,
-        /// Retract every half-push warning currently detected.
-        #[arg(
-            long = "forget-all-half-pushes",
-            conflicts_with = "forget_half_push"
-        )]
-        forget_all_half_pushes: bool,
+        #[command(flatten)]
+        args: RepairFlags,
     },
 
     /// Relocate this clone to the nested XDG layout (SPEC §11.1).
