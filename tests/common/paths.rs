@@ -151,3 +151,19 @@ pub fn worktrees_dir(repo_root: &Path) -> PathBuf {
         .expect("non-stealth repo for worktrees_dir")
         .worktrees
 }
+
+/// XDG per-clone cache directory — `~/.cache/balls/<nested>/`, where
+/// runtime markers like `last_fetch` (bl-5814) live. Mirrors
+/// `Store::cache_dir`; used by integration tests that need to check
+/// for a marker file directly.
+pub fn cache_dir(repo_root: &Path) -> PathBuf {
+    let canon = std::fs::canonicalize(repo_root).unwrap_or_else(|_| repo_root.to_path_buf());
+    let nested = balls::encoding::nested_clone_path(&canon);
+    test_xdg_bases().cache_root().join(nested)
+}
+
+/// Path to the `last_fetch` marker `bl ready --auto-fetch` writes.
+/// Convenience wrapper over [`cache_dir`].
+pub fn cache_last_fetch(repo_root: &Path) -> PathBuf {
+    cache_dir(repo_root).join("last_fetch")
+}
