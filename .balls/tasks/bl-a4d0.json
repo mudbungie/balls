@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-26T01:24:52.616451033Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "On a freshly-migrated XDG-mode clone, `bl doctor` emits two false-positive findings unrelated to any real drift:\n\n1. **`check_config`** (`src/doctor.rs`) reads `store.config_path()` through `Config::load`. On XDG-mode stores the path resolves to `repo.json`, but `Config` is the legacy `.balls/config.json` schema and demands fields (e.g. `worktree_dir`) that `repo.json` does not carry. Result: \"config at .../repo.json is unreadable: missing field worktree_dir\".\n\n2. **`check_state_repo`** falls through to `check_tasks_symlink(&store.root, \"state-repo/.balls/tasks\", out)`, looking for a `<root>/.balls/tasks` convenience symlink. XDG-migrated clones have no `.balls/` at the clone root, so the symlink check unconditionally fires: \".balls/tasks convenience symlink is missing\".\n\nBoth bugs surfaced while writing the bl-05e5 conformance tests. They predate that ball; bl-05e5 worked around by extracting `cmd_doctor`'s rendering into a unit-testable pure function rather than asserting \"no problems detected\" on a migrated clone.\n\nThis is the same surface area as bl-ad75 (Phase 1B-4: migrate doctor + conformance_federated + conformance_migrate fixtures), which says \"any output-string drift is doctor's bug, fix it here.\" That ball is test-fixture-focused; this one is the underlying doctor.rs fix that bl-ad75's verification step needs.\n\n## Fix\n\n- `check_config` should branch on `store.layout`: under XDG, read `repo.json` via `RepoJson::read_or_default` and `project.json` via the EffectiveConfig path. Under legacy, keep the current `Config::load`.\n\n- `check_state_repo` is legacy-only — the unified `.balls/state-repo` checkout doesn't exist in XDG mode (the tracker checkout lives under `~/.local/state/balls/trackers/...`). Skip the entire check (and its tasks-symlink follow-up) when `store.layout == Layout::Xdg`. A separate `check_tracker_checkout` for XDG could verify the trackers/ directory's git-dir health; defer unless it has a known failure mode worth surfacing.\n\n## Why this is its own ball, not a one-line patch inside bl-ad75\n\nbl-ad75's scope is test fixture migration. The doctor.rs changes are real product code with their own conformance assertions: a healthy XDG clone must read as \"no problems detected\" once bl-e802 ships. Keeping them separate lets bl-ad75 stay a test-only diff and this ball own the doctor.rs / RepoJson plumbing.\n\n## Conformance\n\n- A freshly-migrated XDG clone with no drift emits \"no problems detected\".\n- A legacy clone still emits the existing config/state-repo findings (no regression).\n- The bl-05e5 conformance test in `conformance_moved_clone.rs` can be extended once this lands to assert silence on a post-rebind XDG clone (currently dodged via unit test).",
+  "external": {},
+  "id": "bl-a4d0",
+  "links": [],
+  "parent": "bl-e802",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["bug","xdg"],
+  "title": "bl doctor: XDG-mode awareness for check_config + check_state_repo",
+  "type": "task",
+  "updated_at": "2026-05-26T01:24:52.616451033Z"
+}
