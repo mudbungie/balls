@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-cb73","bl-1432","bl-6969"],
   "description": "probe-description",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":181,"source":"balls","state":"open","synced_at":"2026-05-26T08:00:10.160564686+00:00","url":"https://github.com/mudbungie/balls/issues/181"}}},
+  "external": {"github-issues":{}},
   "id": "bl-a11d",
   "links": [],
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-26T08:00:10.185354601Z"},
+  "synced_at": {"github-issues":"2026-05-26T08:00:58.107292380Z"},
   "tags": ["spec","xdg"],
   "title": "placeholder",
   "type": "task",
-  "updated_at": "2026-05-26T08:00:57.761476303Z"
+  "updated_at": "2026-05-26T08:00:58.107297890Z"
 }
