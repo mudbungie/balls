@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-26T16:03:01.929520260Z","id":"bl-51a5","title":"Drop per-worktree .balls/local symlink; consumers resolve XDG paths directly"},{"closed_at":"2026-05-26T16:05:08.062356285Z","id":"bl-341b","title":"Sunset pending_sync_legacy::warn_if_present (move diagnostic into bl doctor)"},{"closed_at":"2026-05-26T16:08:04.903375766Z","id":"bl-5814","title":"Relocate last_fetch marker from local_dir/ to ~/.cache/balls/<nested>/"}],
+  "closed_children": [{"closed_at":"2026-05-26T16:03:01.929520260Z","id":"bl-51a5","title":"Drop per-worktree .balls/local symlink; consumers resolve XDG paths directly"},{"closed_at":"2026-05-26T16:05:08.062356285Z","id":"bl-341b","title":"Sunset pending_sync_legacy::warn_if_present (move diagnostic into bl doctor)"},{"closed_at":"2026-05-26T16:08:04.903375766Z","id":"bl-5814","title":"Relocate last_fetch marker from local_dir/ to ~/.cache/balls/<nested>/"},{"closed_at":"2026-05-26T16:35:53.236314081Z","id":"bl-5a03","title":"Fold LocalConfig (config.json) + tasks_dir marker into clone.json"}],
   "created_at": "2026-05-25T22:27:56.802770081Z",
   "delivered_in": null,
   "depends_on": ["bl-cb73","bl-1432","bl-6969","bl-5a03","bl-5814","bl-51a5","bl-341b"],
@@ -18,5 +18,5 @@
   "tags": ["spec","xdg"],
   "title": "Retire Store::local_dir() and the state/<nested>/ catch-all — final step of Phase 1A SPEC §3 alignment",
   "type": "task",
-  "updated_at": "2026-05-26T16:08:04.903397236Z"
+  "updated_at": "2026-05-26T16:35:53.236334079Z"
 }
