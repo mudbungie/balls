@@ -9,7 +9,6 @@
 mod cmd;
 mod config_seed;
 pub mod forge;
-pub mod human_gate;
 pub mod migrate;
 pub mod multidev;
 pub mod native_plugin;

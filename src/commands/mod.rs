@@ -22,7 +22,6 @@ pub mod repair;
 pub mod sync;
 mod sync_bounds;
 mod sync_report;
-mod sync_review;
 mod sync_targets;
 pub mod update;
 

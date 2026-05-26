@@ -66,10 +66,10 @@ pub(crate) fn finish_state_event(
 }
 
 /// Fire the plugin sync fan-out and hand each plugin's `SyncReport`
-/// to `per_report`. Owns the two literals both sync entry points
-/// share — the dispatch-failure warning and the closing
-/// `sync complete` — so `bl sync` and `bl sync --review` can't drift
-/// them. The per-report action (apply vs. stage) is the caller's.
+/// to `per_report`. Owns the two literals every sync entry point
+/// shares — the dispatch-failure warning and the closing
+/// `sync complete` — so callers can't drift them. The per-report
+/// action is the caller's.
 pub(crate) fn dispatch_sync_each(
     store: &Store,
     filter: Option<&str>,
