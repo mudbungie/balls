@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-5a03",
+  "claimed_by": "Imperially",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T08:02:10.680304842Z",
@@ -13,10 +13,10 @@
   "parent": "bl-a11d",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-26T08:02:12.038528836Z"},
   "tags": ["spec","xdg"],
   "title": "Fold LocalConfig (config.json) + tasks_dir marker into clone.json",
   "type": "task",
-  "updated_at": "2026-05-26T08:02:12.038536189Z"
+  "updated_at": "2026-05-26T15:55:58.390233173Z"
 }
