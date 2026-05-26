@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T01:24:31.479801405Z",
-  "delivered_in": null,
+  "delivered_in": "d0dee8660185af4d02d922026959f1ed8b9e7fc6",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "The bl-05e5 implementation of `doctor_moved::find_orphans` reports an orphan only when the breadcrumb's recorded_path equals the current clone path. The SPEC §8 scenario is the inverse: the OLD breadcrumb at the OLD nested-path records the OLD clone path, the user `mv`s the clone, the current clone path is NEW. After a real move the recorded path NEVER equals the current clone path — so doctor today silently misses every moved-clone scenario.\n\nThe bl-05e5 conformance test happens to pass because the fixture explicitly re-writes the old breadcrumb to point at the new clone path post-rename — something bl would never do (bl does not run from the old location after the move). Fixture and implementation share the same wrong assumption.\n\n## Fix\n\nIn `src/doctor_moved.rs::find_orphans`:\n\n1. Invert the predicate: report orphans when `recorded_path != current_clone_path` AND `hostname == current host` AND `nested != current_nested`.\n\n2. Disambiguate \"moved\" from \"another clone exists\" by also checking that the recorded path no longer exists on disk. If `/home/u/old` still exists as a directory, the breadcrumb belongs to another active clone and we should NOT surface it as moved-from-here. If `/home/u/old` is gone, it's a move (or a delete, which the rebind would also fix).\n\n3. Update `tests/conformance_moved_clone.rs::seed_moved_clone` to model the real-world scenario: rename the clone but do NOT re-write the breadcrumb. The breadcrumb at the old nested location must continue to record the old path.\n\n4. Add a coverage gate for the \"another clone still on disk\" case so the disambiguation does not regress.\n\n## Scope\n\nJust the detection logic + the test fixture. The rebind (`repair_rebind.rs`) is correct as-is; it acts on whatever orphans the walk surfaces. The breadcrumb writer/reader are correct.\n\n## Why not just reopen bl-05e5\n\nbl-05e5 delivered the surface area (CLI flag, doctor walk, breadcrumb writer, repair verb). The bug is a single inverted comparison inside one function plus its conformance test. A focused bug ball lets the fix land cleanly without re-touching the rest of the slice.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":170,"source":"balls","state":"open","synced_at":"2026-05-26T02:00:48.960538741+00:00","url":"https://github.com/mudbungie/balls/issues/170"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-f021",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-26T02:00:48.971248225Z"},
   "tags": ["bug","xdg"],
   "title": "Fix bl-05e5 moved-clone detection: invert recorded-path comparison",
   "type": "task",
-  "updated_at": "2026-05-26T02:00:48.971261339Z"
+  "updated_at": "2026-05-26T02:15:54.631869110Z"
 }
