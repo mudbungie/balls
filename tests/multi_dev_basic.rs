@@ -21,16 +21,12 @@ fn story_46_sync_nonconflicting_remote_changes() {
     let b_id = create_task(bob.path(), "bob task");
     bl(bob.path()).arg("sync").assert().success();
 
-    assert!(bob
-        .path()
-        .join(".balls/tasks")
+    assert!(discover_tasks_dir(bob.path())
         .join(format!("{a_id}.json"))
         .exists());
 
     bl(alice.path()).arg("sync").assert().success();
-    assert!(alice
-        .path()
-        .join(".balls/tasks")
+    assert!(discover_tasks_dir(alice.path())
         .join(format!("{b_id}.json"))
         .exists());
 }

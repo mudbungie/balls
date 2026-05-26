@@ -208,7 +208,7 @@ esac
         "plugin must not contribute when event is not subscribed: {task}"
     );
     let propose_marker =
-        repo.path().join(".balls/local/plugins/jira/propose-was-called");
+        plugins_auth_dir(repo.path()).join("jira/propose-was-called");
     assert!(
         !propose_marker.exists(),
         "propose must not have been invoked for an unsubscribed event"

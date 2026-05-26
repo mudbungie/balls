@@ -9,7 +9,7 @@ use common::plugin::*;
 use std::fs;
 
 fn rewrite_external(repo_path: &std::path::Path, id: &str, external: serde_json::Value) {
-    let task_path = repo_path.join(".balls/tasks").join(format!("{id}.json"));
+    let task_path = discover_tasks_dir(repo_path).join(format!("{id}.json"));
     let mut task: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&task_path).unwrap()).unwrap();
     task["external"] = external;

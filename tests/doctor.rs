@@ -46,7 +46,7 @@ fn state_checkout_with_a_file_gitdir_is_flagged() {
     // directory. A `.git` *file* (a stray worktree pointer) is drift.
     let repo = new_repo();
     init_in(repo.path());
-    let gitdir = repo.path().join(".balls/state-repo/.git");
+    let gitdir = discover_state_repo(repo.path()).unwrap().join(".git");
     fs::remove_dir_all(&gitdir).unwrap();
     fs::write(&gitdir, "garbage\n").unwrap();
     let out = doctor(repo.path());
@@ -59,7 +59,7 @@ fn state_checkout_with_a_file_gitdir_is_flagged() {
 fn state_checkout_with_no_head_is_flagged() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::remove_file(repo.path().join(".balls/state-repo/.git/HEAD")).unwrap();
+    fs::remove_file(discover_state_repo(repo.path()).unwrap().join(".git/HEAD")).unwrap();
     assert!(doctor(repo.path()).contains("not a valid git clone"));
 }
 
@@ -99,7 +99,7 @@ fn deleted_state_checkout_rebuilds_via_doctors_hint() {
     // legacy); the state-checkout finding does not.
     let repo = new_repo();
     init_in(repo.path());
-    fs::remove_dir_all(repo.path().join(".balls/state-repo")).unwrap();
+    fs::remove_dir_all(discover_state_repo(repo.path()).unwrap()).unwrap();
     bl(repo.path()).arg("prime").assert().success();
     let out = doctor(repo.path());
     assert!(!out.contains("not a valid git clone"));
@@ -110,7 +110,7 @@ fn deleted_state_checkout_rebuilds_via_doctors_hint() {
 fn claim_file_with_no_task() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::write(repo.path().join(".balls/local/claims/bl-zzzz"), "x").unwrap();
+    fs::write(claims_dir(repo.path()).join("bl-zzzz"), "x").unwrap();
     let out = doctor(repo.path());
     assert!(out.contains("claim file for bl-zzzz but no such task"));
     assert!(out.contains("bl repair --fix"));
@@ -121,7 +121,7 @@ fn claim_file_for_task_not_in_progress() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "open task");
-    fs::write(repo.path().join(".balls/local/claims").join(&id), "x").unwrap();
+    fs::write(claims_dir(repo.path()).join(&id), "x").unwrap();
     let out = doctor(repo.path());
     assert!(out.contains(&format!("claim file for {id} but its status is open")));
     assert!(out.contains("bl drop"));
@@ -149,20 +149,20 @@ fn orphan_worktree_dir_is_flagged() {
     // A worktree named after a real (but unclaimed) task is NOT an
     // orphan; one with no task or claim behind it is.
     let id = create_task(repo.path(), "has a task");
-    let wt = repo.path().join(".balls-worktrees");
-    fs::create_dir_all(wt.join(&id)).unwrap();
-    fs::create_dir_all(wt.join("bl-dead")).unwrap();
+    let real_wt = worktree_path(repo.path(), &id);
+    fs::create_dir_all(&real_wt).unwrap();
+    fs::create_dir_all(worktree_path(repo.path(), "bl-dead")).unwrap();
     let out = doctor(repo.path());
     assert!(out.contains("bl-dead"));
     assert!(out.contains("has no matching claim or task"));
-    assert!(!out.contains(&format!("worktree dir {}", wt.join(&id).display())));
+    assert!(!out.contains(&format!("worktree dir {}", real_wt.display())));
 }
 
 #[test]
 fn corrupt_config_is_flagged() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::write(repo.path().join(".balls/config.json"), "{ not json").unwrap();
+    fs::write(config_path(repo.path()), "{ not json").unwrap();
     let out = doctor(repo.path());
     assert!(out.contains("config") && out.contains("is unreadable"));
     assert!(out.contains("git checkout main"));
@@ -229,7 +229,7 @@ fn healthy_stealth_store_only_reports_migration_hint() {
 fn missing_claims_dir_is_not_a_stale_claim_finding() {
     let repo = new_repo();
     init_in(repo.path());
-    fs::remove_dir_all(repo.path().join(".balls/local/claims")).unwrap();
+    fs::remove_dir_all(claims_dir(repo.path())).unwrap();
     let out = doctor(repo.path());
     assert!(!out.contains("but no such task"));
     assert!(!out.contains("but its status"));

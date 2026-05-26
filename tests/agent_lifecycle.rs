@@ -89,7 +89,7 @@ fn repair_fix_removes_orphan_claim() {
     init_in(repo.path());
     // Fabricate an orphan claim file
     std::fs::write(
-        repo.path().join(".balls/local/claims/bl-ghost"),
+        claims_dir(repo.path()).join("bl-ghost"),
         "worker=ghost\npid=1\nclaimed_at=2026-01-01T00:00:00Z\n",
     )
     .unwrap();
@@ -99,7 +99,7 @@ fn repair_fix_removes_orphan_claim() {
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(s.contains("bl-ghost"));
-    assert!(!repo.path().join(".balls/local/claims/bl-ghost").exists());
+    assert!(!claims_dir(repo.path()).join("bl-ghost").exists());
 }
 
 #[test]
@@ -234,7 +234,7 @@ fn update_status_closed_archives_unclaimed_task() {
         .assert()
         .success();
     // Task file is archived (deleted from the state branch's tree)
-    let task_path = repo.path().join(format!(".balls/tasks/{id}.json"));
+    let task_path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     assert!(!task_path.exists());
     // Main log must NOT contain balls bookkeeping — only feature commits.
     let main_log = git(repo.path(), &["log", "--oneline", "main"]);

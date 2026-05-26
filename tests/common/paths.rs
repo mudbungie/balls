@@ -126,22 +126,64 @@ pub fn per_clone_paths(repo_root: &Path) -> Option<balls::xdg_paths::PerClonePat
     Some(balls::xdg_paths::PerClonePaths::new(&test_xdg_bases(), &nested))
 }
 
-/// XDG claims directory (Phase 1B-2+ tests). Panics on stealth.
+/// Per-clone claims directory, layout-aware. XDG when materialized,
+/// else `<repo>/.balls/local/claims`. Panics on stealth.
 pub fn claims_dir(repo_root: &Path) -> PathBuf {
-    per_clone_paths(repo_root).expect("non-stealth repo for claims_dir").claims
+    if is_xdg(repo_root) {
+        return per_clone_paths(repo_root)
+            .expect("non-stealth repo for claims_dir")
+            .claims;
+    }
+    repo_root.join(".balls/local/claims")
 }
 
-/// XDG per-clone lock directory.
+/// Per-clone lock directory, layout-aware.
 pub fn lock_dir(repo_root: &Path) -> PathBuf {
-    per_clone_paths(repo_root).expect("non-stealth repo for lock_dir").locks
+    if is_xdg(repo_root) {
+        return per_clone_paths(repo_root)
+            .expect("non-stealth repo for lock_dir")
+            .locks;
+    }
+    repo_root.join(".balls/local/lock")
 }
 
-/// XDG per-clone plugin-auth directory (the new home for what legacy
-/// stored under `.balls/local/plugins`).
+/// Per-clone plugin-auth directory, layout-aware. XDG calls this
+/// `plugins_auth`; legacy stored it under `.balls/local/plugins`.
 pub fn plugins_auth_dir(repo_root: &Path) -> PathBuf {
-    per_clone_paths(repo_root)
-        .expect("non-stealth repo for plugins_auth_dir")
-        .plugins_auth
+    if is_xdg(repo_root) {
+        return per_clone_paths(repo_root)
+            .expect("non-stealth repo for plugins_auth_dir")
+            .plugins_auth;
+    }
+    repo_root.join(".balls/local/plugins")
+}
+
+/// Per-clone local-state directory, layout-aware. Mirrors
+/// `Store::local_dir`: legacy `<repo>/.balls/local`, XDG
+/// `~/.local/state/balls/state/<nested>/`. Use for the per-clone runtime
+/// state files (`last_fetch`, `tasks_dir` override, pending-sync queue).
+pub fn local_dir(repo_root: &Path) -> PathBuf {
+    if is_xdg(repo_root) {
+        let canon = std::fs::canonicalize(repo_root).unwrap_or_else(|_| repo_root.to_path_buf());
+        let nested = balls::encoding::nested_clone_path(&canon);
+        return test_xdg_bases().state_root().join("state").join(nested);
+    }
+    repo_root.join(".balls/local")
+}
+
+/// Per-clone repo-config path, layout-aware. XDG → `repo.json` inside
+/// the tracker checkout (`<tracker>/.balls/repo.json`, the on-disk
+/// home of the per-repo config that ships with the state branch);
+/// legacy → `<repo>/.balls/config.json`. Use for assertions and edits
+/// *after* `bl init`. Pre-init fixture seeds keep going through
+/// [`super::seed_config`].
+pub fn config_path(repo_root: &Path) -> PathBuf {
+    if let Some(xdg) = xdg_tracker_checkout(repo_root) {
+        if xdg.join(".git").exists() {
+            return xdg.join(".balls/repo.json");
+        }
+    }
+    repo_root.join(".balls/config.json")
 }
 
 /// XDG per-clone worktrees root — `worktree_path(repo, id)` joins on

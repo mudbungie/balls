@@ -8,6 +8,9 @@
 
 use std::path::Path;
 
+use super::paths::{config_path, discover_state_repo};
+use super::{commit_state_repo, git};
+
 /// Write a minimal valid `.balls/config.json` before `bl init`, with
 /// `extra` string-valued keys merged into the base object. Use this
 /// instead of hand-rolling the config JSON literal per test — see
@@ -26,6 +29,35 @@ pub fn seed_config(repo: &Path, extra: &[(&str, &str)]) {
     let balls = repo.join(".balls");
     std::fs::create_dir_all(&balls).unwrap();
     std::fs::write(balls.join("config.json"), cfg.to_string()).unwrap();
+}
+
+/// Edit the per-repo config in place and commit it to its hosting
+/// branch, layout-aware. Legacy: `.balls/config.json` on the code
+/// branch (committed in the code repo). XDG: `repo.json` on
+/// `balls/tasks` (committed in the tracker checkout). `mutate` runs
+/// against the parsed JSON; an empty mutate is a no-op-on-disk
+/// rewrite (still committed so tests can assert a fresh tip).
+pub fn edit_and_commit_repo_config(
+    repo: &Path,
+    msg: &str,
+    mutate: impl FnOnce(&mut serde_json::Value),
+) {
+    let cp = config_path(repo);
+    let mut cfg: serde_json::Value = std::fs::read_to_string(&cp)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    mutate(&mut cfg);
+    std::fs::write(&cp, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();
+
+    if let Some(sr) = discover_state_repo(repo) {
+        if cp.starts_with(&sr) {
+            commit_state_repo(repo, msg);
+            return;
+        }
+    }
+    git(repo, &["add", ".balls/config.json"]);
+    git(repo, &["commit", "-m", msg]);
 }
 
 /// Set the `plugins` map in `.balls/project.json` — the project config

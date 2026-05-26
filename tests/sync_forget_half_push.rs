@@ -213,7 +213,7 @@ fn forget_all_half_pushes_when_none_flagged_is_noop() {
         "expected no-op message: {stdout}"
     );
 
-    let state_wt = repo.path().join(".balls/state-repo");
+    let state_wt = discover_state_repo(repo.path()).expect("non-stealth state checkout");
     let log = git(&state_wt, &["log", "--pretty=%s"]);
     assert!(
         !log.contains("state: forget-half-push"),

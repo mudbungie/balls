@@ -21,7 +21,7 @@ fn story_22_claim_creates_worktree() {
     assert_eq!(j["status"], "in_progress");
     assert_eq!(j["claimed_by"], "alice");
     assert_eq!(j["branch"], format!("work/{id}"));
-    let claim = repo.path().join(".balls/local/claims").join(&id);
+    let claim = claims_dir(repo.path()).join(&id);
     assert!(claim.exists());
 }
 

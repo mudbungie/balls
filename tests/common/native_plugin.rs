@@ -163,7 +163,7 @@ pub fn jira_policy(repo: &Path, event: &str, policy: &str) {
 }
 
 pub fn create_auth(repo: &Path, name: &str) {
-    let auth_dir = repo.join(format!(".balls/local/plugins/{name}"));
+    let auth_dir = super::plugins_auth_dir(repo).join(name);
     fs::create_dir_all(&auth_dir).unwrap();
     fs::write(auth_dir.join("token.json"), r#"{"token":"t"}"#).unwrap();
 }
