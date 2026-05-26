@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T08:02:49.769973425Z",
-  "delivered_in": null,
+  "delivered_in": "d09af8348044f9ec074d7e129e5eb407e7d9c260",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "`src/pending_sync_legacy.rs:19` reads `store.local_dir().join(\"pending-sync\")` to warn (once per process) about staged sync reports left behind by pre-bl-6969 binaries. Called unconditionally from `Store::discover` (`src/store.rs:80`), so every `bl` invocation incurs the check.\n\nThe warning's path target is broken under XDG: it points at the Phase 1A catch-all bucket `state/<nested>/pending-sync/`, which bl never wrote to. The only place a legitimate `pending-sync/` could exist is a pre-XDG clone's `<repo>/.balls/local/pending-sync/`.\n\n## Decision\n\nbl-6969 landed 2026-05-25; the deferral window is short, and the warning today fires for nobody (no clone has the catch-all path populated). Per AGENTS.md \"Config knobs earn their keep\" and \"Footprint: demarcation over removal,\" the right move is to sunset the dedicated module and re-home the diagnostic in `bl doctor`, where stale-artifact findings already live.\n\n## Scope\n\n1. Add `check_legacy_pending_sync` in `src/doctor.rs` that probes `<repo>/.balls/local/pending-sync/` (legacy path, not the XDG catch-all) and emits a finding listing the file count + the directory path. Recommend manual cleanup.\n2. Delete `src/pending_sync_legacy.rs` and `src/pending_sync_legacy_tests.rs`.\n3. Delete the `crate::pending_sync_legacy::warn_if_present(&store)` call in `Store::discover` (`src/store.rs:80`). `Store::discover` becomes free of legacy-warning side effects, which matches its name.\n\n## Out of scope\n\n- Deletion of `Store::local_dir()` — parent (bl-a11d).\n- Auto-cleanup of legacy `pending-sync/` directories. `bl doctor` is read-only by policy; remediation is operator-driven.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":186,"source":"balls","state":"open","synced_at":"2026-05-26T15:55:53.879866187+00:00","url":"https://github.com/mudbungie/balls/issues/186"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-a11d",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-26T15:55:53.889620368Z"},
   "tags": ["spec","xdg"],
   "title": "Sunset pending_sync_legacy::warn_if_present (move diagnostic into bl doctor)",
   "type": "task",
-  "updated_at": "2026-05-26T15:55:53.889626369Z"
+  "updated_at": "2026-05-26T16:04:58.972551109Z"
 }
