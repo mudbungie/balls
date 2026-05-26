@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T08:02:34.840918932Z",
-  "delivered_in": null,
+  "delivered_in": "43697498efd80e52d0fe19731e2880dbee317f27",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "`src/worktree.rs:156` (`link_shared_state`) plants a symlink `<worktree>/.balls/local → store.local_dir()` in every claimed worktree. The symlink is convenience inherited from the pre-XDG `.balls/local/<claims|locks|...>/` layout; in XDG mode it points at the Phase 1A catch-all bucket and is the *only* reason that bucket gets walked from worktree-side code.\n\nSPEC §3 makes every per-clone slot directly addressable under `~/.local/state/balls/`:\n\n> `claims/<nested-clone-path>/` — claim files (per clone)\n> `locks/<nested-clone-path>/` — task locks (per clone)\n> `plugins-auth/<nested-clone-path>/` — plugin tokens, identity (per clone, per user)\n\nCode inside a worktree that needs \"this clone's claims/locks/plugin-auth\" can resolve those XDG paths via the `Store` it already holds (`Store::discover` finds the main repo root from a worktree; the same accessors apply).\n\n## Scope\n\n1. Audit every site that traverses `<wt>/.balls/local/<x>` (or constructs that path string-wise). Each call gets rewritten to use the appropriate Store accessor (`Store::claims_dir`, `Store::locks_dir`, etc.) which already resolves the XDG slot directly.\n2. Delete the `link_state_path(store.local_dir(), &wt_balls.join(\"local\"))` line in `worktree::link_shared_state`. The `state-repo` symlink (SPEC §3-aligned per-clone state-repo checkout) and the `tasks` symlink stay — both are SPEC-named.\n3. Update worktree tests that assert `<wt>/.balls/local` exists as a symlink.\n\n## Out of scope\n\n- Deletion of `Store::local_dir()` — parent (bl-a11d).\n- The `state-repo` and `tasks` symlinks; they have SPEC homes.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":185,"source":"balls","state":"open","synced_at":"2026-05-26T15:57:44.326600343+00:00","url":"https://github.com/mudbungie/balls/issues/185"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-a11d",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-26T15:57:44.338587910Z"},
   "tags": ["spec","xdg"],
   "title": "Drop per-worktree .balls/local symlink; consumers resolve XDG paths directly",
   "type": "task",
-  "updated_at": "2026-05-26T15:57:44.338596205Z"
+  "updated_at": "2026-05-26T16:02:57.963026294Z"
 }
