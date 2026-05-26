@@ -68,8 +68,8 @@ pub struct XdgResolution {
     pub per_clone: PerClonePaths,
     /// `<state-root>/state/<nested-clone-path>` — the per-clone
     /// catch-all for runtime state SPEC §3 does not name explicitly
-    /// (pending-sync queue, squash scratch, `seen-claim-sync-policy`
-    /// marker, the legacy LocalConfig path). Not user-visible.
+    /// (pending-sync queue, squash scratch, the legacy LocalConfig
+    /// path). Not user-visible.
     pub local_dir: PathBuf,
     /// `<tracker>/.balls/repo.json` (normal mode) or absent (stealth).
     /// Stealth clones have no `repo.json` (no tracker branch).
