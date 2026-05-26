@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-7b75",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T06:45:34.935097272Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-26T06:45:35.768866661Z"},
   "tags": ["xdg","test-quality"],
   "title": "Tighten prime_migrate_on_already_xdg_is_a_noop: assertion narrower than test name claims",
   "type": "bug",
-  "updated_at": "2026-05-26T06:45:35.768876911Z"
+  "updated_at": "2026-05-26T08:01:08.616935451Z"
 }
