@@ -19,15 +19,6 @@ pub fn git_merge(dir: &Path, branch: &str) -> Result<MergeResult> {
     classify_merge(run_git_in(dir, &["merge", "--no-edit", branch])?, "merge")
 }
 
-/// Squash merge: stage all changes from branch but do NOT commit.
-/// Caller must call `git_commit()` afterward to finalize.
-pub fn git_merge_squash(dir: &Path, branch: &str) -> Result<MergeResult> {
-    classify_merge(
-        run_git_in(dir, &["merge", "--squash", branch])?,
-        "merge --squash",
-    )
-}
-
 fn classify_merge(out: std::process::Output, what: &str) -> Result<MergeResult> {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);

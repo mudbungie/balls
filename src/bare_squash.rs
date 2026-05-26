@@ -1,128 +1,85 @@
-//! Squash-merge a work branch into main even when `store.root` is a
-//! bare gitdir. Non-bare roots run the squash directly. Bare roots
-//! cannot host working-tree-required commands (`git merge --squash`
-//! refuses with "this operation must be run in a work tree"), so we
-//! provision an ephemeral detached worktree at `<root>/.balls/local/
-//! squash-<pid>`, do the squash there, and update `refs/heads/<main>`
-//! from the bare gitdir afterward. See bl-56f4: bare repos with linked
-//! `.balls-worktrees/` checkouts are a designed-for layout, but the
-//! direct-squash code path silently broke them.
+//! Squash-merge a work branch into the integration branch by writing
+//! the commit with plumbing (`commit-tree` + `update-ref`) instead of
+//! porcelain (`git merge --squash` + `git commit`). The porcelain path
+//! needs a work tree; plumbing doesn't — so the same code path covers
+//! bare gitdirs and non-bare roots, and the case where the integration
+//! branch isn't the one checked out at `store.root`. Bit-identical
+//! commit object versus the old porcelain path (same tree, same parent,
+//! same message) so observers downstream of the squash see no change.
+//!
+//! Pre-bl-cb73 this module provisioned an ephemeral detached worktree
+//! under `<root>/.balls/local/squash-<pid>/` to host `git merge --squash`
+//! whenever the in-place porcelain path didn't apply. That mechanism
+//! produced the same commit a `commit-tree` over the task worktree's
+//! post-merge tree produces directly — `review::review_worktree` has
+//! already merged the integration branch into the task worktree, so
+//! `<branch>^{tree}` IS the tree the squash commit should ship.
+//!
+//! `is_bare_repo` stays here because it shares the bareness-as-routing
+//! shape — callers in `store_paths`, `store_init`, and the legacy-plugin
+//! migration still need to detect a bare root.
 
 use crate::error::Result;
 use crate::git;
 use crate::store::Store;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-/// Squash-merge `branch` into `store.root`'s configured main branch,
-/// producing a single commit with `msg`. Returns the new commit's SHA,
-/// or `None` when the squash produced no staged changes (a "no-code"
-/// review — the caller decides whether to skip the commit and emit a
-/// `no-code` state-branch marker).
+/// Squash-merge `branch` into `store.root`'s `main_branch`, producing
+/// a single commit with `msg`. Returns the new commit's SHA, or `None`
+/// when the squash produced no tree change (a "no-code" review — the
+/// caller decides whether to skip the commit and emit a `no-code`
+/// state-branch marker).
+///
+/// Implementation: `review::review_worktree` has already merged
+/// `main_branch` into the task worktree's `branch`, so `branch^{tree}`
+/// is the post-merge tree. Compare it to `main_branch^{tree}`; equal
+/// trees ⇒ no-code. Otherwise `commit-tree <tree> -p <main-tip>` makes
+/// the squash commit, `update-ref` installs it at `refs/heads/<main>`,
+/// and — only when `main_branch` is the branch checked out at a
+/// non-bare `store.root` — a final `reset --hard HEAD` re-syncs the
+/// user's work tree to the moved branch.
 pub fn squash_into_main(
     store: &Store,
     branch: &str,
     msg: &str,
     main_branch: &str,
 ) -> Result<Option<String>> {
-    if squashes_in_place(store, main_branch)? {
-        return squash_in_place(&store.root, branch, msg);
+    let merged_tree = git::git_resolve_sha(&store.root, &format!("{branch}^{{tree}}"))?;
+    let main_tree = git::git_resolve_sha(&store.root, &format!("{main_branch}^{{tree}}"))?;
+    if merged_tree == main_tree {
+        return Ok(None);
     }
-    squash_in_detached_worktree(store, branch, msg, main_branch)
+    let main_tip = git::git_resolve_sha(&store.root, main_branch)?;
+    let new_sha = git::git_commit_tree(&store.root, &merged_tree, &[&main_tip], msg)?;
+    git::git_update_ref(&store.root, &format!("refs/heads/{main_branch}"), &new_sha)?;
+    if integration_branch_is_checked_out(&store.root, main_branch)? {
+        git::git_reset_hard(&store.root, "HEAD")?;
+    }
+    Ok(Some(new_sha))
 }
 
-/// In-place squash (`git merge --squash` in the repo-root work tree,
-/// committing onto whatever is checked out there) is correct *only*
-/// when the integration branch is exactly the branch checked out at a
-/// non-bare root. A bare root has no work tree; a `target_branch`
-/// pointing somewhere other than the checkout would land the squash
-/// on the wrong branch and disturb the user's tree. Both of those
-/// cases route through a detached worktree pinned at `main_branch`
-/// instead. Unset `target_branch` on a normal repo ⇒ in-place,
-/// byte-identical to before the `integration_branch` seam. `rewind_main`
-/// keys off the same predicate so a failed review unwinds the branch
-/// it actually moved.
-pub(crate) fn squashes_in_place(store: &Store, main_branch: &str) -> Result<bool> {
-    if is_bare_repo(&store.root)? {
+/// True when `main_branch` is the branch checked out at `root` and
+/// `root` is non-bare — i.e. `update-ref` on the integration branch
+/// just moved the ref out from under a live work tree. The caller
+/// follows up with `reset --hard HEAD` so the work tree mirrors the
+/// new tip (preserves the pre-cb73 user-visible behavior: after `bl
+/// review`, `git status` at the root shows clean against the squash).
+/// Shared with `review_safety::rewind_main` so rewind and squash
+/// agree on which case needs the re-sync.
+pub(crate) fn integration_branch_is_checked_out(root: &Path, main_branch: &str) -> Result<bool> {
+    if is_bare_repo(root)? {
         return Ok(false);
     }
-    Ok(git::git_current_branch(&store.root)? == main_branch)
-}
-
-fn squash_in_place(dir: &Path, branch: &str, msg: &str) -> Result<Option<String>> {
-    git::git_merge_squash(dir, branch)?;
-    if git::has_staged_changes(dir)? {
-        git::git_commit(dir, msg)?;
-        Ok(Some(git::git_resolve_sha(dir, "HEAD")?))
-    } else {
-        Ok(None)
-    }
-}
-
-fn squash_in_detached_worktree(
-    store: &Store,
-    branch: &str,
-    msg: &str,
-    main: &str,
-) -> Result<Option<String>> {
-    let tmp = squash_worktree_path(store);
-    scrub_path(&store.root, &tmp);
-    if let Some(parent) = tmp.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    worktree_add_detach(&store.root, &tmp, main)?;
-    let result = squash_in_place(&tmp, branch, msg);
-    if let Ok(Some(sha)) = result.as_ref() {
-        update_ref(&store.root, &format!("refs/heads/{main}"), sha)?;
-    }
-    scrub_path(&store.root, &tmp);
-    result
-}
-
-/// Process-id-suffixed temp path so concurrent `bl review` invocations
-/// in the same store cannot collide on the worktree directory.
-fn squash_worktree_path(store: &Store) -> PathBuf {
-    store.local_dir().join(format!("squash-{}", std::process::id()))
-}
-
-/// Best-effort cleanup: detach git's record of the worktree first
-/// (otherwise a leftover entry in `worktrees/` blocks a re-add at the
-/// same path), then remove the directory itself in case `git` left
-/// admin files behind. Errors are intentionally swallowed — a stale
-/// path will be cleaned by the next squash, and surfacing this error
-/// to the caller would mask the real failure.
-fn scrub_path(repo: &Path, path: &Path) {
-    if path.exists() {
-        let _ = git::git_worktree_remove(repo, path, true);
-    }
-    if path.exists() {
-        let _ = std::fs::remove_dir_all(path);
-    }
+    Ok(git::git_current_branch(root)? == main_branch)
 }
 
 /// True when `dir`'s gitdir has `core.bare = true`. Bare gitdirs
-/// reject working-tree commands; callers must route those ops through
-/// a real worktree. Shared with `Store::discover` (bl-8cf7): a bare
-/// root has no work tree, so discovery can't lean on `--show-toplevel`.
-pub(crate) fn is_bare_repo(dir: &Path) -> Result<bool> {
+/// reject working-tree commands; the squash path doesn't care anymore
+/// (it's pure plumbing now), but other callers — `store_paths`,
+/// `store_init`, `legacy_plugin_migrate` — still branch on bareness
+/// for discovery and migration concerns.
+pub fn is_bare_repo(dir: &Path) -> Result<bool> {
     Ok(git::run_git_ok(dir, &["rev-parse", "--is-bare-repository"])?.trim() == "true")
-}
-
-/// `git worktree add --detach <path> <ref>`: create a worktree at
-/// `path` with a detached HEAD pointing at `ref`'s tip. Detached so
-/// the squash commit doesn't claim the main branch — we plumb the
-/// resulting SHA into `refs/heads/<main>` separately.
-fn worktree_add_detach(dir: &Path, path: &Path, refname: &str) -> Result<()> {
-    let path_str = path.to_string_lossy().to_string();
-    git::run_git_ok(dir, &["worktree", "add", "--detach", &path_str, refname])?;
-    Ok(())
-}
-
-/// `git update-ref <name> <sha>`: move a ref to the given SHA. Used
-/// to fast-forward main from the bare gitdir after the detached
-/// worktree produced the squash commit.
-fn update_ref(dir: &Path, name: &str, sha: &str) -> Result<()> {
-    git::run_git_ok(dir, &["update-ref", name, sha])?;
-    Ok(())
 }
 
 #[cfg(test)]
