@@ -10,7 +10,7 @@ fn claim_review_close(repo: &std::path::Path, id: &str) {
         .args(["claim", id])
         .assert()
         .success();
-    let wt = repo.join(".balls-worktrees").join(id);
+    let wt = worktree_path(repo, id);
     std::fs::write(wt.join(format!("{id}.txt")), "body").unwrap();
     bl(repo)
         .args(["review", id, "-m", "ready"])
@@ -32,7 +32,7 @@ fn review_writes_delivered_in_hint_to_task_file() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("f.txt"), "x").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "go"])
@@ -61,7 +61,7 @@ fn show_displays_delivery_after_review() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "a").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "done"])
@@ -94,7 +94,7 @@ fn delivered_in_survives_rebase_of_main_via_tag_fallback() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "a").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "done"])
@@ -143,7 +143,7 @@ fn delivered_in_returns_none_after_main_reset_past_tag() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "a").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "done"])

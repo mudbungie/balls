@@ -15,7 +15,7 @@ fn story_22_claim_creates_worktree() {
         .output()
         .unwrap();
     assert!(out.status.success());
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     assert!(wt.exists());
     let j = read_task_json(repo.path(), &id);
     assert_eq!(j["status"], "in_progress");
@@ -80,11 +80,7 @@ fn story_27_worktree_has_local_cache_via_symlink() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt_local = repo
-        .path()
-        .join(".balls-worktrees")
-        .join(&id)
-        .join(".balls/local");
+    let wt_local = worktree_path(repo.path(), &id).join(".balls/local");
     assert!(wt_local.exists());
     let canon = std::fs::canonicalize(&wt_local).unwrap();
     let expected = std::fs::canonicalize(repo.path().join(".balls/local")).unwrap();
@@ -113,7 +109,7 @@ fn story_30_code_changes_in_worktree_isolated() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "my work").unwrap();
     assert!(!repo.path().join("feature.txt").exists());
 }
@@ -127,7 +123,7 @@ fn story_31_show_works_from_worktree() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     bl(&wt).args(["show", &id]).assert().success();
 }
 
@@ -140,7 +136,7 @@ fn story_32_update_note_from_worktree() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     bl(&wt)
         .args(["update", &id, "--note", "progress update"])
         .assert()

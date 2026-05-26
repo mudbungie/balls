@@ -32,7 +32,7 @@ fn review_never_stages_balls_runtime_symlinks() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     assert!(wt.join(".balls/local").exists(), "claim sets up symlinks");
     std::fs::write(wt.join("user.txt"), "real change").unwrap();
 
@@ -63,7 +63,7 @@ fn review_scrubs_runtime_paths_force_tracked_on_work_branch() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
 
     std::fs::write(wt.join("feat.txt"), "real").unwrap();
     git(&wt, &["add", "-f", "feat.txt", ".balls/local"]);
@@ -94,7 +94,7 @@ fn review_rewinds_main_on_post_squash_failure() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feat.txt"), "real").unwrap();
 
     let pre_main = git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();

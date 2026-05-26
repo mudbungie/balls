@@ -18,7 +18,7 @@ fn review_sync_happy_path_pushes_state_branch_close_to_origin() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     write_some_code(&wt, "feature.txt");
 
     // --sync forces a remote round-trip on this review even with the
@@ -47,7 +47,7 @@ fn review_sync_required_fails_loud_and_rolls_back_on_unreachable_remote() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     write_some_code(&wt, "feature.txt");
 
     let pre_main = git(alice.path(), &["rev-parse", "HEAD"]).trim().to_string();
@@ -85,7 +85,7 @@ fn no_sync_flag_skips_remote_on_review_and_close() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     write_some_code(&wt, "feature.txt");
 
     break_remote(alice.path());
@@ -114,7 +114,7 @@ fn review_sync_retries_through_negotiation_when_state_branch_advanced() {
         .args(["claim", &id_a])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id_a);
+    let wt = worktree_path(alice.path(), &id_a);
     write_some_code(&wt, "from-alice.txt");
 
     // Bob claims task B with --sync; that lands on origin between
@@ -173,7 +173,7 @@ fn repo_default_require_remote_on_review_drives_review_to_remote() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     write_some_code(&wt, "feature.txt");
 
     break_remote(alice.path());

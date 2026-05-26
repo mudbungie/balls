@@ -21,7 +21,7 @@ fn close_sync_happy_path_pushes_state_branch_archive_to_origin() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     write_some_code(&wt, "feature.txt");
 
     bl(alice.path())
@@ -60,7 +60,7 @@ fn close_sync_required_fails_loud_and_keeps_worktree_on_unreachable_remote() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     write_some_code(&wt, "feature.txt");
     bl(alice.path())
         .args(["review", &id, "-m", "ready"])

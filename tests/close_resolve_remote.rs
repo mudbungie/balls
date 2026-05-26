@@ -145,7 +145,7 @@ fn deferred_close_auto_resolves_without_flag() {
 
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("f.txt"), "w").unwrap();
     bl(alice.path())
         .args(["review", &id, "-m", "open the PR"])

@@ -19,7 +19,7 @@ fn review_squash_commit_uses_50_72_shape_with_body() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "body").unwrap();
 
     let body = "The title above is short. This paragraph explains \
@@ -55,7 +55,7 @@ fn review_repeated_m_builds_50_72_body_without_heredoc() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("a.txt"), "body").unwrap();
 
     bl(repo.path())
