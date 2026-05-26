@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-b273"],
   "description": "Migrate every integration test assertion that reads or writes a legacy `.balls/` or `.balls-worktrees/` path under the clone root, so the test suite is layout-tolerant and ready for the cmd_init flip.\n\n## Scope\n\nCategories of assertion sites to update (use `balls::store::Store`-derived paths via the helpers landed in Phase 1B-1, or read repo/project state through `Store` accessors directly):\n\n1. `.balls/state-repo/` references in tests — these are the cross-clone state checkout. `git_state`, `commit_state_repo`, `push` helpers are already layout-aware (Phase 1B-1); the remaining bare `repo.path().join(\".balls/state-repo\")` joins need to go through `discover_state_repo(repo)`.\n2. `.balls/config.json` assertions — both reads (`fs::read_to_string`) and writes (`fs::write` seeding test fixtures). Replace with reads/writes against the per-clone `repo.json` (XDG) once Phase 1B-2 lands.\n3. `.balls/tasks/<id>.json` direct file joins (not via `read_task_json` helper) — route through `discover_tasks_dir(repo)` or read via `Store::load_task`.\n4. `.balls/local/{claims,lock,plugins}` direct joins — route through `Store::claims_dir()`, `lock_dir()`, `local_plugins_dir()`.\n\n## Affected test files (~30+ from the bl-e802 stash sweep)\n\nSample (full list discovered by `grep -rln \"\\.balls/state-repo\\|\\.balls/config\\.json\\|\\.balls/tasks\\|\\.balls/local\" tests/`):\n\nclaim, claim_sync, close_*, conformance_config, coverage_*, delivered_repo, delivery, delivery_remote, doctor, forge_*, forward_compat, gates_compat, init, links, multi_dev_*, plugin_*, prime, ready_*, repair, review_*, sync_*, target_branch, topology, tracker_state.\n\n## Why it can land alone\n\nEach test file is layout-tolerant after migration: it still works against the legacy `bl init` (since `Store::discover` keeps reading legacy when XDG is absent) AND against the future XDG `bl init`. Lands without breaking the suite.\n\n## Dependency\n\nDepends on Phase 1B-2 (the helpers + Store::init_xdg + the layout-aware load_config). Without those the migration target paths do not exist.\n\n## Source\n\nThe stash on `work/bl-e802` only carried the `.balls-worktrees/<id>` sweep (Phase 1B-1 scope). The remaining categories are net-new work for this slice. Approach: per file, replace every literal `.balls/...` join with a helper call or `Store` accessor.\n\n## Out of scope\n\n- `bl remaster` XDG-awareness — sibling Phase 1B-7.\n- `bl --bare` XDG-awareness — sibling Phase 1B-7.\n- `tests/conformance_federated.rs` and `tests/conformance_migrate*.rs` — sibling Phase 1B-4 (their fixtures need bespoke rewiring against the federated tracker shape, not a mechanical helper swap).",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":182,"source":"balls","state":"open","synced_at":"2026-05-26T08:01:49.534973491+00:00","url":"https://github.com/mudbungie/balls/issues/182"}}},
   "id": "bl-7997",
   "links": [],
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-25T23:10:38.827097293Z"},
+  "synced_at": {"github-issues":"2026-05-26T08:01:49.542844758Z"},
   "tags": ["xdg"],
   "title": "Phase 1B-3: migrate test assertions off legacy in-repo paths",
   "type": "task",
-  "updated_at": "2026-05-26T08:01:48.736782007Z"
+  "updated_at": "2026-05-26T08:01:49.542853655Z"
 }
