@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "`src/commands/ready_cmd.rs:52` (`maybe_auto_fetch`) writes an empty `local_dir/last_fetch` file to throttle remote auto-fetch by `stale_threshold_seconds`. It is a runtime timestamp marker, not config.\n\nSPEC §3 declares the home explicitly:\n\n> `~/.cache/balls/` — derived/regenerable artifacts. Empty in this layout; reserved.\n\n`last_fetch` is the first concrete user of that reserved slot.\n\n## Scope\n\n1. Add `Store::cache_dir(&self) -> PathBuf` resolving to `~/.cache/balls/<nested-clone-path>/`, honoring `XDG_CACHE_HOME`. Mirror `xdg_discover`'s state-root nesting (`<nested-clone-path>` = absolute git-dir parent with leading `/` stripped, per SPEC §4).\n2. Rewrite `maybe_auto_fetch` to read/write `store.cache_dir().join(\"last_fetch\")`. Create the cache dir lazily on first write.\n3. No migration: an absent marker means \"fetch now\" — same as first-run behavior. Pre-XDG clones with `.balls/local/last_fetch` simply get one extra fetch on next `bl ready`.\n\n## Out of scope\n\n- Other cache users — `cache_dir` lands with one consumer; future markers opt in individually.\n- Deletion of `Store::local_dir()` — parent (bl-a11d).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":184,"source":"balls","state":"open","synced_at":"2026-05-26T08:02:22.326578417+00:00","url":"https://github.com/mudbungie/balls/issues/184"}}},
   "id": "bl-5814",
   "links": [],
   "parent": "bl-a11d",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-26T08:02:22.354595963Z"},
   "tags": ["spec","xdg"],
   "title": "Relocate last_fetch marker from local_dir/ to ~/.cache/balls/<nested>/",
   "type": "task",
-  "updated_at": "2026-05-26T08:02:21.348940395Z"
+  "updated_at": "2026-05-26T08:02:22.354606803Z"
 }
