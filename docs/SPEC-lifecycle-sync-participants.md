@@ -210,6 +210,8 @@ Negotiation maps `reject` by the subscription's failure policy (§9):
 
 `reject` honors §2 soft policy: a required participant can veto, but an explicit per-invocation operator override (`--skip=<name>`, or the `--no-sync` analog for git-remote) still ships. The override is logged in the state-branch commit message per §11 so a post-hoc audit sees that a required participant's veto was overridden. A required plugin's `reject` is a hard primitive expressed through soft policy; it is never server-side enforcement.
 
+> **Implementation status (deferred, 2026-05-25):** the apply/discard surface (`bl sync --review/--apply/--discard`) is deferred; see bl-6969 for the rationale and bl-f8af for the SPEC change. During the deferral, `"policy": "gating"` in `project.json` reads successfully but degrades to `required` with a one-line warning so projects keep their fail-loud intent without a config break. The long-term contract remains as written above; a future ball reintroduces the implementation, likely under a bl-owned primitive + plugin-owned queue split (the design discussion is summarized in bl-6969).
+
 ## 9. Failure policy
 
 Per-subscription, declared in config. Three variants:
@@ -334,7 +336,7 @@ The implementation children of bl-b7fb land in this order. Each child is observa
 7. **bl-2bf7** (apply to review/close — *git-remote slice only, as delivered*). Subscribes the **git-remote** participant to `review` and `close`: state-branch sync with required-failure rollback (mirroring bl-2148's claim path), plus `require_remote_on_review`/`_on_close` and `--sync`/`--no-sync`. Scope note: bl-2bf7 stopped at the git-remote participant. Wiring the **plugin** participants' failure policy into the commands — making `commands/lifecycle.rs` consume `dispatch_push`'s result (rollback / non-zero on a required plugin failure or `reject`, §8.1), thread EventCtx `task_before`/`commit` (§5.1), and add the §11 override log + `sync_status` — was deferred and is tracked as **bl-fb4d**. Until bl-fb4d lands, a required *plugin* participant's veto is computed by the primitive but not enforced at the command.
 8. **bl-4e7d** (commit policy). Adds the `CommitPolicy` field to `Outcome`. Legacy shim uses `Commit { message: None }`; native plugins can opt in.
 9. **bl-8b71** (native participant protocol). Adds the protocol version of plugin subcommands that lets plugins declare projections, return structured conflict reports (§8), and supply custom merge functions.
-10. **bl-a46d** (human-gate participant). Adds `gating` failure-policy machinery and `bl sync --review`.
+10. **bl-a46d** (human-gate participant). Adds `gating` failure-policy machinery and `bl sync --review`. **Partially delivered: the `gating` policy and negotiation primitive landed; the apply/discard surface is deferred by bl-6969. See §8.1.**
 
 After step 5 the unified path is the default. After step 8 the unification surfaces in plugin authoring. After step 10 the human-gate flow is a participant like any other.
 
@@ -377,7 +379,7 @@ These are the tests that must exist (and fail for the right reason) before any i
 3. **Overlapping projections fail loudly.** Two participants both claiming ownership of `status` at registration time fail config validation, not at runtime.
 4. **Required + unreachable aborts the event.** git-remote required for `claim` with the remote unreachable: the local state-branch commit is rolled back; no worktree is created; exit non-zero with a clear message.
 5. **Best-effort + unreachable warns and continues.** A best-effort plugin unreachable during `claim`: the worktree is created, the state-branch commit lands, a warning is printed, `task.sync_status.<plugin>` records the failure.
-6. **Gating + unreachable stages.** A gating participant unreachable during `close`: the close commit lands, the Task records the gating-pending state, `bl sync --review` shows the staged proposal.
+6. **Gating + unreachable stages.** A gating participant unreachable during `close`: the close commit lands, the Task records the gating-pending state, `bl sync --review` shows the staged proposal. **Deferred — see §8.1 deferral note. Criterion remains the long-term contract.**
 7. **Conflict + retry succeeds.** A conflict on the first push, clean merge via projection, second push succeeds. Negotiation returns `Outcome { retries: 1, ... }`.
 8. **Conflict + retry exhaustion.** Five conflicts in a row. Required participant: event aborts. Best-effort: warns and continues. Gating: stages.
 9. **Per-invocation override is logged.** `bl claim --no-sync` against a config that declares git-remote required produces a state-branch commit message containing `[--no-sync]`.
