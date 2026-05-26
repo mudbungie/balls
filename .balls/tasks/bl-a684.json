@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-a684",
+  "claimed_by": "paralleled",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T06:44:58.866711807Z",
@@ -13,10 +13,10 @@
   "parent": "bl-e802",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-26T06:44:59.854949449Z"},
   "tags": ["xdg","test-infra"],
   "title": "Rework legacy_clone() fixture to be independent of bl init's layout choice (Phase 1B time-bomb)",
   "type": "bug",
-  "updated_at": "2026-05-26T06:44:59.854958917Z"
+  "updated_at": "2026-05-26T08:01:26.978941056Z"
 }
