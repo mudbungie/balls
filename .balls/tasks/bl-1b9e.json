@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-24T07:54:00.161399436Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-05-26T02:00:37.838697549Z"},
   "tags": ["documentation","release"],
   "title": "Phase 7: documentation final pass + 0.5.0 release notes",
   "type": "task",
-  "updated_at": "2026-05-24T07:54:00.161411097Z"
+  "updated_at": "2026-05-26T02:00:37.838699823Z"
 }
