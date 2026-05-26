@@ -80,6 +80,41 @@ fn review_no_worktree_claim_flips_status_without_squash() {
 }
 
 #[test]
+fn review_resyncs_working_tree_at_non_bare_root() {
+    // bl-cb73 plumbing path: `commit-tree` + `update-ref` moves the
+    // integration branch without writing through the work tree. If the
+    // root has `main` checked out, the post-review work tree would be
+    // stale against HEAD — the squash code must follow up with a
+    // `reset --hard HEAD` to re-sync. `git status --porcelain` clean
+    // at the root catches the regression where the resync is skipped.
+    let repo = new_repo();
+    init_in(repo.path());
+    let id = create_task(repo.path(), "feature");
+    bl_as(repo.path(), "alice")
+        .args(["claim", &id])
+        .assert()
+        .success();
+    let wt = repo.path().join(".balls-worktrees").join(&id);
+    std::fs::write(wt.join("delivered.txt"), "payload").unwrap();
+
+    bl(repo.path())
+        .args(["review", &id])
+        .assert()
+        .success();
+
+    // Squash landed on main.
+    assert!(
+        repo.path().join("delivered.txt").exists(),
+        "resync should materialize the squashed file at the root",
+    );
+    let status = git(repo.path(), &["status", "--porcelain"]);
+    assert!(
+        status.trim().is_empty(),
+        "root work tree must be clean after review (got: {status:?})",
+    );
+}
+
+#[test]
 fn review_creates_squash_commit_with_title() {
     let repo = new_repo();
     init_in(repo.path());

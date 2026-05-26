@@ -4,9 +4,12 @@ use std::process::Command;
 
 // Merge/conflict helpers live in `git_merge` to keep this file under
 // the 300-line cap. Re-exported so call sites keep using `git::*`.
-pub use crate::git_merge::{
-    git_list_conflicted_files, git_merge, git_merge_squash, is_merging, MergeResult,
-};
+pub use crate::git_merge::{git_list_conflicted_files, git_merge, is_merging, MergeResult};
+
+// Plumbing helpers (commit-tree / update-ref) live in `git_plumbing`
+// for the same 300-line-cap reason. Re-exported so call sites keep
+// using `git::*`.
+pub use crate::git_plumbing::{git_commit_tree, git_update_ref};
 
 /// Env vars git reads to locate its repo/index. We always pass the
 /// repo via `current_dir`, so inherited values of these would bypass
