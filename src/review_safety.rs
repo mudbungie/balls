@@ -73,16 +73,16 @@ pub fn commit_touches_runtime(repo: &Path, sha: &str) -> Result<Vec<String>> {
 /// best-effort: the original review failure is what the caller cares
 /// about.
 pub fn rewind_main(store: &Store, main_branch: &str, pre_main_sha: &str) -> Result<()> {
-    // Mirror the squash mechanism: an in-place squash moved the
-    // checked-out branch, so `reset --hard` rewinds it; the
-    // detached-worktree path (bare root, or a `target_branch` that
-    // isn't the checkout) moved a ref the work tree never touched, so
-    // rewind that ref directly.
-    if crate::bare_squash::squashes_in_place(store, main_branch)? {
-        git::git_reset_hard(&store.root, pre_main_sha)?;
-    } else {
-        let refname = format!("refs/heads/{main_branch}");
-        git::run_git_ok(&store.root, &["update-ref", &refname, pre_main_sha])?;
+    // Mirror the squash mechanism (post-bl-cb73): always rewind the
+    // branch ref with `update-ref`, then — only when the integration
+    // branch is checked out at a non-bare `store.root` — re-sync the
+    // work tree to the rewound tip. Same predicate the squash path
+    // uses for its post-update `reset --hard`, so rewind and squash
+    // always touch the work tree (or don't) in lockstep.
+    let refname = format!("refs/heads/{main_branch}");
+    git::git_update_ref(&store.root, &refname, pre_main_sha)?;
+    if crate::bare_squash::integration_branch_is_checked_out(&store.root, main_branch)? {
+        git::git_reset_hard(&store.root, "HEAD")?;
     }
     Ok(())
 }
