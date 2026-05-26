@@ -223,18 +223,22 @@ fn close_child_succeeds_when_parent_already_archived() {
     // Regression: close_and_archive used to unconditionally stage the
     // parent's JSON+notes, which aborted with "pathspec did not match"
     // when the parent had already been archived from the state branch.
+    //
+    // Claim is sequenced before the child's parent link so the bl-c79c
+    // "no claim on a parent with live children" guard doesn't fire —
+    // we're regression-testing the close path, not the claim guard.
     let repo = new_repo();
     init_in(repo.path());
     let parent = create_task(repo.path(), "parent");
     let child = create_task(repo.path(), "child");
-    bl(repo.path())
-        .args(["update", &child, &format!("parent={parent}")])
-        .assert()
-        .success();
 
-    // Archive the parent first.
+    // Archive the parent before the child points at it.
     bl_as(repo.path(), "alice")
         .args(["claim", &parent])
+        .assert()
+        .success();
+    bl(repo.path())
+        .args(["update", &child, &format!("parent={parent}")])
         .assert()
         .success();
     bl_as(repo.path(), "alice")
