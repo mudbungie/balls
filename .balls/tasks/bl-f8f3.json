@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f8f3",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T01:24:31.479801405Z",
@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-26T01:24:32.260322555Z"},
   "tags": ["bug","xdg"],
   "title": "Fix bl-05e5 moved-clone detection: invert recorded-path comparison",
   "type": "task",
-  "updated_at": "2026-05-26T01:24:32.260330130Z"
+  "updated_at": "2026-05-26T02:00:47.992899061Z"
 }
