@@ -95,6 +95,7 @@ pub mod status;
 pub mod store;
 mod store_archive;
 mod store_init;
+pub mod store_init_xdg;
 mod store_lock;
 mod store_legacy;
 mod store_paths;

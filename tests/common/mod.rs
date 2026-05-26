@@ -15,6 +15,7 @@ pub mod native_plugin;
 mod paths;
 pub mod plugin;
 pub mod tracker;
+pub mod xdg_init;
 
 pub use cmd::{bl, bl_as, bl_bin, create_task, create_task_full, doctor, init_in, show_json};
 pub use config_seed::{seed_config, set_project_plugins};
