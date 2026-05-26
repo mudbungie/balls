@@ -19,6 +19,7 @@ pub mod xdg_init;
 
 pub use cmd::{bl, bl_as, bl_bin, create_task, create_task_full, doctor, init_in, show_json};
 pub use config_seed::{edit_and_commit_repo_config, seed_config, set_project_plugins};
+pub use migrate::legacy_clone;
 pub use paths::{
     cache_dir, cache_last_fetch, claims_dir, config_path, discover_state_repo, discover_tasks_dir,
     local_dir, lock_dir, per_clone_paths, plugins_auth_dir, worktree_path, worktrees_dir,
@@ -233,4 +234,42 @@ pub fn pull(cwd: &Path) {
 /// bare-converted clone without going through `bl`.
 pub fn set_core_bare(repo_root: &Path) {
     git(repo_root, &["config", "core.bare", "true"]);
+}
+
+/// XDG-initialized clone backed by a fresh bare remote. Owning both
+/// the clone and the remote keeps the remote's tempdir alive for the
+/// lifetime of the fixture.
+pub struct XdgRepo {
+    pub remote: Repo,
+    pub clone: Repo,
+}
+
+impl XdgRepo {
+    pub fn path(&self) -> &Path {
+        self.clone.path()
+    }
+}
+
+/// Materialize a fresh XDG-mode clone via `Store::init_xdg`. A bare
+/// remote acts as `origin` so the tracker checkout lands at the
+/// documented XDG path; the per-thread test HOME is the discovery
+/// root, so subsequent `bl(repo.path())` calls — which set HOME on
+/// the subprocess to that same `test_home_path()` — see the XDG state
+/// this helper just wrote.
+///
+/// The clone gets a seed commit on `main` pushed to the bare remote
+/// before `init_xdg` runs. XDG init never writes on main (SPEC §14.19),
+/// so without this the clone has an unborn HEAD and `bl claim`/`bl
+/// review` fail when they read the current branch. The seed mirrors
+/// what a freshly-cloned project repo looks like in real use.
+pub fn new_xdg_repo() -> XdgRepo {
+    let remote = new_bare_remote();
+    let clone = clone_from_remote(remote.path(), "xdg");
+    std::fs::write(clone.path().join("README"), "seed\n").unwrap();
+    git(clone.path(), &["add", "README"]);
+    git(clone.path(), &["commit", "-m", "seed", "--no-verify"]);
+    git(clone.path(), &["push", "-q", "origin", "main"]);
+    let home = test_home_path();
+    xdg_init::init_xdg(clone.path(), &home, false, None);
+    XdgRepo { remote, clone }
 }
