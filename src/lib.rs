@@ -43,6 +43,7 @@ pub mod repo_json;
 pub mod tracker_json;
 pub mod xdg_discover;
 pub mod xdg_paths;
+mod doctor_config;
 mod doctor_symlink;
 pub mod error;
 pub mod git;

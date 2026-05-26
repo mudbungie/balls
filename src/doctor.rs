@@ -73,7 +73,7 @@ fn docs_reference_bl(cwd: &Path) -> bool {
 
 fn check_store(store: &Store) -> Vec<Finding> {
     let mut out = Vec::new();
-    check_config(store, &mut out);
+    crate::doctor_config::check_config(store, &mut out);
     check_tasks_dir_override(store, &mut out);
     check_state_repo(store, &mut out);
     check_stale_claims(store, &mut out);
@@ -126,16 +126,6 @@ fn check_moved_clone(store: &Store, out: &mut Vec<Finding>) {
     out.extend(crate::doctor_moved::to_findings(&orphans, &store.root));
 }
 
-fn check_config(store: &Store, out: &mut Vec<Finding>) {
-    if let Err(e) = store.load_config() {
-        out.push(Finding::flag(
-            format!("config at {} is unreadable: {e}", store.config_path().display()),
-            "config.json is committed to main — restore it with \
-             `git checkout main -- .balls/config.json`",
-        ));
-    }
-}
-
 fn check_tasks_dir_override(store: &Store, out: &mut Vec<Finding>) {
     let f = store.local_dir().join("tasks_dir");
     let Ok(s) = fs::read_to_string(&f) else { return };
@@ -156,9 +146,11 @@ fn check_tasks_dir_override(store: &Store, out: &mut Vec<Finding>) {
 /// Validate the unified state checkout (SPEC-tracker-state §4):
 /// `.balls/state-repo` is a full git clone — a `.git` *directory*
 /// with a HEAD — and the `.balls/tasks` convenience symlink resolves
-/// into it. Stealth repos have no state checkout, nothing to check.
+/// into it. Legacy-only: XDG clones host the tracker checkout under
+/// `~/.local/state/balls/trackers/...` and have no `.balls/` at the
+/// clone root. Stealth repos have no state checkout, nothing to check.
 fn check_state_repo(store: &Store, out: &mut Vec<Finding>) {
-    if store.stealth {
+    if store.stealth || store.layout == Layout::Xdg {
         return;
     }
     let dir = store.state_repo_dir();
