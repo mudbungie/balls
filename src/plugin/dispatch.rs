@@ -54,8 +54,8 @@ enum DispatchItem {
     Contribution(PushContribution),
     /// Native best-effort skip — recorded in `sync_status`.
     Skipped(String, String),
-    /// Not subscribed, a legacy-shim skip, or gating-staged (bl-a46d):
-    /// nothing to apply and nothing to record.
+    /// Not subscribed or a legacy-shim skip: nothing to apply and
+    /// nothing to record.
     Inert,
 }
 
@@ -145,8 +145,13 @@ fn run_native(
     // A required failure surfaces as `Err` from `participant::run`
     // (the negotiation's `classify_failure`); `?` carries it to the
     // command, which rolls the state branch back (SPEC §9). A native
-    // best-effort skip is captured for `sync_status` (§8.1/§9);
-    // gating staging is bl-a46d, treated inert here.
+    // best-effort skip is captured for `sync_status` (§8.1/§9). The
+    // `Staged` arm is unreachable in practice: `PolicyKind::Gating`
+    // degrades to Required at the schema→runtime boundary (bl-6969),
+    // so the failure_policies map never carries Gating here. It is
+    // folded into the skip pattern to keep the match exhaustive
+    // without untestable dead code; when staging is reintroduced the
+    // arm splits back out with the right Inert semantics.
     match participant::run(&participant, event, ctx)? {
         NegotiationResult::Ok(Accepted {
             outcome: NativeOutcome { task_projection, commit_policy },
@@ -158,10 +163,9 @@ fn run_native(
             failure_policy,
             commit_policy,
         })),
-        NegotiationResult::Skipped(reason) => {
+        NegotiationResult::Skipped(reason) | NegotiationResult::Staged(reason) => {
             Ok(DispatchItem::Skipped(name.to_string(), reason))
         }
-        NegotiationResult::Staged(_) => Ok(DispatchItem::Inert),
     }
 }
 

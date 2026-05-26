@@ -21,15 +21,17 @@
 //! overrides in from the CLI surface.
 //!
 //! Out of scope here: the human-gating staging mechanics behind
-//! `PolicyKind::Gating` (bl-a46d) and the native plugin protocol that
-//! lets plugins declare their own subscriptions (bl-8b71). The schema
-//! is forward-compatible with both.
+//! `PolicyKind::Gating` (deferred per bl-6969 — see `into_failure_policy`
+//! for the runtime degrade to `Required`) and the native plugin
+//! protocol that lets plugins declare their own subscriptions
+//! (bl-8b71). The schema is forward-compatible with both.
 
 use crate::config::PluginEntry;
 use crate::negotiation::FailurePolicy;
 use crate::participant::Event;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 /// The three failure-policy variants from SPEC §9, serialized as
 /// `"required"`, `"best-effort"`, `"gating"`.
@@ -42,13 +44,33 @@ pub enum PolicyKind {
 }
 
 impl PolicyKind {
+    /// Resolve a configured policy to its runtime `FailurePolicy`.
+    /// `Gating` degrades to `Required` with a once-per-process warning
+    /// while the staging surface (`bl sync --review/--apply/--discard`)
+    /// is deferred (bl-6969). `Required` is the closest fail-loud
+    /// approximation; `BestEffort` would silently swallow failures the
+    /// operator wanted to gate on.
     pub fn into_failure_policy(self) -> FailurePolicy {
         match self {
             PolicyKind::Required => FailurePolicy::Required,
             PolicyKind::BestEffort => FailurePolicy::BestEffort,
-            PolicyKind::Gating => FailurePolicy::Gating,
+            PolicyKind::Gating => {
+                warn_gating_deferred();
+                FailurePolicy::Required
+            }
         }
     }
+}
+
+static GATING_WARNED: OnceLock<()> = OnceLock::new();
+
+/// Emit the gating-deferred warning at most once per process.
+fn warn_gating_deferred() {
+    GATING_WARNED.get_or_init(|| {
+        eprintln!(
+            "warning: plugin policy \"gating\" is configured but staging is deferred (see bl-6969); treating as \"required\" for this invocation"
+        );
+    });
 }
 
 /// Per-event subscription policy. The struct shape leaves room for

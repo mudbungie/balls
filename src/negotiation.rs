@@ -48,8 +48,10 @@ pub enum FailurePolicy {
     /// Failure is absorbed; caller sees `NegotiationResult::Skipped`.
     BestEffort,
     /// Failure is staged for later human review; caller sees
-    /// `NegotiationResult::Staged`. Concrete staging plumbing lands
-    /// with bl-a46d; here the variant just carries the message.
+    /// `NegotiationResult::Staged`. The staging surface is deferred
+    /// per bl-6969 — `PolicyKind::Gating` degrades to `Required` at
+    /// the schema→runtime boundary so this variant is unreachable in
+    /// practice until reintroduction.
     Gating,
 }
 

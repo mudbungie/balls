@@ -8,8 +8,8 @@ use std::collections::BTreeMap;
 pub struct PushResponse(pub serde_json::Map<String, Value>);
 
 /// Full sync report returned by the plugin on stdout after `sync`.
-/// `Serialize` so the human-gate participant can stage a report under
-/// `.balls/local/pending-sync/` for later replay (bl-a46d).
+/// `Serialize` is retained for future replay surfaces; today the
+/// dispatcher applies reports inline.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SyncReport {
     #[serde(default)]

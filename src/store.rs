@@ -64,10 +64,12 @@ impl Store {
     /// Discover the project root from a starting directory.
     /// In a worktree, returns the main repo root so that all writes go there.
     pub fn discover(from: &Path) -> Result<Self> {
-        match Self::discover_git(from) {
-            Err(BallError::NotARepo) => crate::store_legacy::discover_no_git(from),
-            other => other,
-        }
+        let store = match Self::discover_git(from) {
+            Err(BallError::NotARepo) => crate::store_legacy::discover_no_git(from)?,
+            other => other?,
+        };
+        crate::pending_sync_legacy::warn_if_present(&store);
+        Ok(store)
     }
 
     fn discover_git(from: &Path) -> Result<Self> {
