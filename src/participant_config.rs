@@ -3,9 +3,13 @@
 //!
 //! Layers, lowest precedence first:
 //!
-//! 1. Project-default `.balls/project.json` (committed to the tracker
-//!    branch — the plugin map is project config, SPEC §7).
-//! 2. Per-clone `.balls/local/config.json` (gitignored).
+//! 1. Project-default `project.json` (committed to the tracker branch
+//!    — the plugin map is project config, SPEC §7).
+//! 2. Per-clone override — historically `.balls/local/config.json`,
+//!    retired by bl-5a03 because SPEC §6.5 rejects `plugins` in
+//!    `clone.json`. The layering shape stays in place for the
+//!    in-memory contract; today the source is always `None` in
+//!    production.
 //! 3. Per-invocation overrides (`--skip=NAME`, `--required=NAME`).
 //!
 //! The schema is additive on top of `PluginEntry`: a new optional
@@ -96,10 +100,13 @@ pub struct ParticipantConfig {
     pub subscriptions: BTreeMap<Event, EventPolicy>,
 }
 
-/// Per-clone override of a single plugin's participant config. Sits
-/// inside `LocalConfig::plugins`. Only the fields a clone wants to
-/// override are populated; everything else inherits from the
-/// state-branch config.
+/// Per-clone override of a single plugin's participant config. SPEC
+/// §6.5 rejects `plugins` in `clone.json` (the field is tracker-
+/// scope), so today this type has no per-clone source — it survives
+/// as the in-memory contract `effective_subscriptions` accepts, used
+/// by tests that exercise the layering math directly and reserved
+/// for whatever future SPEC revision reopens per-clone plugin
+/// overrides. Production dispatchers pass `None`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalPluginEntry {
     #[serde(default)]

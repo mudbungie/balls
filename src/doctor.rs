@@ -75,6 +75,7 @@ fn check_store(store: &Store) -> Vec<Finding> {
     let mut out = Vec::new();
     crate::doctor_config::check_config(store, &mut out);
     check_tasks_dir_override(store, &mut out);
+    check_local_legacy_markers(store, &mut out);
     check_state_repo(store, &mut out);
     check_stale_claims(store, &mut out);
     check_orphan_worktrees(store, &mut out);
@@ -137,19 +138,60 @@ fn check_moved_clone(store: &Store, out: &mut Vec<Finding>) {
     out.extend(crate::doctor_moved::to_findings(&orphans, &store.root));
 }
 
+/// SPEC §6.4: stealth clones name their task store via
+/// `clone.json.tasks_dir`. If the path is set but missing on disk the
+/// store is unreachable and bl will fail every read; surface it as a
+/// finding so `bl doctor` names the file instead of letting the next
+/// command emit an opaque ENOENT.
 fn check_tasks_dir_override(store: &Store, out: &mut Vec<Finding>) {
-    let f = store.local_dir().join("tasks_dir");
-    let Ok(s) = fs::read_to_string(&f) else { return };
-    let p = Path::new(s.trim());
+    let Some(cj) = store.clone_json() else { return };
+    let Some(td) = cj.tasks_dir.as_deref() else { return };
+    let p = Path::new(td);
     if !p.exists() {
         out.push(Finding::flag(
             format!(
-                "tasks_dir override {} points to a missing path: {}",
-                f.display(),
+                "clone.json tasks_dir points to a missing path: {}",
                 p.display()
             ),
-            "fix or remove .balls/local/tasks_dir, or re-run \
-             `bl init --tasks-dir <path>`",
+            "fix the path on disk, or update clone.json (\
+             `~/.config/balls/<nested-clone-path>/clone.json`) — \
+             SPEC-clone-layout §6.4",
+        ));
+    }
+}
+
+/// bl-5a03: `.balls/local/config.json` and `.balls/local/tasks_dir`
+/// are the pre-XDG per-clone override files. The reader retired with
+/// this ball; legacy clones that still carry the files quietly lose
+/// their override surface until the user converts. Surface each one
+/// as a finding so the loss isn't silent. No auto-import — clone.json
+/// fields differ in name/shape and the user is in the best position
+/// to translate the intent (e.g. drop the override, or map plugin
+/// participant policy back to `project.json`).
+fn check_local_legacy_markers(store: &Store, out: &mut Vec<Finding>) {
+    let local = store.root.join(".balls/local");
+    let cfg = local.join("config.json");
+    if cfg.exists() {
+        out.push(Finding::flag(
+            format!(
+                "{} is a pre-XDG per-clone override; bl no longer reads it",
+                cfg.display()
+            ),
+            "translate the `require_remote_on_*` fields into \
+             `~/.config/balls/<nested-clone-path>/clone.json` \
+             (SPEC-clone-layout §6.4), then delete the legacy file",
+        ));
+    }
+    let td = local.join("tasks_dir");
+    if td.exists() {
+        out.push(Finding::flag(
+            format!(
+                "{} is a pre-XDG stealth marker; bl no longer reads it",
+                td.display()
+            ),
+            "move the path into `clone.json.tasks_dir` (with \
+             `stealth: true`) under `~/.config/balls/<nested-clone-path>/`, \
+             then delete the legacy file (SPEC-clone-layout §6.4)",
         ));
     }
 }
@@ -237,23 +279,5 @@ fn check_orphan_worktrees(store: &Store, out: &mut Vec<Finding>) {
 }
 
 #[cfg(test)]
-mod legacy_finding_tests {
-    use super::legacy_layout_finding;
-    use std::fs;
-    use tempfile::TempDir;
-
-    #[test]
-    fn returns_none_when_no_markers() {
-        let dir = TempDir::new().unwrap();
-        assert!(legacy_layout_finding(dir.path()).is_none());
-    }
-
-    #[test]
-    fn returns_some_when_marker_present() {
-        let dir = TempDir::new().unwrap();
-        fs::create_dir_all(dir.path().join(".balls")).unwrap();
-        fs::write(dir.path().join(".balls/config.json"), "{}").unwrap();
-        let f = legacy_layout_finding(dir.path()).unwrap();
-        assert!(f.problem.contains("legacy layout in use"));
-    }
-}
+#[path = "doctor_tests.rs"]
+mod legacy_finding_tests;
