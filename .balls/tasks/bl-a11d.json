@@ -16,7 +16,7 @@
   "status": "open",
   "synced_at": {"github-issues":"2026-05-26T01:34:09.888519907Z"},
   "tags": ["spec","xdg"],
-  "title": "Delete Store::local_dir() and the state/<nested>/ catch-all path; verify no consumers remain",
+  "title": "placeholder",
   "type": "task",
-  "updated_at": "2026-05-26T01:34:09.888532791Z"
+  "updated_at": "2026-05-26T08:00:03.109612113Z"
 }
