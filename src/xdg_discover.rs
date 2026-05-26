@@ -66,10 +66,6 @@ pub struct XdgResolution {
     /// Per-clone working dirs — `worktrees/`, `claims/`, `locks/`,
     /// `plugins-auth/` under `<nested-clone-path>`.
     pub per_clone: PerClonePaths,
-    /// `<state-root>/state/<nested-clone-path>` — the per-clone
-    /// catch-all for runtime state SPEC §3 does not name explicitly
-    /// (squash scratch, the legacy LocalConfig path). Not user-visible.
-    pub local_dir: PathBuf,
     /// `<tracker>/.balls/repo.json` (normal mode) or absent (stealth).
     /// Stealth clones have no `repo.json` (no tracker branch).
     pub repo_json_path: Option<PathBuf>,
@@ -122,14 +118,12 @@ pub fn try_resolve(
 
     let active_checkout = resolve_redirect(bases, &own_checkout)?;
     let per_clone = PerClonePaths::new(bases, &nested);
-    let local_dir = bases.state_root().join("state").join(&nested);
     Ok(Some(XdgResolution {
         stealth: false,
         nested_clone: nested,
         tasks_dir: active_checkout.join(".balls/tasks"),
         state_repo: active_checkout.clone(),
         per_clone,
-        local_dir,
         repo_json_path: Some(own_checkout.join(".balls/repo.json")),
         project_config_path: Some(active_checkout.join(".balls/project.json")),
         clone_json_file,
@@ -186,16 +180,17 @@ fn build_stealth(
             .expect("stealth clone.json must carry tasks_dir; validate_stealth gates the read"),
     );
     let per_clone = PerClonePaths::new(bases, nested);
-    let local_dir = bases.state_root().join("state").join(nested);
     XdgResolution {
         stealth: true,
         nested_clone: nested.to_path_buf(),
         tasks_dir,
-        // Stealth has no state branch; point at the catch-all so callers
-        // that compute paths under it don't panic on a sentinel path.
-        state_repo: local_dir.clone(),
+        // Stealth has no state branch; point at the clone.json's parent
+        // (`~/.config/balls/<nested>/`, SPEC §6.4) as a sentinel so callers
+        // that compute paths under it don't panic. State-branch consumers
+        // are all gated on `!store.stealth` (worktree linking, sync,
+        // archive recovery) and never read this value.
+        state_repo: bases.config_root().join(nested),
         per_clone,
-        local_dir,
         repo_json_path: None,
         project_config_path: None,
         clone_json_file: clone_json_file.to_path_buf(),
