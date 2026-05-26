@@ -13,8 +13,11 @@ fn bases_at(home: &Path) -> XdgBases {
 }
 
 /// Set up a moved-clone scenario: state lives under `old_nested/`,
-/// but the clone is now at `clone_path`. Returns `(clone_path, old
-/// per-clone paths, new per-clone paths)`.
+/// the clone is now at `clone_path`, and the breadcrumb at the old
+/// nested path records a never-existed "phantom" old path under
+/// `home` so the disambiguation gate in [`find_orphans`] classifies
+/// it as moved-away-from-here. Returns `(clone_path, old per-clone
+/// paths, new per-clone paths)`.
 fn seed_moved(
     home: &Path,
     old_nested: &str,
@@ -28,7 +31,16 @@ fn seed_moved(
     fs::create_dir_all(&old.locks).unwrap();
     fs::create_dir_all(&old.worktrees).unwrap();
     fs::create_dir_all(&old.plugins_auth).unwrap();
-    clone_breadcrumb::write_at(&old.claims, &clone).unwrap();
+    let phantom_old = home.join("phantom-old").join(old_nested);
+    let bc = clone_breadcrumb::CloneBreadcrumb {
+        path: phantom_old.to_string_lossy().into_owned(),
+        hostname: clone_breadcrumb::hostname(),
+    };
+    fs::write(
+        clone_breadcrumb::breadcrumb_path(&old.claims),
+        serde_json::to_string(&bc).unwrap(),
+    )
+    .unwrap();
     let new_nested = nested_clone_path(&clone);
     let new = PerClonePaths::new(&bases, &new_nested);
     (clone, old, new)
