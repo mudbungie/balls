@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-24T07:52:50.439345152Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-05-26T02:00:37.852294788Z"},
   "tags": ["dogfood","migration"],
   "title": "Phase 5: dogfood install + bl migrate on every local clone",
   "type": "task",
-  "updated_at": "2026-05-24T07:52:50.439355602Z"
+  "updated_at": "2026-05-26T02:00:37.852296611Z"
 }
