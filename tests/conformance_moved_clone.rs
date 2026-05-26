@@ -90,12 +90,14 @@ fn spec_14_14_rebind_moves_per_clone_subtree_with_no_data_loss() {
     let bc = clone_breadcrumb::read_at(&new_per_clone.claims).expect("breadcrumb");
     assert_eq!(bc.path, new_clone.to_string_lossy().to_string());
 
-    // (d) Doctor is quiet on the migration after rebind — no more
-    //     moved-clone finding (the legacy-layout finding is *not*
-    //     fired against an XDG-mode clone, so post-migrate-post-rebind
-    //     reads as silent).
+    // (d) Doctor is quiet on the rebind itself, and emits no false-
+    //     positive findings for the pre-bl-a4d0 legacy-config /
+    //     state-repo checks against an XDG clone.
     let out = bl_xdg(&new_clone, home.path()).arg("doctor").output().unwrap();
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(!stdout.contains("moved clone detected"), "rebind should silence the finding: {stdout}");
+    assert!(!stdout.contains("repo.json"), "XDG clone must not surface repo.json schema errors: {stdout}");
+    assert!(!stdout.contains("state checkout"), "XDG clone has no state-repo to validate: {stdout}");
+    assert!(!stdout.contains(".balls/tasks"), "XDG clone has no in-repo tasks symlink to chase: {stdout}");
 }
 
