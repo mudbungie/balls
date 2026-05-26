@@ -27,7 +27,7 @@ fn close_delivered_repo_overrides_auto_tag_with_manual_sha() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("f.txt"), "x").unwrap();
     bl(alice.path())
         .args(["review", &id, "-m", "Ship it"])
@@ -94,7 +94,7 @@ fn close_delivered_repo_alone_corrects_existing_provenance() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("f.txt"), "x").unwrap();
     bl(alice.path())
         .args(["review", &id, "-m", "ready"])

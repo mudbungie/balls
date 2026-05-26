@@ -30,7 +30,7 @@ fn passing_pre_check_allows_the_squash() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "work").unwrap();
 
     bl(repo.path())
@@ -56,7 +56,7 @@ fn failing_pre_check_aborts_then_a_fixed_retry_succeeds() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "work").unwrap();
 
     bl(repo.path())
@@ -100,7 +100,7 @@ fn failing_pre_check_blocks_the_deferred_push() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = dev.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(dev.path(), &id);
     std::fs::write(wt.join("feature.txt"), "work").unwrap();
 
     bl(dev.path())

@@ -16,14 +16,14 @@ fn review_merges_main_into_worktree_first() {
 
     // Task A: claim, work, review, close (advances main)
     bl_as(repo.path(), "alice").args(["claim", &a]).assert().success();
-    let wt_a = repo.path().join(".balls-worktrees").join(&a);
+    let wt_a = worktree_path(repo.path(), &a);
     std::fs::write(wt_a.join("file_a.txt"), "from task a").unwrap();
     bl(repo.path()).args(["review", &a]).assert().success();
     bl(repo.path()).args(["close", &a]).assert().success();
 
     // Task B: claim, work, review succeeds despite main divergence
     bl_as(repo.path(), "bob").args(["claim", &b]).assert().success();
-    let wt_b = repo.path().join(".balls-worktrees").join(&b);
+    let wt_b = worktree_path(repo.path(), &b);
     std::fs::write(wt_b.join("file_b.txt"), "from task b").unwrap();
     bl(repo.path()).args(["review", &b]).assert().success();
     bl(repo.path()).args(["close", &b]).assert().success();
@@ -40,8 +40,8 @@ fn review_detects_conflict_with_main() {
     let b = create_task(repo.path(), "second");
     bl_as(repo.path(), "alice").args(["claim", &a]).assert().success();
     bl_as(repo.path(), "bob").args(["claim", &b]).assert().success();
-    let wt_a = repo.path().join(".balls-worktrees").join(&a);
-    let wt_b = repo.path().join(".balls-worktrees").join(&b);
+    let wt_a = worktree_path(repo.path(), &a);
+    let wt_b = worktree_path(repo.path(), &b);
     std::fs::write(wt_a.join("shared.txt"), "version A").unwrap();
     git(wt_a.as_path(), &["add", "shared.txt"]);
     git(wt_a.as_path(), &["commit", "-m", "A", "--no-verify"]);

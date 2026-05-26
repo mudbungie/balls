@@ -150,7 +150,7 @@ fn claim_reanchors_repo_to_the_claiming_clone() {
     assert_eq!(repo_field(repo.path(), &id).as_str(), Some(code_str.as_str()));
 
     // Freeze: `bl review` must not re-stamp repo.
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("f.txt"), "x").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "go"])

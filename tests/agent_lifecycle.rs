@@ -35,7 +35,7 @@ fn story_60_61_full_agent_loop() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("work.txt"), "done").unwrap();
     bl_as(repo.path(), "agent-alpha")
         .args(["close", &id, "-m", "shipped"])

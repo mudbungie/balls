@@ -16,7 +16,7 @@ use std::path::Path;
 
 fn claim_and_seed(repo: &Path, id: &str) {
     bl_as(repo, "alice").args(["claim", id]).assert().success();
-    let wt = repo.join(".balls-worktrees").join(id);
+    let wt = worktree_path(repo, id);
     fs::write(wt.join("f.txt"), "x").unwrap();
 }
 

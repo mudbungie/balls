@@ -6,18 +6,24 @@
 
 #![allow(dead_code, unused_imports)]
 
+mod cmd;
 mod config_seed;
 pub mod forge;
 pub mod human_gate;
 pub mod migrate;
 pub mod multidev;
 pub mod native_plugin;
+mod paths;
 pub mod plugin;
 pub mod tracker;
 
+pub use cmd::{bl, bl_as, bl_bin, create_task, create_task_full, doctor, init_in, show_json};
 pub use config_seed::{seed_config, set_project_plugins};
+pub use paths::{
+    claims_dir, discover_state_repo, discover_tasks_dir, lock_dir, per_clone_paths,
+    plugins_auth_dir, worktree_path, worktrees_dir,
+};
 
-use assert_cmd::Command;
 use balls::git::clean_git_command;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -32,6 +38,42 @@ impl Repo {
     pub fn path(&self) -> &Path {
         self.dir.path()
     }
+}
+
+// Per-thread HOME tempdir for XDG isolation. Each libtest worker gets
+// its own home, so concurrent integration tests do not race on the
+// XDG state tree. Repos within one test share this tempdir (they run
+// on the same thread), which mirrors real bilateral mobility — two
+// clones of one origin on one machine share `trackers/<enc-origin>/`.
+// Allocated lazily on first `bl()` (or `bl_as()`) call.
+thread_local! {
+    static TEST_HOME: std::cell::RefCell<Option<TempDir>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Path to this thread's HOME tempdir, materializing it on first use.
+///
+/// Seeds a minimal `.gitconfig` with a test identity so any nested
+/// git checkout `bl` creates (state-repo, tracker checkout) can
+/// commit without falling back to the developer's real ~/.gitconfig
+/// (which the HOME redirect has just hidden).
+pub fn test_home_path() -> PathBuf {
+    TEST_HOME.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if opt.is_none() {
+            let dir = tempfile::Builder::new()
+                .prefix("balls-it-home-")
+                .tempdir()
+                .expect("home tempdir");
+            std::fs::write(
+                dir.path().join(".gitconfig"),
+                "[user]\n\tname = Test Dev\n\temail = dev@example.com\n[commit]\n\tgpgsign = false\n",
+            )
+            .expect("seed .gitconfig");
+            *opt = Some(dir);
+        }
+        opt.as_ref().unwrap().path().to_path_buf()
+    })
 }
 
 pub fn tmp() -> TempDir {
@@ -123,72 +165,10 @@ pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
     Repo { dir }
 }
 
-/// Return the path to the compiled `bl` binary.
-pub fn bl_bin() -> PathBuf {
-    // assert_cmd handles this: Command::cargo_bin("bl")
-    PathBuf::from(env!("CARGO_BIN_EXE_bl"))
-}
-
-pub fn bl(cwd: &Path) -> Command {
-    let mut c = Command::cargo_bin("bl").unwrap();
-    c.current_dir(cwd);
-    c.env("BALLS_IDENTITY", "test-user");
-    c
-}
-
-pub fn bl_as(cwd: &Path, identity: &str) -> Command {
-    let mut c = Command::cargo_bin("bl").unwrap();
-    c.current_dir(cwd);
-    c.env("BALLS_IDENTITY", identity);
-    c
-}
-
-/// Run `bl create TITLE` and return the newly created ID (parsed from stdout).
-pub fn create_task(cwd: &Path, title: &str) -> String {
-    let out = bl(cwd)
-        .args(["create", title])
-        .output()
-        .expect("bl create");
-    assert!(
-        out.status.success(),
-        "bl create failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
-}
-
-/// Run `bl create` with full options.
-pub fn create_task_full(
-    cwd: &Path,
-    title: &str,
-    priority: u8,
-    deps: &[&str],
-    tags: &[&str],
-) -> String {
-    let mut cmd = bl(cwd);
-    cmd.arg("create").arg(title).arg("-p").arg(priority.to_string());
-    for d in deps {
-        cmd.arg("--dep").arg(d);
-    }
-    for t in tags {
-        cmd.arg("--tag").arg(t);
-    }
-    let out = cmd.output().expect("bl create");
-    assert!(
-        out.status.success(),
-        "bl create failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
-}
-
-pub fn init_in(cwd: &Path) {
-    bl(cwd).arg("init").assert().success();
-}
-
-/// Read and JSON-parse a task file directly from the store.
+/// Read and JSON-parse a task file directly from the store. Layout-
+/// aware via [`paths::discover_tasks_dir`].
 pub fn read_task_json(repo_root: &Path, id: &str) -> serde_json::Value {
-    let path = repo_root.join(".balls/tasks").join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo_root).join(format!("{id}.json"));
     let s = std::fs::read_to_string(&path).expect("read task");
     serde_json::from_str(&s).expect("parse task json")
 }
@@ -196,9 +176,7 @@ pub fn read_task_json(repo_root: &Path, id: &str) -> serde_json::Value {
 /// Read the sibling notes file for a task as a list of JSON values, one
 /// per line. Returns an empty list if the file does not exist.
 pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
-    let path = repo_root
-        .join(".balls/tasks")
-        .join(format!("{id}.notes.jsonl"));
+    let path = discover_tasks_dir(repo_root).join(format!("{id}.notes.jsonl"));
     let Ok(s) = std::fs::read_to_string(&path) else {
         return Vec::new();
     };
@@ -208,21 +186,21 @@ pub fn read_task_notes(repo_root: &Path, id: &str) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// Run git against the clone's state checkout (`.balls/state-repo`),
-/// where the `balls/tasks` branch and its history live under the
-/// unified model. The asserting sibling of `git`.
+/// Run git against the clone's state checkout, layout-aware. Asserts
+/// the command succeeded and the state checkout exists.
 pub fn git_state(repo: &Path, args: &[&str]) -> String {
-    git(&repo.join(".balls/state-repo"), args)
+    let sr = discover_state_repo(repo).expect("non-stealth repo has a state checkout");
+    git(&sr, args)
 }
 
-/// Commit everything pending in the clone's state checkout
-/// (`.balls/state-repo`). Under the unified model `.balls/plugins`
-/// resolves into that checkout, so plugin config files written by the
-/// test helpers are committed here, not on the code branch.
+/// Commit everything pending in the clone's state checkout, layout-
+/// aware. No-op on stealth.
 pub fn commit_state_repo(repo: &Path, msg: &str) {
-    let sr = repo.join(".balls/state-repo");
+    let Some(sr) = discover_state_repo(repo) else {
+        return;
+    };
     if !sr.join(".git").exists() {
-        return; // a stealth repo has no state checkout
+        return;
     }
     git(&sr, &["add", "-A"]);
     if !git_ok(&sr, &["diff", "--cached", "--quiet"]) {
@@ -230,14 +208,13 @@ pub fn commit_state_repo(repo: &Path, msg: &str) {
     }
 }
 
-/// Push current branch (main) to origin.
+/// Push current branch (main) to origin, and the `balls/tasks` state
+/// branch from the layout-resolved state checkout.
 pub fn push(cwd: &Path) {
     git(cwd, &["push", "origin", "main"]);
-    // Push the state branch too if it exists — mirrors `bl sync`, so
-    // tests that round-trip tasks across clones don't need to call
-    // sync. Under the unified model `balls/tasks` lives in the
-    // `.balls/state-repo` checkout, whose own `origin` is the tracker.
-    let sr = cwd.join(".balls/state-repo");
+    let Some(sr) = discover_state_repo(cwd) else {
+        return;
+    };
     if sr.join(".git").exists()
         && git_ok(&sr, &["rev-parse", "--verify", "--quiet", "refs/heads/balls/tasks"])
     {
@@ -252,27 +229,8 @@ pub fn pull(cwd: &Path) {
     git(cwd, &["pull", "--no-edit", "origin", "main"]);
 }
 
-/// Run `bl doctor` and return stdout. Asserts exit 0 — doctor is
-/// read-only and never fails the process; the verdict is in the text.
-pub fn doctor(cwd: &Path) -> String {
-    let out = bl(cwd).arg("doctor").output().expect("bl doctor");
-    assert!(out.status.success(), "doctor must exit 0 (read-only)");
-    String::from_utf8_lossy(&out.stdout).to_string()
-}
-
 /// Flip the repo's `core.bare` flag on directly, mimicking a
 /// bare-converted clone without going through `bl`.
 pub fn set_core_bare(repo_root: &Path) {
     git(repo_root, &["config", "core.bare", "true"]);
 }
-
-/// Run `bl show --json` for a (possibly archived) task and return the
-/// parsed value. Asserts the command succeeded.
-pub fn show_json(repo: &Path, id: &str) -> serde_json::Value {
-    let out = bl(repo).args(["show", id, "--json"]).output().unwrap();
-    assert!(out.status.success());
-    serde_json::from_slice(&out.stdout).unwrap()
-}
-
-// `seed_config` / `set_project_plugins` live in `config_seed` (line-cap
-// split) and are re-exported above.

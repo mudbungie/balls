@@ -68,7 +68,7 @@ fn sync_flag_loses_to_earlier_claim() {
     assert_eq!(j["claimed_by"], "alice");
 
     // Bob has no worktree and no claim file.
-    assert!(!bob.path().join(".balls-worktrees").join(&id).exists());
+    assert!(!worktree_path(bob.path(), &id).exists());
     assert!(!bob.path().join(".balls/local/claims").join(&id).exists());
 }
 
@@ -93,7 +93,7 @@ fn sync_flag_fails_loud_on_unreachable_remote() {
     let j = read_task_json(alice.path(), &id);
     assert_eq!(j["status"], "open");
     assert!(j["claimed_by"].is_null());
-    assert!(!alice.path().join(".balls-worktrees").join(&id).exists());
+    assert!(!worktree_path(alice.path(), &id).exists());
 }
 
 #[test]

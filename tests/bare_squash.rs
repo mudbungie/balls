@@ -19,7 +19,7 @@ fn review_succeeds_when_repo_root_is_bare() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("feature.txt"), "delivered").unwrap();
 
     set_core_bare(repo.path());
@@ -74,7 +74,7 @@ fn review_no_code_on_bare_repo_records_no_code_marker() {
     set_core_bare(repo.path());
 
     let head_before = git(repo.path(), &["rev-parse", "main"]).trim().to_string();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     bl(&wt)
         .args(["review", &id, "-m", "nothing to deliver"])
         .assert()

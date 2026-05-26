@@ -38,7 +38,7 @@ fn review_squashes_into_configured_target_branch_not_checkout() {
 
     let id = create_task(repo.path(), "feature");
     bl(repo.path()).args(["claim", &id]).assert().success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "ready"])
@@ -87,7 +87,7 @@ fn unset_target_branch_squashes_into_checkout() {
     let main_before = sha(repo.path(), "main");
     let id = create_task(repo.path(), "feature");
     bl(repo.path()).args(["claim", &id]).assert().success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "ready"])
@@ -116,7 +116,7 @@ fn sync_pushes_configured_target_branch() {
     let main_remote_before = sha(code.path(), "main");
     let id = create_task(alice.path(), "feature");
     bl(alice.path()).args(["claim", &id]).assert().success();
-    let wt = alice.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();
     bl(alice.path())
         .args(["review", &id, "-m", "ready"])
@@ -198,7 +198,7 @@ fn per_task_target_branch_overrides_config_and_checkout() {
     assert_eq!(jshow["task"]["target_branch"], "release");
 
     bl(repo.path()).args(["claim", &id]).assert().success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     fs::write(wt.join("hotfix.txt"), "fix").unwrap();
     bl(repo.path())
         .args(["review", &id, "-m", "ship hotfix"])

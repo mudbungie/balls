@@ -159,7 +159,7 @@ fn claimed_worktree_shares_state_with_main() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     // The bl worktree's .balls/tasks symlink must resolve to a file
     // containing this task — proving it targets the same state.
     let task_path_via_wt = wt.join(".balls/tasks").join(format!("{id}.json"));

@@ -95,7 +95,7 @@ fn claim_rejected_when_worktree_dir_already_exists() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::create_dir_all(&wt).unwrap();
     bl(repo.path())
         .args(["claim", &id])
