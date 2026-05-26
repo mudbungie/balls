@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-26T05:12:19.431691107Z"},
   "tags": ["xdg","audit"],
   "title": "Audit bl-05e5 conformance fixtures for impl/fixture co-authored assumptions",
   "type": "bug",
-  "updated_at": "2026-05-26T05:12:19.431696708Z"
+  "updated_at": "2026-05-26T05:19:39.791335869Z"
 }
