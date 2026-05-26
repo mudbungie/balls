@@ -1,1 +1,0 @@
-{"ts":"2026-05-26T16:02:57.963444207Z","author":"mark","text":"Drop per-worktree .balls/local symlink; consumers use Store XDG accessors"}
