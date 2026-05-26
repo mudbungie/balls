@@ -17,11 +17,11 @@ use std::fs;
 /// that recorded its path at one location, then was `mv`d. The
 /// post-state mirrors what would happen in the wild — old per-clone
 /// subtree retained under the previous nested path, new clone path
-/// has no per-clone state yet, the recorded breadcrumb names the new
-/// path because that is what the user moved *to*.
+/// has no per-clone state yet, the breadcrumb still records the old
+/// path (bl never ran at the new location to update it).
 fn seed_moved_clone(
     home: &std::path::Path,
-) -> (std::path::PathBuf, PerClonePaths) {
+) -> (std::path::PathBuf, std::path::PathBuf, PerClonePaths) {
     let (_remote, clone, _url) = legacy_clone(home, "dev/proj");
     bl_xdg(&clone, home).arg("migrate").assert().success();
     let xdg_bases = bases(home);
@@ -31,19 +31,18 @@ fn seed_moved_clone(
     // a task id.
     fs::write(old_per_clone.claims.join("bl-cafe"), "x").unwrap();
 
-    // Simulate the move: rename the clone on disk, then rewrite the
-    // breadcrumb to record the new path (matching what bl would do
-    // on the *next* materialization at the new path).
+    // Simulate the move: rename the clone on disk and leave the
+    // breadcrumb untouched. The breadcrumb still records the OLD
+    // path — that *is* the moved-from-here signal doctor surfaces.
     let new_clone = home.join("dev/proj-renamed");
     fs::rename(&clone, &new_clone).unwrap();
-    clone_breadcrumb::write_at(&old_per_clone.claims, &new_clone).unwrap();
-    (new_clone, old_per_clone)
+    (new_clone, clone, old_per_clone)
 }
 
 #[test]
 fn spec_14_14_doctor_reports_moved_clone_with_task_ids_and_rebind_hint() {
     let home = tmp();
-    let (new_clone, _old) = seed_moved_clone(home.path());
+    let (new_clone, _old_clone, _old) = seed_moved_clone(home.path());
 
     let out = bl_xdg(&new_clone, home.path()).arg("doctor").output().unwrap();
     assert!(out.status.success(), "doctor must exit 0 (read-only)");
@@ -56,21 +55,22 @@ fn spec_14_14_doctor_reports_moved_clone_with_task_ids_and_rebind_hint() {
 #[test]
 fn spec_14_14_doctor_is_read_only_on_moved_clone() {
     let home = tmp();
-    let (new_clone, old) = seed_moved_clone(home.path());
+    let (new_clone, old_clone, old) = seed_moved_clone(home.path());
     let claim_before = fs::read(old.claims.join("bl-cafe")).unwrap();
     bl_xdg(&new_clone, home.path()).arg("doctor").assert().success();
     let claim_after = fs::read(old.claims.join("bl-cafe")).unwrap();
     assert_eq!(claim_before, claim_after, "doctor must not mutate orphan state");
-    // The pre-doctor breadcrumb at the old location must be intact
-    // (post-doctor read of the same location returns the same path).
+    // The pre-doctor breadcrumb at the old location must be intact —
+    // still recording the OLD clone path. Doctor never rewrites it;
+    // only the rebind verb does.
     let bc = clone_breadcrumb::read_at(&old.claims).expect("breadcrumb survives doctor");
-    assert_eq!(bc.path, new_clone.to_string_lossy().to_string());
+    assert_eq!(bc.path, old_clone.to_string_lossy().to_string());
 }
 
 #[test]
 fn spec_14_14_rebind_moves_per_clone_subtree_with_no_data_loss() {
     let home = tmp();
-    let (new_clone, old) = seed_moved_clone(home.path());
+    let (new_clone, _old_clone, old) = seed_moved_clone(home.path());
     let xdg_bases = bases(home.path());
     let new_per_clone = PerClonePaths::new(&xdg_bases, &nested(&new_clone));
 
