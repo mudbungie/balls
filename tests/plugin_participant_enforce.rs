@@ -11,7 +11,8 @@
 //! - best-effort `reject` ships and records `task.sync_status.<p>`;
 //! - `--skip=NAME` ships past a required veto and logs `[--skip=NAME]`
 //!   in the state-branch commit subject (§11, conformance #9);
-//! - a gating `reject` is inert at the command (staging is bl-a46d).
+//! - a `gating` policy degrades to `required` per bl-6969 (staging
+//!   surface deferred): a gating `reject` aborts with the warning.
 //!
 //! `bl close` enforcement and the §5.1 side channel live in the
 //! sibling `plugin_participant_enforce_close.rs`.
@@ -120,11 +121,13 @@ fn skip_override_ships_past_required_and_is_logged() {
 }
 
 #[test]
-fn gating_reject_is_inert_and_ships() {
-    // SPEC §9 gating: staging machinery is bl-a46d. Until then a
-    // gating veto is inert at the command — the event ships, nothing
-    // is recorded, nothing rolls back (distinct from required/best-
-    // effort). Pins the `Staged => Inert` dispatch arm.
+fn gating_reject_degrades_to_required_and_aborts() {
+    // bl-6969: the staging surface is deferred, so PolicyKind::Gating
+    // degrades to FailurePolicy::Required at the schema→runtime
+    // boundary with a one-line warning. The observable contract is
+    // the Required path — a reject aborts and the state branch rolls
+    // back — plus the deferral warning on stderr so the operator
+    // knows their config still parses but is being treated leniently.
     let bin = install_native_plugin("jira", REJECT);
     let repo = new_repo();
     init_in(repo.path());
@@ -139,13 +142,21 @@ fn gating_reject_is_inert_and_ships() {
         .unwrap();
 
     assert!(
-        out.status.success(),
-        "a gating veto must not abort (bl-a46d staging is future work): {}",
-        String::from_utf8_lossy(&out.stderr)
+        !out.status.success(),
+        "gating degrades to required (bl-6969); a reject must abort"
     );
-    let task = read_task_json(repo.path(), &id);
+    let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        task.get("sync_status").is_none(),
-        "gating is not a best-effort skip — sync_status stays clean: {task}"
+        stderr.contains("staging is deferred (see bl-6969)"),
+        "the degrade warning must fire so operators see the config is read leniently: {stderr}"
+    );
+    assert!(
+        stderr.contains("CI is red on this branch"),
+        "the reject reason still propagates verbatim: {stderr}"
+    );
+    let notes = read_task_notes(repo.path(), &id);
+    assert!(
+        !notes.iter().any(|n| n["text"] == "poke"),
+        "the update commit must be rewound under the required degrade: {notes:?}"
     );
 }

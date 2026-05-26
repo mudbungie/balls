@@ -173,20 +173,9 @@ fn main() {
         Command::Dep { sub } => commands::cmd_dep(normalize_dep(sub)),
         Command::Link { sub } => commands::cmd_link(normalize_link(sub)),
         Command::Plugin { sub } => dispatch_plugin(sub),
-        Command::Sync {
+        Command::Sync { remote, task } => commands::cmd_sync(commands::SyncArgs {
             remote,
             task,
-            review,
-            apply,
-            discard,
-            list_staged,
-        } => commands::cmd_sync(commands::SyncArgs {
-            remote,
-            task,
-            review,
-            apply,
-            discard,
-            list_staged,
         }),
         Command::Resolve { file } => commands::cmd_resolve(file),
         Command::Prime { identity, json, migrate } => {

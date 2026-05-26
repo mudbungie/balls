@@ -3,7 +3,6 @@
 use super::half_push::detect_half_push;
 use super::sync_report::apply_sync_report;
 use super::sync_targets::push_recorded_targets;
-use super::sync_review;
 use super::{default_identity, discover};
 use balls::error::Result;
 use balls::store::Store;
@@ -12,31 +11,14 @@ use balls::{git, ready, resolve, sanitize, sync_resolve};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Arguments for `bl sync` and its staged-review variants. The struct
-/// keeps the signature flat while letting `main.rs` thread CLI flags
-/// through one bundle.
+/// Arguments for `bl sync`. The struct keeps the signature flat while
+/// letting `main.rs` thread CLI flags through one bundle.
 pub struct SyncArgs {
     pub remote: String,
     pub task: Option<String>,
-    pub review: bool,
-    pub apply: Option<String>,
-    pub discard: Option<String>,
-    pub list_staged: bool,
 }
 
 pub fn cmd_sync(args: SyncArgs) -> Result<()> {
-    if let Some(id) = args.apply {
-        return sync_review::apply_staged(&id);
-    }
-    if let Some(id) = args.discard {
-        return sync_review::discard_staged(&id);
-    }
-    if args.list_staged {
-        return sync_review::list_staged();
-    }
-    if args.review {
-        return sync_review::stage_sync_event(&args.remote, args.task.as_deref());
-    }
     cmd_sync_run(&args.remote, args.task.as_deref())
 }
 
@@ -140,10 +122,6 @@ pub fn cmd_prime(identity: Option<String>, json: bool, migrate: bool) -> Result<
     let _ = cmd_sync(SyncArgs {
         remote: "origin".to_string(),
         task: None,
-        review: false,
-        apply: None,
-        discard: None,
-        list_staged: false,
     });
 
     // Phase 3 (bl-05e5): back-fill the moved-clone breadcrumb when
