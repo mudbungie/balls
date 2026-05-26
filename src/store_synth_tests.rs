@@ -30,9 +30,9 @@ fn xdg_store(root: &Path, repo: RepoJson) -> Store {
         lock_dir_path: balls.join("locks"),
         local_plugins_dir_path: balls.join("plugins-auth"),
         worktrees_root_path: root.join("worktrees"),
-        local_dir_path: balls.join("local"),
         config_file_path: repo_path,
         project_config_file_path: project_path,
+        clone_json: None,
     }
 }
 

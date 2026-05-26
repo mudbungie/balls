@@ -140,24 +140,46 @@ fn repo_config_default_drives_claim_to_remote() {
 }
 
 #[test]
-fn local_config_overrides_repo_default_off() {
+fn legacy_local_config_no_longer_overrides_and_doctor_flags_it() {
+    // bl-5a03 retired the `.balls/local/config.json` reader. On a
+    // legacy clone the file just sits there — claim ignores it (so
+    // the repo-default policy wins, not the override) and `bl doctor`
+    // surfaces the file so the user knows to translate it into
+    // `clone.json` after migrating.
     let (_r, alice, _bob) = three_way();
     flip_repo_policy_on(alice.path());
 
-    // Local override flips it off for this clone only.
-    let local_cfg = alice.path().join(".balls/local/config.json");
+    // The legacy local override file claims to flip require_remote
+    // off for this clone — but bl no longer reads it.
     fs::write(
-        &local_cfg,
+        alice.path().join(".balls/local/config.json"),
         r#"{"require_remote_on_claim": false}"#,
     )
     .unwrap();
 
     let id = create_task(alice.path(), "local-off");
     break_remote(alice.path());
-    bl_as(alice.path(), "alice")
+
+    // With the reader gone, the repo default (require_remote_on_claim
+    // = true) still drives the policy. The broken remote makes the
+    // claim fail — exactly as if no override file existed.
+    let out = bl_as(alice.path(), "alice")
         .args(["claim", &id])
-        .assert()
-        .success();
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success(),
+        "expected claim to fail under repo-default policy; legacy local/config.json must be ignored"
+    );
+
+    // Doctor surfaces the legacy file as a finding so the user knows
+    // the override is silently dead.
+    let report = doctor(alice.path());
+    assert!(
+        report.contains(".balls/local/config.json")
+            && report.contains("pre-XDG"),
+        "expected `bl doctor` to flag legacy local/config.json; got:\n{report}"
+    );
 }
 
 #[test]
@@ -229,20 +251,11 @@ fn claim_announces_repo_default_sync() {
     let s2 = String::from_utf8_lossy(&out2.stderr).to_string();
     assert!(!notice_hit(&s2), "expected no notice with --no-sync, got: {s2}");
 
-    // (3) Clone-level config says false; no sync, no notice — from_repo_default is false.
-    let (_r3, alice3, _bob3) = three_way();
-    flip_repo_policy_on(alice3.path());
-    fs::write(
-        alice3.path().join(".balls/local/config.json"),
-        r#"{"require_remote_on_claim": false}"#,
-    )
-    .unwrap();
-    let id3 = create_task(alice3.path(), "clone-override-off");
-    let out3 = bl_as(alice3.path(), "alice")
-        .args(["claim", &id3])
-        .output()
-        .unwrap();
-    assert!(out3.status.success());
-    let s3 = String::from_utf8_lossy(&out3.stderr).to_string();
-    assert!(!notice_hit(&s3), "expected no notice with clone-level override, got: {s3}");
+    // (3) Clone-level override case: covered today only through XDG
+    // (`~/.config/balls/<nested>/clone.json`, SPEC §6.4). The legacy
+    // `.balls/local/config.json` reader retired with bl-5a03; the
+    // XDG end-to-end coverage will follow the Phase 1B-2 cmd_init
+    // flip (bl-a684). Until then the assertion is that the notice
+    // still appears when the local-override layer is absent —
+    // already covered by case (1).
 }

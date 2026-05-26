@@ -169,7 +169,11 @@ fn corrupt_config_is_flagged() {
 }
 
 #[test]
-fn tasks_dir_override_points_nowhere() {
+fn legacy_local_tasks_dir_marker_is_flagged() {
+    // bl-5a03 retired the `.balls/local/tasks_dir` reader. Doctor
+    // surfaces the file as a pre-XDG marker so the user knows to move
+    // the value into `clone.json.tasks_dir`. No path-existence check
+    // — the value is dead; pointing it anywhere makes no difference.
     let repo = new_repo();
     init_in(repo.path());
     fs::write(
@@ -178,8 +182,28 @@ fn tasks_dir_override_points_nowhere() {
     )
     .unwrap();
     let out = doctor(repo.path());
-    assert!(out.contains("tasks_dir override"));
-    assert!(out.contains("/no/such/balls/path"));
+    assert!(
+        out.contains(".balls/local/tasks_dir") && out.contains("pre-XDG"),
+        "expected legacy-marker finding for local/tasks_dir; got:\n{out}"
+    );
+}
+
+#[test]
+fn legacy_local_config_marker_is_flagged() {
+    // Same as above for `.balls/local/config.json`: the reader is
+    // gone (bl-5a03), so doctor calls out the file by path.
+    let repo = new_repo();
+    init_in(repo.path());
+    fs::write(
+        repo.path().join(".balls/local/config.json"),
+        r#"{"require_remote_on_claim": false}"#,
+    )
+    .unwrap();
+    let out = doctor(repo.path());
+    assert!(
+        out.contains(".balls/local/config.json") && out.contains("pre-XDG"),
+        "expected legacy-marker finding for local/config.json; got:\n{out}"
+    );
 }
 
 #[test]

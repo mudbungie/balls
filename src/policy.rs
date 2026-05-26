@@ -1,57 +1,51 @@
 //! Effective claim-policy resolution. Layers, lowest precedence first:
 //!
-//! 1. Repo-default config (`.balls/config.json`, committed to main and
-//!    shared across clones).
-//! 2. Per-clone override (`.balls/local/config.json`, gitignored). All
-//!    fields are optional; only those set override the repo default.
-//! 3. Per-invocation flag (`--sync` / `--no-sync` on `bl claim`).
+//! 1. Repo-default config (`repo.json` on the tracker branch under
+//!    XDG, `.balls/config.json` under legacy).
+//! 2. Per-clone override — `clone.json` (SPEC §6.4) — XDG-only. The
+//!    legacy `.balls/local/config.json` reader retired with bl-5a03:
+//!    legacy clones lose their per-clone override surface until they
+//!    migrate (`bl doctor` flags lingering local/config.json files).
+//! 3. Per-invocation flag (`--sync` / `--no-sync`).
 //!
 //! Out of scope: enforcement. A dev who flips `--no-sync` against a
 //! repo whose maintainer set `require_remote_on_claim = true` is on
 //! their honour. The policy guides default behaviour; the rest is
 //! social.
 
-use crate::error::Result;
-use crate::participant_config::LocalPluginEntry;
+use crate::clone_json::CloneJson;
 use crate::store::Store;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
 
-/// Per-clone override of the repo-default `Config`. Stored at
-/// `.balls/local/config.json`. All fields optional — `None` (or an
-/// empty map) means "inherit the repo-default".
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+/// In-memory view of this clone's `require_remote_on_*` overrides —
+/// the slice of `clone.json` the policy resolvers consume. Holding it
+/// as its own type lets `policy::resolve*` accept any source (clone.json
+/// today; whatever the next SPEC revision moves it to) without
+/// re-shaping the call sites.
+#[derive(Debug, Default, Clone, Copy)]
 pub struct LocalConfig {
-    #[serde(default)]
     pub require_remote_on_claim: Option<bool>,
-    #[serde(default)]
     pub require_remote_on_review: Option<bool>,
-    #[serde(default)]
     pub require_remote_on_close: Option<bool>,
-    /// SPEC §11 — per-plugin participant policy overrides. Only
-    /// plugins the clone actually wants to override appear here.
-    #[serde(default)]
-    pub plugins: BTreeMap<String, LocalPluginEntry>,
 }
 
 impl LocalConfig {
-    pub fn path(store: &Store) -> PathBuf {
-        store.local_dir().join("config.json")
+    /// Project the policy-relevant fields out of a `clone.json`. Used
+    /// by `commands::plumbing::sync_inputs` once the store has loaded
+    /// its clone.json at discovery.
+    #[must_use]
+    pub fn from_clone(cj: &CloneJson) -> Self {
+        Self {
+            require_remote_on_claim: cj.require_remote_on_claim,
+            require_remote_on_review: cj.require_remote_on_review,
+            require_remote_on_close: cj.require_remote_on_close,
+        }
     }
 
-    /// Load if present. A missing file is not an error — that's the
-    /// common case. A malformed file is, so the caller knows to fix
-    /// it instead of silently inheriting the repo default.
-    pub fn load(store: &Store) -> Result<Option<Self>> {
-        let p = Self::path(store);
-        if !p.exists() {
-            return Ok(None);
-        }
-        let s = fs::read_to_string(&p)?;
-        let cfg: LocalConfig = serde_json::from_str(&s)?;
-        Ok(Some(cfg))
+    /// Load this clone's overrides from the store. `None` ⇒ no
+    /// override layer (no clone.json present, or legacy layout).
+    #[must_use]
+    pub fn load(store: &Store) -> Option<Self> {
+        store.clone_json().map(Self::from_clone)
     }
 }
 
@@ -91,7 +85,7 @@ pub struct ClaimPolicy {
 
 /// Compute the effective claim policy for this invocation.
 ///
-/// `local` is `LocalConfig::load(store)?` factored out so callers that
+/// `local` is `LocalConfig::load(store)` factored out so callers that
 /// have already loaded it (e.g. `bl prime`'s UX path) don't read twice.
 pub fn resolve(
     repo_default: bool,

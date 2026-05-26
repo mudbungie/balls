@@ -77,7 +77,6 @@ pub(crate) fn legacy_with(
         lock_dir_path: local.join("lock"),
         local_plugins_dir_path: local.join("plugins"),
         worktrees_root_path: root.join(".balls-worktrees"),
-        local_dir_path: local,
         config_file_path: balls.join("config.json"),
         project_config_file_path: balls.join("project.json"),
         root,
@@ -87,6 +86,8 @@ pub(crate) fn legacy_with(
         tasks_dir_path,
         state_repo_path,
         state_branch_name,
+        // Legacy layout predates clone.json (SPEC §6.4 is XDG-only).
+        clone_json: None,
     }
 }
 

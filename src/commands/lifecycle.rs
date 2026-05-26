@@ -33,7 +33,7 @@ pub fn cmd_review(
         if store.no_git || store.load_task(&id)?.branch.is_none() {
             balls::review::review_no_git(&store, &id, message.as_deref(), &ident)?;
         } else {
-            let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
+            let (cli, cfg, local) = sync_inputs(&store, sync, no_sync);
             let repo = cfg.as_ref().is_some_and(|c| c.require_remote_on_review);
             let policy = policy::resolve_review(repo, local.as_ref(), cli);
             balls::review::review_worktree(&store, &id, message.as_deref(), &ident, policy)?;
@@ -77,7 +77,7 @@ pub fn cmd_close(
         let task = if store.no_git {
             balls::review::close_no_git(&store, &id, message.as_deref(), &ident)?
         } else {
-            let (cli, cfg, local) = sync_inputs(&store, sync, no_sync)?;
+            let (cli, cfg, local) = sync_inputs(&store, sync, no_sync);
             let repo = cfg.as_ref().is_some_and(|c| c.require_remote_on_close);
             let policy = policy::resolve_close(repo, local.as_ref(), cli);
             // bl-e454: deferred mode is exactly the case where the
