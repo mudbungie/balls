@@ -72,7 +72,13 @@ fn story_25_claim_closed_task_rejected() {
 }
 
 #[test]
-fn story_27_worktree_has_local_cache_via_symlink() {
+fn story_27_worktree_has_no_local_symlink() {
+    // bl-51a5: the per-worktree `.balls/local` symlink was the only
+    // reason the Phase 1A `state/<nested>/` catch-all bucket got
+    // walked from worktree-side code. Worktree-side consumers now
+    // resolve per-clone XDG paths via the `Store` directly, so the
+    // symlink is gone. The SPEC-named `state-repo` and `tasks`
+    // symlinks remain and are exercised by other tests.
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
@@ -81,10 +87,8 @@ fn story_27_worktree_has_local_cache_via_symlink() {
         .assert()
         .success();
     let wt_local = worktree_path(repo.path(), &id).join(".balls/local");
-    assert!(wt_local.exists());
-    let canon = std::fs::canonicalize(&wt_local).unwrap();
-    let expected = std::fs::canonicalize(repo.path().join(".balls/local")).unwrap();
-    assert_eq!(canon, expected);
+    assert!(!wt_local.exists());
+    assert!(!wt_local.is_symlink());
 }
 
 #[test]
