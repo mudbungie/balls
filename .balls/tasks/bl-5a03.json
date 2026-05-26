@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-26T08:02:10.680304842Z",
-  "delivered_in": null,
+  "delivered_in": "0555feb2af72a939f152ac944668cc9846ead5a5",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Two `Store::local_dir()` consumers read files that SPEC §6.4 already names `clone.json` as the home for:\n\n- `src/policy.rs:41` — `LocalConfig::path` → `local_dir/config.json`. The struct carries `require_remote_on_{claim,review,close}` + per-plugin `plugins` overrides. Loaded by `commands/plumbing.rs::sync_inputs`.\n- `src/doctor.rs:130` — `check_tasks_dir_override` reads `local_dir/tasks_dir` marker.\n\nSPEC §6.4 declares `clone.json` owns `stealth`, `tasks_dir`, plus optional per-clone overrides of `require_remote_on_*`, `auto_fetch_on_ready`, `stale_threshold_seconds`, etc., plus per-plugin participant overrides. SPEC §6.5 field table makes the precedence explicit (\"clone.json field if present, else repo.json, else project.json, else built-in default\").\n\n## Scope\n\n1. Extend `xdg_discover`'s `clone.json` loader so it returns the full layered field set (it likely already reads `stealth` + `tasks_dir`; add the rest).\n2. Rewrite `commands/plumbing.rs::sync_inputs` to call the extended loader; delete `LocalConfig::path` and the `local_dir/config.json` reader. `policy::resolve*` keeps the same shape — only the *source* changes.\n3. Rewrite `doctor::check_tasks_dir_override` to read `clone.json.tasks_dir` instead of the legacy marker file.\n4. Migration: clones with `.balls/local/config.json` or `.balls/local/tasks_dir` are pre-XDG. `bl doctor` flags them with a \"convert to clone.json\" finding. No auto-import.\n\n## Out of scope\n\n- Deletion of `Store::local_dir()` — that is the parent (bl-a11d).",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":183,"source":"balls","state":"open","synced_at":"2026-05-26T15:55:59.435984171+00:00","url":"https://github.com/mudbungie/balls/issues/183"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-a11d",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-05-26T15:55:59.456983705Z"},
   "tags": ["spec","xdg"],
   "title": "Fold LocalConfig (config.json) + tasks_dir marker into clone.json",
   "type": "task",
-  "updated_at": "2026-05-26T15:55:59.456988373Z"
+  "updated_at": "2026-05-26T16:35:39.307058225Z"
 }
