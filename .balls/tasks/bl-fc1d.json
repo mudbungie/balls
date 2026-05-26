@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "bl-f8f3 surfaced that bl-05e5's moved-clone test passed against broken code because the fixture re-wrote the breadcrumb post-rename to match the buggy impl's expectation. Both sides shared the same wrong mental model — `conformance_moved_clone.rs` did not exercise the real-world scenario it was named after.\n\nThat's a class-of-bug risk, not a one-off. The other surfaces bl-05e5 delivered (`bl prime --migrate`, the legacy-layout doctor finding, `bl repair --rebind-path`) have conformance tests written in the same sitting. If any of them was written by reading the impl rather than the SPEC scenario, they could be quietly tautological.\n\n## Scope\n\nRe-read every conformance test added by bl-05e5 against the SPEC scenario it claims to cover, asking specifically: does the fixture set up the state a *real user* would arrive in, or does it set up the state the *impl happens to handle*?\n\nConcrete candidates to audit:\n\n- `tests/conformance_moved_clone.rs` — already fixed in bl-f8f3, use as the worked example.\n- Any conformance test touching `bl prime --migrate` — does the fixture model a clone that has never seen XDG (i.e. legacy `.balls/state-repo/` present, no XDG state), or does it pre-seed XDG state and just call migrate?\n- The legacy-layout doctor finding — does the fixture stand up a legacy clone and assert doctor *flags* it, or does it pre-flag it?\n- `bl repair --rebind-path` integration — covered by the bl-f8f3 fix transitively (third subtest), but spot-check.\n\nFor each, the audit either (a) confirms the fixture is faithful, or (b) files a follow-up bug ball with the inverted-predicate-style fix.\n\n## Why not include in bl-f8f3\n\nbl-f8f3 was a focused single-comparison bug. Folding an audit in would have blurred the diff. Audit is broader and may surface zero, one, or several follow-ups — best as its own bounded read pass.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":177,"source":"balls","state":"open","synced_at":"2026-05-26T04:40:00.219696814+00:00","url":"https://github.com/mudbungie/balls/issues/177"}}},
   "id": "bl-fc1d",
   "links": [],
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-26T04:40:00.234944219Z"},
   "tags": ["xdg","audit"],
   "title": "Audit bl-05e5 conformance fixtures for impl/fixture co-authored assumptions",
   "type": "bug",
-  "updated_at": "2026-05-26T04:39:59.375699773Z"
+  "updated_at": "2026-05-26T04:40:00.234954398Z"
 }
