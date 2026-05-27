@@ -1,11 +1,13 @@
 use crate::config::Config;
 use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
+use crate::encoding::nested_clone_path;
 use crate::error::{BallError, Result};
 use crate::project_config::ProjectConfig;
 use crate::git;
 use crate::store_paths::find_main_root;
 use crate::task::{self, Task};
 use crate::xdg_discover;
+use crate::xdg_paths::XdgBases;
 use std::path::{Path, PathBuf};
 
 // flock primitives live in `store_lock` to keep this file under the
@@ -102,6 +104,22 @@ impl Store {
 
     pub fn local_dir(&self) -> PathBuf {
         self.local_dir_path.clone()
+    }
+
+    /// SPEC-clone-layout §3 — `~/.cache/balls/<nested-clone-path>/`,
+    /// the reserved home for derived/regenerable per-clone artifacts.
+    /// `last_fetch` (bl-5814) is the first concrete consumer; future
+    /// markers opt in individually. Honors `XDG_CACHE_HOME`. Callers
+    /// create the directory lazily on first write.
+    ///
+    /// When `HOME` and `XDG_CACHE_HOME` are both unset the accessor
+    /// roots at the clone — the marker still works, it just doesn't
+    /// land in the spec-named slot. The single caller already swallows
+    /// write failures.
+    pub fn cache_dir(&self) -> PathBuf {
+        let bases = XdgBases::from_env()
+            .unwrap_or_else(|| XdgBases::with(&self.root, None, None, None));
+        bases.cache_root().join(nested_clone_path(&self.root))
     }
 
     pub fn claims_dir(&self) -> PathBuf {

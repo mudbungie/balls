@@ -20,8 +20,8 @@ pub mod xdg_init;
 pub use cmd::{bl, bl_as, bl_bin, create_task, create_task_full, doctor, init_in, show_json};
 pub use config_seed::{seed_config, set_project_plugins};
 pub use paths::{
-    claims_dir, discover_state_repo, discover_tasks_dir, lock_dir, per_clone_paths,
-    plugins_auth_dir, worktree_path, worktrees_dir,
+    cache_dir, cache_last_fetch, claims_dir, discover_state_repo, discover_tasks_dir, lock_dir,
+    per_clone_paths, plugins_auth_dir, worktree_path, worktrees_dir,
 };
 
 use balls::git::clean_git_command;
