@@ -59,7 +59,7 @@ fn code_repo_with_delivery(id: &str) -> (Repo, String) {
 /// on the archived task reconstructs the injected provenance from
 /// history, not the `bl create` original.
 fn link_delivery(repo: &Path, id: &str, code: &Path) {
-    let file = repo.join(".balls/tasks").join(format!("{id}.json"));
+    let file = discover_tasks_dir(repo).join(format!("{id}.json"));
     let mut task: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
     task["status"] = serde_json::Value::String("review".into());
@@ -67,7 +67,7 @@ fn link_delivery(repo: &Path, id: &str, code: &Path) {
         serde_json::Value::String(code.to_string_lossy().into_owned());
     fs::write(&file, serde_json::to_string(&task).unwrap()).unwrap();
 
-    let state = repo.join(".balls/state-repo");
+    let state = discover_state_repo(repo).expect("non-stealth state checkout");
     git(&state, &["add", &format!(".balls/tasks/{id}.json")]);
     git(
         &state,

@@ -19,10 +19,7 @@ fn unknown_link_variant_round_trips_through_task_file() {
     let child = create_task(repo.path(), "other");
 
     // Hand-craft a task file with a future link type.
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{parent}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{parent}.json"));
     let mut v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     v["links"] = serde_json::json!([
@@ -66,10 +63,7 @@ fn malformed_gate_child_propagates_load_error() {
         .assert()
         .success();
 
-    let child_path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{child}.json"));
+    let child_path = discover_tasks_dir(repo.path()).join(format!("{child}.json"));
     std::fs::write(&child_path, "{ not valid json").unwrap();
 
     bl(repo.path())
@@ -87,10 +81,7 @@ fn pre_gates_task_file_parses_unchanged() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "legacy");
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     // Strip the links field entirely, mimicking a pre-gates write.
@@ -126,10 +117,7 @@ fn unknown_link_does_not_block_close() {
     init_in(repo.path());
     let parent = create_task(repo.path(), "impl");
     let other = create_task(repo.path(), "other");
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{parent}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{parent}.json"));
     let mut v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     v["links"] = serde_json::json!([

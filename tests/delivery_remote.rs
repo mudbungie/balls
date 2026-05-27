@@ -87,10 +87,7 @@ fn show_resolve_remote_falls_back_via_delivered_repo() {
     // derived value would be the basename (no `origin`).
     content_json["delivered_repo"] =
         serde_json::Value::String(code.path().to_string_lossy().into_owned());
-    let id_path = reader
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{id}.json"));
+    let id_path = discover_tasks_dir(reader.path()).join(format!("{id}.json"));
     std::fs::write(&id_path, serde_json::to_string(&content_json).unwrap()).unwrap();
 
     // Default `bl show` cannot resolve the sha: the local code lacks
@@ -131,10 +128,7 @@ fn show_resolve_remote_unreachable_url_soft_fails() {
 
     // Inject a delivered_repo on the task file so the resolver has
     // something to try, but point it at a nonexistent path.
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut j: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     j["delivered_repo"] = serde_json::Value::String("/no/such/path/repo.git".into());

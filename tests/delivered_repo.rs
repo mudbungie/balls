@@ -184,7 +184,7 @@ fn legacy_task_file_without_delivered_repo_still_loads() {
 
     // Strip `delivered_repo` from the task file to simulate state
     // written by a pre-bl-7523 `bl`.
-    let path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let raw = fs::read_to_string(&path).unwrap();
     let mut v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     v.as_object_mut().unwrap().remove("delivered_repo");

@@ -18,10 +18,7 @@ fn unknown_top_level_task_field_round_trips() {
     init_in(repo.path());
     let id = create_task(repo.path(), "future-field");
 
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     v.as_object_mut()
@@ -48,10 +45,7 @@ fn unknown_task_type_round_trips_through_task_file() {
     init_in(repo.path());
     let id = create_task(repo.path(), "future-type");
 
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     v["type"] = serde_json::json!("spike");
@@ -81,10 +75,7 @@ fn unknown_status_round_trips_through_task_file() {
     init_in(repo.path());
     let id = create_task(repo.path(), "future-status");
 
-    let path = repo
-        .path()
-        .join(".balls/tasks")
-        .join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     v["status"] = serde_json::json!("triaged");

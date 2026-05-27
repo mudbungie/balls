@@ -153,7 +153,7 @@ fn remaster_reconcile_renames_an_id_clash() {
 /// Rewrite task `from`'s file in `repo`'s state checkout to id `to`,
 /// committing the result — fabricates an id clash for reconcile.
 fn clash_rename(repo: &Path, from: &str, to: &str) {
-    let tasks = repo.join(".balls/state-repo/.balls/tasks");
+    let tasks = discover_tasks_dir(repo);
     let mut v: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(tasks.join(format!("{from}.json"))).unwrap(),
     )
@@ -177,7 +177,7 @@ fn detach_repoints_origin_at_the_code_remote() {
     bl(ws.path()).args(["remaster", &url_of(&tracker)]).assert().success();
 
     bl(ws.path()).args(["remaster", "--detach"]).assert().success();
-    let state_repo = ws.path().join(".balls/state-repo");
+    let state_repo = discover_state_repo(ws.path()).expect("non-stealth state checkout");
     let origin = git(&state_repo, &["remote", "get-url", "origin"]);
     assert_eq!(
         origin.trim(),

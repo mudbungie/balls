@@ -31,7 +31,7 @@ fn review_merges_work_keeps_worktree() {
     let j = read_task_json(repo.path(), &id);
     assert_eq!(j["status"], "review");
     // Claim still active
-    assert!(repo.path().join(".balls/local/claims").join(&id).exists());
+    assert!(claims_dir(repo.path()).join(&id).exists());
 }
 
 #[test]
@@ -58,9 +58,9 @@ fn close_after_review_archives_and_removes_worktree() {
     // Worktree removed
     assert!(!wt.exists());
     // Task archived
-    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{id}.json")).exists());
     // Claim removed
-    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
+    assert!(!claims_dir(repo.path()).join(&id).exists());
 }
 
 #[test]

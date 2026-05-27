@@ -85,7 +85,7 @@ fn legacy_task_file_without_repo_still_loads() {
     bl(repo.path()).arg("init").assert().success();
     let id = create_task(repo.path(), "legacy");
 
-    let path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let raw = std::fs::read_to_string(&path).unwrap();
     let mut v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     v.as_object_mut().unwrap().remove("repo");

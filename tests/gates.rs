@@ -70,9 +70,7 @@ fn close_succeeds_after_gate_child_closes() {
         .args(["update", &parent, "status=closed"])
         .assert()
         .success();
-    assert!(!repo
-        .path()
-        .join(".balls/tasks")
+    assert!(!discover_tasks_dir(repo.path())
         .join(format!("{parent}.json"))
         .exists());
 }

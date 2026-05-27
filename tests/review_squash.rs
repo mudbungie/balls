@@ -76,7 +76,7 @@ fn review_no_worktree_claim_flips_status_without_squash() {
         .args(["close", &id, "-m", "archived"])
         .assert()
         .success();
-    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{id}.json")).exists());
 }
 
 #[test]

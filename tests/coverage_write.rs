@@ -246,7 +246,7 @@ fn init_with_partially_existing_gitignore() {
 fn out_of_range_id_length_is_clamped_on_load() {
     let repo = new_repo();
     init_in(repo.path());
-    let cfg_path = repo.path().join(".balls/config.json");
+    let cfg_path = config_path(repo.path());
     let mut cfg: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&cfg_path).unwrap()).unwrap();
     cfg["id_length"] = serde_json::json!(0);

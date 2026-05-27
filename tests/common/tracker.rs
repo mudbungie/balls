@@ -5,7 +5,7 @@
 
 #![allow(dead_code)]
 
-use super::{git, new_bare_remote, tmp, Repo};
+use super::{config_path, git, new_bare_remote, tmp, Repo};
 use std::path::Path;
 
 /// A bare git repo carrying a seeded `balls/tasks` orphan branch — the
@@ -41,9 +41,10 @@ pub fn state_url(repo: &Path) -> Option<String> {
     config_field(repo, "state_url")
 }
 
-/// Read a string-valued field from a clone's `.balls/config.json`.
+/// Read a string-valued field from a clone's repo config (legacy
+/// `.balls/config.json`; XDG `repo.json` in the tracker checkout).
 pub fn config_field(repo: &Path, key: &str) -> Option<String> {
-    let s = std::fs::read_to_string(repo.join(".balls/config.json")).ok()?;
+    let s = std::fs::read_to_string(config_path(repo)).ok()?;
     let v: serde_json::Value = serde_json::from_str(&s).ok()?;
     v.get(key)?.as_str().map(String::from)
 }

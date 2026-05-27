@@ -151,7 +151,7 @@ fn drop_notifies_observer_best_effort_and_cannot_block() {
         "an observer must never block a drop: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let marker = repo.path().join(".balls/local/plugins/jira/dropped");
+    let marker = plugins_auth_dir(repo.path()).join("jira/dropped");
     assert!(marker.exists(), "the drop observer must have been notified");
     assert_eq!(
         read_task_json(repo.path(), &id)["status"],
