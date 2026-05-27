@@ -77,7 +77,6 @@ impl Store {
             }
             other => other?,
         };
-        crate::pending_sync_legacy::warn_if_present(&store);
         Ok(store)
     }
 
