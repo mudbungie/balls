@@ -33,7 +33,7 @@ fn review_never_stages_balls_runtime_symlinks() {
         .assert()
         .success();
     let wt = worktree_path(repo.path(), &id);
-    assert!(wt.join(".balls/local").exists(), "claim sets up symlinks");
+    assert!(wt.join(".balls/tasks").exists(), "claim sets up symlinks");
     std::fs::write(wt.join("user.txt"), "real change").unwrap();
 
     bl(repo.path())
@@ -66,6 +66,11 @@ fn review_scrubs_runtime_paths_force_tracked_on_work_branch() {
     let wt = worktree_path(repo.path(), &id);
 
     std::fs::write(wt.join("feat.txt"), "real").unwrap();
+    // `.balls/local` is no longer auto-symlinked (bl-51a5); plant a
+    // local dir manually so the force-add exercises the same
+    // runtime-path scrubbing backstop.
+    std::fs::create_dir_all(wt.join(".balls/local")).unwrap();
+    std::fs::write(wt.join(".balls/local/marker"), "x").unwrap();
     git(&wt, &["add", "-f", "feat.txt", ".balls/local"]);
     git(&wt, &["commit", "-m", "wip with runtime tracked"]);
 
