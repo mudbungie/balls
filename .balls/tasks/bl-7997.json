@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-7997",
+  "claimed_by": "randier",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-25T23:02:18.016968508Z",
@@ -13,10 +13,10 @@
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-26T08:01:49.542844758Z"},
   "tags": ["xdg"],
   "title": "Phase 1B-3: migrate test assertions off legacy in-repo paths",
   "type": "task",
-  "updated_at": "2026-05-27T16:32:09.606716668Z"
+  "updated_at": "2026-05-27T16:32:12.895669501Z"
 }
