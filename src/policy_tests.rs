@@ -1,4 +1,5 @@
 use super::*;
+use crate::clone_json::CloneJson;
 
 #[test]
 fn cli_sync_overrides_everything() {
@@ -8,20 +9,32 @@ fn cli_sync_overrides_everything() {
 
 #[test]
 fn cli_no_sync_overrides_repo_and_local() {
-    let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::NoSync);
+    let p = resolve(
+        true,
+        Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }),
+        SyncOverride::NoSync,
+    );
     assert!(!p.require_remote);
 }
 
 #[test]
 fn local_override_beats_repo_default() {
-    let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(false), ..Default::default() }), SyncOverride::Unset);
+    let p = resolve(
+        true,
+        Some(&LocalConfig { require_remote_on_claim: Some(false), ..Default::default() }),
+        SyncOverride::Unset,
+    );
     assert!(!p.require_remote);
     assert!(!p.from_repo_default);
 }
 
 #[test]
 fn unset_local_falls_through_to_repo_default() {
-    let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: None, ..Default::default() }), SyncOverride::Unset);
+    let p = resolve(
+        true,
+        Some(&LocalConfig { require_remote_on_claim: None, ..Default::default() }),
+        SyncOverride::Unset,
+    );
     assert!(p.require_remote);
     assert!(p.from_repo_default);
 }
@@ -43,7 +56,11 @@ fn off_by_default_when_nothing_set() {
 #[test]
 fn from_repo_default_false_when_local_explicitly_matches() {
     // Local explicitly says true; not "inherited from repo".
-    let p = resolve(true, Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }), SyncOverride::Unset);
+    let p = resolve(
+        true,
+        Some(&LocalConfig { require_remote_on_claim: Some(true), ..Default::default() }),
+        SyncOverride::Unset,
+    );
     assert!(p.require_remote);
     assert!(!p.from_repo_default);
 }
@@ -56,7 +73,6 @@ fn review_resolver_reads_review_field() {
         require_remote_on_claim: None,
         require_remote_on_review: Some(true),
         require_remote_on_close: None,
-        ..Default::default()
     };
     let p = resolve_review(false, Some(&local), SyncOverride::Unset);
     assert!(p.require_remote);
@@ -80,4 +96,22 @@ fn sync_override_from_flags_decodes_the_pair() {
     assert_eq!(SyncOverride::from_flags(true, false), SyncOverride::Sync);
     assert_eq!(SyncOverride::from_flags(false, true), SyncOverride::NoSync);
     assert_eq!(SyncOverride::from_flags(false, false), SyncOverride::Unset);
+}
+
+#[test]
+fn from_clone_projects_layered_overrides() {
+    // The three `require_remote_on_*` fields ride through; everything
+    // else clone.json carries is ignored — those are tracker/repo-
+    // scope fields the policy layer doesn't consume.
+    let cj = CloneJson {
+        require_remote_on_claim: Some(false),
+        require_remote_on_review: Some(true),
+        require_remote_on_close: None,
+        stale_threshold_seconds: Some(99),
+        ..Default::default()
+    };
+    let lc = LocalConfig::from_clone(&cj);
+    assert_eq!(lc.require_remote_on_claim, Some(false));
+    assert_eq!(lc.require_remote_on_review, Some(true));
+    assert_eq!(lc.require_remote_on_close, None);
 }

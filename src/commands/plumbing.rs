@@ -14,20 +14,22 @@ use balls::policy::{LocalConfig, SyncOverride};
 use balls::store::Store;
 use balls::task::Task;
 
+
 /// Load the config inputs every sync-policy decision needs: the CLI
 /// `--sync`/`--no-sync` override, the repo-default `Config`, and the
-/// per-clone `LocalConfig`. `claim`, `review` and `close` each layer
-/// their own `require_remote_on_*` field and `policy::resolve*` call
-/// on top of this shared front half.
+/// per-clone `LocalConfig` (projected from the store's `clone.json`,
+/// SPEC §6.4). `claim`, `review` and `close` each layer their own
+/// `require_remote_on_*` field and `policy::resolve*` call on top of
+/// this shared front half.
 pub(crate) fn sync_inputs(
     store: &Store,
     sync: bool,
     no_sync: bool,
-) -> Result<(SyncOverride, Option<Config>, Option<LocalConfig>)> {
+) -> (SyncOverride, Option<Config>, Option<LocalConfig>) {
     let cli = SyncOverride::from_flags(sync, no_sync);
     let cfg = store.load_config().ok();
-    let local = LocalConfig::load(store)?;
-    Ok((cli, cfg, local))
+    let local = LocalConfig::load(store);
+    (cli, cfg, local)
 }
 
 /// Run one state-branch lifecycle event end to end: snapshot the

@@ -257,9 +257,9 @@ fn build_store(root: PathBuf, res: XdgResolution) -> Store {
         lock_dir_path: res.per_clone.locks,
         local_plugins_dir_path: res.per_clone.plugins_auth,
         worktrees_root_path: res.per_clone.worktrees,
-        local_dir_path: res.local_dir,
         config_file_path,
         project_config_file_path,
+        clone_json: res.clone_json,
     }
 }
 
