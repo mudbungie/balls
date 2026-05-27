@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-26T02:25:18.658341946Z","id":"bl-27af","title":"Phase 1B-1: test infra for XDG-mode integration tests"},{"closed_at":"2026-05-26T02:29:17.570319880Z","id":"bl-a4d0","title":"bl doctor: XDG-mode awareness for check_config + check_state_repo"},{"closed_at":"2026-05-26T05:47:27.067144047Z","id":"bl-b273","title":"Phase 1B-2: Store::init_xdg + §14.1/4/15/19 conformance (cmd_init still legacy)"},{"closed_at":"2026-05-26T08:11:37.298357726Z","id":"bl-a684","title":"Rework legacy_clone() fixture to be independent of bl init's layout choice (Phase 1B time-bomb)"}],
+  "closed_children": [{"closed_at":"2026-05-26T02:25:18.658341946Z","id":"bl-27af","title":"Phase 1B-1: test infra for XDG-mode integration tests"},{"closed_at":"2026-05-26T02:29:17.570319880Z","id":"bl-a4d0","title":"bl doctor: XDG-mode awareness for check_config + check_state_repo"},{"closed_at":"2026-05-26T05:47:27.067144047Z","id":"bl-b273","title":"Phase 1B-2: Store::init_xdg + §14.1/4/15/19 conformance (cmd_init still legacy)"},{"closed_at":"2026-05-26T08:11:37.298357726Z","id":"bl-a684","title":"Rework legacy_clone() fixture to be independent of bl init's layout choice (Phase 1B time-bomb)"},{"closed_at":"2026-05-27T16:50:10.857967256Z","id":"bl-7997","title":"Phase 1B-3: migrate test assertions off legacy in-repo paths"}],
   "created_at": "2026-05-25T19:16:55.396478063Z",
   "delivered_in": null,
   "depends_on": ["bl-203e","bl-a11d"],
@@ -18,5 +18,5 @@
   "tags": ["architecture","xdg"],
   "title": "Phase 1B: bl init XDG-only flip",
   "type": "task",
-  "updated_at": "2026-05-26T21:25:21.318331796Z"
+  "updated_at": "2026-05-27T16:50:10.858003073Z"
 }
