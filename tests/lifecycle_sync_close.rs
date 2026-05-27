@@ -35,16 +35,14 @@ fn close_sync_happy_path_pushes_state_branch_archive_to_origin() {
 
     // Worktree is gone, claim file is gone, task archived locally.
     assert!(!wt.exists());
-    assert!(!alice
-        .path()
-        .join(format!(".balls/tasks/{id}.json"))
+    assert!(!discover_tasks_dir(alice.path())
+        .join(format!("{id}.json"))
         .exists());
 
     // Bob's sync sees the close.
     bl(bob.path()).arg("sync").assert().success();
-    assert!(!bob
-        .path()
-        .join(format!(".balls/tasks/{id}.json"))
+    assert!(!discover_tasks_dir(bob.path())
+        .join(format!("{id}.json"))
         .exists());
 }
 
@@ -81,13 +79,10 @@ fn close_sync_required_fails_loud_and_keeps_worktree_on_unreachable_remote() {
 
     // Worktree, task file, and claim file all survive.
     assert!(wt.exists(), "worktree must survive a rolled-back close");
-    assert!(alice
-        .path()
-        .join(format!(".balls/tasks/{id}.json"))
+    assert!(discover_tasks_dir(alice.path())
+        .join(format!("{id}.json"))
         .exists());
-    assert!(alice
-        .path()
-        .join(".balls/local/claims")
+    assert!(claims_dir(alice.path())
         .join(&id)
         .exists());
     let j = read_task_json(alice.path(), &id);

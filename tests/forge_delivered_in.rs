@@ -91,7 +91,7 @@ fn deferred_close_scan_miss_warns_and_proceeds() {
         "a scan miss leaves the hint null"
     );
     assert!(
-        !alice.path().join(format!(".balls/tasks/{id}.json")).exists(),
+        !discover_tasks_dir(alice.path()).join(format!("{id}.json")).exists(),
         "close still proceeds on a scan miss"
     );
 }

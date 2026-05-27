@@ -4,7 +4,7 @@
 
 #![allow(dead_code)]
 
-use super::{bl, clone_from_remote, git, new_bare_remote, push, Repo};
+use super::{bl, clone_from_remote, discover_state_repo, git, new_bare_remote, push, Repo};
 use std::fs;
 use std::path::Path;
 
@@ -24,15 +24,16 @@ pub fn three_way() -> (Repo, Repo, Repo) {
 
 /// Point a repo's `origin` — and its state checkout's `origin` — at a
 /// path that does not exist, so the next remote round-trip fails.
-/// Under the unified model the state branch lives in
-/// `.balls/state-repo`, an independent clone with its own `origin`,
-/// so a sync-failure test must break both.
+/// The state branch lives in its own checkout (legacy:
+/// `.balls/state-repo`; XDG: the per-origin tracker dir), an independent
+/// clone with its own `origin`, so a sync-failure test must break both.
 pub fn break_remote(repo: &Path) {
     let bad = "/tmp/balls-no-such-remote.git";
     git(repo, &["remote", "set-url", "origin", bad]);
-    let state_repo = repo.join(".balls/state-repo");
-    if state_repo.join(".git").exists() {
-        git(&state_repo, &["remote", "set-url", "origin", bad]);
+    if let Some(state_repo) = discover_state_repo(repo) {
+        if state_repo.join(".git").exists() {
+            git(&state_repo, &["remote", "set-url", "origin", bad]);
+        }
     }
 }
 

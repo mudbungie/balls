@@ -107,7 +107,7 @@ fn close_blocked_until_gate_child_closes() {
         .assert()
         .success();
     assert!(
-        !alice.path().join(format!(".balls/tasks/{id}.json")).exists(),
+        !discover_tasks_dir(alice.path()).join(format!("{id}.json")).exists(),
         "parent archived after the gate cleared"
     );
     assert!(!wt.exists(), "worktree removed on close");

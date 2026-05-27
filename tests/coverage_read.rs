@@ -93,7 +93,7 @@ fn ready_auto_fetch_hits_remote_path() {
     bl(alice.path()).arg("ready").assert().success();
     assert!(last_fetch.exists());
 
-    let cfg_path = alice.path().join(".balls/config.json");
+    let cfg_path = config_path(alice.path());
     let mut cfg: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&cfg_path).unwrap()).unwrap();
     cfg["stale_threshold_seconds"] = serde_json::json!(0);
@@ -105,7 +105,7 @@ fn ready_auto_fetch_hits_remote_path() {
 fn list_when_tasks_dir_absent() {
     let repo = new_repo();
     init_in(repo.path());
-    std::fs::remove_dir_all(repo.path().join(".balls/tasks")).unwrap();
+    std::fs::remove_dir_all(discover_tasks_dir(repo.path())).unwrap();
     bl(repo.path()).arg("list").assert().success();
 }
 
@@ -115,7 +115,7 @@ fn list_with_malformed_task_warns_and_continues() {
     init_in(repo.path());
     let ok_id = create_task(repo.path(), "fine");
     std::fs::write(
-        repo.path().join(".balls/tasks/bl-ghost.json"),
+        discover_tasks_dir(repo.path()).join("bl-ghost.json"),
         "{ not valid",
     )
     .unwrap();

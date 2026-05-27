@@ -31,8 +31,8 @@ fn story_33_review_then_close() {
         .assert()
         .success();
     assert!(!wt.exists());
-    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
-    assert!(!repo.path().join(".balls/tasks").join(format!("{id}.json")).exists());
+    assert!(!claims_dir(repo.path()).join(&id).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{id}.json")).exists());
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn story_34_close_with_message_is_in_git_history() {
         .assert()
         .success();
     // Archived: task file gone, main log clean, state branch has the close.
-    assert!(!repo.path().join(".balls/tasks").join(format!("{id}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{id}.json")).exists());
     let main_log = git(repo.path(), &["log", "--oneline", "main"]);
     assert!(
         !main_log.contains(&format!("close {id}")),
@@ -135,7 +135,7 @@ fn story_38_drop_resets_task() {
     assert!(j["claimed_by"].is_null());
     assert!(j["branch"].is_null());
     assert!(!worktree_path(repo.path(), &id).exists());
-    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
+    assert!(!claims_dir(repo.path()).join(&id).exists());
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn close_child_updates_parent_closed_children() {
         .success();
 
     // Child task file archived
-    assert!(!repo.path().join(".balls/tasks").join(format!("{child}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{child}.json")).exists());
     // Parent records the archived child
     let j = read_task_json(repo.path(), &parent);
     let cc = j["closed_children"].as_array().unwrap();
@@ -245,7 +245,7 @@ fn close_child_succeeds_when_parent_already_archived() {
         .args(["close", &parent])
         .assert()
         .success();
-    assert!(!repo.path().join(".balls/tasks").join(format!("{parent}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{parent}.json")).exists());
 
     // Closing the child must still succeed even though its `parent`
     // field points at an archived task whose file is gone.
@@ -257,7 +257,7 @@ fn close_child_succeeds_when_parent_already_archived() {
         .args(["close", &child])
         .assert()
         .success();
-    assert!(!repo.path().join(".balls/tasks").join(format!("{child}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{child}.json")).exists());
 }
 
 #[test]

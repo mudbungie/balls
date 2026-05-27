@@ -46,7 +46,7 @@ fn review_succeeds_when_repo_root_is_bare() {
 
     // The ephemeral squash worktree must be cleaned up — a leftover
     // would block the next review at `git worktree add`.
-    let local = repo.path().join(".balls/local");
+    let local = local_dir(repo.path());
     let leaks: Vec<_> = std::fs::read_dir(&local)
         .unwrap()
         .filter_map(|e| {

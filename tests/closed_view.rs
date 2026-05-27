@@ -17,7 +17,7 @@ fn closed_task(repo: &std::path::Path, title: &str) -> String {
         .args(["close", &id, "-m", "done"])
         .assert()
         .success();
-    assert!(!repo.join(".balls/tasks").join(format!("{id}.json")).exists());
+    assert!(!discover_tasks_dir(repo).join(format!("{id}.json")).exists());
     id
 }
 

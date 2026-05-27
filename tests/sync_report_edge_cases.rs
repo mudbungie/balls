@@ -66,7 +66,7 @@ fn deleted_already_closed_is_skipped() {
     // deleted report — the apply_deleted handler must short-circuit
     // on the Closed status.
     let id = create_task(repo.path(), "closed-not-archived");
-    let p = repo.path().join(".balls/tasks").join(format!("{id}.json"));
+    let p = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut j: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&p).unwrap()).unwrap();
     j["status"] = "closed".into();
@@ -95,7 +95,7 @@ fn create_failure_is_warned_not_fatal() {
     configure_plugin(repo.path());
     create_mock_auth(repo.path());
 
-    let tasks_dir = repo.path().join(".balls/state-repo/.balls/tasks");
+    let tasks_dir = discover_tasks_dir(repo.path());
     let saved = fs::metadata(&tasks_dir).unwrap().permissions();
     let mut ro = saved.clone();
     ro.set_mode(0o555);
