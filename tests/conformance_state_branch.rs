@@ -137,45 +137,43 @@ fn state_branch_round_trip_on_custom_branch() {
 }
 
 /// Test §16.* — `bl remaster <url> --branch B` writes the address.
-/// SPEC §8 names the flag; bl-3f59 added it. Routes through
-/// `legacy_clone()` since `bl remaster` is still legacy-layout-only
-/// pre-bl-be70.
+/// SPEC §6.1 names the field; the redirect file is `tracker.json` on
+/// the code repo's own `balls/tasks` checkout (bl-be70).
 #[test]
 fn remaster_branch_flag_writes_state_branch() {
-    let tracker = new_bare_remote();
-    let home = tmp();
-    let (_r, ws, _u) = legacy_clone(home.path(), "ws");
-    // Drop the stale `refs/remotes/origin/<branch>` left by the
-    // legacy-clone fixture so remaster's `has_remote_branch` check on
-    // the new tracker reads the live state, not a phantom.
-    let state_repo = discover_state_repo(&ws).expect("non-stealth state checkout");
-    let _ = std::process::Command::new("git")
-        .current_dir(&state_repo)
-        .args(["update-ref", "-d", "refs/remotes/origin/balls/tasks"])
-        .output();
+    use balls::encoding::{canonicalize_origin, percent_encode_component};
+    use balls::tracker_json::TrackerJson;
+    use balls::xdg_paths::own_tracker_checkout;
 
-    bl(&ws)
-        .args(["remaster", &url_of(&tracker), "--branch", PROJECT_BRANCH, "--commit"])
+    let xdg = new_xdg_repo();
+    let tracker = new_bare_remote();
+    let tracker_url = tracker.path().to_string_lossy().into_owned();
+
+    bl(xdg.clone.path())
+        .args(["remaster", &tracker_url, "--branch", PROJECT_BRANCH, "--commit"])
         .assert()
         .success();
 
+    let enc = percent_encode_component(&canonicalize_origin(
+        &xdg.remote.path().to_string_lossy(),
+    ));
+    let own = own_tracker_checkout(&test_xdg_bases(), &enc);
+    let tj_path = own.join(".balls/tracker.json");
+    let parsed = TrackerJson::from_json(&std::fs::read_to_string(&tj_path).unwrap()).unwrap();
+    assert_eq!(parsed.state_url, tracker_url);
     assert_eq!(
-        config_field(&ws, "state_branch").as_deref(),
+        parsed.state_branch.as_deref(),
         Some(PROJECT_BRANCH),
-        "remaster --branch B must persist state_branch in config.json",
-    );
-    let head = git_state(&ws, &["rev-parse", "--abbrev-ref", "HEAD"]);
-    assert_eq!(
-        head.trim(),
-        PROJECT_BRANCH,
-        "remaster --branch B must materialize state-repo on B",
+        "remaster --branch B must persist state_branch in tracker.json",
     );
 
-    // --detach clears state_branch back to the default.
-    bl(&ws).args(["remaster", "--detach"]).assert().success();
-    assert_eq!(
-        config_field(&ws, "state_branch"),
-        None,
-        "remaster --detach must clear state_branch from config.json",
+    // --detach removes the file, returning the clone to solo mode.
+    bl(xdg.clone.path())
+        .args(["remaster", "--detach", "--commit"])
+        .assert()
+        .success();
+    assert!(
+        !tj_path.exists(),
+        "remaster --detach must remove tracker.json (solo again)",
     );
 }

@@ -2,11 +2,12 @@
 //! bootstrap. Split from `basic.rs` so both stay under the line cap
 //! and the bare path has a clear home.
 //!
-//! Phase 1B (bl-213e): the normal path routes through `balls::Store::init_xdg`,
-//! which materializes the XDG layout per SPEC-clone-layout §3 / §5
-//! and writes nothing under the clone's working tree. `--bare` still
-//! uses the legacy `Store::init_bare` path; XDG conversion is Phase
-//! 1B-7 (bl-be70).
+//! Phase 1B (bl-213e + bl-be70): both shapes route through XDG —
+//! the normal path via `balls::Store::init_xdg`, the `--bare` path
+//! via `balls::Store::init_bare` (which delegates to
+//! `store_init_bare_xdg`). Both materialize the XDG layout per
+//! SPEC-clone-layout §3 / §5 and write nothing under the clone's
+//! working tree.
 
 use balls::error::{BallError, Result};
 use balls::store::Store;
