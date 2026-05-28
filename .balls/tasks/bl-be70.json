@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-213e"],
   "description": "Two commands still read or write the legacy in-repo layout and break after the Phase 1B-5 flip: `bl remaster` and `bl init --bare`. Out of scope for the Phase 1B-2 / 1B-5 conformance gates, in scope for finishing bl-e802's \"every `bl init` writes XDG\" promise across all init shapes.\n\n## Scope\n\n### `bl remaster`\n\nPre-XDG, remaster wrote `state_url` / `state_branch` to `.balls/config.json` on the code branch. Post-XDG, the redirect is `.balls/tracker.json` on the code repo's own `balls/tasks` branch (SPEC §6.1). The federated tracker checkout under `trackers/<enc-state-url>/<enc-state-branch>/` is materialized by `Store::discover` on next run.\n\nRewire `cmd_remaster`:\n\n- `bl remaster <url> [--branch B] [--commit]` writes `tracker.json` (`state_url`, optional `state_branch`) to the code repo's own `balls/tasks` branch checkout under XDG. `--commit` commits the tracker.json change on the orphan branch.\n- `bl remaster --detach` removes `tracker.json` from the code repo's own `balls/tasks` branch.\n- Update `tests/conformance_remaster.rs` fixtures.\n\n### `bl init --bare`\n\n`Store::init_bare` still writes `.balls/` under the bare clone, reads `.balls/config.json` from the source's `main`, and materializes a `.balls/state-repo`. Post-XDG the source has no `.balls/config.json` on `main` — it has `repo.json` + `project.json` on the source's `balls/tasks` branch.\n\nRewire bare init:\n- Drop the loose `.balls/` reconstruction under the bare clone root.\n- Materialize the XDG tracker checkout under the user's `~/.local/state/balls/trackers/<enc-source-origin>/<enc-balls-tasks>/` (single-branch clone of `balls/tasks` from `source`).\n- The bare clone's identity is the source's origin URL (the `source` arg). `<nested-clone-path>` is the bare clone's absolute path.\n- Update `tests/bare_*.rs` fixtures.\n\n## Why it can land alone (after 1B-5)\n\n`cmd_init --bare` and `cmd_remaster` are both flag-gated entry points. Migrating them does not change behavior on the default `bl init` path.\n\n## Dependency\n\nDepends on Phase 1B-5 (the main flip) so the rest of the binary is on XDG when remaster and bare init join.\n\n## Conformance\n\n`tests/conformance_remaster.rs` + `tests/bare_*.rs` (`bare_discovery`, `bare_hex_ids`, `bare_squash`) full pass-through.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":168,"source":"balls","state":"open","synced_at":"2026-05-28T04:21:39.780625122+00:00","url":"https://github.com/mudbungie/balls/issues/168"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":168,"source":"balls","state":"open","synced_at":"2026-05-28T05:36:05.055530228+00:00","url":"https://github.com/mudbungie/balls/issues/168"}}},
   "id": "bl-be70",
   "links": [],
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-05-28T04:21:39.793643977Z"},
+  "synced_at": {"github-issues":"2026-05-28T05:36:05.069214646Z"},
   "tags": ["xdg"],
   "title": "Phase 1B-7: bl remaster + bl init --bare XDG-aware paths",
   "type": "task",
-  "updated_at": "2026-05-28T05:36:04.208774277Z"
+  "updated_at": "2026-05-28T05:36:05.069222400Z"
 }
