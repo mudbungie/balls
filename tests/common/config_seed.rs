@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use super::paths::{config_path, discover_state_repo};
+use super::paths::{config_path, discover_state_repo, project_config_path};
 use super::{commit_state_repo, git};
 
 /// Write a minimal valid `.balls/config.json` before `bl init`, with
@@ -65,7 +65,7 @@ pub fn edit_and_commit_repo_config(
 /// state checkout, so the write lands there; `commit_state_repo`
 /// publishes it. Use after `bl init` has seeded `project.json`.
 pub fn set_project_plugins(repo: &Path, plugins: serde_json::Value) {
-    let path = repo.join(".balls/project.json");
+    let path = project_config_path(repo);
     let mut cfg: serde_json::Value = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())

@@ -16,7 +16,7 @@ fn ready_repo() -> Repo {
 }
 
 fn config(repo: &Repo) -> Value {
-    let raw = fs::read_to_string(repo.path().join(".balls/project.json")).unwrap();
+    let raw = fs::read_to_string(project_config_path(repo.path())).unwrap();
     serde_json::from_str(&raw).unwrap()
 }
 

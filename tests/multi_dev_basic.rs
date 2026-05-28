@@ -31,13 +31,38 @@ fn story_46_sync_nonconflicting_remote_changes() {
         .exists());
 }
 
+/// `bl sync`'s fetch failure on the code remote is a warning, not a
+/// fatal error — pre-bl-88c7 it silently skipped the `balls/tasks`
+/// leg too. Routed through a legacy clone (XDG discovery is keyed off
+/// origin URL; flipping origin to an unreachable path would break
+/// discovery itself, never reaching `sync_with_remote`).
+#[test]
+fn sync_warns_when_code_remote_fetch_fails() {
+    let home = tmp();
+    let (_r, ws, _u) = legacy_clone(home.path(), "ws");
+    // Repoint the code-side origin at a bogus path (legacy discovery
+    // uses `.balls/` markers, not origin URL, so `bl <cmd>` still
+    // works; only the `git fetch origin` inside `sync_with_remote`
+    // sees the broken URL).
+    git(&ws, &["remote", "set-url", "origin", "/no/such/code-remote.git"]);
+    let out = bl(&ws).arg("sync").output().unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    assert!(
+        stderr.contains("fetch failed, continuing offline"),
+        "expected fetch-failed warning, got: {stderr}"
+    );
+}
+
 #[test]
 fn story_48_sync_offline_graceful() {
     let (_r, alice, _bob) = three_way();
-    git(
-        alice.path(),
-        &["remote", "set-url", "origin", "/tmp/nope-does-not-exist.git"],
-    );
+    // XDG discovery is keyed off the clone's `origin` URL — changing
+    // it to an unreachable path would route `bl <cmd>` at a tracker
+    // checkout that was never materialized. Break only the state
+    // checkout's `origin` so push/fetch on `balls/tasks` fails; the
+    // clone's `origin` (and therefore discovery) stays pointed at the
+    // shared bare remote.
+    break_remote(alice.path());
     create_task(alice.path(), "offline");
     let _ = bl(alice.path()).arg("sync").output();
     bl(alice.path()).arg("list").assert().success();

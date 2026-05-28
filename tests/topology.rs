@@ -1,24 +1,31 @@
 //! SPEC §14 conformance tests for the orphan-branch topology.
+//!
+//! Phase 1B (bl-213e) flipped `bl init` to the XDG layout: tasks now
+//! live in the tracker checkout under `~/.local/state/balls/trackers/…`,
+//! not at `<clone>/.balls/tasks`. The legacy "symlink + state-repo at
+//! the clone root" topology is gone; the §14.x conformance gates that
+//! cover XDG path layout, idempotency, and lifecycle live in
+//! `tests/conformance_xdg_init.rs` and `tests/conformance_xdg_layout.rs`.
+//! Only the legacy-independent stories (`main` log cleanliness through
+//! a task lifecycle) survive here.
 
 mod common;
 
 use common::*;
-use predicates::prelude::*;
 
-/// §14.10 — Naïve visibility: `.balls/tasks/<id>.json` is readable with
-/// stock tools immediately after `bl init` runs on a fresh checkout.
+/// §14.10 — Naïve visibility: a task's `.json` is readable with stock
+/// tools immediately after `bl init` runs on a fresh checkout. Under
+/// XDG the file lives under the tracker checkout (no symlink at the
+/// clone root); the resolved path is what stock tools target.
 #[test]
-fn symlink_exposes_tasks_to_stock_tools() {
+fn task_files_are_readable_with_stock_tools() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "visible");
-    let path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
-    assert!(path.exists(), "task file must be reachable via symlink");
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
+    assert!(path.exists(), "task file must be on-disk and readable");
     let contents = std::fs::read_to_string(&path).unwrap();
     assert!(contents.contains(&id));
-    // The `.balls/tasks` path in main's tree is a symlink into the
-    // state worktree, not a real directory.
-    assert!(repo.path().join(".balls/tasks").is_symlink());
 }
 
 /// §14.11 — Main log contains ONLY feature commits during a task
@@ -57,116 +64,36 @@ fn main_log_stays_clean_through_task_lifecycle() {
     assert!(state_log.contains("close"));
 }
 
-/// §14.14 — `bl init` is idempotent; running it twice leaves a healthy
-/// state and the second run is a no-op on the state branch.
+/// §14.14 — `bl init` is idempotent; running it twice leaves the
+/// state branch tip unchanged and the tracker checkout healthy.
 #[test]
 fn bl_init_is_idempotent() {
     let repo = new_repo();
     init_in(repo.path());
-    let state_sha_1 = git_state(
-        repo.path(),
-        &["rev-parse", "refs/heads/balls/tasks"],
-    )
-    .trim()
-    .to_string();
-
-    // Running init again must not advance the state branch or break
-    // the symlink.
+    let state_sha_1 = git_state(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
     init_in(repo.path());
-    let state_sha_2 = git_state(
-        repo.path(),
-        &["rev-parse", "refs/heads/balls/tasks"],
-    )
-    .trim()
-    .to_string();
+    let state_sha_2 = git_state(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
     assert_eq!(
         state_sha_1, state_sha_2,
         "second bl init must not advance the state branch"
     );
-    assert!(repo.path().join(".balls/tasks").is_symlink());
-    assert!(repo.path().join(".balls/state-repo").exists());
-}
-
-/// §14.15 — `bl init` self-heals a missing symlink or worktree. If a
-/// user deletes the symlink by accident, re-running init restores it.
-#[test]
-fn bl_init_self_heals_missing_symlink() {
-    let repo = new_repo();
-    init_in(repo.path());
-    // Remove the symlink to simulate damage.
-    std::fs::remove_file(repo.path().join(".balls/tasks")).unwrap();
-    assert!(!repo.path().join(".balls/tasks").exists());
-    init_in(repo.path());
-    assert!(repo.path().join(".balls/tasks").is_symlink());
-}
-
-/// `bl init` must refuse when `.balls/tasks` already exists as a real
-/// file or directory — that's an ambiguous pre-existing state we
-/// don't want to clobber.
-#[test]
-fn bl_init_refuses_when_tasks_path_is_not_a_symlink() {
-    let repo = new_repo();
-    std::fs::create_dir_all(repo.path().join(".balls/tasks")).unwrap();
-    std::fs::write(repo.path().join(".balls/tasks/marker"), b"").unwrap();
-    bl(repo.path())
-        .arg("init")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("unexpected non-symlink"));
-}
-
-/// `.balls/state-repo` is gitignored, re-materializable runtime state
-/// (SPEC-tracker-state §4): deleting it is not fatal — the next
-/// command rebuilds the checkout from the tracker address.
-/// A `.balls/state-repo` git clone whose `.balls/tasks` tree is gone
-/// is a broken checkout, not a missing one: discover keeps the warm
-/// clone and surfaces the breakage rather than silently rebuilding.
-#[test]
-fn bl_fails_when_state_checkout_lacks_its_tasks_dir() {
-    let repo = new_repo();
-    init_in(repo.path());
-    std::fs::remove_dir_all(repo.path().join(".balls/state-repo/.balls/tasks")).unwrap();
-    bl(repo.path())
-        .arg("list")
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("task state is"));
-}
-
-#[test]
-fn missing_state_checkout_is_re_materialized() {
-    let repo = new_repo();
-    init_in(repo.path());
-    let _ = std::fs::remove_file(repo.path().join(".balls/tasks"));
-    std::fs::remove_dir_all(repo.path().join(".balls/state-repo")).unwrap();
-
-    bl(repo.path()).arg("list").assert().success();
     assert!(
-        repo.path().join(".balls/state-repo/.git").exists(),
-        "discover must re-materialize the deleted state checkout"
+        discover_state_repo(repo.path()).unwrap().join(".git").exists(),
+        "tracker checkout still present after second init",
     );
 }
 
-/// Bl worktrees created by `bl claim` inherit the state symlink so a
-/// worker sees the same task state as main without any additional
-/// setup.
-#[test]
-fn claimed_worktree_shares_state_with_main() {
-    let repo = new_repo();
-    init_in(repo.path());
-    let id = create_task(repo.path(), "shared view");
-    bl_as(repo.path(), "alice")
-        .args(["claim", &id])
-        .assert()
-        .success();
-    let wt = worktree_path(repo.path(), &id);
-    // The bl worktree's .balls/tasks symlink must resolve to a file
-    // containing this task — proving it targets the same state.
-    let task_path_via_wt = wt.join(".balls/tasks").join(format!("{id}.json"));
-    assert!(
-        task_path_via_wt.exists(),
-        "bl worktree's .balls/tasks symlink must expose the task"
-    );
-    let contents = std::fs::read_to_string(&task_path_via_wt).unwrap();
-    assert!(contents.contains(&id));
-}
+// Retired (Phase 1B XDG flip):
+//   - `bl_init_self_heals_missing_symlink`: XDG init plants no
+//     `.balls/tasks` symlink at the clone root, so there is nothing
+//     to heal.
+//   - `bl_init_refuses_when_tasks_path_is_not_a_symlink`: same — XDG
+//     init never reads or writes `<clone>/.balls/`.
+//   - `bl_fails_when_state_checkout_lacks_its_tasks_dir` and
+//     `missing_state_checkout_is_re_materialized`: re-materialization
+//     of the tracker checkout is covered by
+//     `conformance_xdg_layout::spec_14_12_xdg_state_dir_regenerable`.
+//   - `claimed_worktree_shares_state_with_main`: under XDG the worktree
+//     has no `.balls/` of its own (worktree.rs Layout::Xdg guard);
+//     `bl <cmd>` from inside a worktree resolves the same tracker via
+//     `Store::discover` walking back to the main clone root.

@@ -202,7 +202,7 @@ fn spec_14_15_stealth_init_writes_clone_json() {
     );
 }
 
-// -- §14.19 (half-gated) -- no balls: commits on main from init + create --
+// -- §14.19 -- no balls: commits on main across init + create --
 
 #[test]
 fn spec_14_19_no_balls_commits_on_main_for_init_create() {
@@ -224,4 +224,61 @@ fn spec_14_19_no_balls_commits_on_main_for_init_create() {
         pre_log, post_log,
         "main must be unchanged across bl init + bl create under XDG layout"
     );
+}
+
+// -- §14.19 (full lifecycle) -- exactly one [bl-xxxx] delivery on
+//                                main; init/create/claim/close add
+//                                no commits of their own.
+
+/// Full §14.19: across `bl init → create → claim → review → close`,
+/// `git log main` grows by exactly one commit — the squash delivery
+/// tagged `[bl-xxxx]`. No `balls:` commits land on main along the way.
+#[test]
+fn spec_14_19_full_lifecycle_leaves_only_delivery_on_main() {
+    let home = tmp();
+    let remote = new_bare_remote();
+    let origin_url = remote.path().to_string_lossy().into_owned();
+    let clone = fresh_clone_into(home.path(), "dev/proj", &origin_url, "alice");
+    // Seed `main` so HEAD resolves before bl init — XDG init writes
+    // nothing on main.
+    run_git(&clone, &["commit", "--allow-empty", "-qm", "seed", "--no-verify"]);
+    run_git(&clone, &["push", "-q", "origin", "main"]);
+    let pre_log = main_log(&clone);
+
+    init_xdg(&clone, home.path(), false, None);
+    let create_out = bl_xdg(&clone, home.path())
+        .args(["create", "feature"])
+        .output()
+        .expect("bl create");
+    assert!(create_out.status.success(), "bl create failed");
+    let id = String::from_utf8_lossy(&create_out.stdout).trim().to_string();
+
+    bl_xdg(&clone, home.path()).args(["claim", &id]).assert().success();
+    let canon = std::fs::canonicalize(&clone).unwrap();
+    let nested = balls::encoding::nested_clone_path(&canon);
+    let per = balls::xdg_paths::PerClonePaths::new(&bases(home.path()), &nested);
+    fs::write(per.worktree_for(&id).join("feature.txt"), "real work").unwrap();
+    bl_xdg(&clone, home.path()).args(["review", &id, "-m", "ship it"]).assert().success();
+    bl_xdg(&clone, home.path()).args(["close", &id, "-m", "done"]).assert().success();
+
+    let post_log = main_log(&clone);
+    let new_commits: Vec<&String> = post_log
+        .iter()
+        .take(post_log.len().saturating_sub(pre_log.len()))
+        .collect();
+    assert_eq!(
+        new_commits.len(), 1,
+        "main must gain exactly one commit, got: {new_commits:?}"
+    );
+    let subject = new_commits[0];
+    assert!(subject.contains(&format!("[{id}]")), "missing [{id}] tag: {subject}");
+    assert!(!subject.starts_with("balls:"), "no `balls:` on main: {subject}");
+}
+
+fn run_git(cwd: &std::path::Path, args: &[&str]) {
+    let out = std::process::Command::new("git")
+        .current_dir(cwd).args(args).output()
+        .unwrap_or_else(|e| panic!("git {} failed: {e}", args.join(" ")));
+    assert!(out.status.success(), "git {} failed: {}",
+        args.join(" "), String::from_utf8_lossy(&out.stderr));
 }

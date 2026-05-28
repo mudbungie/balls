@@ -4,27 +4,30 @@
 
 #![allow(dead_code)]
 
-use super::{bl, git};
-use std::fs;
+use super::{bl, edit_and_commit_repo_config, git, set_default_target_branch};
 use std::path::Path;
 
-/// Seed `.balls/config.json` before `bl init` so the repo is in the
-/// requested delivery mode from its first lifecycle command (mirrors
-/// `tests/target_branch.rs::seed_config`).
+/// Configure the clone for deferred (forge-PR) delivery, layout-aware.
+///
+/// SPEC §6.5: the live `bl init` writes only XDG state — the legacy
+/// pre-init `.balls/config.json` seed is no longer read. So this
+/// helper runs `bl init` itself (idempotent on a warm tracker), then
+/// edits + commits `repo.json` on the tracker branch with
+/// `integrate.mode = forge-pr`. The optional `target_branch` is
+/// per-task under the revised SPEC §6.7 (the repo-level field was
+/// removed); the helper records it as the thread-local
+/// `DEFAULT_TARGET_BRANCH` so subsequent `create_task` /
+/// `create_task_full` calls forward `--target-branch` automatically.
 pub fn seed(repo: &Path, target_branch: Option<&str>) {
-    let balls = repo.join(".balls");
-    fs::create_dir_all(&balls).unwrap();
-    let tb = match target_branch {
-        Some(b) => format!(r#","target_branch":"{b}""#),
-        None => String::new(),
-    };
-    fs::write(
-        balls.join("config.json"),
-        format!(
-            r#"{{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees"{tb},"delivery":{{"mode":"deferred"}}}}"#
-        ),
-    )
-    .unwrap();
+    bl(repo).arg("init").assert().success();
+    edit_and_commit_repo_config(repo, "balls: configure deferred mode", |c| {
+        let obj = c.as_object_mut().expect("repo.json is an object");
+        obj.insert(
+            "integrate".into(),
+            serde_json::json!({ "mode": "forge-pr" }),
+        );
+    });
+    set_default_target_branch(target_branch.map(String::from));
 }
 
 pub fn sha(repo: &Path, refname: &str) -> String {

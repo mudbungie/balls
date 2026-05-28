@@ -151,6 +151,15 @@ fn sync_or_rollback(store: &Store, id: &str, identity: &str) -> Result<()> {
 }
 
 fn link_shared_state(store: &Store, wt_path: &std::path::Path) -> Result<()> {
+    // XDG: nothing under the worktree is balls-shaped. Per-clone state
+    // (claims/locks/plugin-auth) lives at the resolved XDG paths, and
+    // tasks/state-repo are addressable through `Store::discover` from
+    // inside the worktree (the gitdir parents climb back to the main
+    // clone root). Symlinking them in would dirty the worktree and
+    // fail `bl drop`'s uncommitted-changes guard.
+    if matches!(store.layout, crate::store::Layout::Xdg) {
+        return Ok(());
+    }
     let wt_balls = wt_path.join(".balls");
     fs::create_dir_all(&wt_balls)?;
     if !store.stealth {

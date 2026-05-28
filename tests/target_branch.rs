@@ -28,7 +28,6 @@ fn subject(repo: &Path, refname: &str) -> String {
 #[test]
 fn review_squashes_into_configured_target_branch_not_checkout() {
     let repo = new_repo();
-    seed_config(repo.path(), &[("target_branch", "develop")]);
     init_in(repo.path());
     git(repo.path(), &["branch", "develop"]);
 
@@ -36,7 +35,13 @@ fn review_squashes_into_configured_target_branch_not_checkout() {
     let develop_before = sha(repo.path(), "develop");
     assert_eq!(main_before, develop_before, "develop forks from main");
 
+    // SPEC §6.7 (post-XDG): repo-level `target_branch` is retired; the
+    // resolution chain is `task.target_branch ?? HEAD@root`. Set the
+    // per-task target via the test-helper default so `bl create`
+    // forwards `--target-branch develop` on this task.
+    set_default_target_branch(Some("develop".into()));
     let id = create_task(repo.path(), "feature");
+    set_default_target_branch(None);
     bl(repo.path()).args(["claim", &id]).assert().success();
     let wt = worktree_path(repo.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();
@@ -107,14 +112,17 @@ fn unset_target_branch_squashes_into_checkout() {
 fn sync_pushes_configured_target_branch() {
     let code = new_bare_remote();
     let alice = clone_from_remote(code.path(), "alice");
-    seed_config(alice.path(), &[("target_branch", "develop")]);
     bl(alice.path()).arg("init").assert().success();
     git(alice.path(), &["branch", "develop"]);
     git(alice.path(), &["push", "origin", "main"]);
     git(alice.path(), &["push", "origin", "develop"]);
 
     let main_remote_before = sha(code.path(), "main");
+    // Per-task target replaces the retired repo-level `target_branch`
+    // field (SPEC §6.7); the helper-default forwards it to `bl create`.
+    set_default_target_branch(Some("develop".into()));
     let id = create_task(alice.path(), "feature");
+    set_default_target_branch(None);
     bl(alice.path()).args(["claim", &id]).assert().success();
     let wt = worktree_path(alice.path(), &id);
     fs::write(wt.join("feature.txt"), "work").unwrap();

@@ -240,10 +240,14 @@ fn build_store(root: PathBuf, res: XdgResolution) -> Store {
         .project_config_path
         .clone()
         .unwrap_or_else(|| res.clone_json_file.clone());
+    // Stealth XDG clones don't require git — they're discovered by
+    // `clone.json` keyed on the cwd (§4.1). Set `no_git` honestly so
+    // commands that key off it (review, close, sync) skip git ops.
+    let no_git = res.stealth && crate::store_paths::require_git_repo(&root).is_err();
     Store {
         root,
         stealth: res.stealth,
-        no_git: false,
+        no_git,
         layout: Layout::Xdg,
         tasks_dir_path: res.tasks_dir,
         state_repo_path: res.state_repo,

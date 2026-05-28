@@ -104,7 +104,7 @@ esac
 }
 
 pub fn configure_plugin(repo_path: &Path) {
-    let config_dir = repo_path.join(".balls/plugins");
+    let config_dir = super::plugin_config_root(repo_path).join(".balls/plugins");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
         config_dir.join("mock.json"),
@@ -130,7 +130,7 @@ pub fn configure_plugin(repo_path: &Path) {
 
 /// Create the mock auth token so auth-check passes.
 pub fn create_mock_auth(repo_path: &Path) {
-    let auth_dir = repo_path.join(".balls/local/plugins/mock");
+    let auth_dir = super::plugins_auth_dir(repo_path).join("mock");
     fs::create_dir_all(&auth_dir).unwrap();
     fs::write(auth_dir.join("token.json"), r#"{"token":"mock-token"}"#).unwrap();
 }
@@ -179,6 +179,7 @@ exit 1
 }
 
 pub fn write_sync_response(repo_path: &Path, response: &str) {
-    let response_path = repo_path.join(".balls/plugins/mock.json.sync-response");
+    let response_path = super::plugin_config_root(repo_path)
+        .join(".balls/plugins/mock.json.sync-response");
     fs::write(response_path, response).unwrap();
 }

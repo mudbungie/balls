@@ -198,23 +198,25 @@ fn skill_warns_about_review_auto_append() {
     );
 }
 
-#[test]
-fn init_with_existing_gitignore_no_trailing_newline() {
-    let dir = tmp();
-    git(dir.path(), &["init", "-q", "-b", "main"]);
-    git(dir.path(), &["config", "user.email", "t@t"]);
-    git(dir.path(), &["config", "user.name", "t"]);
-    std::fs::write(dir.path().join(".gitignore"), "target/").unwrap();
-    bl(dir.path()).arg("init").assert().success();
-    let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
-    assert!(gi.contains("target/"));
-    assert!(gi.contains(".balls/local"));
-}
+// `init_with_existing_gitignore_no_trailing_newline` and
+// `init_with_partially_existing_gitignore` retired: XDG `bl init`
+// (Phase 1B) writes nothing to `.gitignore` (SPEC §14.1 "no `.balls/`
+// at the clone root"), so the gitignore-merge behaviour they guarded
+// no longer exists. Coverage of XDG init lives in
+// `tests/conformance_xdg_init.rs`.
 
 #[test]
 fn init_sets_git_user_when_unset() {
     let dir = tmp();
     git(dir.path(), &["init", "-q", "-b", "main"]);
+    // XDG bl init requires `origin`; provide a sibling bare remote so
+    // the tracker checkout can materialize.
+    let remote = tmp();
+    git(remote.path(), &["init", "-q", "--bare", "-b", "main"]);
+    git(
+        dir.path(),
+        &["remote", "add", "origin", &remote.path().to_string_lossy()],
+    );
     let home = tmp();
     bl(dir.path())
         .env("HOME", home.path())
@@ -225,21 +227,6 @@ fn init_sets_git_user_when_unset() {
         .success();
     let email = git(dir.path(), &["config", "user.email"]);
     assert!(email.contains("balls"));
-}
-
-#[test]
-fn init_with_partially_existing_gitignore() {
-    let dir = tmp();
-    git(dir.path(), &["init", "-q", "-b", "main"]);
-    git(dir.path(), &["config", "user.email", "t@t"]);
-    git(dir.path(), &["config", "user.name", "t"]);
-    std::fs::write(dir.path().join(".gitignore"), ".balls/local\n").unwrap();
-    bl(dir.path()).arg("init").assert().success();
-    let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
-    assert_eq!(
-        gi.lines().filter(|l| l.trim() == ".balls/local").count(),
-        1
-    );
 }
 
 #[test]

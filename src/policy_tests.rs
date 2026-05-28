@@ -99,6 +99,22 @@ fn sync_override_from_flags_decodes_the_pair() {
 }
 
 #[test]
+fn emit_repo_default_sync_notice_skips_when_not_repo_default() {
+    // The advisory only fires for the policy-driven case; an explicit
+    // CLI/--sync override silences it (the user already knows). The
+    // require_remote=false and from_repo_default=false legs both
+    // short-circuit the eprintln.
+    super::emit_repo_default_sync_notice(super::ClaimPolicy {
+        require_remote: false,
+        from_repo_default: true,
+    });
+    super::emit_repo_default_sync_notice(super::ClaimPolicy {
+        require_remote: true,
+        from_repo_default: false,
+    });
+}
+
+#[test]
 fn from_clone_projects_layered_overrides() {
     // The three `require_remote_on_*` fields ride through; everything
     // else clone.json carries is ignored — those are tracker/repo-

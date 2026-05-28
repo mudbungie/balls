@@ -102,9 +102,13 @@ pub fn discover_tasks_dir(repo_root: &Path) -> PathBuf {
 /// `id` is `AsRef<str>` so the bulk replacement of legacy
 /// `<repo>.join(".balls-worktrees").join(&id)` carries over without
 /// adding/dropping a `&` per call site.
+///
+/// Stealth XDG (no origin, clone.json keyed by cwd) also routes
+/// through the XDG layout — `is_xdg` is false because origin is
+/// unset, so the helper consults `clone.json` directly.
 pub fn worktree_path(repo_root: &Path, id: impl AsRef<str>) -> PathBuf {
     let id = id.as_ref();
-    if is_xdg(repo_root) {
+    if is_xdg(repo_root) || discover_stealth_tasks(repo_root).is_some() {
         let canon = std::fs::canonicalize(repo_root).unwrap_or_else(|_| repo_root.to_path_buf());
         let nested = balls::encoding::nested_clone_path(&canon);
         let per = balls::xdg_paths::PerClonePaths::new(&test_xdg_bases(), &nested);
@@ -184,6 +188,24 @@ pub fn config_path(repo_root: &Path) -> PathBuf {
         }
     }
     repo_root.join(".balls/config.json")
+}
+
+/// Project config path, layout-aware. XDG → `<tracker>/.balls/project.json`;
+/// legacy → `<repo>/.balls/project.json` (via the state-checkout symlink).
+pub fn project_config_path(repo_root: &Path) -> PathBuf {
+    if let Some(xdg) = xdg_tracker_checkout(repo_root) {
+        if xdg.join(".git").exists() {
+            return xdg.join(".balls/project.json");
+        }
+    }
+    repo_root.join(".balls/project.json")
+}
+
+/// Plugin config root, layout-aware — the same root the running
+/// binary joins `config_file` against. XDG → tracker checkout; legacy
+/// → clone root (where `.balls/plugins` symlinks into the checkout).
+pub fn plugin_config_root(repo_root: &Path) -> PathBuf {
+    discover_state_repo(repo_root).unwrap_or_else(|| repo_root.to_path_buf())
 }
 
 /// XDG per-clone worktrees root — `worktree_path(repo, id)` joins on

@@ -51,17 +51,6 @@ fn sync_warns_when_main_is_behind_state_close() {
     // is empty), the main push will succeed (main is reset), and the
     // detector will then compare state subjects against main subjects
     // and flag bl-XXX.
-    let remote = new_bare_remote();
-    git(
-        repo.path(),
-        &[
-            "remote",
-            "add",
-            "origin",
-            remote.path().to_str().unwrap(),
-        ],
-    );
-
     let out = bl(repo.path()).arg("sync").output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -97,17 +86,6 @@ fn no_code_review_then_close_is_not_a_half_push() {
         .args(["close", &id, "-m", "ok"])
         .assert()
         .success();
-
-    let remote = new_bare_remote();
-    git(
-        repo.path(),
-        &[
-            "remote",
-            "add",
-            "origin",
-            remote.path().to_str().unwrap(),
-        ],
-    );
     let out = bl(repo.path()).arg("sync").output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -128,17 +106,6 @@ fn update_closed_without_review_is_not_a_half_push() {
         .args(["update", &id, "status=closed"])
         .assert()
         .success();
-
-    let remote = new_bare_remote();
-    git(
-        repo.path(),
-        &[
-            "remote",
-            "add",
-            "origin",
-            remote.path().to_str().unwrap(),
-        ],
-    );
     let out = bl(repo.path()).arg("sync").output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
