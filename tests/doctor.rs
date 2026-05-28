@@ -247,8 +247,8 @@ fn legacy_corrupt_config_is_flagged() {
     // `corrupt_repo_json_is_flagged`); the legacy branch's "restore
     // with `git checkout main`" hint stays covered here. Also walks
     // the `worktrees_root() -> Err` early-return in
-    // `check_orphan_worktrees` (legacy `worktrees_root` reads
-    // `load_config`, which fails when the config is garbage).
+    // `check_orphan_worktrees` (legacy `worktrees_root` loads
+    // `Config`, which fails when the file is garbage).
     let home = tmp();
     let (_remote, clone, _url) = legacy_clone(home.path(), "proj");
     fs::write(clone.join(".balls/config.json"), "{ not json").unwrap();

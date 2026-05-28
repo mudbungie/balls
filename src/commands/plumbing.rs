@@ -5,7 +5,7 @@
 //! Factoring them here keeps each handler to its own logic and gives
 //! every shared literal exactly one home.
 
-use balls::config::Config;
+use balls::effective_config::EffectiveConfig;
 use balls::error::Result;
 use balls::participant::Event;
 use balls::participant_config::{override_tokens, InvocationOverrides};
@@ -16,18 +16,18 @@ use balls::task::Task;
 
 
 /// Load the config inputs every sync-policy decision needs: the CLI
-/// `--sync`/`--no-sync` override, the repo-default `Config`, and the
-/// per-clone `LocalConfig` (projected from the store's `clone.json`,
-/// SPEC §6.4). `claim`, `review` and `close` each layer their own
-/// `require_remote_on_*` field and `policy::resolve*` call on top of
-/// this shared front half.
+/// `--sync`/`--no-sync` override, the repo-default `EffectiveConfig`,
+/// and the per-clone `LocalConfig` (projected from the store's
+/// `clone.json`, SPEC §6.4). `claim`, `review` and `close` each
+/// layer their own `require_remote_on_*` field and `policy::resolve*`
+/// call on top of this shared front half.
 pub(crate) fn sync_inputs(
     store: &Store,
     sync: bool,
     no_sync: bool,
-) -> (SyncOverride, Option<Config>, Option<LocalConfig>) {
+) -> (SyncOverride, Option<EffectiveConfig>, Option<LocalConfig>) {
     let cli = SyncOverride::from_flags(sync, no_sync);
-    let cfg = store.load_config().ok();
+    let cfg = store.load_effective_config().ok();
     let local = LocalConfig::load(store);
     (cli, cfg, local)
 }

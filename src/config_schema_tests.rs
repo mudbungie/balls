@@ -54,10 +54,10 @@ fn target_branch_none_is_omitted_from_serialization() {
 }
 
 #[test]
-fn target_branch_explicit_value_short_circuits_git_and_round_trips() {
-    // A configured target_branch wins outright: `integration_branch`
-    // returns it without consulting git, so a path that isn't even a
-    // repo still resolves. This is the single-seam guarantee.
+fn target_branch_explicit_value_round_trips() {
+    // A configured target_branch survives save → load — `Store`'s
+    // integration-branch helpers (`store_effective_tests`) cover the
+    // resolution semantics; this test pins the schema round-trip.
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("c.json");
     let cfg = Config {
@@ -67,12 +67,6 @@ fn target_branch_explicit_value_short_circuits_git_and_round_trips() {
     cfg.save(&path).unwrap();
     let loaded = Config::load(&path).unwrap();
     assert_eq!(loaded.target_branch.as_deref(), Some("develop"));
-    assert_eq!(
-        loaded
-            .integration_branch(std::path::Path::new("/no/such/repo"))
-            .unwrap(),
-        "develop"
-    );
 }
 
 #[test]

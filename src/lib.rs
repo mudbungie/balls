@@ -94,6 +94,7 @@ mod state_repo_symlinks;
 pub mod status;
 pub mod store;
 mod store_archive;
+mod store_effective;
 mod store_init;
 pub mod store_init_xdg;
 mod store_lock;
