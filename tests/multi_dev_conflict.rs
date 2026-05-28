@@ -35,7 +35,15 @@ fn story_47_sync_conflicting_tasks_auto_resolve() {
     assert!(notes.iter().any(|n| n["text"] == "bob note"));
 }
 
+// Under XDG (Phase 1B) alice and bob share the per-origin tracker
+// checkout under `~/.local/state/balls/trackers/<enc-origin>/`. The
+// "two workers, same task, both claim locally then sync to resolve"
+// race is now resolved discover-side: bob's `bl claim` sees alice's
+// in-progress flip before any push runs. Tests below assume the
+// pre-XDG independent per-clone state model — a Phase 1B-7 rewrite
+// will re-cast them in the new sharing model.
 #[test]
+#[ignore = "Phase 1B-7: rework for shared XDG tracker semantics (independent per-clone state model is gone)"]
 fn story_50_two_workers_claim_same_task() {
     let (_r, alice, bob) = three_way();
     let id = create_task(alice.path(), "contested");
@@ -83,6 +91,7 @@ fn story_51_two_workers_close_same_task() {
 }
 
 #[test]
+#[ignore = "Phase 1B-7: rework for shared XDG tracker semantics (independent per-clone state model is gone)"]
 fn story_52_close_vs_update() {
     // Alice closes (archives), Bob updates priority. Sync handles the
     // delete-vs-modify conflict gracefully — system doesn't corrupt.
@@ -140,12 +149,33 @@ fn concurrent_claims_local_flock() {
     let p2 = repo.path().to_path_buf();
     let id1 = id.clone();
     let id2 = id.clone();
+    // Per-thread XDG HOME is allocated on first `bl()` call. Spawned
+    // threads would each get a fresh empty HOME (no XDG state) and
+    // both claims would fail with "not initialized". Forward the main
+    // thread's HOME explicitly so the spawned `bl` invocations share
+    // the same tracker checkout.
+    let home = test_home_path();
+    let home1 = home.clone();
 
     let h1 = thread::spawn(move || {
-        bl_as(&p1, "alice").args(["claim", &id1]).output().unwrap()
+        assert_cmd::Command::cargo_bin("bl")
+            .unwrap()
+            .current_dir(&p1)
+            .env("BALLS_IDENTITY", "alice")
+            .env("HOME", &home1)
+            .args(["claim", &id1])
+            .output()
+            .unwrap()
     });
     let h2 = thread::spawn(move || {
-        bl_as(&p2, "bob").args(["claim", &id2]).output().unwrap()
+        assert_cmd::Command::cargo_bin("bl")
+            .unwrap()
+            .current_dir(&p2)
+            .env("BALLS_IDENTITY", "bob")
+            .env("HOME", &home)
+            .args(["claim", &id2])
+            .output()
+            .unwrap()
     });
     let out1 = h1.join().unwrap();
     let out2 = h2.join().unwrap();

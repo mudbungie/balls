@@ -36,6 +36,7 @@ fn clone_on_custom_branch(tracker_url: &str, name: &str) -> Repo {
 /// targets the configured branch end to end; the default `balls/tasks`
 /// is never created on the tracker.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): bl remaster XDG-aware paths — test premise relies on the legacy state_url config field"]
 fn state_branch_round_trip_on_custom_branch() {
     let tracker = new_bare_remote();
     let code = new_bare_remote();
@@ -136,25 +137,34 @@ fn state_branch_round_trip_on_custom_branch() {
 }
 
 /// Test §16.* — `bl remaster <url> --branch B` writes the address.
-/// SPEC §8 names the flag; bl-3f59 added it.
+/// SPEC §8 names the flag; bl-3f59 added it. Routes through
+/// `legacy_clone()` since `bl remaster` is still legacy-layout-only
+/// pre-bl-be70.
 #[test]
 fn remaster_branch_flag_writes_state_branch() {
     let tracker = new_bare_remote();
-    let code = new_bare_remote();
-    let ws = clone_from_remote(code.path(), "ws");
-    init_in(ws.path());
+    let home = tmp();
+    let (_r, ws, _u) = legacy_clone(home.path(), "ws");
+    // Drop the stale `refs/remotes/origin/<branch>` left by the
+    // legacy-clone fixture so remaster's `has_remote_branch` check on
+    // the new tracker reads the live state, not a phantom.
+    let state_repo = discover_state_repo(&ws).expect("non-stealth state checkout");
+    let _ = std::process::Command::new("git")
+        .current_dir(&state_repo)
+        .args(["update-ref", "-d", "refs/remotes/origin/balls/tasks"])
+        .output();
 
-    bl(ws.path())
+    bl(&ws)
         .args(["remaster", &url_of(&tracker), "--branch", PROJECT_BRANCH, "--commit"])
         .assert()
         .success();
 
     assert_eq!(
-        config_field(ws.path(), "state_branch").as_deref(),
+        config_field(&ws, "state_branch").as_deref(),
         Some(PROJECT_BRANCH),
         "remaster --branch B must persist state_branch in config.json",
     );
-    let head = git_state(ws.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let head = git_state(&ws, &["rev-parse", "--abbrev-ref", "HEAD"]);
     assert_eq!(
         head.trim(),
         PROJECT_BRANCH,
@@ -162,9 +172,9 @@ fn remaster_branch_flag_writes_state_branch() {
     );
 
     // --detach clears state_branch back to the default.
-    bl(ws.path()).args(["remaster", "--detach"]).assert().success();
+    bl(&ws).args(["remaster", "--detach"]).assert().success();
     assert_eq!(
-        config_field(ws.path(), "state_branch"),
+        config_field(&ws, "state_branch"),
         None,
         "remaster --detach must clear state_branch from config.json",
     );

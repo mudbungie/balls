@@ -8,9 +8,29 @@
 #![allow(dead_code)]
 
 use assert_cmd::Command;
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 use super::test_home_path;
+
+// Per-thread default for `--target-branch` on `create_task` /
+// `create_task_full`. `forge::seed(repo, Some(b))` sets this so the
+// next batch of `bl create` calls under deferred-mode forwards the
+// target — the per-task `target_branch` field is what the revised
+// SPEC §6.7 reads (the repo-level field was removed in XDG, so the
+// legacy "seed once, apply to every task" pattern needs an explicit
+// per-task carrier).
+thread_local! {
+    static DEFAULT_TARGET_BRANCH: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+pub fn set_default_target_branch(branch: Option<String>) {
+    DEFAULT_TARGET_BRANCH.with(|cell| *cell.borrow_mut() = branch);
+}
+
+fn default_target_branch() -> Option<String> {
+    DEFAULT_TARGET_BRANCH.with(|cell| cell.borrow().clone())
+}
 
 /// Path to the compiled `bl` binary.
 pub fn bl_bin() -> PathBuf {
@@ -38,8 +58,15 @@ pub fn bl_as(cwd: &Path, identity: &str) -> Command {
 }
 
 /// Run `bl create TITLE` and return the newly created ID (parsed from stdout).
+/// Forwards the per-thread `DEFAULT_TARGET_BRANCH` if set (see
+/// `forge::seed`).
 pub fn create_task(cwd: &Path, title: &str) -> String {
-    let out = bl(cwd).args(["create", title]).output().expect("bl create");
+    let mut cmd = bl(cwd);
+    cmd.args(["create", title]);
+    if let Some(tb) = default_target_branch() {
+        cmd.args(["--target-branch", &tb]);
+    }
+    let out = cmd.output().expect("bl create");
     assert!(
         out.status.success(),
         "bl create failed: {}",
@@ -63,6 +90,9 @@ pub fn create_task_full(
     }
     for t in tags {
         cmd.arg("--tag").arg(t);
+    }
+    if let Some(tb) = default_target_branch() {
+        cmd.args(["--target-branch", &tb]);
     }
     let out = cmd.output().expect("bl create");
     assert!(

@@ -94,7 +94,7 @@ fn review_resyncs_working_tree_at_non_bare_root() {
         .args(["claim", &id])
         .assert()
         .success();
-    let wt = repo.path().join(".balls-worktrees").join(&id);
+    let wt = worktree_path(repo.path(), &id);
     std::fs::write(wt.join("delivered.txt"), "payload").unwrap();
 
     bl(repo.path())

@@ -46,6 +46,7 @@ fn onboarded_project() -> (Repo, Repo, String) {
 }
 
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): tests assert legacy `state_remote`/`state_url` config — pending XDG-aware bl remaster"]
 fn adopt_configured_reachable_state_remote_is_silent() {
     let (code, hub, id) = onboarded_project();
     let bob = clone_from_remote(code.path(), "bob");
@@ -68,6 +69,7 @@ fn adopt_configured_reachable_state_remote_is_silent() {
 }
 
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): tests assert legacy `state_remote`/`state_url` config — pending XDG-aware bl remaster"]
 fn unaware_clone_creates_isolated_store() {
     let (code, hub, shared) = onboarded_project();
     let hub_sha = bare_state_sha(hub.path());
@@ -103,6 +105,7 @@ fn unaware_clone_creates_isolated_store() {
 }
 
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): tests assert legacy `state_remote`/`state_url` config — pending XDG-aware bl remaster"]
 fn init_never_clobbers_non_empty_shared_branch() {
     let (code, hub, _shared) = onboarded_project();
     let hub_sha_before = bare_state_sha(hub.path());
@@ -129,6 +132,7 @@ fn init_never_clobbers_non_empty_shared_branch() {
 }
 
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): tests assert legacy `state_remote`/`state_url` config — pending XDG-aware bl remaster"]
 fn unset_state_remote_init_has_no_advisory() {
     // A plain local repo with no state_remote: today's behavior,
     // never the not-joined advisory even with no reachable remote.

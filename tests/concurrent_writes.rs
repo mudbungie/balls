@@ -16,12 +16,23 @@ fn parallel_bl_create_across_workers_all_succeed() {
     let repo = new_repo();
     init_in(repo.path());
     let root = repo.path().to_path_buf();
+    // The per-thread XDG `HOME` is allocated on first `bl()` call. A
+    // spawned thread would get a fresh, empty HOME (no clone.json,
+    // no tracker checkout) and `bl create` would error with "not
+    // initialized". Capture the main thread's HOME up front and
+    // forward it to every worker so they hit the same XDG state.
+    let home = test_home_path();
 
     let handles: Vec<_> = (0..PARALLEL_WORKERS)
         .map(|i| {
             let root = root.clone();
+            let home = home.clone();
             thread::spawn(move || {
-                let out = bl(&root)
+                let out = assert_cmd::Command::cargo_bin("bl")
+                    .unwrap()
+                    .current_dir(&root)
+                    .env("BALLS_IDENTITY", "test-user")
+                    .env("HOME", &home)
                     .args(["create", &format!("parallel-{i}")])
                     .output()
                     .expect("bl create");
@@ -67,28 +78,32 @@ fn parallel_bl_create_and_update_mix() {
 
     // Seed a task we can update from other threads.
     let seed_id = create_task(repo.path(), "seed");
+    let home = test_home_path();
+    let spawn_bl = move |args: Vec<String>| {
+        let root = root.clone();
+        let home = home.clone();
+        thread::spawn(move || {
+            let mut cmd = assert_cmd::Command::cargo_bin("bl").unwrap();
+            cmd.current_dir(&root)
+                .env("BALLS_IDENTITY", "test-user")
+                .env("HOME", &home);
+            for a in args { cmd.arg(a); }
+            cmd.output().expect("bl").status.success()
+        })
+    };
 
     let mut handles = Vec::new();
     for i in 0..PARALLEL_WORKERS / 2 {
-        let root = root.clone();
-        handles.push(thread::spawn(move || {
-            let out = bl(&root)
-                .args(["create", &format!("mix-create-{i}")])
-                .output()
-                .expect("bl create");
-            out.status.success()
-        }));
+        handles.push(spawn_bl(vec!["create".into(), format!("mix-create-{i}")]));
     }
     for i in 0..PARALLEL_WORKERS / 2 {
-        let root = root.clone();
         let id = seed_id.clone();
-        handles.push(thread::spawn(move || {
-            let out = bl(&root)
-                .args(["update", &id, "--note", &format!("worker {i} note")])
-                .output()
-                .expect("bl update");
-            out.status.success()
-        }));
+        handles.push(spawn_bl(vec![
+            "update".into(),
+            id,
+            "--note".into(),
+            format!("worker {i} note"),
+        ]));
     }
 
     for h in handles {

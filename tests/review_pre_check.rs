@@ -10,13 +10,14 @@ use common::*;
 use predicates::prelude::*;
 use std::path::Path;
 
-/// Set `review.pre_check` in an already-initialized repo's config.
+/// Set the review gate command in an already-initialized repo's
+/// config. XDG repo.json names the field `review.gate_command` (the
+/// renamed `pre_check`); the synthesizer maps it back to the legacy
+/// `pre_check` for the load_config code path.
 fn set_pre_check(repo: &Path, cmd: &str) {
-    let p = config_path(repo);
-    let mut cfg: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-    cfg["review"] = serde_json::json!({ "pre_check": cmd });
-    std::fs::write(&p, cfg.to_string()).unwrap();
+    edit_and_commit_repo_config(repo, "review: set gate_command", |cfg| {
+        cfg["review"] = serde_json::json!({ "gate_command": cmd });
+    });
 }
 
 #[test]
@@ -85,16 +86,14 @@ fn failing_pre_check_blocks_the_deferred_push() {
     // that fails it never reaches origin and no gate child is opened.
     let remote = new_bare_remote();
     let dev = clone_from_remote(remote.path(), "dev");
-    let cfg = dev.path().join(".balls/config.json");
-    std::fs::create_dir_all(cfg.parent().unwrap()).unwrap();
-    std::fs::write(
-        &cfg,
-        r#"{"version":1,"id_length":4,"stale_threshold_seconds":60,"worktree_dir":".balls-worktrees","target_branch":"main","delivery":{"mode":"deferred"},"review":{"pre_check":"exit 1"}}"#,
-    )
-    .unwrap();
     bl(dev.path()).arg("init").assert().success();
+    edit_and_commit_repo_config(dev.path(), "deferred mode + failing gate", |cfg| {
+        cfg["integrate"] = serde_json::json!({ "mode": "forge-pr" });
+        cfg["review"] = serde_json::json!({ "gate_command": "exit 1" });
+    });
     git(dev.path(), &["push", "origin", "main"]);
 
+    set_default_target_branch(Some("main".into()));
     let id = create_task(dev.path(), "feature");
     bl_as(dev.path(), "dev")
         .args(["claim", &id])

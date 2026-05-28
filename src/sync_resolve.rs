@@ -38,3 +38,7 @@ pub fn auto_resolve_task_conflicts(dir: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "sync_resolve_tests.rs"]
+mod tests;

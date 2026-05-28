@@ -4,7 +4,6 @@ mod common;
 
 use common::*;
 use common::multidev::*;
-use std::fs;
 
 fn flip_repo_policy_on(repo: &std::path::Path) {
     edit_and_commit_repo_config(repo, "policy: require remote on claim", |j| {
@@ -32,6 +31,59 @@ fn sync_flag_pushes_claim_to_remote() {
     assert_eq!(j["status"], "in_progress");
 }
 
+/// Legacy-clone variant: alice and bob have INDEPENDENT
+/// `.balls/state-repo` checkouts of the same bare tracker. Alice
+/// claims with --sync (push lands). Bob's claim --sync tries to push,
+/// is rejected, fetches+merges alice's state, then sees alice as the
+/// claimant via the claim-race auto-resolve — the `Lost` outcome that
+/// only the legacy split-state model can produce. The XDG variant
+/// above resolves the race discover-side because both clones share
+/// the tracker checkout.
+#[test]
+fn legacy_clone_sync_flag_loses_to_earlier_claim() {
+    let home = tmp();
+    let tracker = common::new_bare_remote();
+    // Hand-build two legacy clones whose state-repo origin is the
+    // tracker. `legacy_clone` wires the bare-remote-per-clone shape
+    // by default; we override the state-repo's origin so both clones
+    // converge on the same `balls/tasks` ref.
+    let (_r1, alice, _u1) = legacy_clone(home.path(), "alice");
+    let (_r2, bob, _u2) = legacy_clone(home.path(), "bob");
+    for clone in [&alice, &bob] {
+        let sd = discover_state_repo(clone).expect("legacy state checkout");
+        git(&sd, &["remote", "set-url", "origin", &tracker.path().to_string_lossy()]);
+        let _ = std::process::Command::new("git")
+            .current_dir(&sd)
+            .args(["update-ref", "-d", "refs/remotes/origin/balls/tasks"])
+            .output();
+    }
+    // Push alice's state branch up so bob has a base to fetch.
+    let alice_sd = discover_state_repo(&alice).unwrap();
+    let id = create_task(&alice, "race");
+    let _ = std::process::Command::new("git")
+        .current_dir(&alice_sd)
+        .args(["push", "-q", "origin", "balls/tasks"])
+        .output();
+    // Bob picks up alice's create + tracker tip.
+    bl_as(&bob, "bob").arg("sync").assert().success();
+
+    bl_as(&alice, "alice")
+        .args(["claim", &id, "--sync"])
+        .assert()
+        .success();
+
+    let out = bl_as(&bob, "bob")
+        .args(["claim", &id, "--sync"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "bob's claim must lose");
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    assert!(
+        stderr.contains("won by") || stderr.contains("already claimed"),
+        "expected lost-race diagnostic, got: {stderr}"
+    );
+}
+
 #[test]
 fn sync_flag_loses_to_earlier_claim() {
     let (_r, alice, bob) = three_way();
@@ -54,8 +106,15 @@ fn sync_flag_loses_to_earlier_claim() {
         .unwrap();
     assert!(!out.status.success(), "expected bob's claim to fail");
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    // Under XDG (Phase 1B) alice and bob share the per-origin tracker
+    // checkout, so bob's discover sees alice's `in_progress` flip
+    // before the push runs — the original "winner: alice" merge-side
+    // diagnostic is replaced by the discover-side "not claimable"
+    // rejection. Either form proves the race was resolved.
     assert!(
-        stderr.contains("alice") || stderr.contains("already claimed"),
+        stderr.contains("alice")
+            || stderr.contains("already claimed")
+            || stderr.contains("is not claimable"),
         "stderr: {stderr}"
     );
 
@@ -107,7 +166,16 @@ fn no_sync_flag_overrides_repo_default() {
 
 #[test]
 fn default_off_claim_works_offline() {
+    // The pre-XDG default for `require_remote_on_claim` was `false`,
+    // so an offline claim went through without complaint. The XDG
+    // synthesizer (`store::synthesize_xdg_config`) defaults the field
+    // to `true` (SPEC §6.5 + `DEFAULT_REQUIRE_REMOTE = true`), so
+    // exercising the offline-claim path requires explicitly turning
+    // the policy off first.
     let (_r, alice, _bob) = three_way();
+    edit_and_commit_repo_config(alice.path(), "policy: require remote off", |j| {
+        j["require_remote_on_claim"] = serde_json::Value::Bool(false);
+    });
     let id = create_task(alice.path(), "offline");
     break_remote(alice.path());
     bl_as(alice.path(), "alice")
@@ -135,48 +203,13 @@ fn repo_config_default_drives_claim_to_remote() {
     assert_eq!(j["status"], "open");
 }
 
-#[test]
-fn legacy_local_config_no_longer_overrides_and_doctor_flags_it() {
-    // bl-5a03 retired the `.balls/local/config.json` reader. On a
-    // legacy clone the file just sits there — claim ignores it (so
-    // the repo-default policy wins, not the override) and `bl doctor`
-    // surfaces the file so the user knows to translate it into
-    // `clone.json` after migrating.
-    let (_r, alice, _bob) = three_way();
-    flip_repo_policy_on(alice.path());
-
-    // The legacy local override file claims to flip require_remote
-    // off for this clone — but bl no longer reads it.
-    fs::write(
-        alice.path().join(".balls/local/config.json"),
-        r#"{"require_remote_on_claim": false}"#,
-    )
-    .unwrap();
-
-    let id = create_task(alice.path(), "local-off");
-    break_remote(alice.path());
-
-    // With the reader gone, the repo default (require_remote_on_claim
-    // = true) still drives the policy. The broken remote makes the
-    // claim fail — exactly as if no override file existed.
-    let out = bl_as(alice.path(), "alice")
-        .args(["claim", &id])
-        .output()
-        .unwrap();
-    assert!(
-        !out.status.success(),
-        "expected claim to fail under repo-default policy; legacy local/config.json must be ignored"
-    );
-
-    // Doctor surfaces the legacy file as a finding so the user knows
-    // the override is silently dead.
-    let report = doctor(alice.path());
-    assert!(
-        report.contains(".balls/local/config.json")
-            && report.contains("pre-XDG"),
-        "expected `bl doctor` to flag legacy local/config.json; got:\n{report}"
-    );
-}
+// Retired (Phase 1B XDG flip): the
+// `legacy_local_config_no_longer_overrides_and_doctor_flags_it` test
+// guarded the legacy-clone behaviour of a lingering
+// `.balls/local/config.json`. Under XDG (Phase 1B `bl init` flip)
+// clones never have a `.balls/local/` to plant such a file in — the
+// per-clone overrides live in `~/.config/balls/<nested>/clone.json`,
+// so the file format and the doctor advisory it tested are both gone.
 
 #[test]
 fn cli_sync_and_no_sync_conflict() {

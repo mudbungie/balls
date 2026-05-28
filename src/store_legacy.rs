@@ -141,3 +141,7 @@ fn emit_legacy_warning(root: &Path) {
         eprintln!("{}", crate::legacy_layout::warning_line(&markers));
     }
 }
+
+#[cfg(test)]
+#[path = "store_legacy_tests.rs"]
+mod tests;
