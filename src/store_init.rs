@@ -1,15 +1,16 @@
-//! Helpers for `Store::init`: the bare-clone bootstrap, the
-//! `.gitignore` wiring, and the `.balls/tasks` convenience symlink.
-//! Extracted from `store.rs` to keep that file focused on the Store
-//! API. The state checkout itself is materialized by `state_repo`.
+//! Helpers for `Store::init`: the legacy working-tree bootstrap and
+//! the `balls: initialize` commit. Extracted from `store.rs` to keep
+//! that file focused on the Store API. The state checkout itself is
+//! materialized by `state_repo`; the XDG bare-clone bootstrap lives
+//! in [`crate::store_init_bare_xdg`].
 
 use crate::config::Config;
 use crate::error::{BallError, Result};
+use crate::git;
 use crate::store::Store;
 use crate::store_legacy::legacy_with;
 use crate::store_paths::init_stealth_tasks;
 use crate::tracker_address;
-use crate::{git, git_state};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -81,86 +82,13 @@ impl Store {
         Ok(store)
     }
 
-    /// Bootstrap a bare clone at `clone_dir` from `source` and open a
-    /// Store rooted there. Heavy lifting is in `bootstrap_bare_clone`.
+    /// XDG `bl init --bare`: bare-clone `source` into `clone_dir` and
+    /// materialize the per-host XDG layout (SPEC-clone-layout §3, §5).
+    /// Body in [`crate::store_init_bare_xdg`] so the legacy in-source
+    /// helpers above stay together.
     pub fn init_bare(source: &str, clone_dir: &Path) -> Result<Self> {
-        let root = bootstrap_bare_clone(source, clone_dir)?;
-        let state_repo_path = root.join(crate::state_repo::STATE_REPO_REL);
-        let tasks_dir_path = state_repo_path.join(".balls/tasks");
-        let state_branch_name = git::git_current_branch(&state_repo_path)
-            .unwrap_or_else(|_| tracker_address::DEFAULT_BRANCH.to_string());
-        Ok(legacy_with(
-            root,
-            tasks_dir_path,
-            state_repo_path,
-            state_branch_name,
-            false,
-        ))
+        crate::store_init_bare_xdg::init(source, clone_dir)
     }
-}
-
-/// Bootstrap a bare clone at `clone_dir` from `source` (a git
-/// URL or path whose `main` carries a balls-initialized project) per
-/// SPEC §3: a bare-cloned gitdir plus the loose `.balls/` store and a
-/// materialized `.balls/state-repo`. Returns the resolved clone root.
-///
-/// Idempotent and self-healing: a present bare gitdir is reused (a
-/// non-bare `.git` is refused, never clobbered); scaffolding
-/// `create_dir_all`s are no-ops when present; `config.json` is
-/// materialized only when missing. The state checkout is built by the
-/// shared `state_repo::ensure`, which adopts the clone's bare-cloned
-/// `balls/tasks` in place — no working-tree commit, no checkout to
-/// write a `balls: initialize` to.
-pub(crate) fn bootstrap_bare_clone(source: &str, clone_dir: &Path) -> Result<PathBuf> {
-    fs::create_dir_all(clone_dir)?;
-    let clone_dir = fs::canonicalize(clone_dir).unwrap_or_else(|_| clone_dir.to_path_buf());
-    let gitdir = clone_dir.join(".git");
-
-    // Bare-clone into <clone>/.git. Reuse an existing bare gitdir;
-    // refuse to clobber a non-bare one (non-destructive, like bl init).
-    if gitdir.exists() {
-        if !crate::bare_squash::is_bare_repo(&clone_dir).unwrap_or(false) {
-            return Err(BallError::Other(format!(
-                "{} exists and is not a bare repo; refusing to clobber it",
-                gitdir.display()
-            )));
-        }
-    } else {
-        git::git_clone_bare(source, &gitdir)?;
-    }
-    // Wire remote-tracking so origin/* refs stay current for bl sync.
-    git::git_config_set(
-        &clone_dir,
-        "remote.origin.fetch",
-        "+refs/heads/*:refs/remotes/origin/*",
-    )?;
-    let _ = git::git_fetch(&clone_dir, "origin");
-    git::git_ensure_user(&clone_dir)?;
-
-    // Reconstruct the loose store: scaffold the per-clone dirs and
-    // materialize the repo-tracked config.json (no checkout exists to
-    // copy it from at a bare root).
-    let balls = clone_dir.join(".balls");
-    for d in ["plugins", "local/claims", "local/lock", "local/plugins"] {
-        fs::create_dir_all(balls.join(d))?;
-    }
-    let config_path = balls.join("config.json");
-    if !config_path.exists() {
-        let cfg = git_state::show_file(&clone_dir, "main", ".balls/config.json")?.ok_or_else(
-            || {
-                BallError::Other(
-                    "source's `main` has no .balls/config.json — run `bl init` in a \
-                 working clone and push first (README bootstrap step 1)"
-                        .into(),
-                )
-            },
-        )?;
-        fs::write(&config_path, cfg)?;
-    }
-    let cfg = Config::load(&config_path)?;
-    let addr = tracker_address::resolve(&clone_dir, &cfg);
-    crate::state_repo::ensure(&clone_dir, &addr)?;
-    Ok(clone_dir)
 }
 
 /// Expose the state checkout's task directory to the clone via a

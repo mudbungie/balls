@@ -245,20 +245,22 @@ pub enum Command {
 
     /// Relocate this clone to the nested XDG layout (SPEC §11.1).
     Migrate,
-    /// Re-point this repo's task state branch at TARGET (a tracker
-    /// URL) and reconcile local-only tasks onto it.
+    /// Write (or remove with `--detach`) `.balls/tracker.json` on the
+    /// code repo's own `balls/tasks` branch checkout — the SPEC §6.1
+    /// pointer-only redirect to a federated tracker.
     Remaster {
-        /// Tracker URL whose state branch becomes authoritative.
-        /// Omit only with `--detach`.
+        /// Tracker URL the redirect points at. Omit only with `--detach`.
         target: Option<String>,
-        /// State branch on the tracker (SPEC §5/§8). Default
-        /// `balls/tasks`. Persists in `config.json`; `--detach` clears.
+        /// State branch on the federated tracker (SPEC §6.1). Default
+        /// `balls/tasks`. Recorded in `tracker.json`'s `state_branch`.
         #[arg(long = "branch", value_name = "B", conflicts_with = "detach")]
         branch: Option<String>,
-        /// Also `git commit` the `config.json` address change.
-        #[arg(long, conflicts_with = "detach")]
+        /// `git add` and `git commit` the tracker.json change on the
+        /// orphan branch. Without this, the change is written but
+        /// left uncommitted for inspection.
+        #[arg(long)]
         commit: bool,
-        /// Sever shared history and the link: go standalone again.
+        /// Remove `tracker.json` and return to solo mode.
         #[arg(long)]
         detach: bool,
     },

@@ -27,7 +27,7 @@ pub use migrate::legacy_clone;
 pub use paths::{
     cache_dir, cache_last_fetch, claims_dir, config_path, discover_state_repo, discover_tasks_dir,
     local_dir, lock_dir, per_clone_paths, plugin_config_root, plugins_auth_dir,
-    project_config_path, worktree_path, worktrees_dir,
+    project_config_path, test_xdg_bases, worktree_path, worktrees_dir,
 };
 pub use xdg_repo::{new_xdg_repo, XdgRepo};
 
