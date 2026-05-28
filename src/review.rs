@@ -117,14 +117,16 @@ pub fn review_worktree(
     let branch = task.branch.clone().unwrap_or_else(|| format!("work/{id}"));
 
     with_task_lock(store, id, || {
-        let cfg = store.load_config()?;
-        let deferred = matches!(cfg.delivery_mode(), crate::config::DeliveryMode::Deferred);
+        let ec = store.load_effective_config()?;
+        let deferred = matches!(ec.integrate.mode, crate::layered_fields::IntegrateMode::ForgePr);
         // SPEC §5: deferred mode hands the squash to a forge, so the PR
         // base must be unambiguous — an implicit "whatever's checked
         // out" target is rejected. Fail before any mutation. Per SPEC
         // §6.7, the resolution chain is `task.target_branch ??
-        // config.target_branch`; either being set satisfies the gate.
-        if deferred && task.target_branch.is_none() && cfg.target_branch.is_none() {
+        // legacy-repo.target_branch`; either being set satisfies the
+        // gate. XDG has no repo-level field, so only the per-task
+        // override unlocks deferred there.
+        if deferred && task.target_branch.is_none() && store.explicit_repo_target_branch()?.is_none() {
             return Err(BallError::Other(
                 "delivery.mode=deferred requires an explicit target_branch \
                  (per-task via `bl create --target-branch`, or repo-level \
@@ -135,8 +137,7 @@ pub fn review_worktree(
         }
         crate::review_safety::add_user_changes(&wt_path)?;
         let _ = git::git_commit(&wt_path, &format!("wip: {id}"));
-        let main_branch =
-            cfg.integration_branch_for(&store.root, task.target_branch.as_deref())?;
+        let main_branch = store.integration_branch_for(task.target_branch.as_deref())?;
         merge_or_fail(
             &wt_path,
             &main_branch,
@@ -149,7 +150,7 @@ pub fn review_worktree(
         // exactly the end-state about to be delivered — and before both
         // the deferred-mode push and the local squash, so a failure
         // never lands code on the integration branch (bl-1f38).
-        run_pre_check(cfg.review_pre_check(), &wt_path)?;
+        run_pre_check(ec.review.gate_command.as_deref(), &wt_path)?;
 
         if deferred {
             return crate::review_deferred::deferred_review(

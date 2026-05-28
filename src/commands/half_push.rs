@@ -52,7 +52,7 @@ pub fn detect_half_push(store: &Store) -> Result<Vec<String>> {
             targets.entry(id).or_insert(branch);
         }
     }
-    let repo_main = store.load_config()?.integration_branch(&store.root)?;
+    let repo_main = store.integration_branch()?;
     let repo_main_subjects = git_state::log_subjects(&store.root, &repo_main)?;
     let mut extra: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     let mut missing = Vec::new();

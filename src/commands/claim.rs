@@ -55,9 +55,7 @@ pub fn cmd_claim(
             &tokens,
             Rollback::DropClaim,
         )?;
-        let main_branch = store
-            .load_config()?
-            .integration_branch_for(&store.root, task.target_branch.as_deref())?;
+        let main_branch = store.integration_branch_for(task.target_branch.as_deref())?;
         let _ = balls::git::git_merge(&path, &main_branch);
         println!("{}", path.display());
     }

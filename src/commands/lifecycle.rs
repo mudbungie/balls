@@ -42,8 +42,8 @@ pub fn cmd_review(
         Ok((task_before, task))
     })?;
     let deferred = matches!(
-        store.load_config()?.delivery_mode(),
-        balls::config::DeliveryMode::Deferred
+        store.load_effective_config()?.integrate.mode,
+        balls::layered_fields::IntegrateMode::ForgePr
     );
     if deferred {
         println!("reviewed {id} (deferred) — gated until the forge PR merges");
@@ -87,10 +87,9 @@ pub fn cmd_close(
             // without a flag. Local-squash mode keeps the
             // explicit-opt-in default — single-repo closes stay
             // byte-identical.
-            let deferred = matches!(
-                cfg.as_ref().map(balls::config::Config::delivery_mode),
-                Some(balls::config::DeliveryMode::Deferred)
-            );
+            let deferred = cfg
+                .as_ref()
+                .is_some_and(|c| matches!(c.integrate.mode, balls::layered_fields::IntegrateMode::ForgePr));
             balls::review::close_worktree(
                 &store,
                 &id,
