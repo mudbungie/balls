@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "deferred",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-26T21:25:21.318330503Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1B: bl init XDG-only flip",
   "type": "task",
-  "updated_at": "2026-05-28T05:36:09.539772506Z"
+  "updated_at": "2026-05-28T06:18:44.175391728Z"
 }
