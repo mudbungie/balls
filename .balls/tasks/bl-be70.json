@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-be70",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-25T23:03:28.091796386Z",
@@ -13,10 +13,10 @@
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-25T23:03:29.344004475Z"},
   "tags": ["xdg"],
   "title": "Phase 1B-7: bl remaster + bl init --bare XDG-aware paths",
   "type": "task",
-  "updated_at": "2026-05-25T23:03:29.344013372Z"
+  "updated_at": "2026-05-28T04:21:38.859939425Z"
 }
