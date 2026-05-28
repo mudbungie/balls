@@ -74,8 +74,7 @@ pub fn close_worktree(
         // resolved hint to the state branch *before* `close_and_archive`
         // git-rm's the file, so archive recovery's pre-deletion blob
         // carries it — as local-squash mode persists it in `review`.
-        let cfg = store.load_config()?;
-        let target = cfg.integration_branch_for(&store.root, t.target_branch.as_deref())?;
+        let target = store.integration_branch_for(t.target_branch.as_deref())?;
         if crate::delivery::populate_on_close(
             &store.root,
             &target,

@@ -1,10 +1,11 @@
 use crate::clone_json::CloneJson;
 use crate::config::Config;
-use crate::config_blocks::{Delivery, DeliveryMode, ReviewConfig};
+use crate::effective_config::EffectiveConfig;
 use crate::encoding::nested_clone_path;
 use crate::error::{BallError, Result};
 use crate::project_config::ProjectConfig;
 use crate::git;
+use crate::store_effective;
 use crate::store_paths::find_main_root;
 use crate::task::{self, Task};
 use crate::xdg_discover;
@@ -143,74 +144,37 @@ impl Store {
         self.config_file_path.clone()
     }
 
-    /// The clone's repo config. Legacy: a real `.balls/config.json`.
-    /// XDG: synthesized from `repo.json` + `project.json` (defaults
-    /// fall through per SPEC-clone-layout §6.5) into a `Config` shape
-    /// so legacy callers stay unchanged through Phase 1B. Migrating
-    /// individual call sites to `EffectiveConfig` is follow-on work.
-    pub fn load_config(&self) -> Result<Config> {
-        match self.layout {
-            Layout::Legacy => Config::load(&self.config_path()),
-            Layout::Xdg => self.synthesize_xdg_config(),
-        }
+    /// Single seam for layered-field reads (SPEC §6.5). Replaces
+    /// the pre-Phase-1B-6 `load_config` + XDG `Config`-shaped
+    /// synthesizer pair. Under XDG, resolved from `repo.json` +
+    /// `project.json` + `clone.json` per the §6.5 merger. Under
+    /// Legacy, the on-disk `.balls/config.json` is adapted into the
+    /// post-XDG shape so callers stay layout-agnostic.
+    pub fn load_effective_config(&self) -> Result<EffectiveConfig> {
+        store_effective::load(self)
     }
 
-    fn synthesize_xdg_config(&self) -> Result<Config> {
-        use crate::layered_fields::IntegrateMode;
-        use crate::repo_json::RepoJson;
-        let repo = RepoJson::read_or_default(&self.config_path())?;
-        let project = ProjectConfig::resolve(&self.project_config_path(), Path::new(""))
-            .unwrap_or_default();
-        let delivery = repo
-            .integrate
-            .as_ref()
-            .or(project.integrate.as_ref())
-            .map(|integ| Delivery {
-                mode: match integ.mode {
-                    IntegrateMode::Direct => DeliveryMode::LocalSquash,
-                    IntegrateMode::ForgePr => DeliveryMode::Deferred,
-                },
-            });
-        let review = repo
-            .review
-            .as_ref()
-            .or(project.review.as_ref())
-            .map(|rev| ReviewConfig {
-                pre_check: rev.gate_command.clone(),
-            });
-        let cfg = Config {
-            stale_threshold_seconds: repo.stale_threshold_seconds,
-            auto_fetch_on_ready: repo.auto_fetch_on_ready,
-            worktree_dir: repo
-                .worktree_dir
-                .clone()
-                .unwrap_or_else(|| ".balls-worktrees".into()),
-            protected_main: repo.protected_main,
-            require_remote_on_claim: repo
-                .require_remote_on_claim
-                .or(project.require_remote_on_claim)
-                .unwrap_or(true),
-            require_remote_on_review: repo
-                .require_remote_on_review
-                .or(project.require_remote_on_review)
-                .unwrap_or(true),
-            require_remote_on_close: repo
-                .require_remote_on_close
-                .or(project.require_remote_on_close)
-                .unwrap_or(true),
-            // XDG: tracker address is the encoded-path layout, not
-            // config fields. Leave them None so the rest of the binary
-            // treats the clone as solo (own balls/tasks on origin).
-            state_url: None,
-            state_branch: None,
-            state_remote: None,
-            master_url: None,
-            target_branch: None,
-            delivery,
-            review,
-        };
-        cfg.validate()?;
-        Ok(cfg)
+    /// Resolved integration branch for a task with the given optional
+    /// per-task `target_branch`. Routes the full SPEC §6.7 chain
+    /// (`task.target_branch ?? legacy-repo.target_branch ?? HEAD@root`)
+    /// — the middle layer applies under Legacy only.
+    pub fn integration_branch_for(&self, task_target: Option<&str>) -> Result<String> {
+        store_effective::integration_branch_for(self, task_target)
+    }
+
+    /// Repo-level integration branch with no per-task override.
+    /// Shorthand for `integration_branch_for(None)`.
+    pub fn integration_branch(&self) -> Result<String> {
+        self.integration_branch_for(None)
+    }
+
+    /// Explicit repo-level `target_branch` override. Always `None`
+    /// under XDG (SPEC §6.7 removed the field); under Legacy returns
+    /// the parsed `Config::target_branch` when set. `bl review`
+    /// deferred mode consults this to validate that the PR base is
+    /// unambiguous before pushing the work branch.
+    pub fn explicit_repo_target_branch(&self) -> Result<Option<String>> {
+        store_effective::explicit_repo_target_branch(self)
     }
 
     pub fn project_config_path(&self) -> PathBuf {
@@ -242,10 +206,7 @@ impl Store {
         // the worktrees path — the layout is the layout (SPEC §13).
         match self.layout {
             Layout::Xdg => Ok(self.worktrees_root_path.clone()),
-            Layout::Legacy => {
-                let cfg = self.load_config()?;
-                Ok(self.root.join(cfg.worktree_dir))
-            }
+            Layout::Legacy => Ok(self.root.join(Config::load(&self.config_path())?.worktree_dir)),
         }
     }
 
@@ -291,6 +252,3 @@ impl Store {
 // (the SPEC §12 dual-read fallback) lives in `store_legacy.rs`. All
 // extracted to keep this file under the 300-line cap.
 
-#[cfg(test)]
-#[path = "store_synth_tests.rs"]
-mod synth_tests;

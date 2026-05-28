@@ -16,9 +16,9 @@ pub fn cmd_ready(json: bool, no_fetch: bool, limit: Option<usize>) -> Result<()>
         return Err(BallError::Other("--limit must be >= 1".into()));
     }
     let store = discover()?;
-    let cfg = store.load_config()?;
-    if cfg.auto_fetch_on_ready && !no_fetch {
-        maybe_auto_fetch(&store, cfg.stale_threshold_seconds);
+    let ec = store.load_effective_config()?;
+    if ec.auto_fetch_on_ready && !no_fetch {
+        maybe_auto_fetch(&store, ec.stale_threshold_seconds);
     }
     let tasks = store.all_tasks()?;
     let ready = ready::ready_queue(&tasks);

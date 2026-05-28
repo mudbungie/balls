@@ -152,7 +152,7 @@ pub fn commit_squash_and_flip(
     // `target_branch.is_some()` gate keeps the no-override path free of
     // the extra config/HEAD resolution.
     let target_marker = if had_delivery && t.target_branch.is_some() {
-        let repo_default = store.load_config()?.integration_branch(&store.root)?;
+        let repo_default = store.integration_branch()?;
         (main_branch != repo_default).then(|| main_branch.to_string())
     } else {
         None

@@ -168,10 +168,10 @@ fn no_sync_flag_overrides_repo_default() {
 fn default_off_claim_works_offline() {
     // The pre-XDG default for `require_remote_on_claim` was `false`,
     // so an offline claim went through without complaint. The XDG
-    // synthesizer (`store::synthesize_xdg_config`) defaults the field
-    // to `true` (SPEC §6.5 + `DEFAULT_REQUIRE_REMOTE = true`), so
-    // exercising the offline-claim path requires explicitly turning
-    // the policy off first.
+    // `EffectiveConfig` merger defaults the field to `true` (SPEC
+    // §6.5 + `DEFAULT_REQUIRE_REMOTE = true`), so exercising the
+    // offline-claim path requires explicitly turning the policy off
+    // first.
     let (_r, alice, _bob) = three_way();
     edit_and_commit_repo_config(alice.path(), "policy: require remote off", |j| {
         j["require_remote_on_claim"] = serde_json::Value::Bool(false);
