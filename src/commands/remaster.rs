@@ -1,17 +1,28 @@
-//! `bl remaster` — re-point the tracker address, or detach to standalone.
+//! `bl remaster` — write or remove the `.balls/tracker.json` redirect
+//! on the code repo's own `balls/tasks` branch checkout (SPEC §6.1).
 //!
-//! `bl remaster <url>` writes `state_url` into `.balls/config.json`
-//! and reconciles local-only tasks onto the new tracker (mechanics in
-//! `balls::remaster`). `--detach` clears the address and re-roots the
-//! state checkout. There is one address and one mechanism — no mode
-//! flip, no transplant (SPEC §8).
+//! Pre-XDG, remaster wrote `state_url` / `state_branch` to
+//! `.balls/config.json` on `main`. Post-XDG (Phase 1B-7), the redirect
+//! is a pointer-only `tracker.json` carried on the own `balls/tasks`
+//! branch checkout under `~/.local/state/balls/trackers/<enc-origin>/
+//! balls%2Ftasks/`. The federated tracker checkout under
+//! `trackers/<enc-state-url>/<enc-state-branch>/` is materialized by
+//! `Store::discover` on next run; this command only ever writes (or
+//! removes) the pointer file.
 
 use super::discover;
-use balls::config::Config;
+use balls::encoding::{canonicalize_origin, percent_encode_component};
 use balls::error::{BallError, Result};
-use balls::remaster::{self, Reconciled};
-use balls::{git, git_state, state_repo};
+use balls::repo_url;
+use balls::state_repo;
+use balls::store::{Layout, Store};
+use balls::tracker_json::TrackerJson;
+use balls::xdg_paths::{own_tracker_checkout, XdgBases};
+use balls::{git, git_state};
+use std::fs;
 use std::path::{Path, PathBuf};
+
+const TRACKER_REL: &str = ".balls/tracker.json";
 
 pub fn cmd_remaster(
     target: Option<String>,
@@ -24,120 +35,90 @@ pub fn cmd_remaster(
             "remaster --detach takes no TARGET (it goes standalone)".into(),
         ));
     }
-    let cwd = std::env::current_dir()?;
-    // Resolve the root with git plumbing only — `discover` hard-fails
-    // against an unreachable explicit tracker, and `--detach` must
-    // work in exactly that state.
-    let root = project_root(&cwd)?;
-    if !root.join(".balls/config.json").exists() {
-        return Err(BallError::Other(
-            "not a balls clone — run `bl init` before `bl remaster`".into(),
-        ));
-    }
+    let store = discover()?;
+    let own = require_xdg_own_checkout(&store)?;
+    let tj_path = own.join(TRACKER_REL);
     if detach {
-        return detach_path(&root);
+        return detach_redirect(&own, &tj_path, commit);
     }
     let target = target.ok_or_else(|| {
         BallError::Other("remaster needs a TARGET tracker URL (or use --detach)".into())
     })?;
-    remaster_to(&root, &target, branch.as_deref(), commit)
+    let url = resolve_target(&store.root, &target);
+    write_redirect(&own, &tj_path, &url, branch.as_deref(), commit)
 }
 
-/// `bl remaster <url> [--branch B]`: reconcile onto the new tracker
-/// (on `B`, default `balls/tasks`), then record the address.
-/// Reconcile runs first so a failed join leaves the committed address
-/// untouched. The branch is written into `config.json` BEFORE
-/// reconcile so `Store::discover` materializes `.balls/state-repo` on
-/// `B` rather than the previous branch.
-fn remaster_to(root: &Path, target: &str, branch: Option<&str>, commit: bool) -> Result<()> {
-    let url = resolve_target(root, target);
-    write_address(root, Some(&url), branch, commit)?;
-    let store = discover()?;
-    if store.no_git || store.stealth {
+/// Resolve the XDG own-checkout for this clone — `trackers/<enc-origin>/
+/// balls%2Ftasks/`. HOME, origin, and the own checkout's existence are
+/// guaranteed by `Store::discover` returning `Layout::Xdg` + non-stealth
+/// (the `xdg_discover` seam refuses to resolve XDG mode without all
+/// three), so the only invariants we recheck are the two user-facing
+/// ones: layout and stealth.
+fn require_xdg_own_checkout(store: &Store) -> Result<PathBuf> {
+    if store.layout != Layout::Xdg {
         return Err(BallError::Other(
-            "remaster requires a non-stealth git-backed repo".into(),
+            "bl remaster requires the XDG layout; run `bl migrate` first".into(),
         ));
     }
-    let outcome = remaster::reconcile(&store, &url)?;
-    match outcome {
-        Reconciled::Seeded => println!("remastered to `{url}` — seeded a fresh tracker"),
-        Reconciled::AlreadyUpToDate => println!("already up to date with `{url}`"),
-        Reconciled::Joined { replayed, renamed } => {
-            println!("joined `{url}`: {replayed} task(s) replayed, {renamed} renamed");
-        }
+    if store.stealth {
+        return Err(BallError::Other(
+            "bl remaster cannot operate on a stealth clone".into(),
+        ));
     }
-    Ok(())
+    let bases = XdgBases::from_env().expect("HOME set (xdg_discover guaranteed)");
+    let url = repo_url::origin_url(&store.root).expect("origin set (xdg_discover guaranteed)");
+    let enc_origin = percent_encode_component(&canonicalize_origin(&url));
+    Ok(own_tracker_checkout(&bases, &enc_origin))
 }
 
-/// `bl remaster --detach`: clear the address (reverting to the
-/// implicit code `origin`) and re-root the state checkout. Offline.
-/// Re-roots before clearing config so `detach()` can read the
-/// pre-change branch from the state checkout's HEAD.
-fn detach_path(root: &Path) -> Result<()> {
-    remaster::detach(root)?;
-    write_address(root, None, None, true)?;
-    println!(
-        "detached: cleared the tracker address; .balls/state-repo re-rooted \
-         as a standalone local store"
-    );
-    Ok(())
-}
-
-/// Write (or clear, when `url` is `None`) the tracker address in
-/// `.balls/config.json`, migrating the legacy `master_url` /
-/// `state_remote` fields away. A `Some(branch)` writes
-/// `state_branch`; `None` keeps the existing value on a remaster and
-/// clears it on a detach (the `url.is_none()` branch). `commit` also
-/// stages and commits it.
-fn write_address(
-    root: &Path,
-    url: Option<&str>,
+/// Write `tracker.json` on the own checkout. `--commit` stages and
+/// commits the file on `balls/tasks`; otherwise the change is left
+/// uncommitted so the user can inspect before publishing.
+fn write_redirect(
+    own: &Path,
+    tj_path: &Path,
+    url: &str,
     branch: Option<&str>,
     commit: bool,
 ) -> Result<()> {
-    let cfg_path = root.join(".balls/config.json");
-    let mut cfg = Config::load(&cfg_path)?;
-    cfg.state_url = url.map(str::to_string);
-    if url.is_none() {
-        cfg.state_branch = None;
-    } else if let Some(b) = branch {
-        cfg.state_branch = Some(b.to_string());
-    }
-    cfg.master_url = None;
-    cfg.state_remote = None;
-    cfg.save(&cfg_path)?;
-    // Retire the legacy pointer file once its content has folded in.
-    let pointer = root.join(".balls/master.json");
-    if pointer.exists() {
-        std::fs::remove_file(&pointer)?;
-    }
+    let tj = TrackerJson {
+        state_url: url.to_string(),
+        state_branch: branch.map(String::from),
+    };
+    fs::create_dir_all(tj_path.parent().expect(".balls/tracker.json has parent"))?;
+    fs::write(tj_path, tj.to_json()? + "\n")?;
     if commit {
-        git::git_add(root, &[Path::new(".balls/config.json")])?;
-        let msg = if url.is_some() {
-            "balls: remaster — set tracker address"
-        } else {
-            "balls: remaster --detach — standalone"
-        };
-        git::git_commit(root, msg)?;
+        git::git_add(own, &[Path::new(TRACKER_REL)])?;
+        git::git_commit(own, "balls: remaster — set tracker address")?;
     }
+    let state = if commit { "committed" } else { "wrote (uncommitted)" };
+    println!("{state} {TRACKER_REL} → {url}");
     Ok(())
 }
 
-/// A bare git-remote name is resolved to its URL; a URL/path is used
-/// as-is. The address stored in `config.json` is always a URL.
+/// Remove `tracker.json` from the own checkout. `--commit` records
+/// the removal on `balls/tasks`. A missing file is a no-op.
+fn detach_redirect(own: &Path, tj_path: &Path, commit: bool) -> Result<()> {
+    if !tj_path.exists() {
+        println!("already detached: no {TRACKER_REL} on balls/tasks");
+        return Ok(());
+    }
+    fs::remove_file(tj_path)?;
+    if commit {
+        git::git_add(own, &[Path::new(TRACKER_REL)])?;
+        git::git_commit(own, "balls: remaster --detach (standalone)")?;
+    }
+    let state = if commit { "committed" } else { "removed (uncommitted)" };
+    println!("{state} detach: cleared {TRACKER_REL}");
+    Ok(())
+}
+
+/// A bare git-remote name on the *code* repo is resolved to its URL;
+/// a URL or path is passed through. `tracker.json` always carries a
+/// URL, never a remote shortname.
 fn resolve_target(root: &Path, target: &str) -> String {
     if state_repo::looks_like_url(target) {
         return target.to_string();
     }
     git_state::remote_url(root, target).unwrap_or_else(|| target.to_string())
-}
-
-/// Resolve the clone root with git plumbing only.
-fn project_root(from: &Path) -> Result<PathBuf> {
-    let common = git::git_common_dir(from)?;
-    let canon = std::fs::canonicalize(&common).unwrap_or(common);
-    canon
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| BallError::Other("could not find the clone root".into()))
 }

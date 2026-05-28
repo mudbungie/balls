@@ -2,7 +2,9 @@
 
 use crate::state_repo::ensure;
 use crate::state_repo::test_support::{implicit, legacy_project};
+use crate::{git_state, git_test_support::git_run};
 use std::fs;
+use tempfile::TempDir;
 
 #[test]
 fn ensure_refuses_migration_with_uncommitted_legacy_worktree_state() {
@@ -31,4 +33,29 @@ fn ensure_refuses_migration_with_uncommitted_legacy_worktree_state() {
     let dir = ensure(root, &implicit()).unwrap();
     assert!(dir.join(".balls/tasks/bl-legacytask.json").exists());
     assert!(dir.join(".balls/tasks/bl-untracked.json").exists());
+}
+
+#[test]
+fn guard_allows_adoption_when_legacy_worktree_dir_is_absent() {
+    // A clone with `balls/tasks` on its own git but no `.balls/worktree`
+    // checkout — the in-flight state mid-migration, or a bare-cloned
+    // hub where the branch comes along without a working tree. The
+    // guard returns Ok early so `ensure` proceeds to the cold-path
+    // adoption.
+    let d = TempDir::new().unwrap();
+    let p = d.path();
+    git_run(p, &["init", "-q", "-b", "main"]);
+    git_run(p, &["config", "user.email", "t@e.x"]);
+    git_run(p, &["config", "user.name", "t"]);
+    fs::write(p.join("code.txt"), "x\n").unwrap();
+    git_run(p, &["add", "code.txt"]);
+    git_run(p, &["commit", "-qm", "code", "--no-verify"]);
+    git_state::create_orphan_branch(p, "balls/tasks", "balls state").unwrap();
+    assert!(!p.join(".balls/worktree").exists(), "no legacy worktree");
+
+    let dir = ensure(p, &implicit()).unwrap();
+    assert!(
+        dir.join(".git").exists(),
+        "state-repo materialized despite the missing legacy worktree"
+    );
 }

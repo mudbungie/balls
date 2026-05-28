@@ -136,28 +136,6 @@ pub fn show_file(dir: &Path, refname: &str, path: &str) -> Result<Option<String>
         .then(|| String::from_utf8_lossy(&out.stdout).to_string()))
 }
 
-/// Re-root `branch` (checked out in `dir`) as a fresh parentless
-/// commit carrying its current tree. The content is preserved; the
-/// shared ancestry with any tracker is severed, so the repo can no
-/// longer fast-forward into — or be pushed onto — the tracker. This
-/// is the history half of `bl remaster --detach` (the config half
-/// clears the tracker address). The worktree is reset to the new
-/// commit so HEAD and the index match.
-pub fn reroot_orphan(dir: &Path, branch: &str, message: &str) -> Result<()> {
-    let tree = run_git_ok(dir, &["rev-parse", &format!("{branch}^{{tree}}")])?
-        .trim()
-        .to_string();
-    let commit = run_git_ok(dir, &["commit-tree", &tree, "-m", message])?
-        .trim()
-        .to_string();
-    run_git_ok(
-        dir,
-        &["update-ref", &format!("refs/heads/{branch}"), &commit],
-    )?;
-    run_git_ok(dir, &["reset", "--hard", branch])?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

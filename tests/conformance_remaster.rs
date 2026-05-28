@@ -1,94 +1,149 @@
-//! SPEC-tracker-state §16 conformance — `bl remaster`.
+//! `bl remaster` — XDG-aware redirect-pointer writer (bl-be70).
 //!
-//! Tests 3, 9, 10: the address round-trips through `config.json`,
-//! `--detach` works offline against an unreachable tracker, and
-//! `bl remaster <url>` reconciles local-only tasks onto the target
-//! and is idempotent on a second run.
-//!
-//! Phase 1B (bl-213e) flipped `cmd_init` to XDG; `bl remaster` itself
-//! is still legacy-layout-only (Phase 1B-7 / bl-be70 makes it
-//! XDG-aware). Every test below uses `legacy_clone()` so the existing
-//! `bl remaster` path stays under test until its rewrite lands.
+//! Phase 1B-7 flipped `bl remaster` to write `.balls/tracker.json` on
+//! the code repo's own `balls/tasks` branch checkout (SPEC §6.1)
+//! rather than `state_url` on the legacy committed `.balls/config.json`.
+//! The federated tracker checkout under `trackers/<enc-state-url>/
+//! <enc-state-branch>/` is materialized by `Store::discover` on next
+//! run; this command only ever writes (or removes) the pointer.
 
 mod common;
 
-use common::tracker::*;
+use balls::encoding::{canonicalize_origin, percent_encode_component};
+use balls::tracker_json::TrackerJson;
+use balls::xdg_paths::own_tracker_checkout;
 use common::*;
+use predicates::prelude::*;
+use std::fs;
+use std::path::PathBuf;
 
-/// Test 3 — Address round-trip. `bl remaster <url>` writes `state_url`
-/// to `config.json`; `bl remaster --detach` removes it; with the field
-/// absent the address resolves to the implicit `(origin, balls/tasks)`.
-#[test]
-fn t3_address_round_trip_through_config() {
-    let tracker = new_tracker();
-    let home = tmp();
-    let (_r, ws, _u) = legacy_clone(home.path(), "ws");
-    assert_eq!(state_url(&ws), None, "fresh repo carries no address");
-
-    bl(&ws).args(["remaster", &url_of(&tracker)]).assert().success();
-    assert_eq!(
-        state_url(&ws).as_deref(),
-        Some(url_of(&tracker).as_str()),
-        "bl remaster <url> must write state_url into config.json"
-    );
-
-    bl(&ws).args(["remaster", "--detach"]).assert().success();
-    assert_eq!(
-        state_url(&ws),
-        None,
-        "bl remaster --detach must remove state_url from config.json"
-    );
-
-    // Address absent ⇒ the implicit default still drives a full repo.
-    create_task(&ws, "post-detach task");
-    bl(&ws).arg("ready").assert().success();
+/// Resolve the own-checkout `.balls/tracker.json` path for an XDG
+/// clone. The own checkout lives at
+/// `<state>/trackers/<enc-origin>/balls%2Ftasks/`.
+fn tracker_json_path(repo: &XdgRepo) -> PathBuf {
+    let url = repo.remote.path().to_string_lossy().into_owned();
+    let enc = percent_encode_component(&canonicalize_origin(&url));
+    let own = own_tracker_checkout(&test_xdg_bases(), &enc);
+    own.join(".balls/tracker.json")
 }
 
-/// Test 9 — Detach offline. `bl remaster --detach` against a tracker
-/// it cannot reach still succeeds, reverts the address, and leaves a
-/// working standalone store behind.
 #[test]
-fn t9_detach_offline_against_unreachable_tracker() {
-    let home = tmp();
-    let (_r, ws, _u) = legacy_clone(home.path(), "ws");
-    seed_config(&ws, &[("state_url", "/no/such/tracker/hub.git")]);
-    git(&ws, &["add", ".balls/config.json"]);
-    git(&ws, &["commit", "-qm", "wire state_url", "--no-verify"]);
+fn remaster_writes_tracker_json_on_own_balls_tasks() {
+    let xdg = new_xdg_repo();
+    let tracker_remote = new_bare_remote();
+    let tracker_url = tracker_remote.path().to_string_lossy().into_owned();
 
-    bl(&ws).args(["remaster", "--detach"]).assert().success();
-    assert_eq!(
-        state_url(&ws),
-        None,
-        "offline detach must still clear the address"
+    let tj = tracker_json_path(&xdg);
+    assert!(!tj.exists(), "fresh XDG clone carries no tracker.json");
+
+    bl(xdg.clone.path())
+        .args(["remaster", &tracker_url, "--commit"])
+        .assert()
+        .success();
+
+    let body = fs::read_to_string(&tj).expect("tracker.json written");
+    let parsed = TrackerJson::from_json(&body).expect("valid tracker.json");
+    assert_eq!(parsed.state_url, tracker_url);
+    assert_eq!(parsed.state_branch, None, "no --branch ⇒ default elided");
+
+    // `--commit` recorded the redirect on the orphan branch.
+    let own_log = git(
+        tj.parent().unwrap().parent().unwrap(),
+        &["log", "--format=%s", "balls/tasks"],
     );
-
-    // The repo is standalone again — a fresh lifecycle works offline.
-    bl(&ws).arg("prime").assert().success();
-    create_task(&ws, "post-detach offline task");
-    assert!(ws.join(".balls/state-repo/.git").exists());
+    assert!(
+        own_log.lines().any(|l| l.contains("remaster")),
+        "balls/tasks log must carry the remaster commit: {own_log}"
+    );
 }
 
-/// Test 10 — Reconcile. `bl remaster <url>` replays the clone's
-/// local-only tasks onto the target history; a second run against the
-/// same tracker is a no-op.
 #[test]
-fn t10_reconcile_replays_local_only_tasks() {
-    let tracker = new_tracker();
-    let home = tmp();
-    let (_r, ws, _u) = legacy_clone(home.path(), "ws");
-    let local = create_task(&ws, "local-only task");
+fn remaster_with_branch_records_state_branch() {
+    let xdg = new_xdg_repo();
+    let tracker_remote = new_bare_remote();
+    let tracker_url = tracker_remote.path().to_string_lossy().into_owned();
 
-    let first = bl(&ws).args(["remaster", &url_of(&tracker)]).assert().success();
-    let out = String::from_utf8(first.get_output().stdout.clone()).unwrap();
-    assert!(out.contains("replayed") || out.contains("joined"), "reconcile summary: {out}");
+    bl(xdg.clone.path())
+        .args(["remaster", &tracker_url, "--branch", "custom/state"])
+        .assert()
+        .success();
 
-    // The local-only task survived the join.
-    let listed = bl(&ws).arg("list").assert().success();
-    let listing = String::from_utf8(listed.get_output().stdout.clone()).unwrap();
-    assert!(listing.contains(&local), "local-only task must survive the reconcile: {listing}");
+    let tj = tracker_json_path(&xdg);
+    let parsed = TrackerJson::from_json(&fs::read_to_string(&tj).unwrap()).unwrap();
+    assert_eq!(parsed.state_url, tracker_url);
+    assert_eq!(parsed.state_branch.as_deref(), Some("custom/state"));
+}
 
-    // Second run against the same tracker is idempotent.
-    let second = bl(&ws).args(["remaster", &url_of(&tracker)]).assert().success();
-    let out2 = String::from_utf8(second.get_output().stdout.clone()).unwrap();
-    assert!(out2.contains("up to date"), "second remaster must be a no-op: {out2}");
+#[test]
+fn remaster_without_commit_leaves_change_uncommitted() {
+    let xdg = new_xdg_repo();
+    let tracker_remote = new_bare_remote();
+    let tracker_url = tracker_remote.path().to_string_lossy().into_owned();
+
+    bl(xdg.clone.path())
+        .args(["remaster", &tracker_url])
+        .assert()
+        .success();
+
+    let tj = tracker_json_path(&xdg);
+    assert!(tj.exists(), "file is written even without --commit");
+    let own = tj.parent().unwrap().parent().unwrap();
+    let status = git(own, &["status", "--porcelain"]);
+    assert!(
+        status.contains("tracker.json"),
+        "tracker.json must show as a dirty file when --commit is omitted: {status}"
+    );
+}
+
+#[test]
+fn detach_removes_tracker_json() {
+    let xdg = new_xdg_repo();
+    let tracker_remote = new_bare_remote();
+    let tracker_url = tracker_remote.path().to_string_lossy().into_owned();
+
+    bl(xdg.clone.path())
+        .args(["remaster", &tracker_url, "--commit"])
+        .assert()
+        .success();
+    let tj = tracker_json_path(&xdg);
+    assert!(tj.exists(), "remaster wrote tracker.json");
+
+    bl(xdg.clone.path())
+        .args(["remaster", "--detach", "--commit"])
+        .assert()
+        .success();
+    assert!(!tj.exists(), "detach removed tracker.json");
+
+    let own_log = git(
+        tj.parent().unwrap().parent().unwrap(),
+        &["log", "--format=%s", "balls/tasks"],
+    );
+    assert!(
+        own_log.lines().any(|l| l.contains("--detach")),
+        "detach must record a commit on balls/tasks: {own_log}"
+    );
+}
+
+#[test]
+fn detach_on_solo_clone_is_a_noop() {
+    let xdg = new_xdg_repo();
+    let tj = tracker_json_path(&xdg);
+    assert!(!tj.exists(), "fresh solo clone has no tracker.json");
+
+    bl(xdg.clone.path())
+        .args(["remaster", "--detach"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already detached"));
+    assert!(!tj.exists());
+}
+
+#[test]
+fn remaster_rejects_target_plus_detach() {
+    let xdg = new_xdg_repo();
+    bl(xdg.clone.path())
+        .args(["remaster", "https://example.com/x.git", "--detach"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--detach takes no TARGET"));
 }
