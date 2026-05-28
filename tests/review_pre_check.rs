@@ -12,7 +12,7 @@ use std::path::Path;
 
 /// Set `review.pre_check` in an already-initialized repo's config.
 fn set_pre_check(repo: &Path, cmd: &str) {
-    let p = repo.join(".balls/config.json");
+    let p = config_path(repo);
     let mut cfg: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
     cfg["review"] = serde_json::json!({ "pre_check": cmd });

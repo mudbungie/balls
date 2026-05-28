@@ -7,13 +7,9 @@ use common::multidev::*;
 use std::fs;
 
 fn flip_repo_policy_on(repo: &std::path::Path) {
-    let cfg_path = repo.join(".balls/config.json");
-    let cfg = fs::read_to_string(&cfg_path).unwrap();
-    let mut j: serde_json::Value = serde_json::from_str(&cfg).unwrap();
-    j["require_remote_on_claim"] = serde_json::Value::Bool(true);
-    fs::write(&cfg_path, serde_json::to_string_pretty(&j).unwrap()).unwrap();
-    git(repo, &["add", ".balls/config.json"]);
-    git(repo, &["commit", "-m", "policy: require remote on claim"]);
+    edit_and_commit_repo_config(repo, "policy: require remote on claim", |j| {
+        j["require_remote_on_claim"] = serde_json::Value::Bool(true);
+    });
 }
 
 #[test]
@@ -69,7 +65,7 @@ fn sync_flag_loses_to_earlier_claim() {
 
     // Bob has no worktree and no claim file.
     assert!(!worktree_path(bob.path(), &id).exists());
-    assert!(!bob.path().join(".balls/local/claims").join(&id).exists());
+    assert!(!claims_dir(bob.path()).join(&id).exists());
 }
 
 #[test]

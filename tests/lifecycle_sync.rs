@@ -5,7 +5,6 @@ mod common;
 
 use common::*;
 use common::multidev::*;
-use std::fs;
 
 #[test]
 fn review_sync_happy_path_pushes_state_branch_close_to_origin() {
@@ -156,16 +155,9 @@ fn repo_default_require_remote_on_review_drives_review_to_remote() {
     // Repo default `require_remote_on_review=true` makes review
     // round-trip the remote without --sync, and break loud offline.
     let (_r, alice, _bob) = three_way();
-    let cfg_path = alice.path().join(".balls/config.json");
-    let cfg = fs::read_to_string(&cfg_path).unwrap();
-    let mut j: serde_json::Value = serde_json::from_str(&cfg).unwrap();
-    j["require_remote_on_review"] = serde_json::Value::Bool(true);
-    fs::write(&cfg_path, serde_json::to_string_pretty(&j).unwrap()).unwrap();
-    git(alice.path(), &["add", ".balls/config.json"]);
-    git(
-        alice.path(),
-        &["commit", "-m", "policy: require remote on review"],
-    );
+    edit_and_commit_repo_config(alice.path(), "policy: require remote on review", |j| {
+        j["require_remote_on_review"] = serde_json::Value::Bool(true);
+    });
 
     let id = create_task(alice.path(), "policy review");
     bl(alice.path()).arg("sync").assert().success();

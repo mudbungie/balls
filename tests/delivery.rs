@@ -175,7 +175,7 @@ fn delivered_in_returns_none_after_main_reset_past_tag() {
         ],
     );
     std::fs::write(
-        repo.path().join(".balls/tasks").join(format!("{id}.json")),
+        discover_tasks_dir(repo.path()).join(format!("{id}.json")),
         content,
     )
     .unwrap();

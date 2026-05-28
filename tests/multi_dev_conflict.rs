@@ -74,12 +74,12 @@ fn story_51_two_workers_close_same_task() {
         .assert()
         .success();
     // Alice's close archived the task — file is gone
-    assert!(!alice.path().join(format!(".balls/tasks/{id}.json")).exists());
+    assert!(!discover_tasks_dir(alice.path()).join(format!("{id}.json")).exists());
 
     bl(alice.path()).arg("sync").assert().success();
     bl(bob.path()).arg("sync").assert().success();
     // Bob now sees the task is gone (archived by alice)
-    assert!(!bob.path().join(format!(".balls/tasks/{id}.json")).exists());
+    assert!(!discover_tasks_dir(bob.path()).join(format!("{id}.json")).exists());
 }
 
 #[test]
@@ -220,7 +220,7 @@ fn sync_resolve_command_on_single_file() {
     init_in(repo.path());
     let id = create_task(repo.path(), "r");
 
-    let path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
+    let path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let orig = std::fs::read_to_string(&path).unwrap();
     let ours = orig.replace("\"priority\": 3", "\"priority\": 1");
     let theirs = orig.replace("\"priority\": 3", "\"priority\": 2");
@@ -230,7 +230,8 @@ fn sync_resolve_command_on_single_file() {
     std::fs::write(&path, conflict).unwrap();
 
     bl(repo.path())
-        .args(["resolve", &format!(".balls/tasks/{id}.json")])
+        .args(["resolve"])
+        .arg(discover_tasks_dir(repo.path()).join(format!("{id}.json")))
         .assert()
         .success();
 

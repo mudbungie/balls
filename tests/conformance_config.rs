@@ -81,7 +81,7 @@ fn t6_plugin_config_rides_the_tracker_branch() {
         .success();
 
     // Per-clone plugin auth — must never leave the clone.
-    let auth = ws.path().join(".balls/local/plugins/github-issues");
+    let auth = plugins_auth_dir(ws.path()).join("github-issues");
     std::fs::create_dir_all(&auth).unwrap();
     std::fs::write(auth.join("token.json"), r#"{"token":"secret"}"#).unwrap();
 

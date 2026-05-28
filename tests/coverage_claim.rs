@@ -78,7 +78,7 @@ fn claim_task_already_claimed_by_another_repo() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "remote-claimed");
-    let task_path = repo.path().join(".balls/tasks").join(format!("{id}.json"));
+    let task_path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     let mut j: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&task_path).unwrap()).unwrap();
     j["claimed_by"] = serde_json::json!("remote-user");
@@ -121,7 +121,7 @@ fn claim_rolls_back_on_worktree_add_failure() {
     assert_eq!(j["status"], "open");
     assert!(j["claimed_by"].is_null());
     assert!(j["branch"].is_null());
-    assert!(!repo.path().join(".balls/local/claims").join(&id).exists());
+    assert!(!claims_dir(repo.path()).join(&id).exists());
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn claim_rejected_when_stale_claim_file_exists() {
     let repo = new_repo();
     init_in(repo.path());
     let id = create_task(repo.path(), "t");
-    let claim = repo.path().join(".balls/local/claims").join(&id);
+    let claim = claims_dir(repo.path()).join(&id);
     std::fs::create_dir_all(claim.parent().unwrap()).unwrap();
     std::fs::write(&claim, "worker=ghost\n").unwrap();
     bl(repo.path())
@@ -156,7 +156,7 @@ fn repair_removes_orphan_worktree() {
         .args(["claim", &id])
         .assert()
         .success();
-    let claim = repo.path().join(".balls/local/claims").join(&id);
+    let claim = claims_dir(repo.path()).join(&id);
     std::fs::remove_file(&claim).unwrap();
 
     let out = bl(repo.path())

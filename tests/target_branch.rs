@@ -68,7 +68,7 @@ fn review_squashes_into_configured_target_branch_not_checkout() {
         .args(["close", &id, "-m", "approved"])
         .assert()
         .success();
-    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{id}.json")).exists());
 }
 
 /// Unset `target_branch` is byte-identical to before the field: the
@@ -78,7 +78,7 @@ fn unset_target_branch_squashes_into_checkout() {
     let repo = new_repo();
     init_in(repo.path());
 
-    let cfg = fs::read_to_string(repo.path().join(".balls/config.json")).unwrap();
+    let cfg = fs::read_to_string(config_path(repo.path())).unwrap();
     assert!(
         !cfg.contains("target_branch"),
         "unset target_branch must not serialize: {cfg}"
@@ -226,7 +226,7 @@ fn per_task_target_branch_overrides_config_and_checkout() {
         .args(["close", &id, "-m", "approved"])
         .assert()
         .success();
-    assert!(!repo.path().join(format!(".balls/tasks/{id}.json")).exists());
+    assert!(!discover_tasks_dir(repo.path()).join(format!("{id}.json")).exists());
 }
 
 /// A task created without `--target-branch` must not serialize the
@@ -238,7 +238,7 @@ fn unset_per_task_target_branch_is_not_serialized() {
     init_in(repo.path());
     let id = create_task(repo.path(), "plain");
     let raw = fs::read_to_string(
-        repo.path().join(format!(".balls/tasks/{id}.json")),
+        discover_tasks_dir(repo.path()).join(format!("{id}.json")),
     )
     .unwrap();
     assert!(

@@ -233,7 +233,7 @@ fn sync_deleted_skips_already_closed() {
         .assert()
         .success();
 
-    let task_path = repo.path().join(format!(".balls/tasks/{id}.json"));
+    let task_path = discover_tasks_dir(repo.path()).join(format!("{id}.json"));
     if task_path.exists() {
         let task = read_task_json(repo.path(), &id);
         assert_ne!(
