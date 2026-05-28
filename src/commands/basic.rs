@@ -209,8 +209,7 @@ pub fn cmd_show(id: String, json: bool, verbose: bool, resolve_remote: bool) -> 
     // store can't answer (no-git, branch missing) there's nothing to
     // resolve a delivery against, so fall back to an empty result.
     let delivery = store
-        .load_config()
-        .and_then(|c| c.integration_branch_for(&store.root, task.target_branch.as_deref()))
+        .integration_branch_for(task.target_branch.as_deref())
         .map_or(balls::delivery::Delivery::default(), |b| {
             balls::delivery::resolve_with(
                 &store.root,

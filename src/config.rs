@@ -1,5 +1,4 @@
 use crate::error::{BallError, Result};
-use crate::git;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -147,40 +146,6 @@ impl Config {
         }
         fs::write(path, s + "\n")?;
         Ok(())
-    }
-
-    /// Resolve the integration branch — the single seam every consumer
-    /// (`bl review`'s squash, `bl sync`'s push, delivery-link and
-    /// half-push tag scans, `bl claim`'s worktree base) routes through.
-    /// Configured value wins; otherwise falls back to `HEAD@root`,
-    /// byte-identical to the implicit pre-field behavior.
-    pub fn integration_branch(&self, root: &Path) -> Result<String> {
-        match &self.target_branch {
-            Some(b) => Ok(b.clone()),
-            None => git::git_current_branch(root),
-        }
-    }
-
-    /// Resolve the effective integration branch for delivering one
-    /// specific task. A task's own `target_branch` is the per-task
-    /// override — the smallest unit that expresses git-flow's
-    /// hotfix→main vs feature→develop split without a parallel
-    /// "branch type" lifecycle. It wins outright; otherwise this
-    /// falls back to the repo-level `integration_branch()` seam. This
-    /// is the per-task analogue of that seam, so the full precedence
-    ///   `task.target_branch ?? config.target_branch ?? HEAD@root`
-    /// lives in exactly one place. Every consumer that delivers or
-    /// resolves a *single task* (review's squash, claim's worktree
-    /// catch-up, show's delivery scan) routes through here.
-    pub fn integration_branch_for(
-        &self,
-        root: &Path,
-        task_target: Option<&str>,
-    ) -> Result<String> {
-        match task_target {
-            Some(b) => Ok(b.to_string()),
-            None => self.integration_branch(root),
-        }
     }
 
     /// Resolved delivery mode (`None` block ⇒ `LocalSquash`). Single

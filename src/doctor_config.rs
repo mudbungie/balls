@@ -4,6 +4,7 @@
 //! `repo.json` / `project.json` pair. Stealth XDG clones have no
 //! tracker branch to validate against.
 
+use crate::config::Config;
 use crate::doctor::Finding;
 use crate::project_config::ProjectConfig;
 use crate::repo_json::RepoJson;
@@ -18,7 +19,7 @@ pub(crate) fn check_config(store: &Store, out: &mut Vec<Finding>) {
 }
 
 fn check_config_legacy(store: &Store, out: &mut Vec<Finding>) {
-    if let Err(e) = store.load_config() {
+    if let Err(e) = Config::load(&store.config_path()) {
         out.push(Finding::flag(
             format!("config at {} is unreadable: {e}", store.config_path().display()),
             "config.json is committed to main — restore it with \

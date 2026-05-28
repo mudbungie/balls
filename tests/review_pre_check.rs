@@ -12,8 +12,8 @@ use std::path::Path;
 
 /// Set the review gate command in an already-initialized repo's
 /// config. XDG repo.json names the field `review.gate_command` (the
-/// renamed `pre_check`); the synthesizer maps it back to the legacy
-/// `pre_check` for the load_config code path.
+/// renamed `pre_check`); `EffectiveConfig::review.gate_command` is
+/// what `bl review` reads.
 fn set_pre_check(repo: &Path, cmd: &str) {
     edit_and_commit_repo_config(repo, "review: set gate_command", |cfg| {
         cfg["review"] = serde_json::json!({ "gate_command": cmd });
