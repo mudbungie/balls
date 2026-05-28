@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "deferred",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-26T02:00:37.824838882Z"},
   "tags": ["demo","validation"],
   "title": "Phase 8: demonstration proof — core stories + recent big features end-to-end",
   "type": "task",
-  "updated_at": "2026-05-26T02:00:37.824841607Z"
+  "updated_at": "2026-05-28T06:18:46.122455829Z"
 }
