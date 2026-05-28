@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c122",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-25T23:03:09.471381412Z",
@@ -13,10 +13,10 @@
   "parent": "bl-e802",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-25T23:10:48.705881917Z"},
   "tags": ["architecture","xdg"],
   "title": "Phase 1B-6: migrate load_config call sites to EffectiveConfig (retire the XDG synthesizer)",
   "type": "task",
-  "updated_at": "2026-05-25T23:10:48.705886876Z"
+  "updated_at": "2026-05-28T04:21:26.111821505Z"
 }
