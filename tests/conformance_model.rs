@@ -53,6 +53,7 @@ fn t1_default_is_the_model() {
 /// for both a default-address repo and an explicit-`state_url` repo,
 /// with no `.balls/worktree` and no mode flag in either.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): the explicit-`state_url` half routes through legacy bl remaster, retired in favor of XDG `.balls/tracker.json`; SPEC-clone-layout §6.1 supersedes the SPEC-tracker-state model this test exercises"]
 fn t2_one_checkout_both_addresses() {
     let home = tmp();
     // Default address.
@@ -76,6 +77,7 @@ fn t2_one_checkout_both_addresses() {
 /// back to its own git's `.balls/worktree` — which is exactly what a
 /// pre-spec binary, ignorant of the field, would do.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): legacy `state_url` set via `bl remaster` writing `.balls/config.json` is retired; SPEC-clone-layout §6.1 replaces it with `.balls/tracker.json` on the own balls/tasks branch"]
 fn t13_state_url_routes_to_tracker_not_local_worktree() {
     let tracker = new_tracker();
     let home = tmp();

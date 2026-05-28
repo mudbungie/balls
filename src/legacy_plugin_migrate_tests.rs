@@ -162,6 +162,20 @@ fn legacy_paths_in_head_returns_empty_on_an_unborn_head() {
 }
 
 #[test]
+fn run_in_a_bare_clone_is_a_noop() {
+    // `shape_supports_commit` refuses bare clones — they have no
+    // working tree to host the migration commit. The clone shape
+    // mirrors `bl init --bare`'s output: `<clone>/.git` with
+    // `core.bare=true`. The bare path receives its copy of the commit
+    // via a downstream clone's push instead.
+    let d = TempDir::new().unwrap();
+    let p = d.path();
+    init_repo(p);
+    git_run(p, &["config", "core.bare", "true"]);
+    run(p).unwrap();
+}
+
+#[test]
 fn state_repo_ensure_drives_the_migration_on_a_legacy_clone() {
     // bl-de57 wiring check: `state_repo::ensure`, the cold-path
     // entry, calls `run` so a legacy clone migrates without an

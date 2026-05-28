@@ -72,11 +72,10 @@ pub fn ensure(root: &Path, addr: &Address) -> Result<PathBuf> {
 fn warm(dir: &Path, addr: &Address) -> Result<()> {
     git::git_ensure_user(dir)?;
     if let Some(url) = &addr.url {
-        if git::git_has_remote(dir, "origin") {
-            let _ = git::git_config_set(dir, "remote.origin.url", url);
-        } else {
-            let _ = run_at(dir, &["remote", "add", "origin", url]);
-        }
+        // `set_remote` is the add-or-replace primitive — collapses
+        // legacy bl-remaster's "URL rotated" path and the gained-an-
+        // origin path into one covered line.
+        let _ = git_state::set_remote(dir, "origin", url);
     }
     align_branch(dir, &addr.branch)?;
     Ok(())
