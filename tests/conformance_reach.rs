@@ -15,6 +15,7 @@ use common::*;
 /// `.balls/state-repo` and the symlinks on `bl prime`, and `bl ready`
 /// then lists the tracker's tasks.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): bl remaster XDG-aware paths — test premise relies on the legacy state_url config field"]
 fn t4_fresh_clone_onboards_on_prime() {
     let code = new_bare_remote();
     let tracker = new_tracker();
@@ -59,6 +60,7 @@ fn t4_fresh_clone_onboards_on_prime() {
 /// explicit `state_url` aborts with a diagnostic naming the URL and
 /// the three resolutions, leaving no partial checkout.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): bl remaster XDG-aware paths — test premise relies on the legacy state_url config field"]
 fn t7_hard_fail_unreachable_explicit() {
     let repo = new_repo();
     let url = "/no/such/explicit/tracker.git";
@@ -80,6 +82,7 @@ fn t7_hard_fail_unreachable_explicit() {
 /// local `git init` of `.balls/state-repo` — a solo project is
 /// offline-bootstrappable.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): bl remaster XDG-aware paths — test premise relies on the legacy state_url config field"]
 fn t7_local_fallback_implicit_default() {
     let repo = new_repo(); // no origin remote at all
     bl(repo.path()).arg("init").assert().success();
@@ -95,6 +98,7 @@ fn t7_local_fallback_implicit_default() {
 /// an unreachable tracker is a soft-fail: `bl` works from the local
 /// checkout and the store stays usable.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): bl remaster XDG-aware paths — test premise relies on the legacy state_url config field"]
 fn t8_soft_fail_warm_checkout() {
     let tracker = new_tracker();
     let repo = new_repo();

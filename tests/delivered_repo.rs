@@ -41,10 +41,12 @@ fn local_squash_review_tags_delivered_repo_with_origin_url() {
 
 /// No `origin` configured: provenance falls back to the basename, the
 /// same fallback chain `task.repo` uses (`balls::repo_url::current`).
+/// XDG `bl init` requires `origin`, so the no-origin scenario uses
+/// stealth — the basename fallback runs the same code path.
 #[test]
 fn local_squash_review_falls_back_to_basename_without_origin() {
-    let repo = new_repo();
-    init_in(repo.path());
+    let repo = new_repo_no_origin();
+    bl(repo.path()).args(["init", "--stealth"]).assert().success();
     let id = create_task(repo.path(), "no-origin");
     claim_and_seed(repo.path(), &id);
     bl(repo.path())

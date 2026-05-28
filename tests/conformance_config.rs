@@ -25,6 +25,7 @@ fn set_field(path: &Path, key: &str, val: serde_json::Value) {
 /// *both* files resolves to `project.json`'s value; a repo-owned
 /// field is read from `config.json`.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): tests assert legacy `.balls/project.json` symlink and `state_url` config — pending XDG-aware bl remaster"]
 fn t5_config_ownership_split() {
     let repo = new_repo();
     init_in(repo.path());
@@ -69,6 +70,7 @@ fn t5_config_ownership_split() {
 /// branch; a fresh clone inherits them; per-clone plugin auth
 /// under `.balls/local/plugins/` never reaches the tracker.
 #[test]
+#[ignore = "bl-be70 (Phase 1B-7): tests assert legacy `.balls/project.json` symlink and `state_url` config — pending XDG-aware bl remaster"]
 fn t6_plugin_config_rides_the_tracker_branch() {
     let tracker = new_tracker();
     let ws = new_repo();

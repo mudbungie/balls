@@ -78,3 +78,43 @@ fn stealth_leaves_an_existing_gitkeep_intact() {
 
     assert_eq!(fs::read_to_string(&keep).unwrap(), "sentinel");
 }
+
+#[test]
+fn store_init_legacy_rejects_relative_tasks_dir() {
+    // `Store::init` (legacy) is now only called from in-source tests
+    // and the migration fixtures (production routes through
+    // `Store::init_xdg`). The argument-validation guard for a
+    // relative --tasks-dir still lives in the legacy entry point and
+    // would otherwise go uncovered.
+    let td = TempDir::new().unwrap();
+    let res = crate::store::Store::init(td.path(), true, Some("rel/path".into()));
+    let err = res.err().expect("relative --tasks-dir must error");
+    assert!(format!("{err}").contains("must be an absolute path"), "got: {err}");
+}
+
+#[test]
+fn store_init_legacy_stealth_without_tasks_dir_uses_sha_path() {
+    // Legacy `Store::init` with --stealth and no --tasks-dir derives
+    // the tasks dir from sha1(canon(root)) under HOME (the on-disk
+    // contract documented on `stealth_tasks_dir`). Production code
+    // (post-XDG) routes through `init_xdg`, so this path is unit-
+    // tested directly to keep the legacy code under coverage.
+    let td = TempDir::new().unwrap();
+    init_repo(td.path());
+    let store = crate::store::Store::init(td.path(), true, None).unwrap();
+    assert!(store.stealth);
+    let canon = fs::canonicalize(td.path()).unwrap();
+    let expected = crate::store_paths::stealth_tasks_dir(&canon);
+    assert_eq!(store.tasks_dir(), expected);
+}
+
+#[test]
+fn store_init_legacy_no_git_without_tasks_dir_errors() {
+    // Outside a git repo, legacy `Store::init` requires --tasks-dir to
+    // pick the stealth branch. With neither --stealth nor --tasks-dir,
+    // the `git_root` lookup errors and bubbles up.
+    let td = TempDir::new().unwrap();
+    let res = crate::store::Store::init(td.path(), false, None);
+    let err = res.err().expect("no-git non-stealth init must error");
+    assert!(matches!(err, crate::error::BallError::NotARepo), "got: {err:?}");
+}

@@ -2,23 +2,25 @@
 //! tool-mechanized form of README *Bootstrapping a bare clone from
 //! scratch* steps 2–3 (bl-9e8a). Idempotent and non-destructive,
 //! exactly like the working-tree `bl init`.
+//!
+//! Phase 1B (bl-213e) flipped `cmd_init` to XDG; `bl init --bare`
+//! itself is still legacy-layout-only (Phase 1B-7 / bl-be70 makes it
+//! XDG-aware). The fixture publishes a legacy clone via
+//! `legacy_clone()` so the existing bare-bootstrap code path stays
+//! under test until its rewrite lands.
 
 mod common;
 
 use common::*;
 use predicates::prelude::*;
 
-/// Stand up a published project on a bare remote: a working clone runs
-/// `bl init` (creating + pushing `balls/tasks` and committing
-/// `config.json` to main), adds a task, and pushes everything. Returns
-/// the remote plus the created task's title.
+/// Stand up a published legacy project on a bare remote, with one
+/// task already filed. Returns the remote plus the task's title.
 fn published_remote() -> (Repo, String) {
-    let remote = new_bare_remote();
-    let dev = clone_from_remote(remote.path(), "alice");
-    bl(dev.path()).arg("init").assert().success();
-    push(dev.path());
-    let _id = create_task(dev.path(), "clone task");
-    push(dev.path());
+    let home = tmp();
+    let (remote, clone, _url) = legacy_clone(home.path(), "alice");
+    let _ = create_task(&clone, "clone task");
+    push(&clone);
     (remote, "clone task".to_string())
 }
 
