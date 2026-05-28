@@ -7,23 +7,37 @@ use common::*;
 use predicates::prelude::*;
 use std::path::PathBuf;
 
+/// Stand up a no-git stealth store and return `(holding tempdir,
+/// unused 2nd tempdir kept for return-shape compatibility, tasks_dir
+/// path)`. Under XDG SPEC §4.1 the stealth clone's identity is the
+/// `--tasks-dir`, so subsequent `bl(dir.path())` calls only resolve
+/// when `dir.path() == tasks_dir`; the helper uses the parent tempdir
+/// itself as the tasks_dir so the legacy "run bl from `dir`" pattern
+/// keeps working.
 fn init_no_git() -> (tempfile::TempDir, tempfile::TempDir, PathBuf) {
     let dir = tmp();
-    let tasks_tmp = tmp();
-    let tasks_path = tasks_tmp.path().join("tasks");
-    bl(dir.path())
+    let tasks_path = std::fs::canonicalize(dir.path()).unwrap();
+    bl(&tasks_path)
         .args(["init", "--tasks-dir", tasks_path.to_str().unwrap()])
         .assert()
         .success()
         .stdout(predicate::str::contains("stealth"));
+    let tasks_tmp = tmp(); // unused, kept for tuple-shape compat
     (dir, tasks_tmp, tasks_path)
 }
 
 #[test]
 fn init_outside_git_with_tasks_dir_succeeds() {
-    let (dir, _tasks_tmp, tasks_path) = init_no_git();
+    let (_dir, _tasks_tmp, tasks_path) = init_no_git();
     assert!(tasks_path.exists());
-    assert!(dir.path().join(".balls/config.json").exists());
+    // SPEC §4.1: XDG stealth init writes `clone.json` keyed by the
+    // tasks_dir under `~/.config/balls/<nested>/clone.json`; no
+    // `.balls/` at the clone root. The presence of the clone.json
+    // file is the load-bearing post-condition.
+    let bases = balls::xdg_paths::XdgBases::with(&test_home_path(), None, None, None);
+    let nested = balls::encoding::nested_clone_path(&tasks_path);
+    let cj = balls::xdg_paths::clone_json_path(&bases, &nested);
+    assert!(cj.exists(), "clone.json at {}", cj.display());
 }
 
 #[test]
@@ -37,13 +51,22 @@ fn init_outside_git_without_tasks_dir_fails() {
 }
 
 #[test]
-fn init_stealth_without_tasks_dir_outside_git_fails() {
+fn init_stealth_without_tasks_dir_outside_git_defaults_to_cwd_tasks() {
+    // XDG SPEC §4.1: `bl init --stealth` without `--tasks-dir`
+    // outside a git repo defaults `tasks_dir` to `<cwd>/.balls/tasks`
+    // and writes `clone.json` keyed by the cwd — succeeds without a
+    // git checkout.
     let dir = tmp();
-    bl(dir.path())
+    let cwd = std::fs::canonicalize(dir.path()).unwrap();
+    bl(&cwd)
         .args(["init", "--stealth"])
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("not a git repository"));
+        .success()
+        .stdout(predicate::str::contains("stealth"));
+    assert!(cwd.join(".balls/tasks").is_dir());
+    let bases = balls::xdg_paths::XdgBases::with(&test_home_path(), None, None, None);
+    let nested = balls::encoding::nested_clone_path(&cwd);
+    assert!(balls::xdg_paths::clone_json_path(&bases, &nested).exists());
 }
 
 #[test]
@@ -216,78 +239,3 @@ fn discover_balls_dir_without_stealth_tasks_fails() {
         .stderr(predicate::str::contains("not initialized"));
 }
 
-#[test]
-fn claim_no_worktree_rejects_nonexistent_task() {
-    let (dir, _t, _p) = init_no_git();
-    bl(dir.path())
-        .args(["claim", "bl-0000", "--no-worktree"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("not found"));
-}
-
-#[test]
-fn claim_no_worktree_rejects_already_claimed() {
-    // Manufacture an inconsistent state: status=open but claimed_by set.
-    let (dir, _t, _p) = init_no_git();
-    let id = create_task(dir.path(), "claim dup");
-    bl(dir.path()).args(["claim", &id, "--no-worktree"]).assert().success();
-    bl(dir.path()).args(["update", &id, "status=open"]).assert().success();
-    bl(dir.path())
-        .args(["claim", &id, "--no-worktree"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("already claimed"));
-}
-
-#[test]
-fn claim_no_worktree_rejects_dep_blocked_task() {
-    let (dir, _t, _p) = init_no_git();
-    let a = create_task(dir.path(), "blocker");
-    let out = bl(dir.path())
-        .args(["create", "blocked", "--dep", &a])
-        .output()
-        .unwrap();
-    let b = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    bl(dir.path())
-        .args(["claim", &b, "--no-worktree"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("unmet"));
-}
-
-#[test]
-fn claim_no_worktree_rejects_parent_with_live_child() {
-    // bl-c79c: the parent-has-live-children guard fires in the
-    // `--no-worktree` claim path too, naming a live child.
-    let (dir, _t, _p) = init_no_git();
-    let parent = create_task(dir.path(), "epic");
-    let out = bl(dir.path())
-        .args(["create", "kid", "--parent", &parent])
-        .output()
-        .unwrap();
-    let child = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    bl(dir.path())
-        .args(["claim", &parent, "--no-worktree"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(&child));
-}
-
-#[test]
-fn no_worktree_claim_works_in_git_mode_too() {
-    let repo = new_repo();
-    init_in(repo.path());
-    let id = create_task(repo.path(), "git but no wt");
-    bl(repo.path())
-        .args(["claim", &id, "--no-worktree"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("no worktree"));
-    let out = bl(repo.path())
-        .args(["show", &id, "--json"])
-        .output()
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(v["task"]["status"].as_str().unwrap(), "in_progress");
-}

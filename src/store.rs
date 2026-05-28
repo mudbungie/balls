@@ -116,16 +116,11 @@ impl Store {
         self.clone_json.as_ref()
     }
 
-    /// SPEC-clone-layout §3 — `~/.cache/balls/<nested-clone-path>/`,
-    /// the reserved home for derived/regenerable per-clone artifacts.
-    /// `last_fetch` (bl-5814) is the first concrete consumer; future
-    /// markers opt in individually. Honors `XDG_CACHE_HOME`. Callers
-    /// create the directory lazily on first write.
-    ///
-    /// When `HOME` and `XDG_CACHE_HOME` are both unset the accessor
-    /// roots at the clone — the marker still works, it just doesn't
-    /// land in the spec-named slot. The single caller already swallows
-    /// write failures.
+    /// SPEC §3 cache root: `~/.cache/balls/<nested-clone-path>/`,
+    /// honoring `XDG_CACHE_HOME`. Used for regenerable per-clone
+    /// markers (`last_fetch`, bl-5814). When `HOME`/`XDG_CACHE_HOME`
+    /// are both unset, roots at the clone; the marker still works.
+    /// Callers create the directory lazily on first write.
     pub fn cache_dir(&self) -> PathBuf {
         let bases = XdgBases::from_env()
             .unwrap_or_else(|| XdgBases::with(&self.root, None, None, None));
@@ -229,11 +224,15 @@ impl Store {
         ProjectConfig::resolve(&self.project_config_path(), &self.config_path())
     }
 
-    /// Root that a plugin's `config_file` path is joined against. The
-    /// `.balls/plugins` symlink redirects into the state checkout, so
-    /// the clone root always works.
+    /// Root that a plugin's `config_file` path is joined against.
+    /// Legacy: the clone root (`.balls/plugins` symlink → state
+    /// checkout). XDG: the tracker checkout (no `.balls/` lives at
+    /// the clone root, SPEC §14.1).
     pub fn plugin_config_root(&self) -> PathBuf {
-        self.root.clone()
+        match self.layout {
+            Layout::Legacy => self.root.clone(),
+            Layout::Xdg => self.state_repo_path.clone(),
+        }
     }
 
     pub fn worktrees_root(&self) -> Result<PathBuf> {

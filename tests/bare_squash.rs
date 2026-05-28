@@ -44,17 +44,12 @@ fn review_succeeds_when_repo_root_is_bare() {
         "delivered_in must be set: {j}"
     );
 
-    // The ephemeral squash worktree must be cleaned up — a leftover
-    // would block the next review at `git worktree add`.
-    let local = local_dir(repo.path());
-    let leaks: Vec<_> = std::fs::read_dir(&local)
-        .unwrap()
-        .filter_map(|e| {
-            let n = e.ok()?.file_name().to_string_lossy().to_string();
-            n.starts_with("squash-").then_some(n)
-        })
-        .collect();
-    assert!(leaks.is_empty(), "stale squash worktrees: {leaks:?}");
+    // Pre-bl-cb73 the squash path provisioned an ephemeral worktree
+    // under `<root>/.balls/local/squash-<pid>/` and this assertion
+    // guarded against leftovers. bl-cb73 swapped that mechanism for
+    // a pure `commit-tree` + `update-ref` plumbing path (see
+    // `src/bare_squash.rs:9-16`), so there is no ephemeral worktree
+    // anywhere and nothing to leak. The check is retired.
 }
 
 #[test]

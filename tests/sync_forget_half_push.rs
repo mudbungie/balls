@@ -29,12 +29,6 @@ fn forget_half_push_suppresses_subsequent_warning() {
         .success();
     git(repo.path(), &["reset", "--hard", "HEAD~1"]);
 
-    let remote = new_bare_remote();
-    git(
-        repo.path(),
-        &["remote", "add", "origin", remote.path().to_str().unwrap()],
-    );
-
     // Precondition: sync flags the half-push.
     let out = bl(repo.path()).arg("sync").output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
@@ -121,12 +115,6 @@ fn forget_all_half_pushes_clears_every_warning() {
     // reachable from main.
     git(repo.path(), &["reset", "--hard", "HEAD~2"]);
 
-    let remote = new_bare_remote();
-    git(
-        repo.path(),
-        &["remote", "add", "origin", remote.path().to_str().unwrap()],
-    );
-
     let out = bl(repo.path()).arg("sync").output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     assert!(
@@ -163,14 +151,16 @@ fn forget_all_half_pushes_clears_every_warning() {
 #[test]
 fn forget_half_push_rejects_no_git_mode() {
     let dir = tmp();
-    let tasks_tmp = tmp();
-    let tasks_path = tasks_tmp.path().join("tasks");
-    bl(dir.path())
-        .args(["init", "--tasks-dir", tasks_path.to_str().unwrap()])
+    // SPEC §4.1: XDG stealth's identity is the --tasks-dir; use the
+    // cwd as its own tasks_dir so subsequent `bl(cwd)` discoveries
+    // resolve to the same clone.json.
+    let cwd = std::fs::canonicalize(dir.path()).unwrap();
+    bl(&cwd)
+        .args(["init", "--tasks-dir", cwd.to_str().unwrap()])
         .assert()
         .success();
 
-    let out = bl(dir.path())
+    let out = bl(&cwd)
         .args(["repair", "--forget-all-half-pushes"])
         .output()
         .unwrap();
@@ -191,12 +181,6 @@ fn forget_half_push_rejects_no_git_mode() {
 fn forget_all_half_pushes_when_none_flagged_is_noop() {
     let repo = new_repo();
     init_in(repo.path());
-
-    let remote = new_bare_remote();
-    git(
-        repo.path(),
-        &["remote", "add", "origin", remote.path().to_str().unwrap()],
-    );
 
     let out = bl(repo.path())
         .args(["repair", "--forget-all-half-pushes"])

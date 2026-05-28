@@ -16,23 +16,35 @@ mod paths;
 pub mod plugin;
 pub mod tracker;
 pub mod xdg_init;
+mod xdg_repo;
 
-pub use cmd::{bl, bl_as, bl_bin, create_task, create_task_full, doctor, init_in, show_json};
+pub use cmd::{
+    bl, bl_as, bl_bin, create_task, create_task_full, doctor, init_in,
+    set_default_target_branch, show_json,
+};
 pub use config_seed::{edit_and_commit_repo_config, seed_config, set_project_plugins};
 pub use migrate::legacy_clone;
 pub use paths::{
     cache_dir, cache_last_fetch, claims_dir, config_path, discover_state_repo, discover_tasks_dir,
-    local_dir, lock_dir, per_clone_paths, plugins_auth_dir, worktree_path, worktrees_dir,
+    local_dir, lock_dir, per_clone_paths, plugin_config_root, plugins_auth_dir,
+    project_config_path, worktree_path, worktrees_dir,
 };
+pub use xdg_repo::{new_xdg_repo, XdgRepo};
 
 use balls::git::clean_git_command;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 /// A pair of (temp dir, repo root path). The TempDir must be kept alive to
-/// prevent cleanup.
+/// prevent cleanup. Optionally keeps a sibling bare remote alive so
+/// `Repo::path()` has a reachable `origin` — XDG `bl init` requires one.
 pub struct Repo {
     pub dir: TempDir,
+    /// A bare remote pointed at by `origin`. Kept alive for the
+    /// lifetime of the `Repo` so the tracker URL stays resolvable.
+    /// `None` for bare/no-origin fixtures.
+    #[allow(dead_code)]
+    pub origin_remote: Option<TempDir>,
 }
 
 impl Repo {
@@ -103,21 +115,48 @@ pub fn git_ok(cwd: &Path, args: &[&str]) -> bool {
 }
 
 /// Initialize a fresh git repo at a temp path with a configured user and
-/// initial branch "main".
+/// initial branch "main". Wires a bare `origin` remote at a sibling
+/// tempdir — XDG `bl init` requires an origin URL to derive the tracker
+/// address — and seeds a commit on `main` so HEAD is valid (XDG init no
+/// longer writes the legacy "balls: initialize" seed). The remote stays
+/// alive on the returned `Repo`.
 pub fn new_repo() -> Repo {
     let dir = tmp();
     git(dir.path(), &["init", "-q", "-b", "main"]);
     git(dir.path(), &["config", "user.email", "dev@example.com"]);
     git(dir.path(), &["config", "user.name", "Test Dev"]);
     git(dir.path(), &["config", "commit.gpgsign", "false"]);
-    Repo { dir }
+    let remote = tmp();
+    git(remote.path(), &["init", "-q", "--bare", "-b", "main"]);
+    git(
+        dir.path(),
+        &["remote", "add", "origin", &remote.path().to_string_lossy()],
+    );
+    git(dir.path(), &["commit", "--allow-empty", "-qm", "seed", "--no-verify"]);
+    git(dir.path(), &["push", "-q", "origin", "main"]);
+    Repo { dir, origin_remote: Some(remote) }
 }
 
 /// Create a bare repository at a temp path to act as a remote.
 pub fn new_bare_remote() -> Repo {
     let dir = tmp();
     git(dir.path(), &["init", "-q", "--bare", "-b", "main"]);
-    Repo { dir }
+    Repo { dir, origin_remote: None }
+}
+
+/// Like [`new_repo`] but with no `origin` remote wired. Tests that
+/// specifically exercise the "no origin" provenance path (`repo` field
+/// is null at create) use this — the default `new_repo` always wires
+/// origin so XDG `bl init` has a tracker address. Callers must use
+/// `--stealth` or add origin themselves before running `bl init`.
+pub fn new_repo_no_origin() -> Repo {
+    let dir = tmp();
+    git(dir.path(), &["init", "-q", "-b", "main"]);
+    git(dir.path(), &["config", "user.email", "dev@example.com"]);
+    git(dir.path(), &["config", "user.name", "Test Dev"]);
+    git(dir.path(), &["config", "commit.gpgsign", "false"]);
+    git(dir.path(), &["commit", "--allow-empty", "-qm", "seed", "--no-verify"]);
+    Repo { dir, origin_remote: None }
 }
 
 /// Clone a bare remote into a fresh temp dir as a developer clone.
@@ -163,7 +202,15 @@ pub fn clone_from_remote(remote: &Path, name: &str) -> Repo {
     );
     git(dir.path(), &["config", "user.name", name]);
     git(dir.path(), &["config", "commit.gpgsign", "false"]);
-    Repo { dir }
+    // Seed `main` if the remote was empty so tests that push or
+    // rev-parse HEAD on the clone do not trip on an unborn branch.
+    // XDG bl init no longer writes any commit on `main` (SPEC §14.19),
+    // so the empty-remote test path used to inherit `bl init`'s
+    // "initial commit" seed and now needs an explicit one.
+    if !git_ok(dir.path(), &["rev-parse", "--verify", "--quiet", "refs/heads/main"]) {
+        git(dir.path(), &["commit", "--allow-empty", "-qm", "seed", "--no-verify"]);
+    }
+    Repo { dir, origin_remote: None }
 }
 
 /// Read and JSON-parse a task file directly from the store. Layout-
@@ -236,40 +283,5 @@ pub fn set_core_bare(repo_root: &Path) {
     git(repo_root, &["config", "core.bare", "true"]);
 }
 
-/// XDG-initialized clone backed by a fresh bare remote. Owning both
-/// the clone and the remote keeps the remote's tempdir alive for the
-/// lifetime of the fixture.
-pub struct XdgRepo {
-    pub remote: Repo,
-    pub clone: Repo,
-}
-
-impl XdgRepo {
-    pub fn path(&self) -> &Path {
-        self.clone.path()
-    }
-}
-
-/// Materialize a fresh XDG-mode clone via `Store::init_xdg`. A bare
-/// remote acts as `origin` so the tracker checkout lands at the
-/// documented XDG path; the per-thread test HOME is the discovery
-/// root, so subsequent `bl(repo.path())` calls — which set HOME on
-/// the subprocess to that same `test_home_path()` — see the XDG state
-/// this helper just wrote.
-///
-/// The clone gets a seed commit on `main` pushed to the bare remote
-/// before `init_xdg` runs. XDG init never writes on main (SPEC §14.19),
-/// so without this the clone has an unborn HEAD and `bl claim`/`bl
-/// review` fail when they read the current branch. The seed mirrors
-/// what a freshly-cloned project repo looks like in real use.
-pub fn new_xdg_repo() -> XdgRepo {
-    let remote = new_bare_remote();
-    let clone = clone_from_remote(remote.path(), "xdg");
-    std::fs::write(clone.path().join("README"), "seed\n").unwrap();
-    git(clone.path(), &["add", "README"]);
-    git(clone.path(), &["commit", "-m", "seed", "--no-verify"]);
-    git(clone.path(), &["push", "-q", "origin", "main"]);
-    let home = test_home_path();
-    xdg_init::init_xdg(clone.path(), &home, false, None);
-    XdgRepo { remote, clone }
-}
+// XdgRepo + new_xdg_repo() live in `tests/common/xdg_repo.rs` to keep
+// this file under the 300-line cap; re-exported above.

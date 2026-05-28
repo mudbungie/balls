@@ -1,6 +1,73 @@
 use super::*;
 use serde_json::json;
+use std::path::PathBuf;
+use std::process::Command;
 use tempfile::TempDir;
+
+/// Stand up a legacy `Store` rooted at `td`, with state-repo seeded
+/// via the default address (no origin yet). `tasks` are the local-only
+/// task ids to commit on the state branch.
+fn legacy_store(td: &Path, tasks: &[(&str, &str)]) -> crate::store::Store {
+    crate::git_test_support::init_repo(td);
+    let store = crate::store::Store::init(td, false, None).unwrap();
+    let tasks_dir = store.state_repo_dir().join(".balls/tasks");
+    for (id, title) in tasks {
+        let json = serde_json::to_string(&json!({
+            "id": id, "title": title, "type": "task", "priority": 3,
+            "status": "open", "parent": null,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "closed_at": null, "claimed_by": null, "branch": null
+        })).unwrap();
+        std::fs::write(tasks_dir.join(format!("{id}.json")), json).unwrap();
+    }
+    store.commit_task("local", "balls: seed").unwrap_or(());
+    let _ = Command::new("git").current_dir(store.state_repo_dir())
+        .args(["add", "-A"]).output();
+    let _ = Command::new("git").current_dir(store.state_repo_dir())
+        .args(["commit", "-qm", "seed local", "--no-verify"]).output();
+    store
+}
+
+/// Bare repo with a `balls/tasks` branch carrying the given task
+/// payloads (one commit per task). Used as the remaster target.
+fn seeded_tracker(td: &Path, branch: &str, tasks: &[(&str, &str)]) -> PathBuf {
+    let bare = td.join("target.git");
+    Command::new("git")
+        .args(["init", "-q", "--bare", "-b", branch])
+        .arg(&bare)
+        .output()
+        .unwrap();
+    let seed = td.join("seed");
+    std::fs::create_dir_all(&seed).unwrap();
+    for args in [
+        vec!["init", "-q", "-b", branch],
+        vec!["config", "user.email", "t@t"],
+        vec!["config", "user.name", "t"],
+        vec!["config", "commit.gpgsign", "false"],
+    ] {
+        Command::new("git").current_dir(&seed).args(&args).output().unwrap();
+    }
+    let tasks_dir = seed.join(".balls/tasks");
+    std::fs::create_dir_all(&tasks_dir).unwrap();
+    std::fs::write(tasks_dir.join(".gitkeep"), "").unwrap();
+    for (id, title) in tasks {
+        let json = serde_json::to_string(&json!({
+            "id": id, "title": title, "type": "task", "priority": 3,
+            "status": "open", "parent": null,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "closed_at": null, "claimed_by": null, "branch": null
+        })).unwrap();
+        std::fs::write(tasks_dir.join(format!("{id}.json")), json).unwrap();
+    }
+    Command::new("git").current_dir(&seed).args(["add", "-A"]).output().unwrap();
+    Command::new("git").current_dir(&seed)
+        .args(["commit", "-qm", "seed tracker", "--no-verify"]).output().unwrap();
+    Command::new("git").current_dir(&seed)
+        .args(["push", "-q", bare.to_str().unwrap(), branch]).output().unwrap();
+    bare
+}
 
 #[test]
 fn fresh_id_rejects_bad_json() {
@@ -155,5 +222,36 @@ fn remap_field_array_ignores_missing_non_array_and_non_object_elems() {
     let mut arr = json!(["bare", {"other": 1}]);
     remap_field_array(Some(&mut arr), "target", &map);
     assert_eq!(arr, json!(["bare", {"other": 1}]));
+}
+
+
+#[test]
+fn reconcile_seeds_a_fresh_tracker() {
+    let td = TempDir::new().unwrap();
+    let store = legacy_store(td.path(), &[("bl-aaaa", "local")]);
+    // Empty bare tracker — no balls/tasks branch.
+    let bare = td.path().join("empty.git");
+    Command::new("git")
+        .args(["init", "-q", "--bare", "-b", "balls/tasks"])
+        .arg(&bare)
+        .output()
+        .unwrap();
+    let outcome = reconcile(&store, bare.to_str().unwrap()).unwrap();
+    assert!(matches!(outcome, Reconciled::Seeded), "got: {outcome:?}");
+}
+
+#[test]
+fn reconcile_clash_renames_then_joins() {
+    let td = TempDir::new().unwrap();
+    // Local has bl-aaaa with one title; tracker has bl-aaaa with a
+    // different title — an id-clash with divergent json.
+    let store = legacy_store(td.path(), &[("bl-aaaa", "local-side")]);
+    let bare = seeded_tracker(td.path(), "balls/tasks", &[("bl-aaaa", "tracker-side")]);
+    let outcome = reconcile(&store, bare.to_str().unwrap()).unwrap();
+    let Reconciled::Joined { replayed, renamed } = outcome else {
+        panic!("expected Joined, got: {outcome:?}");
+    };
+    assert_eq!(replayed, 0);
+    assert_eq!(renamed, 1, "the clashing local task must be renamed");
 }
 

@@ -21,7 +21,7 @@ fn enable_standalone_inserts_entry_and_creates_file() {
         .success();
 
     let cfg: Value =
-        serde_json::from_str(&fs::read_to_string(repo.path().join(".balls/project.json")).unwrap())
+        serde_json::from_str(&fs::read_to_string(project_config_path(repo.path())).unwrap())
             .unwrap();
     let entry = &cfg["plugins"]["github"];
     assert_eq!(entry["enabled"], Value::Bool(true));
@@ -32,7 +32,7 @@ fn enable_standalone_inserts_entry_and_creates_file() {
         entry["config_file"],
         Value::String(".balls/plugins/github.json".into())
     );
-    assert!(repo.path().join(".balls/plugins/github.json").exists());
+    assert!(plugin_config_root(repo.path()).join(".balls/plugins/github.json").exists());
 }
 
 #[test]
@@ -46,13 +46,13 @@ fn enable_standalone_respects_explicit_config_file() {
         .success();
 
     let cfg: Value =
-        serde_json::from_str(&fs::read_to_string(repo.path().join(".balls/project.json")).unwrap())
+        serde_json::from_str(&fs::read_to_string(project_config_path(repo.path())).unwrap())
             .unwrap();
     assert_eq!(
         cfg["plugins"]["ci"]["config_file"],
         Value::String(".balls/plugins/ci/conf.json".into())
     );
-    assert!(repo.path().join(".balls/plugins/ci/conf.json").exists());
+    assert!(plugin_config_root(repo.path()).join(".balls/plugins/ci/conf.json").exists());
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn disable_removes_entry_keeps_config_file() {
         .args(["plugin", "enable", "github"])
         .assert()
         .success();
-    let file = repo.path().join(".balls/plugins/github.json");
+    let file = plugin_config_root(repo.path()).join(".balls/plugins/github.json");
     assert!(file.exists());
 
     bl(repo.path())
@@ -72,7 +72,7 @@ fn disable_removes_entry_keeps_config_file() {
         .assert()
         .success();
     let cfg: Value =
-        serde_json::from_str(&fs::read_to_string(repo.path().join(".balls/project.json")).unwrap())
+        serde_json::from_str(&fs::read_to_string(project_config_path(repo.path())).unwrap())
             .unwrap();
     assert!(cfg["plugins"]
         .as_object()
@@ -169,7 +169,7 @@ fn list_renders_participant_subscription_count() {
     init_in(repo.path());
     // Seed a plugins entry with a participant block by hand —
     // bl-32e5 deliberately doesn't expose participant editing.
-    let cfg_path = repo.path().join(".balls/project.json");
+    let cfg_path = project_config_path(repo.path());
     let mut cfg: Value = serde_json::from_str(&fs::read_to_string(&cfg_path).unwrap()).unwrap();
     cfg["plugins"] = serde_json::json!({
         "watcher": {

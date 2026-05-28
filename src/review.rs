@@ -121,11 +121,15 @@ pub fn review_worktree(
         let deferred = matches!(cfg.delivery_mode(), crate::config::DeliveryMode::Deferred);
         // SPEC §5: deferred mode hands the squash to a forge, so the PR
         // base must be unambiguous — an implicit "whatever's checked
-        // out" target is rejected. Fail before any mutation.
-        if deferred && cfg.target_branch.is_none() {
+        // out" target is rejected. Fail before any mutation. Per SPEC
+        // §6.7, the resolution chain is `task.target_branch ??
+        // config.target_branch`; either being set satisfies the gate.
+        if deferred && task.target_branch.is_none() && cfg.target_branch.is_none() {
             return Err(BallError::Other(
-                "delivery.mode=deferred requires an explicit target_branch in \
-                 .balls/config.json (the forge PR base must be unambiguous)"
+                "delivery.mode=deferred requires an explicit target_branch \
+                 (per-task via `bl create --target-branch`, or repo-level \
+                 under the legacy layout) — the forge PR base must be \
+                 unambiguous"
                     .into(),
             ));
         }

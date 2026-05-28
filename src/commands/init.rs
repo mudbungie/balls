@@ -1,6 +1,12 @@
 //! `bl init` — working-tree setup and the `--bare` clone
 //! bootstrap. Split from `basic.rs` so both stay under the line cap
 //! and the bare path has a clear home.
+//!
+//! Phase 1B (bl-213e): the normal path routes through `balls::Store::init_xdg`,
+//! which materializes the XDG layout per SPEC-clone-layout §3 / §5
+//! and writes nothing under the clone's working tree. `--bare` still
+//! uses the legacy `Store::init_bare` path; XDG conversion is Phase
+//! 1B-7 (bl-be70).
 
 use balls::error::{BallError, Result};
 use balls::store::Store;
@@ -24,7 +30,7 @@ pub fn cmd_init(
         return Ok(());
     }
     let cwd = env::current_dir()?;
-    let store = Store::init(&cwd, stealth, tasks_dir)?;
+    let store = Store::init_xdg(&cwd, stealth, tasks_dir)?;
     if store.stealth {
         println!("Initialized balls (stealth) in {}", store.root.display());
         println!("Tasks stored at: {}", store.tasks_dir().display());

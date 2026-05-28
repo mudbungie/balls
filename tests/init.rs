@@ -1,6 +1,10 @@
-//! Init-related stories: 1, 3, 73, 74, 75. Stealth-mode and
-//! `--tasks-dir` stories live in `init_stealth.rs`. Init idempotency
-//! is covered by `topology.rs::bl_init_is_idempotent`.
+//! Stories 1, 3, 73–75 rewritten for SPEC-clone-layout (Phase 1B,
+//! bl-e802). `bl init` writes only XDG paths now — no `.balls/` at the
+//! clone root, no `.gitignore` insertion, no `balls: initialize` on
+//! `main`. Stealth-mode stories live in `init_stealth.rs`; the
+//! conformance gates for these behaviors live in
+//! `tests/conformance_xdg_init.rs`. This file is the human-readable
+//! story sibling — same shape, different vocabulary.
 
 mod common;
 
@@ -8,7 +12,9 @@ mod common;
 // `clean_git_command`, so they must scrub the inherited git env themselves.
 // The `bl` binary needs no such scrub — it routes every git subprocess
 // through `clean_git_command`, which clears these on the production path.
+use balls::encoding::{canonicalize_origin, percent_encode_component, ENC_BALLS_TASKS};
 use balls::git::GIT_ENV_VARS;
+use balls::xdg_paths::{own_tracker_checkout, XdgBases};
 use common::*;
 use predicates::prelude::*;
 
@@ -16,19 +22,36 @@ use predicates::prelude::*;
 fn story_1_init_in_existing_git_repo() {
     let repo = new_repo();
     bl(repo.path()).arg("init").assert().success();
-    assert!(repo.path().join(".balls/config.json").exists());
-    assert!(repo.path().join(".balls/tasks").exists());
-    assert!(repo.path().join(".balls/local/claims").exists());
-    assert!(repo.path().join(".balls/local/lock").exists());
-    let gi = std::fs::read_to_string(repo.path().join(".gitignore")).unwrap();
-    assert!(gi.contains(".balls/local"));
-    assert!(gi.contains(".balls-worktrees"));
-    // bl-c439: the master_url state-repo clone is gitignored
-    // unconditionally, same as the code-refs cache.
-    assert!(gi.contains(".balls/code-refs"));
-    assert!(gi.contains(".balls/state-repo"));
-    let log = git(repo.path(), &["log", "--oneline"]);
-    assert!(log.contains("balls: initialize"));
+
+    // SPEC §14.1: no `.balls/` at the clone root, no `.gitignore`
+    // touched, no balls-attributed commit on `main`. The clone is
+    // pristine; XDG state lives entirely under `HOME`.
+    assert!(!repo.path().join(".balls").exists());
+    let gi = repo.path().join(".gitignore");
+    if gi.exists() {
+        let s = std::fs::read_to_string(&gi).unwrap();
+        assert!(!s.contains(".balls"), "main .gitignore must stay balls-free: {s}");
+    }
+    let log = git(repo.path(), &["log", "main", "--format=%s"]);
+    for line in log.lines() {
+        assert!(!line.starts_with("balls:"), "balls: commit on main: {line}");
+    }
+
+    // Per-clone XDG dirs materialize under HOME.
+    assert!(claims_dir(repo.path()).exists());
+    assert!(lock_dir(repo.path()).exists());
+    // Tracker checkout (own branch in the solo case) holds repo.json +
+    // project.json, no tracker.json, and the seeded tasks/ scaffold.
+    let bases = XdgBases::with(&test_home_path(), None, None, None);
+    let url = git(repo.path(), &["remote", "get-url", "origin"])
+        .trim()
+        .to_string();
+    let enc = percent_encode_component(&canonicalize_origin(&url));
+    let own = own_tracker_checkout(&bases, &enc);
+    assert!(own.join(".balls/repo.json").exists());
+    assert!(own.join(".balls/project.json").exists());
+    assert!(!own.join(".balls/tracker.json").exists());
+    assert!(own.join(".balls/tasks").is_dir());
 }
 
 #[test]
@@ -42,24 +65,39 @@ fn story_3_init_in_cloned_repo_creates_local_only() {
     push(dev_a.path());
 
     let dev_b = clone_from_remote(remote.path(), "bob");
-    // Fresh clone has no .balls/tasks symlink and no .balls/local yet —
-    // they're per-clone, gitignored, and materialized by `bl init`.
-    assert!(!dev_b.path().join(".balls/tasks").exists());
-    assert!(!dev_b.path().join(".balls/local").exists());
+    // Fresh clone has nothing balls-shaped in the working tree — XDG.
+    assert!(!dev_b.path().join(".balls").exists());
     bl(dev_b.path()).arg("init").assert().success();
-    assert!(dev_b.path().join(".balls/local/claims").exists());
-    assert!(dev_b.path().join(".balls/tasks").is_symlink());
-    assert!(dev_b.path().join(".balls/state-repo").exists());
+    // Per-clone state materialized under HOME (XDG), not in the tree.
+    assert!(claims_dir(dev_b.path()).exists());
+    assert!(!dev_b.path().join(".balls").exists());
 }
 
 #[test]
 fn story_73_init_in_repo_with_no_commits() {
+    // XDG `bl init` writes nothing on `main`, so it works against a
+    // fresh `git init`'d clone with zero commits — provided origin is
+    // set so the bootstrap branch has somewhere to push.
+    let remote_dir = tmp();
+    git(remote_dir.path(), &["init", "-q", "--bare", "-b", "main"]);
     let dir = tmp();
     git(dir.path(), &["init", "-q", "-b", "main"]);
     git(dir.path(), &["config", "user.email", "t@t"]);
     git(dir.path(), &["config", "user.name", "t"]);
+    git(dir.path(), &["config", "commit.gpgsign", "false"]);
+    git(
+        dir.path(),
+        &["remote", "add", "origin", &remote_dir.path().to_string_lossy()],
+    );
     bl(dir.path()).arg("init").assert().success();
-    assert!(dir.path().join(".balls/config.json").exists());
+    // Clone has no balls footprint in the working tree.
+    assert!(!dir.path().join(".balls").exists());
+    // Tracker checkout exists at the documented XDG path.
+    let bases = XdgBases::with(&test_home_path(), None, None, None);
+    let url = remote_dir.path().to_string_lossy().into_owned();
+    let enc = percent_encode_component(&canonicalize_origin(&url));
+    let expected = bases.state_root().join("trackers").join(&enc).join(ENC_BALLS_TASKS);
+    assert!(expected.join(".git").exists());
 }
 
 #[test]
@@ -93,9 +131,22 @@ fn fresh_install_no_git_identity() {
     use std::process::Command as StdCommand;
 
     let home = tmp();
+    let remote = tmp();
     let dir = tmp();
 
-    // Initialize a git repo without configuring any user.email/user.name.
+    // Build an empty bare remote so XDG bl init has an origin to point at.
+    let mut grem = StdCommand::new("git");
+    grem.current_dir(remote.path())
+        .args(["init", "-q", "--bare", "-b", "main"])
+        .env("HOME", home.path())
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    for var in GIT_ENV_VARS {
+        grem.env_remove(var);
+    }
+    assert!(grem.output().expect("bare init").status.success());
+
+    // Initialize a clone without configuring any user.email/user.name.
     // Crucially, we also point HOME at an empty dir and silence any
     // global/system gitconfig the test machine may have, so we truly
     // simulate a fresh box.
@@ -109,6 +160,18 @@ fn fresh_install_no_git_identity() {
         g.env_remove(var);
     }
     assert!(g.output().expect("git init").status.success());
+
+    // Wire origin so XDG init has a tracker address.
+    let mut gr = StdCommand::new("git");
+    gr.current_dir(dir.path())
+        .args(["remote", "add", "origin", &remote.path().to_string_lossy()])
+        .env("HOME", home.path())
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    for var in GIT_ENV_VARS {
+        gr.env_remove(var);
+    }
+    assert!(gr.output().expect("git remote add").status.success());
 
     let bl_fresh = || {
         let mut c = Command::cargo_bin("bl").unwrap();
@@ -126,30 +189,37 @@ fn fresh_install_no_git_identity() {
     // `Store::discover()` must re-seed identity on every command path,
     // not rely on init having done it once. Simulates a fresh system,
     // a wiped repo config, or any path where init's seed didn't stick.
-    let mut clear_email = StdCommand::new("git");
-    clear_email
-        .current_dir(dir.path())
-        .args(["config", "--local", "--unset", "user.email"])
-        .env("HOME", home.path())
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_CONFIG_SYSTEM", "/dev/null");
-    for var in GIT_ENV_VARS {
-        clear_email.env_remove(var);
+    for key in ["user.email", "user.name"] {
+        let mut clear = StdCommand::new("git");
+        clear
+            .current_dir(dir.path())
+            .args(["config", "--local", "--unset", key])
+            .env("HOME", home.path())
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null");
+        for var in GIT_ENV_VARS {
+            clear.env_remove(var);
+        }
+        let _ = clear.output();
     }
-    let _ = clear_email.output();
-    let mut clear_name = StdCommand::new("git");
-    clear_name
-        .current_dir(dir.path())
-        .args(["config", "--local", "--unset", "user.name"])
-        .env("HOME", home.path())
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_CONFIG_SYSTEM", "/dev/null");
-    for var in GIT_ENV_VARS {
-        clear_name.env_remove(var);
-    }
-    let _ = clear_name.output();
 
     bl_fresh().args(["create", "fresh task"]).assert().success();
+
+    // `bl claim` branches `work/<id>` off the current `main`. XDG bl
+    // init no longer seeds an empty commit on `main` (SPEC §14.19), so
+    // the test seeds one itself before exercising the claim path —
+    // mirrors what a real project (which has commits long before
+    // anyone runs `bl init`) already has.
+    let mut seed = StdCommand::new("git");
+    seed.current_dir(dir.path())
+        .args(["commit", "--allow-empty", "-qm", "seed", "--no-verify"])
+        .env("HOME", home.path())
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null");
+    for var in GIT_ENV_VARS {
+        seed.env_remove(var);
+    }
+    assert!(seed.output().expect("seed commit").status.success());
 
     // Find the new task id and exercise the rest of the lifecycle so
     // every command path runs against a repo whose only identity comes

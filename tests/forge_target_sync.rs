@@ -186,15 +186,21 @@ fn no_override_review_subject_is_byte_identical() {
         "unset target_branch must not emit a marker: {log}"
     );
 
+    // Post-XDG (SPEC §6.7) the repo-level `target_branch` field is
+    // retired; the resolution chain is `task.target_branch ?? HEAD@root`.
+    // So "per-task target equal to the repo default" becomes "per-task
+    // target equal to the checked-out branch (HEAD@root)" — the marker
+    // must be omitted in that case too.
     let repo = new_repo();
-    seed_config(repo.path(), &[("target_branch", "develop")]);
     init_in(repo.path());
-    git(repo.path(), &["branch", "develop"]);
-    let id = deliver(repo.path(), "matches default", "develop", "g.txt");
+    let head_branch = git(repo.path(), &["rev-parse", "--abbrev-ref", "HEAD"])
+        .trim()
+        .to_string();
+    let id = deliver(repo.path(), "matches default", &head_branch, "g.txt");
     let log = state_log(repo.path());
     assert!(
         log.contains(&format!("state: review {id}")) && !log.contains("target="),
-        "per-task target equal to the repo default must omit the marker: {log}"
+        "per-task target equal to HEAD@root must omit the marker: {log}"
     );
 }
 

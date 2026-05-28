@@ -33,3 +33,36 @@ pub fn detach(root: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn detach_is_a_noop_when_state_checkout_not_materialized() {
+        // No `.balls/state-repo/.git` ⇒ the cold detach is purely the
+        // caller's `state_url` edit; this helper short-circuits.
+        let td = TempDir::new().unwrap();
+        detach(td.path()).expect("detach with no state-repo is Ok");
+    }
+
+    #[test]
+    fn detach_clears_state_repo_origin_when_root_has_none() {
+        // A code repo with no `origin` remote ⇒ the state checkout's
+        // origin is *removed*, not re-pointed.
+        let td = TempDir::new().unwrap();
+        let root = td.path();
+        crate::git_test_support::init_repo(root);
+        let store = crate::store::Store::init(root, false, None).unwrap();
+        let sd = store.state_repo_dir();
+        // Sanity: the freshly-init'd state-repo has no `origin` set.
+        // After detach with no code `origin`, that remains the case.
+        detach(root).expect("detach succeeds");
+        let after = git_state::remote_url(&sd, "origin");
+        assert!(
+            after.is_none(),
+            "state-repo origin must stay cleared, got: {after:?}"
+        );
+    }
+}

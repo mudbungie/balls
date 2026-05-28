@@ -13,9 +13,10 @@ fn show_default_resolves_local_repo_in_resolved_repo_field() {
     // always set whenever `delivered_in_resolved` is. With no
     // `--resolve-remote` flag, a local-hit resolution must still
     // populate it from the current clone so downstream tooling can
-    // tell which repo the sha came from.
-    let repo = new_repo();
-    init_in(repo.path());
+    // tell which repo the sha came from. XDG bl init requires
+    // `origin`, so the no-origin scenario uses stealth.
+    let repo = new_repo_no_origin();
+    bl(repo.path()).args(["init", "--stealth"]).assert().success();
     let id = create_task(repo.path(), "local-hit");
     bl_as(repo.path(), "alice")
         .args(["claim", &id])

@@ -62,7 +62,7 @@ fn sync_warns_when_plugin_framework_errors() {
     // cmd_sync, which should warn but not fail the command.
     let repo = new_repo();
     init_in(repo.path());
-    std::fs::write(repo.path().join(".balls/project.json"), "not json").unwrap();
+    std::fs::write(project_config_path(repo.path()), "not json").unwrap();
     let out = bl(repo.path()).arg("sync").output().unwrap();
     assert!(out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);

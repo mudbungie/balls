@@ -22,14 +22,15 @@ pub fn three_way() -> (Repo, Repo, Repo) {
     (remote, alice, bob)
 }
 
-/// Point a repo's `origin` — and its state checkout's `origin` — at a
-/// path that does not exist, so the next remote round-trip fails.
-/// The state branch lives in its own checkout (legacy:
-/// `.balls/state-repo`; XDG: the per-origin tracker dir), an independent
-/// clone with its own `origin`, so a sync-failure test must break both.
+/// Break the remote round-trip without changing the clone's `origin`
+/// URL. The clone's `origin` keys XDG discovery (`<enc-origin>` →
+/// tracker checkout); changing it would point discovery at a tracker
+/// that was never materialized and break `bl <cmd>` before the sync
+/// path even runs. Only the state checkout's `origin` is repointed at
+/// a bogus path so push/fetch on `balls/tasks` fails — the lifecycle
+/// commands keep resolving via the warm tracker checkout.
 pub fn break_remote(repo: &Path) {
     let bad = "/tmp/balls-no-such-remote.git";
-    git(repo, &["remote", "set-url", "origin", bad]);
     if let Some(state_repo) = discover_state_repo(repo) {
         if state_repo.join(".git").exists() {
             git(&state_repo, &["remote", "set-url", "origin", bad]);

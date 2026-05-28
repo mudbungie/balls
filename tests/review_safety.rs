@@ -7,6 +7,7 @@
 mod common;
 
 use common::*;
+use std::os::unix::fs::PermissionsExt;
 
 fn assert_no_runtime_paths(repo_root: &std::path::Path, ref_: &str) {
     let changed = git(repo_root, &["show", "--name-only", "--format=", ref_]);
@@ -33,7 +34,11 @@ fn review_never_stages_balls_runtime_symlinks() {
         .assert()
         .success();
     let wt = worktree_path(repo.path(), &id);
-    assert!(wt.join(".balls/tasks").exists(), "claim sets up symlinks");
+    // Under XDG (Phase 1B) claim no longer plants `.balls/` symlinks
+    // in the worktree — there is nothing for `git add -A` to stage.
+    // The legacy regression this test guards against (symlinks
+    // sneaking into the squash) is moot under XDG; the assertion
+    // is unconditionally true here.
     std::fs::write(wt.join("user.txt"), "real change").unwrap();
 
     bl(repo.path())
@@ -89,7 +94,7 @@ fn review_scrubs_runtime_paths_force_tracked_on_work_branch() {
 fn review_rewinds_main_on_post_squash_failure() {
     // Atomicity: when `bl review` fails after the squash has landed
     // on main, the integration branch must be reset to its
-    // pre-review tip. Driving `--sync` without an origin configured
+    // pre-review tip. Driving `--sync` against an unreachable origin
     // forces the required push to error after the squash and
     // state-branch flip both succeed.
     let repo = new_repo();
@@ -103,6 +108,24 @@ fn review_rewinds_main_on_post_squash_failure() {
     std::fs::write(wt.join("feat.txt"), "real").unwrap();
 
     let pre_main = git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string();
+
+    // Install a pre-receive hook on the bare remote that rejects
+    // every push, forcing the post-squash main push to error. The
+    // clone's origin URL is unchanged so XDG discovery still resolves
+    // the tracker checkout, and `bl list` after the rewind keeps
+    // working. (Under legacy `bl init` this test exercised the
+    // no-origin path; under XDG `bl init` requires origin, so a
+    // remote that loudly rejects pushes is the equivalent.)
+    let origin = repo
+        .origin_remote
+        .as_ref()
+        .expect("new_repo provides an origin remote")
+        .path();
+    let hook = origin.join("hooks/pre-receive");
+    std::fs::write(&hook, "#!/bin/sh\necho 'remote: rejected'\nexit 1\n").unwrap();
+    let mut perms = std::fs::metadata(&hook).unwrap().permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&hook, perms).unwrap();
 
     bl(repo.path())
         .args(["review", &id, "-m", "should rewind", "--sync"])
