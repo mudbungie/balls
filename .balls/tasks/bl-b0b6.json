@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-29T19:45:28.027086829Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Open question\n\nPre/post hook rollback semantics in detail.\n\nThe §8 lifecycle says:\n- Pre-invoke fails → rollback prior pre-invokes in reverse\n- Invoke fails → rollback prior invokes AND prior pre-invokes in reverse\n\nOpen questions:\n- The plugin gets ONE `rollback` verb. Payload includes `rolling_back: pre-invoke|invoke` so it knows which side. Plugin tracks its own state between pre and post calls (how — env var, scratch dir under `plugins/<name>/`?).\n- If a plugin implements pre-invoke but not invoke, does its pre-invoke side-effect get rolled back on a later plugin's invoke failure?\n- Idempotency requirement on rollback: balls won't retry, but balls also can't guarantee rollback was successful. Document the contract: best-effort, exit code ignored, plugin logs anything that mattered to stderr.\n- Sample reference: a plugin that needs to remember pre-invoke state across to invoke. Provide a scratch dir convention.",
+  "external": {},
+  "id": "bl-b0b6",
+  "links": [],
+  "parent": "bl-b465",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Topic: pre/post hook rollback semantics",
+  "type": "task",
+  "updated_at": "2026-05-29T19:45:28.027086829Z"
+}
