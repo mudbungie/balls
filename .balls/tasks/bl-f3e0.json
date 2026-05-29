@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-29T19:45:29.808221298Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Open question\n\nID generation scheme.\n\nDefaults: `bl-XXXX` with random 4-char suffix.\n\n- Configurable via `id_scheme` in `config/balls.yaml`: `{ prefix, length, alphabet, generator }`.\n- Plugin-assigned IDs (per topic 3): jira plugin assigns `PROJ-1234`. The plugin's pre-invoke return shape includes `id`.\n- Collision handling: balls must check for existing ball with same id before commit. If id collides, abort with clear error (caller retries or plugin handles).\n- ID validation: string-safe characters (alphanumeric + `-_/`?). What's the exact regex? Anything that's safe as a filename component.\n- Generator alternatives: timestamp-based, sequential counter (needs state, awkward), uuid (verbose). Random is the default; offer hooks for others.",
+  "external": {},
+  "id": "bl-f3e0",
+  "links": [],
+  "parent": "bl-b465",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Topic: ID generation scheme",
+  "type": "task",
+  "updated_at": "2026-05-29T19:45:29.808221298Z"
+}
