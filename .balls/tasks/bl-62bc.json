@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nFederation specifics.\n\n- `config/plugins/tracker/remote.yaml` schema: just `center: <url>`, or more (branch, auth hints, ttl)?\n- Center discovery on `bl init`: `--center <url>` flag writes the file during init. After init, edit the file directly and `bl sync`.\n- One-hop only: center's own remote.yaml is ignored. balls hard-stops at one shadow layer. Confirm this is the rule.\n- How does tracker maintain center's checkout? Separate dir under `plugins/tracker/<center-url-encoded>/` (parallel to satellite's)? Yes — same directory structure, different remote.\n- When does center's branch get refreshed? `bl sync` re-fetches BOTH satellite's and center's? Or center has its own TTL? Probably both on every sync.\n- Read paths: when balls reads `config/balls.yaml`, it reads satellite's first, then layers center's underneath (per §4). When balls reads a `tasks/<id>.md`, does it look in center too? No — tasks are satellite-only, config is the only thing that federates.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":203,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:27.977199506+00:00","url":"https://github.com/mudbungie/balls/issues/203"}}},
   "id": "bl-62bc",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-29T19:45:27.998523889Z"},
   "tags": [],
   "title": "Topic: federation (shadow config, center remote.yaml, one-hop)",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:26.865703104Z"
+  "updated_at": "2026-05-29T19:45:27.998533597Z"
 }
