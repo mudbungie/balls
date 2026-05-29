@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-29T19:45:20.842734299Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Open question\n\n`bl init` walkthrough (mostly resolved; codify into spec §9 and pressure-test edge cases).\n\nEdge cases to verify the spec covers:\n- Re-init on an existing install: --reinit reruns the chain idempotently. Plugin contract requires init to be idempotent.\n- No CWD git repo, no --remote, tracker enabled → fail at step 4 with clear error.\n- CWD has origin but you want different balls remote → --remote override.\n- `bl init --no-tracker` in a repo with origin: stealth despite a remote being available.\n- Federation: `--center=<url>` writes config/plugins/tracker/remote.yaml during init.\n- Step 8 federated-layer reread surfaces NEW plugins from center config — defer their `init` to next `bl prime`, or run now? Recommendation: defer + log notice.\n\nAcceptance: §9 in the spec is unambiguous, and we have a written-down expected error message for each failure case.",
+  "external": {},
+  "id": "bl-6406",
+  "links": [],
+  "parent": "bl-b465",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Topic: bl init walkthrough + edge cases",
+  "type": "task",
+  "updated_at": "2026-05-29T19:45:20.842734299Z"
+}
