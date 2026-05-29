@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\n`bl new` (create) walkthrough end-to-end.\n\nFocus: plugin-assigned ball ID.\n\n- Pre-invoke gets `command.ball_id: null`.\n- Plugin (e.g. jira) can return `field_overrides.id: \"PROJ-1234\"`.\n- balls applies overrides between plugin calls so a later plugin sees the assigned id.\n- After pre-chain, balls finalizes the id (using id_scheme default if no plugin claimed it).\n- File is written: `tasks/<final-id>.md`.\n- Commit references the final id in the message k:v block.\n\nEdge cases:\n- Two plugins both return an id → conflict policy from §3.\n- Plugin returns invalid id (collides with existing ball, or non-string-safe) → abort.\n- No plugin claims id, no default scheme configured → error.\n- Plugin assigns id but its post-invoke fails → rollback freed the id?\n\nSpec the deterministic sequence and write the failure-mode list.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":198,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:22.834712431+00:00","url":"https://github.com/mudbungie/balls/issues/198"}}},
   "id": "bl-284c",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-29T19:45:22.854729606Z"},
   "tags": [],
   "title": "Topic: bl new walkthrough (plugin-assigned id)",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:21.851676548Z"
+  "updated_at": "2026-05-29T19:45:22.854739425Z"
 }
