@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\n`bl sync` and `bl prime` walkthroughs.\n\nBoth invoke the full plugin chain with their respective verbs. Not tracker-exclusive — every plugin gets a turn.\n\n- `bl sync`: tracker fetches and fast-forwards (or aborts on conflict, per \"remote wins\" rule). Other plugins may refresh their caches.\n- `bl prime`: comprehensive setup/refresh. Other plugins may bootstrap state, fetch external tickets, etc.\n\nSpec:\n- Payload shape for these verbs (no `command`, no `previous_state` — what's there?)\n- cwd = operating/ (no change-attempt worktree)\n- Failure semantics: rollback in reverse, same as state-change ops\n- Contention: tracker's sync detects remote has moved → aborts → user re-runs (per the \"remote wins, user resolves\" rule)\n- Pre-sync vs sync? Tracker pre-sync as a fast contention probe, then plugins do their work, then sync commits? Or simpler: just `sync`?\n\nResolve the verbs and shape.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":201,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:25.901103156+00:00","url":"https://github.com/mudbungie/balls/issues/201"}}},
   "id": "bl-375a",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-29T19:45:25.907348362Z"},
   "tags": [],
   "title": "Topic: bl sync and bl prime walkthroughs",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:24.929162019Z"
+  "updated_at": "2026-05-29T19:45:25.907357749Z"
 }
