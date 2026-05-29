@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nTracker `adopt` and `disown` verbs — stealth ↔ federated migration.\n\n- `tracker adopt --remote <url>`: stealth install becomes federated. Local `operating/` is a real dir with commits; tracker clones the remote (probably empty `balls` branch), pushes local commits, atomically swaps `operating/` symlink to point at the tracker dir.\n- `tracker disown`: reverse. Clone the tracker dir into a real `operating/`, drop the symlink, clear the binding's tracker remote.\n\nSpec:\n- Are these CLI subcommands of `bl tracker ...`, or are they `bl plugin tracker adopt ...` via the dispatcher?\n- Does adopt go through the plugin chain (other plugins see an \"adopt\" verb)? Probably yes, for symmetry.\n- Failure modes: remote already has commits on the balls branch and they conflict with local → abort, user resolves.\n- The atomic swap mechanics: rename(2) the operating/ dir aside, create the symlink, delete the old dir. Order matters for crash recovery.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":202,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:26.827892530+00:00","url":"https://github.com/mudbungie/balls/issues/202"}}},
   "id": "bl-0601",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-29T19:45:26.839053742Z"},
   "tags": [],
   "title": "Topic: tracker adopt/disown migration verbs",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:25.936189711Z"
+  "updated_at": "2026-05-29T19:45:26.839062538Z"
 }
