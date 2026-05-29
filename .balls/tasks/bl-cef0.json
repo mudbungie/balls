@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-29T19:45:31.773132989Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Open question (placeholder, out of scope until spec stabilizes)\n\nMigration from current balls to greenfield.\n\nCurrent state:\n- balls state lives on `balls/tasks` orphan branch as JSON files\n- Some state references on `main` (e.g. `[bl-xxxx]` commit tags)\n- `.balls/state-repo/` materialized clones (per the master_url model)\n- Plugins live in `.balls/plugins/` with JSON config\n\nGreenfield target:\n- balls state on `balls` branch as YAML files\n- Nothing on main\n- XDG-rooted operating dirs\n- New plugin contract\n\nLikely migration shape:\n- `bl migrate` one-shot tool\n- Translates JSON → YAML, balls/tasks → balls\n- Moves config/plugins to `config/plugins/<name>/`\n- Bootstraps XDG dirs from existing `.balls/` content\n- Preserves history (or starts fresh and leaves the old branch as an archive)\n\nDefer detailed work until spec lands.",
+  "external": {},
+  "id": "bl-cef0",
+  "links": [],
+  "parent": "bl-b465",
+  "priority": 4,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Topic: migration from current balls (placeholder)",
+  "type": "task",
+  "updated_at": "2026-05-29T19:45:31.773132989Z"
+}
