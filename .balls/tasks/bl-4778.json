@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-05-29T19:45:29.030693462Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Open question\n\nStates as extensible config.\n\nDefaults: `[open, claimed, review]`. Terminal ops are `close` and `drop` (not states).\n\nOpen questions:\n- Custom states: user adds `[open, ready, in-progress, review]`. How does balls validate transitions? Today the lifecycle hardcodes valid transitions. Either expose a transition matrix in config, or treat any state as freely transitionable and let plugins enforce.\n- Default `claim` op targets which state? Today: `in-progress`. With new defaults: `claimed`. If user adds intermediate states, what does `bl claim` set? Configurable target per op?\n- A plugin that needs to enforce \"review → done\" transitions only when CI is green — does it hook pre-invoke on `op: close`?\n- `bl new --state ready` to override the create-state? Or is initial state purely config?",
+  "external": {},
+  "id": "bl-4778",
+  "links": [],
+  "parent": "bl-b465",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Topic: states as extensible config",
+  "type": "task",
+  "updated_at": "2026-05-29T19:45:29.030693462Z"
+}
