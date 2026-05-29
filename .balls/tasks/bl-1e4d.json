@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nCommit message k:v parser rules.\n\n- Exact format: blank-line-separated sections (subject, k:v block, free-form body). Where is the k:v block allowed to live — only between subject and body, or anywhere?\n- Reserved keys: `op`, `ball`, `actor`, `from-state`, `to-state`, `protocol`. Are these required on every commit, or only when relevant?\n- Plugin extensions: namespacing convention for plugin-added keys (`jira-id`, `github-url`)? Or just lower-kebab?\n- Multi-ball ops: `ball: bl-1234, bl-5678` comma-separated, or repeated lines `ball: bl-1234\\nball: bl-5678`?\n- Unknown keys: passed through to plugins or dropped?",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":195,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:19.864694583+00:00","url":"https://github.com/mudbungie/balls/issues/195"}}},
   "id": "bl-1e4d",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-29T19:45:19.885950047Z"},
   "tags": [],
   "title": "Topic: commit message k:v protocol",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:18.781435868Z"
+  "updated_at": "2026-05-29T19:45:19.885961809Z"
 }
