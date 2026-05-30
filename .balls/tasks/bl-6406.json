@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-6406",
+  "claimed_by": "Shrubbery",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:20.842734299Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-29T19:45:21.822995367Z"},
   "tags": [],
   "title": "Topic: bl init walkthrough + edge cases",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:21.823005115Z"
+  "updated_at": "2026-05-30T05:29:27.767199351Z"
 }
