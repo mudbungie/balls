@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\n`bl init` walkthrough (mostly resolved; codify into spec §9 and pressure-test edge cases).\n\nEdge cases to verify the spec covers:\n- Re-init on an existing install: --reinit reruns the chain idempotently. Plugin contract requires init to be idempotent.\n- No CWD git repo, no --remote, tracker enabled → fail at step 4 with clear error.\n- CWD has origin but you want different balls remote → --remote override.\n- `bl init --no-tracker` in a repo with origin: stealth despite a remote being available.\n- Federation: `--center=<url>` writes config/plugins/tracker/remote.yaml during init.\n- Step 8 federated-layer reread surfaces NEW plugins from center config — defer their `init` to next `bl prime`, or run now? Recommendation: defer + log notice.\n\nAcceptance: §9 in the spec is unambiguous, and we have a written-down expected error message for each failure case.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":197,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:21.810636312+00:00","url":"https://github.com/mudbungie/balls/issues/197"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":197,"source":"balls","state":"open","synced_at":"2026-05-30T05:29:28.585956766+00:00","url":"https://github.com/mudbungie/balls/issues/197"}}},
   "id": "bl-6406",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-29T19:45:21.822995367Z"},
+  "synced_at": {"github-issues":"2026-05-30T05:29:28.590745479Z"},
   "tags": [],
   "title": "Topic: bl init walkthrough + edge cases",
   "type": "task",
-  "updated_at": "2026-05-30T05:29:27.767199351Z"
+  "updated_at": "2026-05-30T05:29:28.590752993Z"
 }
