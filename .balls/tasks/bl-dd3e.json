@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nTerminal ops walkthrough: `bl close`, `bl drop`.\n\nBoth delete the ball file. Differences:\n- `close` = work was done (transition from claimed/review)\n- `drop` = abandoned (transition from any state, including open for stale tasks)\n\nSpec:\n- Same change-attempt-worktree lifecycle as other ops; the diff is a file deletion.\n- Commit message k:v: `op: close` or `op: drop`, `from-state: <prev>`, `to-state: terminated`.\n- Recovery: `git log --diff-filter=D -- tasks/<id>.md` finds the kill commit. `bl show <id>` should still resolve closed balls by reading from history.\n- Worktree teardown: today `bl close` removes the code worktree. Carry over or punt to a code-worktree plugin?\n- `bl close` from inside the worktree being torn down: today this is the inviolable rule. Still applies?",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":200,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:24.882588155+00:00","url":"https://github.com/mudbungie/balls/issues/200"}}},
+  "external": {"github-issues":{}},
   "id": "bl-dd3e",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-29T19:45:24.903552136Z"},
+  "synced_at": {"github-issues":"2026-05-30T05:25:13.659321225Z"},
   "tags": [],
   "title": "Topic: terminal ops walkthrough (close/drop)",
   "type": "task",
-  "updated_at": "2026-05-30T05:25:13.261939013Z"
+  "updated_at": "2026-05-30T05:25:13.659326566Z"
 }
