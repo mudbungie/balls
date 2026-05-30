@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\n`bl doctor` — drift checks and cleanup.\n\nReports without mutating:\n- Stale change-attempt worktrees under `plugins/tracker/<remote>/change-attempts/<uuid>/` (orphaned by a crashed op). Suggest cleanup.\n- binding.yaml says tracker is configured but `plugins/tracker/<remote>/` is missing or unhealthy.\n- `operating/` is neither a real dir nor a valid symlink.\n- Plugin in the binding's snapshot has a binary path that no longer resolves.\n- Plugin's `protocol` doesn't include the current balls version.\n- Federation: center's checkout exists but is stale beyond a configurable TTL.\n- Config drift between layers that produces an unsatisfiable resolved config.\n\nCompanion: `bl repair --fix` mutates. Doctor names which repair command fixes each issue.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":207,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:31.743345796+00:00","url":"https://github.com/mudbungie/balls/issues/207"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":207,"source":"balls","state":"open","synced_at":"2026-05-30T05:29:46.093610+00:00","url":"https://github.com/mudbungie/balls/issues/207"}}},
   "id": "bl-e8a5",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-29T19:45:31.746922055Z"},
+  "synced_at": {"github-issues":"2026-05-30T05:29:46.115062692Z"},
   "tags": [],
   "title": "Topic: bl doctor — drift checks and stale worktree cleanup",
   "type": "task",
-  "updated_at": "2026-05-30T05:29:45.155619651Z"
+  "updated_at": "2026-05-30T05:29:46.115068293Z"
 }
