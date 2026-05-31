@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nThe original balls implementation was done in two days. Plugins and federation have taken weeks. The drift came from accepting design misses that should have been pushed back on early. This epic walks balls back to the elegance it started with.\n\n# Original misses we're correcting\n\n1. **Anything on main.** Balls data should never have landed on main or any branch other than `balls`. End-state: one branch holds all state. CLI/config can override but the base case is `balls`.\n2. **Stealth/layering was rough.** Federation made it worse. New model: all operations are file CRUD in XDG dirs. Git is implicit (commit always). Remote interactions live in the `tracker` plugin. \"Sync to git\" is structurally Just A Plugin.\n3. **Plugin interactions were too complicated.** Plugins are a sequence. Each is a binary. Balls invokes them blocking, in order, with content-on-wire payloads. Non-zero exit aborts the op and triggers reverse-order rollback. That's the whole protocol.\n4. **Plugin configuration bled into balls.** Plugins own their config; balls doesn't read it. Balls knows two things about a plugin: its name and its binary path.\n\n# End-state principles\n\n- One default branch (`balls`); overridable by flag/config.\n- Base balls operates against a local git repo at `$XDG_STATE_HOME/balls/clones/<encoded-path>/operating/`. If it doesn't exist, base balls initializes it. With tracker enabled, tracker symlinks that path to its own checkout. Same downstream code path either way.\n- All remote/external connections live in plugins. Tracker is the default-shipped plugin and handles remote git.\n- Federation is a file: `config/plugins/tracker/remote.yaml` on the local balls branch points at a center. One hop, no recursion.\n- Payloads on the plugin wire carry meaning directly — content + intent, not commit hashes to be reverse-engineered.\n- One plugin phase: each plugin runs in the change-attempt worktree and mutates the op by editing it directly (e.g. a jira plugin assigning a ticket id by rewriting the ball file). No return channel, and balls arbitrates no field conflicts (last-writer-wins via the filesystem; bl-4997). Non-zero exit aborts and rolls prior plugins back in reverse order.\n\n# Structure\n\n- Spec task: the consolidated greenfield design, kept up to date as topics close.\n- Topic tasks: one per remaining open question. Closing a topic updates the spec via a note.\n- Migration: out of scope until the spec stabilizes. Will get its own task once end-state lands.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":192,"source":"balls","state":"open","synced_at":"2026-05-29T19:42:54.758464501+00:00","url":"https://github.com/mudbungie/balls/issues/192"}}},
+  "external": {"github-issues":{}},
   "id": "bl-b465",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-29T19:42:54.763432755Z"},
+  "synced_at": {"github-issues":"2026-05-31T19:53:18.938988074Z"},
   "tags": [],
   "title": "Refactor: simplify balls — single branch, plugin-first",
   "type": "epic",
-  "updated_at": "2026-05-31T19:53:18.619512866Z"
+  "updated_at": "2026-05-31T19:53:18.938995799Z"
 }
