@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-4997",
-  "claimed_by": "Binges",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:19.913884274Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-05-31T04:30:25.822093865Z"},
   "tags": [],
   "title": "Topic: pre-invoke return channel + field-conflict policy",
   "type": "task",
-  "updated_at": "2026-05-31T04:30:25.822104275Z"
+  "updated_at": "2026-05-31T19:53:28.950887563Z"
 }
