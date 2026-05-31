@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nThe plugin dispatcher contract.\n\n- `bl plugin <name> <verb>` is the canonical entrypoint; balls itself dogfoods it. Spec how that internal dispatch works (function call vs subprocess vs both).\n- The `protocol` verb's exact output shape: `{ version, verbs: [...] }`. How balls discovers which verbs a plugin supports and refuses verbs that aren't declared.\n- Recursion guard: a plugin shells back to `bl` and triggers more plugin invocations. `BALLS_PLUGIN_DEPTH` env var? Hard cap?\n- `bl plugin install <name> <binary-path>` flow: where it writes (federated `config/balls.yaml` plugins list, or local), and how the in-flight op's plugin snapshot freezes at op-start so install can't reorder mid-op.\n- Plugin protocol version negotiation: balls refuses plugin whose `protocol` output doesn't include current balls protocol version.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":194,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:18.738645619+00:00","url":"https://github.com/mudbungie/balls/issues/194"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":194,"source":"balls","state":"open","synced_at":"2026-05-31T03:35:12.276239739+00:00","url":"https://github.com/mudbungie/balls/issues/194"}}},
   "id": "bl-8452",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-29T19:45:18.756583316Z"},
+  "synced_at": {"github-issues":"2026-05-31T03:35:12.297268733Z"},
   "tags": [],
   "title": "Topic: plugin dispatcher contract",
   "type": "task",
-  "updated_at": "2026-05-31T03:35:11.223598795Z"
+  "updated_at": "2026-05-31T03:35:12.297278402Z"
 }
