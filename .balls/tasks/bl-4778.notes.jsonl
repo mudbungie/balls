@@ -1,0 +1,1 @@
+{"ts":"2026-05-31T20:48:07.105675468Z","author":"mark","text":"NOTE — bl-8452 (resolved 2026-05-31, session: Repairman) DROPS the `plugins` built-in field from §4 (the {name,path} list). The symlink folder config/plugins/<op>.{pre,post}/ is now the plugin registry; there is no config list. Account for this when revising §4 built-in fields here. See bl-2e26 §6 note."}
