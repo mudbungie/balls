@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Why\n\nbl-4997 (pre-invoke return channel + field-conflict policy) and bl-8452 (plugin dispatcher contract) were resolved in PARALLEL by different sessions (both ~2026-05-31). They share the plugin wire, so there's a real chance of drift at that seam — the kind of accepted-early design miss this whole refactor (bl-b465) exists to prevent.\n\n# Task\n\nRead both resolutions on bl-2e26 (the §6 dispatcher note from bl-8452 + whatever bl-4997's session wrote) and confirm they're mutually consistent. Specifically check:\n\n- **Wire crossing**: bl-8452 settled subprocess-uniform — every plugin (incl. tracker) is an independent binary, payload crosses a process boundary via stdin/stdout. Does bl-4997's pre-invoke return channel (field_overrides / metadata_additions on stdout) assume the same process boundary, or did it assume an in-process call?\n- **Naming**: bl-8452 standardized the self-describe verb as `protocol` -> { protocol, ops }, and uses `ops` for the supported operation set. Does bl-4997 use `ops` consistently (not `verbs`)?\n- **Field-conflict policy vs validation**: bl-8452 put op/version validation at `bl plugin install` time (refuse to link an op a plugin doesn't declare). Does bl-4997's field-conflict policy assume any persisted plugin list or metadata that bl-8452 removed? (Reminder: the `plugins` config list is GONE; the symlink folder is the registry.)\n- **Recursion**: bl-8452 set BALLS_PLUGIN_DEPTH to SUPPRESS (not refuse) plugins on nested ops. If pre-invoke can trigger nested bl calls, confirm bl-4997 is consistent.\n\n# Deliverable\n\nIf consistent: a note on bl-2e26 confirming the seam holds. If not: a note documenting the conflict and a recommended reconciliation, and reopen/annotate whichever topic needs the fix.\n\nSource: opened by session Repairman after resolving bl-8452, on noticing bl-4997 closed concurrently.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":212,"source":"balls","state":"open","synced_at":"2026-05-31T20:51:41.757865861+00:00","url":"https://github.com/mudbungie/balls/issues/212"}}},
   "id": "bl-5dc2",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-05-31T20:51:41.785567160Z"},
   "tags": [],
   "title": "Cross-check bl-4997 pre-invoke resolution against bl-8452 dispatch contract",
   "type": "task",
-  "updated_at": "2026-05-31T20:51:41.108497213Z"
+  "updated_at": "2026-05-31T20:51:41.785574404Z"
 }
