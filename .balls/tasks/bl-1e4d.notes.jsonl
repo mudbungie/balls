@@ -1,1 +1,0 @@
-{"ts":"2026-05-31T03:51:57.527563102Z","author":"Zeroed","text":"Resolve commit-message k:v protocol: git trailer block\n\nk:v block is a standard git trailer block (parsed via git interpret-trailers), bl- reserved namespace, repeated keys -> list, unknown keys forwarded. Decision recorded in SPEC bl-2e26 §5; no code change."}
