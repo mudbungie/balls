@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8452",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:17.821751268Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-29T19:45:18.756583316Z"},
   "tags": [],
   "title": "Topic: plugin dispatcher contract",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:18.756591672Z"
+  "updated_at": "2026-05-31T03:35:11.223598795Z"
 }
