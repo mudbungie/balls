@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-1e4d",
+  "claimed_by": "Zeroed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:18.781435868Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-05-29T19:45:19.885950047Z"},
   "tags": [],
   "title": "Topic: commit message k:v protocol",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:19.885961809Z"
+  "updated_at": "2026-05-31T03:35:30.028525192Z"
 }
