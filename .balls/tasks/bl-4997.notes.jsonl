@@ -1,0 +1,1 @@
+{"ts":"2026-06-01T20:03:38.390768577Z","author":"Binges","text":"Resolved by removal: worktree-first lifecycle eliminates the pre-invoke return channel and the field-conflict policy. Resolution recorded as the §7/§8 note on bl-2e26. Consistent with bl-8452 by construction (answers bl-5dc2)."}
