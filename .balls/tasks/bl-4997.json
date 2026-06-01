@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-01T20:03:16.784031221Z"},
   "tags": [],
   "title": "Topic: pre-invoke return channel + field-conflict policy",
   "type": "task",
-  "updated_at": "2026-06-01T20:03:16.784036811Z"
+  "updated_at": "2026-06-01T20:03:38.390600297Z"
 }
