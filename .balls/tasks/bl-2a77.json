@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2a77",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-02T07:02:10.467133367Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T08:04:29.028897987Z"},
   "tags": ["greenfield"],
   "title": "Topic: delivery/worktree plugin contract (claim/review/close hooks)",
   "type": "task",
-  "updated_at": "2026-06-02T08:04:29.028906804Z"
+  "updated_at": "2026-06-02T22:30:42.762712591Z"
 }
