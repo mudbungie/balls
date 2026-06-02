@@ -6,7 +6,7 @@
   "created_at": "2026-05-29T19:45:23.894864670Z",
   "delivered_in": null,
   "depends_on": [],
-  "description": "# Open question\n\nTerminal ops walkthrough: `bl close`, `bl drop`.\n\nBoth delete the ball file. Differences:\n- `close` = work was done (transition from claimed/review)\n- `drop` = abandoned (transition from any state, including open for stale tasks)\n\nSpec:\n- Same change-attempt-worktree lifecycle as other ops; the diff is a file deletion.\n- Commit message k:v: `op: close` or `op: drop`, `from-state: <prev>`, `to-state: terminated`.\n- Recovery: `git log --diff-filter=D -- tasks/<id>.md` finds the kill commit. `bl show <id>` should still resolve closed balls by reading from history.\n- Worktree teardown: today `bl close` removes the code worktree. Carry over or punt to a code-worktree plugin?\n- `bl close` from inside the worktree being torn down: today this is the inviolable rule. Still applies?",
+  "description": "# Open question\n\nTerminal ops walkthrough: `bl close`, `bl drop`. Both delete the ball file; differ in intent:\n- `close` = work delivered (from claimed/review)\n- `drop` = abandoned (from any state, including open for stale tasks)\n\nSettled (per §7/§8 + note 0):\n- Same worktree-first lifecycle as any op; the staged diff is a deletion of `tasks/<id>.md` in `changes/<uuid>/`.\n- §5 trailer block: `bl-op: close|drop`, `bl-from-state: <prev>`, `bl-to-state: closed|dropped`.\n- Recovery: `git log --diff-filter=D -- tasks/<id>.md` finds the kill commit; `bl show <id>` resolves a terminated ball from history.\n- The worktree is core (not a plugin), so close/drop own its teardown.\n\nLive questions (gated on bl-d66e's two-worktree resolution):\n- If the deliverable **code worktree** (`.balls-worktrees/<id>/`) survives bl-d66e, close/drop tear it down — spec the order relative to the change-worktree merge.\n- The inviolable \"no `bl close` from inside the worktree being torn down\" rule — carry it over; confirm it still applies under the resolved layout (close runs from operating/ / repo root; the change worktree is `changes/<uuid>/`).\n- Does `drop` from `open` (never-claimed stale task, no code worktree) skip teardown entirely?",
   "external": {"github-issues":{}},
   "id": "bl-dd3e",
   "links": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Topic: terminal ops walkthrough (close/drop)",
   "type": "task",
-  "updated_at": "2026-05-30T05:25:13.659326566Z"
+  "updated_at": "2026-06-02T03:29:31.303272660Z"
 }
