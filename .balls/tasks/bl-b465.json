@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-05-31T03:52:05.476335063Z","id":"bl-1e4d","title":"Topic: commit message k:v protocol"},{"closed_at":"2026-05-31T07:52:58.410973879Z","id":"bl-8452","title":"Topic: plugin dispatcher contract"},{"closed_at":"2026-05-31T19:53:35.827557142Z","id":"bl-4997","title":"Topic: pre-invoke return channel + field-conflict policy"},{"closed_at":"2026-06-01T20:03:43.647219938Z","id":"bl-4997","title":"Topic: pre-invoke return channel + field-conflict policy"},{"closed_at":"2026-06-01T20:04:07.043826515Z","id":"bl-5dc2","title":"Cross-check bl-4997 pre-invoke resolution against bl-8452 dispatch contract"},{"closed_at":"2026-06-02T03:02:38.911060962Z","id":"bl-6406","title":"Topic: bl init walkthrough + edge cases"},{"closed_at":"2026-06-02T05:03:54.237794673Z","id":"bl-d66e","title":"Topic: state transitions walkthrough (claim/unclaim/review)"},{"closed_at":"2026-06-02T06:42:14.202878784Z","id":"bl-f3e0","title":"Topic: ID generation scheme"},{"closed_at":"2026-06-02T06:42:15.523650805Z","id":"bl-284c","title":"Topic: bl new walkthrough (plugin-assigned id)"}],
+  "closed_children": [{"closed_at":"2026-05-31T03:52:05.476335063Z","id":"bl-1e4d","title":"Topic: commit message k:v protocol"},{"closed_at":"2026-05-31T07:52:58.410973879Z","id":"bl-8452","title":"Topic: plugin dispatcher contract"},{"closed_at":"2026-05-31T19:53:35.827557142Z","id":"bl-4997","title":"Topic: pre-invoke return channel + field-conflict policy"},{"closed_at":"2026-06-01T20:03:43.647219938Z","id":"bl-4997","title":"Topic: pre-invoke return channel + field-conflict policy"},{"closed_at":"2026-06-01T20:04:07.043826515Z","id":"bl-5dc2","title":"Cross-check bl-4997 pre-invoke resolution against bl-8452 dispatch contract"},{"closed_at":"2026-06-02T03:02:38.911060962Z","id":"bl-6406","title":"Topic: bl init walkthrough + edge cases"},{"closed_at":"2026-06-02T05:03:54.237794673Z","id":"bl-d66e","title":"Topic: state transitions walkthrough (claim/unclaim/review)"},{"closed_at":"2026-06-02T06:42:14.202878784Z","id":"bl-f3e0","title":"Topic: ID generation scheme"},{"closed_at":"2026-06-02T06:42:15.523650805Z","id":"bl-284c","title":"Topic: bl new walkthrough (plugin-assigned id)"},{"closed_at":"2026-06-02T08:05:04.891053431Z","id":"bl-dd3e","title":"Topic: terminal ops walkthrough (close/drop)"}],
   "created_at": "2026-05-29T19:42:53.862941410Z",
   "delivered_in": null,
   "depends_on": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Refactor: simplify balls — single branch, plugin-first",
   "type": "epic",
-  "updated_at": "2026-06-02T06:42:15.523752508Z"
+  "updated_at": "2026-06-02T08:05:04.891121777Z"
 }
