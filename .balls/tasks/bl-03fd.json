@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-03fd",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-02T23:42:20.280339444Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T23:42:21.079770375Z"},
   "tags": ["greenfield"],
   "title": "Topic: drop the review verb — close-centric delivery + canonical plugin-invocation lifecycle",
   "type": "task",
-  "updated_at": "2026-06-02T23:42:21.079774663Z"
+  "updated_at": "2026-06-02T23:42:23.383947161Z"
 }
