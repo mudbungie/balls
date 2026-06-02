@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-284c",
+  "claimed_by": "Obstructed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:21.851676548Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T05:19:39.460070693Z"},
   "tags": [],
   "title": "Topic: bl new walkthrough (plugin-assigned id)",
   "type": "task",
-  "updated_at": "2026-06-02T05:19:39.460075412Z"
+  "updated_at": "2026-06-02T05:26:23.223003343Z"
 }
