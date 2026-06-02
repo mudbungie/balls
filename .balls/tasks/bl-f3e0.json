@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nID generation scheme. Default: `bl-XXXX`, random 4-char suffix.\n\n- Configurable via `id_scheme` in `config/balls.yaml`: `{ prefix, length, alphabet, generator }`.\n- Plugin-assigned IDs (bl-284c): a `new/pre/` plugin assigns an id by `git mv`-ing the staged `tasks/<provisional>.md` + editing frontmatter IN THE WORKTREE — NOT via a return value (§7 has no return channel). balls re-reads the tree for the final id.\n- Collision handling: before committing, balls checks for an existing ball with the same id; collision → abort with a clear error (caller/plugin retries).\n- ID validation: must be a filename-safe path component — define the exact regex (alphanumeric + `-_`; decide on `/`, since ids index file paths).\n- Generator alternatives: timestamp, sequential counter (needs state — awkward), uuid (verbose). Random is the default; offer config hooks for the others.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":225,"source":"balls","state":"open","synced_at":"2026-06-02T05:26:23.181189549+00:00","url":"https://github.com/mudbungie/balls/issues/225"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":225,"source":"balls","state":"open","synced_at":"2026-06-02T06:42:07.101803436+00:00","url":"https://github.com/mudbungie/balls/issues/225"}}},
   "id": "bl-f3e0",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-02T05:26:23.195004851Z"},
+  "synced_at": {"github-issues":"2026-06-02T06:42:07.120047577Z"},
   "tags": [],
   "title": "Topic: ID generation scheme",
   "type": "task",
-  "updated_at": "2026-06-02T06:42:06.216008200Z"
+  "updated_at": "2026-06-02T06:42:07.120054930Z"
 }
