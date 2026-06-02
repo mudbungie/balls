@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f3e0",
+  "claimed_by": "Obstructed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:29.808221298Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T03:29:35.211679149Z"},
   "tags": [],
   "title": "Topic: ID generation scheme",
   "type": "task",
-  "updated_at": "2026-06-02T03:29:35.211682165Z"
+  "updated_at": "2026-06-02T05:26:22.386601427Z"
 }
