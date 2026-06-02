@@ -6,7 +6,7 @@
   "created_at": "2026-05-29T19:45:24.929162019Z",
   "delivered_in": null,
   "depends_on": [],
-  "description": "# Open question\n\n`bl sync` and `bl prime` walkthroughs.\n\nBoth invoke the full plugin chain with their respective verbs. Not tracker-exclusive — every plugin gets a turn.\n\n- `bl sync`: tracker fetches and fast-forwards (or aborts on conflict, per \"remote wins\" rule). Other plugins may refresh their caches.\n- `bl prime`: comprehensive setup/refresh. Other plugins may bootstrap state, fetch external tickets, etc.\n\nSpec:\n- Payload shape for these verbs (no `command`, no `previous_state` — what's there?)\n- cwd = operating/ (no change-attempt worktree)\n- Failure semantics: rollback in reverse, same as state-change ops\n- Contention: tracker's sync detects remote has moved → aborts → user re-runs (per the \"remote wins, user resolves\" rule)\n- Pre-sync vs sync? Tracker pre-sync as a fast contention probe, then plugins do their work, then sync commits? Or simpler: just `sync`?\n\nResolve the verbs and shape.",
+  "description": "# Open question\n\n`bl sync` and `bl prime` walkthroughs — ops with hook dirs like any other, not tracker-exclusive.\n\nSettled framing (per §6/§7/§8):\n- Each is an op with `sync/pre|post` and `prime/pre|post` run-parts dirs; every linked plugin runs, cwd = operating/ (no change worktree — there is no ball-file diff to stage). No stdin return channel; plugins act via the filesystem (§7).\n- Failure → reverse-order rollback, same as any op.\n\nResolve the remaining shape:\n- `bl sync`: tracker fetches and fast-forwards, or aborts on contention (\"remote wins, user re-runs\"). Other plugins may refresh caches. Is there a `sync/pre` contention probe (a fast \"remote has moved\" check) before the work, or just a single `sync`?\n- `bl prime`: comprehensive setup/refresh — tracker syncs, other plugins bootstrap/fetch external state. Relationship to `sync`: does prime call sync, or are they peers?\n- What context does a sync/prime plugin get, given there is no `command`/`previous_state` payload and no change worktree? Define what is on the wire / in env for these ops (cwd = operating/, BALLS_* env, the §5 trailer metadata of the triggering op).",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":201,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:25.901103156+00:00","url":"https://github.com/mudbungie/balls/issues/201"}}},
   "id": "bl-375a",
   "links": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Topic: bl sync and bl prime walkthroughs",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:25.907357749Z"
+  "updated_at": "2026-06-02T03:29:32.166266320Z"
 }
