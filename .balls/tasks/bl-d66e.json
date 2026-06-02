@@ -6,7 +6,7 @@
   "created_at": "2026-05-29T19:45:22.881008838Z",
   "delivered_in": null,
   "depends_on": [],
-  "description": "# Open question\n\nState transitions walkthrough: `bl claim`, `bl unclaim`, `bl review`.\n\nEach is a non-terminal state change (file stays, frontmatter mutates):\n- `claim`: state=open → claimed, sets claimant\n- `unclaim`: state=claimed → open, clears claimant\n- `review`: state=claimed → review\n\nVerify:\n- The `op:` in commit metadata matches the verb (`op: claim`, etc.)\n- Pre-invoke sees the proposed `field_changes`; plugins can reject the transition\n- Invoke sees full previous+current state\n- Worktree story: do non-init transitions still produce code worktrees, or is the change-attempt worktree the only worktree concept now? (Today there's a `.balls-worktrees/<id>/` for code work. Does that survive the refactor, or is it a separate concern from the balls-branch state machine?)\n\nThe big call: is `bl claim`'s \"make me a code worktree\" still part of balls, or is that a separate plugin/extension? Spec it.",
+  "description": "# Open question\n\nState transitions walkthrough: `bl claim`, `bl unclaim`, `bl review` — the generic non-terminal state-change op (file stays, frontmatter mutates). `bl init` (§9) was the bootstrap special case; this is the everyday op that exercises the §8 worktree-first lifecycle.\n\nTransitions (defaults; `state` is an open string field per §3 — no enum, only `claim` is hardcoded to refuse an already-claimed ball):\n- `claim`: open → claimed, sets claimant\n- `unclaim`: claimed → open, clears claimant\n- `review`: claimed → review\n\nSettled by resolved notes (do not re-litigate):\n- Lifecycle is §8 worktree-first: balls stages the frontmatter diff in `changes/<uuid>/`, runs `<op>/pre/` (cwd = worktree; plugins mutate files or reject via non-zero exit), commits with the §5 trailer block (`bl-op: claim`, `bl-from-state`, `bl-to-state`, …), runs `<op>/post/`, merges into operating/. NO return channel — plugins act by editing the worktree (§7); field conflicts resolve last-writer-wins in run-parts order.\n- The worktree is core balls, not a plugin (note 0).\n\nTHE live question — the two-worktree relationship:\n- §8's **change worktree** (`changes/<uuid>/`) stages the ball-file diff for every op.\n- Today `bl claim` also creates a **code worktree** (`.balls-worktrees/<id>/`) where an agent does the actual deliverable work.\n- Are these the same worktree, two distinct core concepts, or does the deliverable code-worktree survive the refactor at all? If it survives: where does it live (XDG, overridable — note 0), how does its lifecycle bind to claim/review/close, and how does it relate to operating/?\n\nDeliverable: the deterministic sequence for each of claim/unclaim/review, including the worktree story and the failure/rollback order.",
   "external": {"github-issues":{}},
   "id": "bl-d66e",
   "links": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Topic: state transitions walkthrough (claim/unclaim/review)",
   "type": "task",
-  "updated_at": "2026-05-30T05:25:14.087982979Z"
+  "updated_at": "2026-06-02T03:28:08.537697092Z"
 }
