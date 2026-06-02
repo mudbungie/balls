@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nFederation specifics — this topic owns **trail topology + config layering**, deferred here by §9.\n\nResolved vocabulary/rules to build on (§9): the **trail** is anchor → step(s) → terminus, walked by following each branch's **next-step pointer** with **stop-on-revisit**. NOTE — this supersedes the epic's original \"one hop, no recursion\": there is **no depth cap**; balls follows the trail until a terminus (no pointer) or a revisit (loop backstop). Multi-step chains are a known, un-policed edge (§9).\n\nResolve:\n- Next-step pointer schema (the file formerly sketched as `config/plugins/tracker/remote.yaml`): just `next: <url>`, or more (branch, auth hints, ttl)?\n- Config layering ALONG the trail: scalar/object config is innermost-wins (§4); run-parts `<op>/<phase>/` dirs are first-defining-layer-wins, whole, no merge (§9). Confirm how a multi-step trail composes both.\n- `--center <url>` writes the next-step pointer during `bl init`; after init, edit the pointer and `bl sync`.\n- How tracker maintains a downstream step's checkout (a parallel `plugins/tracker/<enc-step>/`); when it refreshes (does every `bl sync` re-fetch each step on the trail?).\n- Read paths: `config/balls.yaml` layers down the trail (§4). `tasks/<id>.md` does NOT federate — tasks are terminus-local; only config layers. Confirm.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":203,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:27.977199506+00:00","url":"https://github.com/mudbungie/balls/issues/203"}}},
+  "external": {"github-issues":{}},
   "id": "bl-62bc",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-05-29T19:45:27.998523889Z"},
+  "synced_at": {"github-issues":"2026-06-02T03:29:33.454837581Z"},
   "tags": [],
   "title": "Topic: federation (shadow config, center remote.yaml, one-hop)",
   "type": "task",
-  "updated_at": "2026-06-02T03:29:33.016697752Z"
+  "updated_at": "2026-06-02T03:29:33.454840286Z"
 }
