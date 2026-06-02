@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-dd3e",
+  "claimed_by": "orionriver@gmail.com",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:23.894864670Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T05:19:36.878045715Z"},
   "tags": [],
   "title": "Topic: terminal ops walkthrough (close/drop)",
   "type": "task",
-  "updated_at": "2026-06-02T08:04:19.163910469Z"
+  "updated_at": "2026-06-02T08:04:19.186137270Z"
 }
