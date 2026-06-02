@@ -6,7 +6,7 @@
   "created_at": "2026-05-29T19:45:25.936189711Z",
   "delivered_in": null,
   "depends_on": [],
-  "description": "# Open question\n\nTracker `adopt` and `disown` verbs — stealth ↔ federated migration.\n\n- `tracker adopt --remote <url>`: stealth install becomes federated. Local `operating/` is a real dir with commits; tracker clones the remote (probably empty `balls` branch), pushes local commits, atomically swaps `operating/` symlink to point at the tracker dir.\n- `tracker disown`: reverse. Clone the tracker dir into a real `operating/`, drop the symlink, clear the binding's tracker remote.\n\nSpec:\n- Are these CLI subcommands of `bl tracker ...`, or are they `bl plugin tracker adopt ...` via the dispatcher?\n- Does adopt go through the plugin chain (other plugins see an \"adopt\" verb)? Probably yes, for symmetry.\n- Failure modes: remote already has commits on the balls branch and they conflict with local → abort, user resolves.\n- The atomic swap mechanics: rename(2) the operating/ dir aside, create the symlink, delete the old dir. Order matters for crash recovery.",
+  "description": "# Open question\n\nTracker `adopt` / `disown` — stealth ↔ federated migration, restated in the trail/step model (§9).\n\nUnder the resolved model a stealth repo is an anchor that is its own terminus (no next-step pointer, or a self-reference lock); a federated repo is an anchor whose next-step pointer names a remote step. So the migration is **pointer manipulation, not an `operating/` symlink swap**:\n- `adopt --remote <url>`: write the next-step pointer on the anchor and publish local-only commits to the new step. Mirrors `bl init`'s tracker path and inherits its guard — if the remote `balls` already has ≥2 commits, this is a `prime`/reconcile, not a clean adopt (cf. §9 E3).\n- `disown`: remove the next-step pointer (back to unconfigured terminus), or set the self-reference lock to pin stealth. Local task state already lives in the anchor's operating checkout.\n\nResolve:\n- Surface: `bl plugin tracker adopt …` via the dispatcher (so other plugins see the op), or a dedicated `bl tracker …`? Lean dispatcher for symmetry.\n- Failure: remote `balls` already has commits that conflict with local → abort, user reconciles (same \"remote wins\" posture as sync).\n- Physical realization of the swap (real dir vs symlink for operating/) is §1's job; this topic owns the **logical** adopt/disown semantics over the trail. Cross-ref bl-62bc (trail) and §9 (init/prime split).",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":202,"source":"balls","state":"open","synced_at":"2026-05-29T19:45:26.827892530+00:00","url":"https://github.com/mudbungie/balls/issues/202"}}},
   "id": "bl-0601",
   "links": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Topic: tracker adopt/disown migration verbs",
   "type": "task",
-  "updated_at": "2026-05-29T19:45:26.839062538Z"
+  "updated_at": "2026-06-02T03:29:32.606458431Z"
 }
