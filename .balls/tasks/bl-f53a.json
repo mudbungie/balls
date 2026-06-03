@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nThe typed-link model needs revisiting under the greenfield 'no workflow enforcement in core' rule (reaffirmed resolving bl-dd3e: only hardcoded rejection is claim-on-already-claimed; all other sequence enforcement is plugin pre-invoke best-effort OR skill hinting, never a core guarantee).\n\n## The tension\nToday TWO link types ENFORCE state transitions in core:\n- `gates`: blocks `bl close` while any open gates link exists ('parent can't close while gate child is open').\n- `depends_on`: blocks `bl claim` of the dependent until the dep closes.\nBoth are core enforcement of a transition — exactly what greenfield pushes out of core.\n\nThe NON-enforcing links (`relates_to`, `supersedes`, `duplicates`, `replies_to`) are pure metadata and stay in core untouched — this topic is only about the enforcing pair.\n\n## Scope — decide\n1. Which links are pure-metadata core vs which enforce. (Leaning: keep all link TYPES as core metadata; move only the ENFORCEMENT out.)\n2. Where the enforcing reject re-homes: a plugin `close.pre` / `claim.pre` reject (best-effort, can fail to reject) vs pure skill hinting. Destination semantics, not source — consistent with the §3 rule.\n3. bl-2a77 SEAM (load-bearing): the forge-gated delivery variant creates a 'gate child' that must block close until the forge merges. That currently relies on gates-blocks-close being enforced. Under greenfield that enforcement becomes the forge plugin's `close.pre`. This topic and bl-2a77 must agree on where that reject lives (same handoff pattern as the cwd precondition already carried to bl-2a77).\n4. Does the spec (bl-2e26) gain a new § for the link model? It currently has none.\n\n## Settled inputs (carry, don't redecide)\n- No core workflow enforcement; claim-on-already-claimed is the sole hardcoded reject (bl-2e26 §3 note + bl-dd3e resolution).\n- Plugin pre-invoke rejects via non-zero exit (§8 worktree-first); they are best-effort (a plugin can fail to reject).\n\n## Relation\nIntersects bl-2a77 (forge gate-child reject). Informs bl-2e26 (may add a § links section). Design-only: resolution is a note on bl-2e26.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":237,"source":"balls","state":"open","synced_at":"2026-06-03T05:15:17.492825391+00:00","url":"https://github.com/mudbungie/balls/issues/237"}}},
+  "external": {"github-issues":{}},
   "id": "bl-f53a",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-03T05:15:17.501746257Z"},
+  "synced_at": {"github-issues":"2026-06-03T05:15:18.355272042Z"},
   "tags": ["greenfield"],
   "title": "Topic: typed links & enforcing gates under the no-enforcement model",
   "type": "task",
-  "updated_at": "2026-06-03T05:15:17.529505149Z"
+  "updated_at": "2026-06-03T05:15:18.355277392Z"
 }
