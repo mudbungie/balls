@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nTracker `adopt` / `disown` — stealth ↔ federated migration, restated in the trail/step model (§9).\n\nUnder the resolved model a stealth repo is an anchor that is its own terminus (no next-step pointer, or a self-reference lock); a federated repo is an anchor whose next-step pointer names a remote step. So the migration is **pointer manipulation, not an `operating/` symlink swap**:\n- `adopt --remote <url>`: write the next-step pointer on the anchor and publish local-only commits to the new step. Mirrors `bl init`'s tracker path and inherits its guard — if the remote `balls` already has ≥2 commits, this is a `prime`/reconcile, not a clean adopt (cf. §9 E3).\n- `disown`: remove the next-step pointer (back to unconfigured terminus), or set the self-reference lock to pin stealth. Local task state already lives in the anchor's operating checkout.\n\nResolve:\n- Surface: `bl plugin tracker adopt …` via the dispatcher (so other plugins see the op), or a dedicated `bl tracker …`? Lean dispatcher for symmetry.\n- Failure: remote `balls` already has commits that conflict with local → abort, user reconciles (same \"remote wins\" posture as sync).\n- Physical realization of the swap (real dir vs symlink for operating/) is §1's job; this topic owns the **logical** adopt/disown semantics over the trail. Cross-ref bl-62bc (trail) and §9 (init/prime split).",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":242,"source":"balls","state":"open","synced_at":"2026-06-03T08:52:56.283559393+00:00","url":"https://github.com/mudbungie/balls/issues/242"}}},
   "id": "bl-0601",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-02T03:29:32.996529163Z"},
+  "synced_at": {"github-issues":"2026-06-03T08:52:56.312159375Z"},
   "tags": [],
   "title": "Topic: tracker adopt/disown migration verbs",
   "type": "task",
-  "updated_at": "2026-06-03T08:52:55.281728848Z"
+  "updated_at": "2026-06-03T08:52:56.312169824Z"
 }
