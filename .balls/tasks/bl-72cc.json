@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Collapse the bl-2e26 palimpsest (stale body + 13 append-only notes, several superseding earlier ones) into one coherent current spec body. Retire bl-f53a (subsumed by the blocker model in bl-a408; only residual = pure-metadata links stay core).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":235,"source":"balls","state":"open","synced_at":"2026-06-03T05:14:51.516080447+00:00","url":"https://github.com/mudbungie/balls/issues/235"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":235,"source":"balls","state":"open","synced_at":"2026-06-03T05:14:55.360152486+00:00","url":"https://github.com/mudbungie/balls/issues/235"}}},
   "id": "bl-72cc",
   "links": [],
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-03T05:14:51.527072179Z"},
+  "synced_at": {"github-issues":"2026-06-03T05:14:55.379113533Z"},
   "tags": ["greenfield"],
   "title": "Consolidation: rewrite bl-2e26 body from the 13 notes into one current spec; retire bl-f53a",
   "type": "task",
-  "updated_at": "2026-06-03T05:14:54.301956872Z"
+  "updated_at": "2026-06-03T05:14:55.379119864Z"
 }
