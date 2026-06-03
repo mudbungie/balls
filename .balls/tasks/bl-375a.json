@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\n`bl sync` and `bl prime` walkthroughs — ops with hook dirs like any other, not tracker-exclusive.\n\nSettled framing (per §6/§7/§8):\n- Each is an op with `sync/pre|post` and `prime/pre|post` run-parts dirs; every linked plugin runs, cwd = operating/ (no change worktree — there is no ball-file diff to stage). No stdin return channel; plugins act via the filesystem (§7).\n- Failure → reverse-order rollback, same as any op.\n\nResolve the remaining shape:\n- `bl sync`: tracker fetches and fast-forwards, or aborts on contention (\"remote wins, user re-runs\"). Other plugins may refresh caches. Is there a `sync/pre` contention probe (a fast \"remote has moved\" check) before the work, or just a single `sync`?\n- `bl prime`: comprehensive setup/refresh — tracker syncs, other plugins bootstrap/fetch external state. Relationship to `sync`: does prime call sync, or are they peers?\n- What context does a sync/prime plugin get, given there is no `command`/`previous_state` payload and no change worktree? Define what is on the wire / in env for these ops (cwd = operating/, BALLS_* env, the §5 trailer metadata of the triggering op).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":243,"source":"balls","state":"open","synced_at":"2026-06-03T08:55:24.763185429+00:00","url":"https://github.com/mudbungie/balls/issues/243"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":243,"source":"balls","state":"open","synced_at":"2026-06-03T08:55:33.432227530+00:00","url":"https://github.com/mudbungie/balls/issues/243"}}},
   "id": "bl-375a",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-03T08:55:24.789610324Z"},
+  "synced_at": {"github-issues":"2026-06-03T08:55:33.455414164Z"},
   "tags": [],
   "title": "Topic: bl sync and bl prime walkthroughs",
   "type": "task",
-  "updated_at": "2026-06-03T08:55:32.577678652Z"
+  "updated_at": "2026-06-03T08:55:33.455423681Z"
 }
