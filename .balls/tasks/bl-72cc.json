@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-03T05:14:55.379113533Z"},
   "tags": ["greenfield"],
   "title": "Consolidation: rewrite bl-2e26 body from the 13 notes into one current spec; retire bl-f53a",
   "type": "task",
-  "updated_at": "2026-06-03T05:14:55.379119864Z"
+  "updated_at": "2026-06-03T05:15:33.164083780Z"
 }
