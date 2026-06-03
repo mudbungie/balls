@@ -13,10 +13,10 @@
   "parent": "bl-f021",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-05-30T05:31:38.644752613Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-06-03T08:49:10.613762195Z"},
   "tags": ["coordination","release"],
   "title": "Phase 4: min_bl_version bump on the orphan tracker",
   "type": "task",
-  "updated_at": "2026-05-30T05:31:38.644759577Z"
+  "updated_at": "2026-06-03T08:49:10.613764590Z"
 }
