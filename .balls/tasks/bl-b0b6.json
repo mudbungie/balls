@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b0b6",
+  "claimed_by": "Mintier",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-05-29T19:45:28.027086829Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T05:19:37.850707168Z"},
   "tags": [],
   "title": "Topic: pre/post hook rollback semantics",
   "type": "task",
-  "updated_at": "2026-06-02T05:19:37.850715493Z"
+  "updated_at": "2026-06-03T22:34:36.561316664Z"
 }
