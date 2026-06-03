@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-72cc",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-03T05:14:50.642849614Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-03T05:14:51.527072179Z"},
   "tags": ["greenfield"],
   "title": "Consolidation: rewrite bl-2e26 body from the 13 notes into one current spec; retire bl-f53a",
   "type": "task",
-  "updated_at": "2026-06-03T05:14:51.527081937Z"
+  "updated_at": "2026-06-03T05:14:54.301956872Z"
 }
