@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nPre/post rollback semantics in detail, under the resolved §7/§8 model.\n\n§8 failure order (settled): rollback prior plugins (reverse) FIRST, then discard the change worktree. Because plugins now mutate the worktree (§7) and discarding it already undoes their FILE changes, **rollback is about a plugin's EXTERNAL side effects** — tracker having pushed, jira having created a ticket — not about file state.\n\nOpen questions:\n- The plugin gets one `rollback` op; the payload tells it which phase is unwinding (`pre` vs `post`, divided by the commit boundary). How does a plugin remember state from its `pre` run to its `post`/rollback run — env var, or a scratch-dir convention under `plugins/<name>/`?\n- A plugin linked into `<op>/pre` but not `<op>/post`: does its pre side-effect get a rollback call when a LATER plugin's post fails?\n- Idempotency / best-effort contract: balls will not retry and cannot verify rollback succeeded. Document it — best-effort, exit code ignored, plugin logs anything load-bearing to stderr.\n- Provide a reference plugin showing the pre→post scratch-dir handoff.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":223,"source":"balls","state":"open","synced_at":"2026-06-02T05:19:37.833607448+00:00","url":"https://github.com/mudbungie/balls/issues/223"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":223,"source":"balls","state":"open","synced_at":"2026-06-03T22:34:39.658759703+00:00","url":"https://github.com/mudbungie/balls/issues/223"}}},
   "id": "bl-b0b6",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-02T05:19:37.850707168Z"},
+  "synced_at": {"github-issues":"2026-06-03T22:34:39.679342350Z"},
   "tags": [],
   "title": "Topic: pre/post hook rollback semantics",
   "type": "task",
-  "updated_at": "2026-06-03T22:34:36.561316664Z"
+  "updated_at": "2026-06-03T22:34:39.679345907Z"
 }
