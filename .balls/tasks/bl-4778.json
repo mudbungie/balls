@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nStates as extensible config. Defaults: `[open, claimed]` (NO `review` — the review verb was dropped, §9); terminal ops are `close`/`drop` (not states). Per §4, `states` is informational only.\n\nPre-answered by note 0 (do not re-open): `state` is an OPEN string field — balls does NOT validate a transition matrix. The only hardcoded rule is `claim` refusing an already-claimed ball; all other sequence enforcement is a plugin `<op>/pre/` check (destination semantics, not source). So custom states \"just work\" — `[open, ready, in-progress, review]` needs no balls change.\n\nResidual questions:\n- `bl claim`'s default target state is `claimed`. If a user defines intermediate states, should claim's target be configurable per-op (e.g. `claim` → `in-progress`)? Or is the target purely a config default the op reads?\n- `bl new --state ready` to override the create-state, vs initial state purely from config (`default_state`)?\n- Worked example: a plugin enforcing \"review → closed only when CI is green\" hooks `close/pre/`.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":220,"source":"balls","state":"open","synced_at":"2026-06-02T03:29:34.726707415+00:00","url":"https://github.com/mudbungie/balls/issues/220"}}},
+  "external": {"github-issues":{}},
   "id": "bl-4778",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-02T03:29:34.750084752Z"},
+  "synced_at": {"github-issues":"2026-06-03T22:03:28.920550360Z"},
   "tags": [],
   "title": "Topic: states as extensible config",
   "type": "task",
-  "updated_at": "2026-06-03T22:03:27.223117363Z"
+  "updated_at": "2026-06-03T22:03:28.920554437Z"
 }
