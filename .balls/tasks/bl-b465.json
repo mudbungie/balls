@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-06-01T18:51:44.714765646Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-06-03T22:29:24.323708944Z"},
   "tags": [],
   "title": "Refactor: simplify balls — single branch, plugin-first",
   "type": "epic",
-  "updated_at": "2026-06-03T08:55:37.100735541Z"
+  "updated_at": "2026-06-03T22:29:24.323710738Z"
 }
