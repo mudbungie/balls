@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f53a",
+  "claimed_by": "mark",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-02T22:33:45.272962570Z",
@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-02T22:34:39.736434807Z"},
   "tags": ["greenfield"],
   "title": "Topic: typed links & enforcing gates under the no-enforcement model",
   "type": "task",
-  "updated_at": "2026-06-02T22:34:39.736437101Z"
+  "updated_at": "2026-06-03T05:15:16.569027077Z"
 }
