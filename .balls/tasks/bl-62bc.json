@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-03T05:16:52.341457732Z"},
   "tags": [],
   "title": "Topic: federation (shadow config, center remote.yaml, one-hop)",
   "type": "task",
-  "updated_at": "2026-06-03T05:16:52.341467560Z"
+  "updated_at": "2026-06-03T05:17:46.845208670Z"
 }
