@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-03T08:55:24.789610324Z"},
   "tags": [],
   "title": "Topic: bl sync and bl prime walkthroughs",
   "type": "task",
-  "updated_at": "2026-06-03T08:55:24.789616155Z"
+  "updated_at": "2026-06-03T08:55:32.577678652Z"
 }
