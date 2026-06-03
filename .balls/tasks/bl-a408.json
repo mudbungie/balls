@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Collapse epic/issue/gate types into one node type 'task'. Relational primitive: blockers:[{id, on}] on the BLOCKED task, on in {claim,close}, enforced at that op's pre by a default gating plugin (core enforces nothing). epic = task with claim-blocking children; gate = child close-blocking parent; dep = cross-tree claim-blocker. Delivery/worktree plugin is kind-blind. CLI front-doors --parent/--gates/--needs are core (write core schema; plugins add no CLI). Gates are tasks-only. Revises §3 ball schema + supersedes the link taxonomy; refines bl-2a77/bl-03fd worktree plugin to kind-blind.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":234,"source":"balls","state":"open","synced_at":"2026-06-03T02:49:55.853287616+00:00","url":"https://github.com/mudbungie/balls/issues/234"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":234,"source":"balls","state":"open","synced_at":"2026-06-03T02:50:00.531585307+00:00","url":"https://github.com/mudbungie/balls/issues/234"}}},
   "id": "bl-a408",
   "links": [],
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-03T02:49:55.859123109Z"},
+  "synced_at": {"github-issues":"2026-06-03T02:50:00.548766161Z"},
   "tags": ["greenfield"],
   "title": "Topic: task taxonomy collapse — one node type + blocker model, gating plugin, kind-blind worktrees",
   "type": "task",
-  "updated_at": "2026-06-03T02:49:59.554235665Z"
+  "updated_at": "2026-06-03T02:50:00.548775799Z"
 }
