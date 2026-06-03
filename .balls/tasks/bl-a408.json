@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-03T02:50:00.548766161Z"},
   "tags": ["greenfield"],
   "title": "Topic: task taxonomy collapse — one node type + blocker model, gating plugin, kind-blind worktrees",
   "type": "task",
-  "updated_at": "2026-06-03T02:50:00.548775799Z"
+  "updated_at": "2026-06-03T02:50:49.061008544Z"
 }
