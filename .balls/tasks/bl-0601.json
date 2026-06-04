@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question\n\nTracker `adopt` / `disown` — stealth ↔ federated migration, restated in the trail/step model (§12).\n\nUnder the resolved model a stealth repo is an anchor that is its own terminus (no next-step pointer, or a self-reference lock); a federated repo is an anchor whose next-step pointer names a remote step. So the migration is **pointer manipulation, not an `operating/` symlink swap**:\n- `adopt --remote <url>`: write the next-step pointer on the anchor and publish local-only commits to the new step. Mirrors `bl prime`'s tracker path (§12) and inherits its fork — if the remote `balls` already has ≥2 commits, this is a `prime`/reconcile (adopt-an-established-branch), not a clean found; established-vs-absent is read from remote state, not an error (the old E3 retired with idempotent prime).\n- **Boundary vs `bl install` (§6):** adopt/disown own the trail POINTER (`next:`); `install` is explicitly pointer-EXCLUDED (it copies committed config/plugin subtrees, never `next:`). So re-homing the trail is only ever these two verbs — `install` cannot do it by accident.\n- `disown`: remove the next-step pointer (back to unconfigured terminus), or set the self-reference lock to pin stealth. Local task state already lives in the anchor's operating checkout.\n\nResolve:\n- Surface: `bl plugin tracker adopt …` via the dispatcher (so other plugins see the op), or a dedicated `bl tracker …`? Lean dispatcher for symmetry.\n- Failure: remote `balls` already has commits that conflict with local → abort, user reconciles (same \"remote wins\" posture as sync).\n- Physical realization of the swap (real dir vs symlink for operating/) is §1's job; this topic owns the **logical** adopt/disown semantics over the trail. Cross-ref bl-62bc (trail), §12 (prime/founding), and §6 (install/pointer boundary).",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":249,"source":"balls","state":"open","synced_at":"2026-06-04T20:44:33.061849872+00:00","url":"https://github.com/mudbungie/balls/issues/249"}}},
   "id": "bl-0601",
   "links": [],
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-03T22:03:27.204771905Z"},
+  "synced_at": {"github-issues":"2026-06-04T20:44:33.068945224Z"},
   "tags": [],
   "title": "Topic: tracker adopt/disown migration verbs",
   "type": "task",
-  "updated_at": "2026-06-04T20:44:31.575883168Z"
+  "updated_at": "2026-06-04T20:44:33.068953860Z"
 }
