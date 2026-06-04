@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-04T20:23:16.590705130Z"},
   "tags": [],
   "title": "Topic: bl doctor — drift checks and stale worktree cleanup",
   "type": "task",
-  "updated_at": "2026-06-04T20:23:16.590708797Z"
+  "updated_at": "2026-06-04T20:23:20.227880633Z"
 }
