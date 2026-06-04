@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-04T20:44:33.068945224Z"},
   "tags": [],
   "title": "Topic: tracker adopt/disown migration verbs",
   "type": "task",
-  "updated_at": "2026-06-04T20:44:33.068953860Z"
+  "updated_at": "2026-06-04T21:19:11.044355212Z"
 }
