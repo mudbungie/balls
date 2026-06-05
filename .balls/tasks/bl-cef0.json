@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "# Open question (placeholder, out of scope until spec stabilizes)\n\nMigration from current balls to greenfield.\n\nCurrent state:\n- balls state lives on `balls/tasks` orphan branch as JSON files\n- Some state references on `main` (e.g. `[bl-xxxx]` commit tags)\n- `.balls/state-repo/` materialized clones (per the master_url model)\n- Plugins live in `.balls/plugins/` with JSON config\n\nGreenfield target:\n- balls state on `balls` branch as YAML files\n- Nothing on main\n- XDG-rooted operating dirs\n- New plugin contract\n\nLikely migration shape:\n- `bl migrate` one-shot tool\n- Translates JSON → YAML, balls/tasks → balls\n- Moves config/plugins to `config/plugins/<name>/`\n- Bootstraps XDG dirs from existing `.balls/` content\n- Preserves history (or starts fresh and leaves the old branch as an archive)\n\nDefer detailed work until spec lands.",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":254,"source":"balls","state":"open","synced_at":"2026-06-05T06:22:11.554729266+00:00","url":"https://github.com/mudbungie/balls/issues/254"}}},
   "id": "bl-cef0",
   "links": [],
   "parent": "bl-b465",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-05-31T20:48:08.063810169Z"},
+  "synced_at": {"github-issues":"2026-06-05T06:22:11.560720652Z"},
   "tags": [],
   "title": "Topic: migration from current balls (placeholder)",
   "type": "task",
-  "updated_at": "2026-06-05T06:22:10.509807507Z"
+  "updated_at": "2026-06-05T06:22:11.560731441Z"
 }
