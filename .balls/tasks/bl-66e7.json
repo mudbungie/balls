@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-66e7",
+  "claimed_by": "quartz",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:28:16.546271619Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T21:51:18.671127548Z"},
   "tags": [],
   "title": "§6 bl install — capability transfer (committed-subtree copy)",
   "type": "task",
-  "updated_at": "2026-06-05T21:51:18.671130013Z"
+  "updated_at": "2026-06-05T23:36:21.827491218Z"
 }
