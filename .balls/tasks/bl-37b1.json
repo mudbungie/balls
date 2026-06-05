@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-0802"],
   "description": "Promote §8's draft sequences + the spec into docs/; README; 0.x greenfield release notes; demonstration proof (core stories end-to-end after cutover). Final pass.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":272,"source":"balls","state":"open","synced_at":"2026-06-05T08:28:26.222179380+00:00","url":"https://github.com/mudbungie/balls/issues/272"}}},
   "id": "bl-37b1",
   "links": [],
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-05T08:28:26.228841719Z"},
   "tags": [],
   "title": "Docs + 0.x greenfield release notes + demonstration proof",
   "type": "task",
-  "updated_at": "2026-06-05T08:28:25.095814483Z"
+  "updated_at": "2026-06-05T08:28:26.228850445Z"
 }
