@@ -69,18 +69,29 @@ impl Terminus for FakeTerminus {
 }
 
 /// A [`Plugins`] that journals every run/rollback and fails the named plugin.
+/// `seen` captures the `Sealed` commit each call observed so a test can prove the
+/// §7 post facts cross the seam (`None` on every `pre` call).
 struct FakePlugins {
     j: Journal,
     fail: Option<&'static str>,
+    seen: RefCell<Vec<(String, Option<String>)>>,
+}
+
+impl FakePlugins {
+    fn new(j: Journal, fail: Option<&'static str>) -> Self {
+        Self { j, fail, seen: RefCell::new(Vec::new()) }
+    }
 }
 
 impl Plugins for FakePlugins {
-    fn run(&self, p: &PluginRef, _op: Verb, phase: Phase, _dir: &Path) -> io::Result<()> {
+    fn run(&self, p: &PluginRef, _op: Verb, phase: Phase, _dir: &Path, sealed: Option<&Sealed>) -> io::Result<()> {
         self.j.borrow_mut().push(format!("run:{}:{}", p.name, phase.token()));
+        self.seen.borrow_mut().push((p.name.clone(), sealed.map(|s| s.commit.to_string())));
         if self.fail == Some(p.name.as_str()) { Err(ioerr(&p.name)) } else { Ok(()) }
     }
-    fn rollback(&self, p: &PluginRef, _op: Verb, phase: Phase, _dir: &Path) {
+    fn rollback(&self, p: &PluginRef, _op: Verb, phase: Phase, _dir: &Path, sealed: Option<&Sealed>) {
         self.j.borrow_mut().push(format!("rollback:{}:{}", p.name, phase.token()));
+        self.seen.borrow_mut().push((format!("rb:{}", p.name), sealed.map(|s| s.commit.to_string())));
     }
 }
 
@@ -113,7 +124,7 @@ fn run_seal(
 ) -> (Result<String, OpError>, Vec<String>) {
     let jrn = journal();
     let term = FakeTerminus::new(jrn.clone(), term_fail);
-    let plugins = FakePlugins { j: jrn.clone(), fail: run_fail };
+    let plugins = FakePlugins::new(jrn.clone(), run_fail);
     let base = FakeBase { j: jrn.clone(), fail_stage, fail_finalize };
     let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
     let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
@@ -207,16 +218,50 @@ fn the_seal_commits_the_finalized_5_message() {
     }
     let jrn = journal();
     let term = FakeTerminus::new(jrn.clone(), None);
-    let plugins = FakePlugins { j: jrn, fail: None };
+    let plugins = FakePlugins::new(jrn, None);
     Engine::new(&term, &plugins).seal(&MsgBase, Verb::Create, Path::new("/c"), &[], &[]).unwrap();
     assert!(term.sealed_msg.borrow().as_deref().unwrap().contains("bl-id: bl-1234"));
+}
+
+#[test]
+fn post_sees_the_sealed_commit_while_pre_sees_none() {
+    // Pre "a" runs before the seal (no facts); post "b" after (commit C1). §7.
+    let jrn = journal();
+    let term = FakeTerminus::new(jrn.clone(), None);
+    let plugins = FakePlugins::new(jrn.clone(), None);
+    let base = FakeBase { j: jrn, fail_stage: false, fail_finalize: false };
+    let pre = [plugin("a")];
+    let post = [plugin("b")];
+    Engine::new(&term, &plugins)
+        .seal(&base, Verb::Close, Path::new("/c"), &pre, &post)
+        .unwrap();
+    assert_eq!(
+        *plugins.seen.borrow(),
+        [("a".into(), None), ("b".into(), Some("C1".into()))]
+    );
+}
+
+#[test]
+fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
+    // Post "c" lands, then "d" fails — only SUCCEEDED runs unwind (§14), so "c"'s
+    // post rollback sees its C1 facts and "a"'s pre rollback sees none (§7).
+    let jrn = journal();
+    let term = FakeTerminus::new(jrn.clone(), None);
+    let plugins = FakePlugins::new(jrn.clone(), Some("d"));
+    let base = FakeBase { j: jrn, fail_stage: false, fail_finalize: false };
+    let pre = [plugin("a")];
+    let post = [plugin("c"), plugin("d")];
+    let _ = Engine::new(&term, &plugins).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
+    let seen = plugins.seen.borrow().clone();
+    assert_eq!(seen.iter().find(|(k, _)| k == "rb:c").unwrap().1, Some("C1".into()));
+    assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, None);
 }
 
 /// Run a diffless op through the engine, returning the result and the journal.
 fn run_diffless(run_fail: Option<&'static str>, pre: &[&str], post: &[&str]) -> (Result<(), OpError>, Vec<String>) {
     let jrn = journal();
     let term = FakeTerminus::new(jrn.clone(), None);
-    let plugins = FakePlugins { j: jrn.clone(), fail: run_fail };
+    let plugins = FakePlugins::new(jrn.clone(), run_fail);
     let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
     let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
     let result = Engine::new(&term, &plugins).diffless(Verb::Sync, Path::new("/op"), &pre, &post);
