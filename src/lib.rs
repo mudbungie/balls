@@ -17,10 +17,13 @@
 //!
 //! Every verb is the same shape: balls authors a base change, an ordered
 //! plugin chain acts on it, balls SEALS it (commit + integrate, atomically),
-//! and plugins react. The seal is the pre/post boundary. [`run`] is that
-//! dispatch in skeleton form — it resolves a verb to its [`op::Op`] and the
-//! lifecycle that op will run. No phase does any work yet: the phases are the
-//! seam each rewrite phase fills in.
+//! and plugins react. The seal is the pre/post boundary. [`op`] names the
+//! verb-agnostic phase shape; [`git`] is the terminus seal (change worktree,
+//! commit + ff-integrate, un-seal); [`lifecycle`] is the [`lifecycle::Engine`]
+//! that runs the shape and unwinds it in reverse on any abort (§14). The verb
+//! diff ([`lifecycle::BaseChange`]) and the plugin chain ([`lifecycle::Plugins`])
+//! are seams later phases fill. [`run`] is still the skeleton dispatch — it
+//! prints the [`op::Op`] plan; wiring it to the engine is a later phase.
 //!
 //! # §1/§2 — the layout substrate
 //!
@@ -31,8 +34,10 @@
 //! reads (the binary edge supplies those), no bootstrap (that is prime's job).
 
 pub mod encoding;
+pub mod git;
 pub mod id;
 pub mod layout;
+pub mod lifecycle;
 pub mod message;
 pub mod op;
 pub mod registry;
