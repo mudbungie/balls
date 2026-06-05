@@ -1,0 +1,228 @@
+//! §6 dispatch tests: drive [`Subprocess`] against throwaway shell-script
+//! plugins so the real spawn path — env, stdin payload, cwd, stderr capture,
+//! exit-code-to-abort, the recursion guard, and `protocol` self-describe — is
+//! exercised end to end.
+
+use super::*;
+use crate::lifecycle::{Plugins, Sealed};
+use crate::op::Phase;
+use crate::registry::PluginRef;
+use crate::verb::Verb;
+use crate::wire::{Binding, Command, OpContext};
+
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use tempfile::TempDir;
+
+/// Write an executable `#!/bin/sh` plugin into `dir` and return its path.
+fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
+    let path = dir.join(name);
+    fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    path
+}
+
+/// A plugin that records its cwd-relative env + stdin and logs to stderr.
+const RECORDER: &str = "env > env.txt\ncat > stdin.txt\nprintf 'log from %s\\n' \"$BALLS_PLUGIN_NAME\" >&2\n";
+
+fn pref(name: &str, bin: Option<PathBuf>) -> PluginRef {
+    PluginRef { order: 1, name: name.into(), bin }
+}
+
+fn ctx() -> OpContext {
+    OpContext {
+        actor: "me@example.com".into(),
+        binding: Binding {
+            remote: None,
+            branch: "balls".into(),
+            operating: "/op".into(),
+            invocation_path: "/proj".into(),
+        },
+        command: Command { op: "close".into(), field_changes: vec![], body_change: None },
+        before: None,
+        after: None,
+    }
+}
+
+/// A workspace: a bin dir for scripts, a cwd for the plugin, a logs root.
+struct Env {
+    home: TempDir,
+}
+
+impl Env {
+    fn new() -> Self {
+        let home = TempDir::new().unwrap();
+        for sub in ["bin", "cwd", "logs"] {
+            fs::create_dir(home.path().join(sub)).unwrap();
+        }
+        Self { home }
+    }
+    fn at(&self, sub: &str) -> PathBuf {
+        self.home.path().join(sub)
+    }
+    fn dispatcher(&self, depth: u32) -> Subprocess {
+        Subprocess::new(ctx(), &self.at("logs"), depth)
+    }
+}
+
+#[test]
+fn run_delivers_the_env_stdin_and_cwd() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "rec", RECORDER);
+    e.dispatcher(0)
+        .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap();
+    let env = fs::read_to_string(e.at("cwd").join("env.txt")).unwrap();
+    assert!(env.contains("BALLS_PROTOCOL=1"));
+    assert!(env.contains("BALLS_PLUGIN_NAME=tracker"));
+    assert!(env.contains("BALLS_PLUGIN_DEPTH=1")); // top level 0, child +1
+    let stdin = fs::read_to_string(e.at("cwd").join("stdin.txt")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdin).unwrap();
+    assert_eq!(v["op"], "close");
+    assert_eq!(v["phase"], "pre");
+    assert_eq!(v["plugin_name"], "tracker");
+}
+
+#[test]
+fn run_captures_stderr_to_the_logs_dir() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "rec", RECORDER);
+    e.dispatcher(0)
+        .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap();
+    let log = fs::read_to_string(e.at("logs").join("tracker").join("close-pre.log")).unwrap();
+    assert!(log.contains("log from tracker"));
+}
+
+#[test]
+fn a_post_run_carries_the_sealed_commit_and_parsed_metadata() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "rec", RECORDER);
+    let sealed = Sealed { commit: "C1", previous_commit: "T0", message: "subj\n\nbl-id: bl-9\n" };
+    e.dispatcher(0)
+        .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Post, &e.at("cwd"), Some(&sealed))
+        .unwrap();
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(e.at("cwd").join("stdin.txt")).unwrap()).unwrap();
+    assert_eq!(v["commit"], "C1");
+    assert_eq!(v["previous_commit"], "T0");
+    assert_eq!(v["metadata"]["bl-id"][0], "bl-9");
+}
+
+#[test]
+fn a_nonzero_exit_aborts_the_op() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "fail", "cat >/dev/null\nexit 7\n");
+    let err = e
+        .dispatcher(0)
+        .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap_err();
+    assert!(err.to_string().contains("tracker aborted the op"));
+}
+
+#[test]
+fn an_unwired_plugin_is_a_clean_referenced_but_not_installed_error() {
+    let e = Env::new();
+    let err = e
+        .dispatcher(0)
+        .run(&pref("ghost", None), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap_err();
+    assert!(err.to_string().contains("ghost referenced but not installed"));
+}
+
+#[test]
+fn a_missing_binary_path_surfaces_the_spawn_error() {
+    let e = Env::new();
+    let bin = e.at("bin").join("does-not-exist");
+    let err = e
+        .dispatcher(0)
+        .run(&pref("gone", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::NotFound);
+}
+
+#[test]
+fn a_busy_binary_retries_then_surfaces_the_error() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "rec", RECORDER);
+    // Hold the binary open for writing for the whole call: every exec sees
+    // ETXTBSY, so retry_busy exhausts its budget and surfaces the busy error.
+    let _held = fs::OpenOptions::new().write(true).open(&bin).unwrap();
+    let err = e
+        .dispatcher(0)
+        .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::ExecutableFileBusy);
+}
+
+#[test]
+fn the_depth_cap_runs_plugin_free() {
+    let e = Env::new();
+    // A plugin that would abort if it ran — proves suppression skips the spawn.
+    let bin = script(&e.at("bin"), "fail", "exit 7\n");
+    let plugin = pref("tracker", Some(bin));
+    let d = e.dispatcher(DEPTH_CAP);
+    d.run(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None).unwrap();
+    d.rollback(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None);
+    assert!(!e.at("logs").join("tracker").exists(), "suppressed: nothing spawned");
+}
+
+#[test]
+fn rollback_tags_the_payload_and_ignores_the_exit() {
+    let e = Env::new();
+    // Records its stdin, then exits non-zero — rollback must swallow the exit.
+    let bin = script(&e.at("bin"), "rec", &format!("{RECORDER}exit 3\n"));
+    let sealed = Sealed { commit: "C1", previous_commit: "T0", message: "s\n\nbl-id: bl-1\n" };
+    e.dispatcher(0)
+        .rollback(&pref("tracker", Some(bin)), Verb::Close, Phase::Post, &e.at("cwd"), Some(&sealed));
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(e.at("cwd").join("stdin.txt")).unwrap()).unwrap();
+    assert_eq!(v["rolling_back"], "post");
+    assert_eq!(v["commit"], "C1");
+}
+
+const PROTO: &str =
+    "if [ \"$1\" = protocol ]; then printf '%s' '{\"protocol\":1,\"ops\":[\"close\",\"claim\"]}'; exit 0; fi\n";
+
+#[test]
+fn describe_reads_a_scalar_protocol_version() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "p", PROTO);
+    let p = describe(&bin).unwrap();
+    assert_eq!(p.protocol, [1]);
+    assert!(p.handles(Verb::Close));
+    assert!(!p.handles(Verb::Sync));
+    assert!(p.speaks(1));
+}
+
+#[test]
+fn describe_reads_a_list_protocol_version() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "p", "printf '%s' '{\"protocol\":[1,2],\"ops\":[]}'\n");
+    let p = describe(&bin).unwrap();
+    assert_eq!(p.protocol, [1, 2]);
+    assert!(p.speaks(2));
+    assert!(!p.speaks(9));
+    assert!(!p.handles(Verb::Close));
+}
+
+#[test]
+fn describe_errors_on_a_nonzero_exit() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "p", "exit 1\n");
+    let err = describe(&bin).unwrap_err();
+    assert!(err.to_string().contains("self-describe exited"));
+}
+
+#[test]
+fn describe_errors_on_unparseable_output() {
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "p", "printf 'not json'\n");
+    assert!(describe(&bin).is_err());
+}
+
+#[test]
+fn describe_errors_when_the_binary_is_missing() {
+    let e = Env::new();
+    assert!(describe(&e.at("bin").join("nope")).is_err());
+}

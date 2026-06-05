@@ -25,6 +25,8 @@ path = "src/main.rs"
 # §3 task schema: markdown + YAML frontmatter, with unknown-key round-trip.
 serde = { version = "1", features = ["derive"] }
 serde_yaml_ng = "0.10" # maintained fork of the deprecated serde_yaml.
+# §7 plugin wire: payloads are serialized to plugin stdin as JSON.
+serde_json = "1"
 # § id generation: system entropy for the one shipped (random) generator.
 getrandom = "0.2"
 

@@ -37,16 +37,36 @@ pub trait BaseChange {
     fn finalize(&self, dir: &Path) -> io::Result<String>;
 }
 
+/// What the seal produced, threaded to every `post` reactor and any `post`-phase
+/// rollback so the §7 post payload can carry it: the sealed commit, the terminus
+/// tip it landed on, and the §5 commit `message` (the plugin seam parses its
+/// trailers into `metadata` — the engine stays §5-agnostic). `None` on `pre`
+/// (nothing is sealed yet — the id is not assigned, §7).
+#[derive(Debug, Clone, Copy)]
+pub struct Sealed<'a> {
+    pub commit: &'a str,
+    pub previous_commit: &'a str,
+    pub message: &'a str,
+}
+
 /// The plugin chain (§6/§7) as a seam: run ONE plugin in a phase, or roll one
 /// back. The lifecycle owns ORDER (the resolved set) and the reverse-order
-/// unwind (§14); this seam owns the subprocess + wire (bl-5d56). `rollback`
-/// returns nothing — best-effort, exit IGNORED (§14), so it can never abort the
-/// unwind.
+/// unwind (§14); this seam owns the subprocess + wire (bl-5d56). `sealed` is
+/// `Some` on `post` (and a `post`-phase rollback), carrying the §7 post facts.
+/// `rollback` returns nothing — best-effort, exit IGNORED (§14), so it can never
+/// abort the unwind.
 pub trait Plugins {
     /// Run `plugin` for `op`/`phase` against `dir`. `Err` aborts the op.
-    fn run(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path) -> io::Result<()>;
+    fn run(
+        &self,
+        plugin: &PluginRef,
+        op: Verb,
+        phase: Phase,
+        dir: &Path,
+        sealed: Option<&Sealed>,
+    ) -> io::Result<()>;
     /// Best-effort undo of `plugin`'s `phase` contribution (§14 `rolling_back`).
-    fn rollback(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path);
+    fn rollback(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path, sealed: Option<&Sealed>);
 }
 
 /// Why an op aborted. The engine maps each failing step here, then unwinds.
@@ -72,14 +92,34 @@ impl std::fmt::Display for OpError {
 
 impl std::error::Error for OpError {}
 
+/// What the seal landed, owned for the §14 unwind: the pre-seal tip to reset
+/// back to, the sealed commit, and the §5 message — enough to hand a `post`-phase
+/// rollback the same [`Sealed`] facts its forward run saw (§7).
+struct SealRecord {
+    previous_commit: String,
+    commit: String,
+    message: String,
+}
+
+impl SealRecord {
+    /// Borrow this record as the [`Sealed`] facts passed across the seam.
+    fn facts(&self) -> Sealed<'_> {
+        Sealed {
+            commit: &self.commit,
+            previous_commit: &self.previous_commit,
+            message: &self.message,
+        }
+    }
+}
+
 /// What core did this op, for the §14 unwind: the plugins that ran (in order,
 /// each tagged with its phase), whether the change worktree was opened, and the
-/// pre-seal terminus tip once the seal landed (`Some` ⇒ a post-abort un-seals).
+/// seal record once the seal landed (`Some` ⇒ a post-abort un-seals to its tip).
 #[derive(Default)]
 struct Trace {
     ran: Vec<(PluginRef, Phase)>,
     opened: bool,
-    sealed_prev: Option<String>,
+    seal: Option<SealRecord>,
 }
 
 /// The §8 engine: a terminus and a plugin chain, the two stable collaborators
@@ -133,12 +173,14 @@ impl<'a> Engine<'a> {
         self.terminus.open(change_dir).map_err(OpError::Terminus)?; // (1) make the place
         trace.opened = true;
         base.stage(change_dir).map_err(OpError::Author)?; // (1) stage the base
-        run_phase(self.plugins, op, Phase::Pre, change_dir, pre, &mut trace.ran)?; // (2)
+        run_phase(self.plugins, op, Phase::Pre, change_dir, pre, None, &mut trace.ran)?; // (2)
         let prev = self.terminus.head().map_err(OpError::Terminus)?;
         let message = base.finalize(change_dir).map_err(OpError::Author)?;
         let sha = self.terminus.seal(change_dir, &message).map_err(OpError::Terminus)?; // (3) SEAL
-        trace.sealed_prev = Some(prev); // boundary crossed
-        run_phase(self.plugins, op, Phase::Post, change_dir, post, &mut trace.ran)?; // (4)
+        // boundary crossed: record the seal so post (and any post-abort) gets §7 facts.
+        trace.seal = Some(SealRecord { previous_commit: prev, commit: sha.clone(), message });
+        let sealed = trace.seal.as_ref().expect("just set").facts();
+        run_phase(self.plugins, op, Phase::Post, change_dir, post, Some(&sealed), &mut trace.ran)?; // (4)
         Ok(sha)
     }
 
@@ -153,10 +195,12 @@ impl<'a> Engine<'a> {
         post: &[PluginRef],
     ) -> Result<(), OpError> {
         let mut ran = Vec::new();
-        let result = run_phase(self.plugins, op, Phase::Pre, operating, pre, &mut ran)
-            .and_then(|()| run_phase(self.plugins, op, Phase::Post, operating, post, &mut ran));
+        // Diffless ops never seal, so every phase passes `None` and the unwind
+        // has no terminus tier to un-seal (§8 "skip steps 1/3/5").
+        let result = run_phase(self.plugins, op, Phase::Pre, operating, pre, None, &mut ran)
+            .and_then(|()| run_phase(self.plugins, op, Phase::Post, operating, post, None, &mut ran));
         if result.is_err() {
-            unwind(self.plugins, op, operating, &ran);
+            unwind(self.plugins, op, operating, &ran, None);
         }
         result
     }
@@ -166,9 +210,9 @@ impl<'a> Engine<'a> {
     /// change worktree always. Core's un-seal is local, so its errors are
     /// swallowed (best-effort; the op already failed).
     fn rollback(&self, op: Verb, change_dir: &Path, trace: &Trace) {
-        unwind(self.plugins, op, change_dir, &trace.ran);
-        if let Some(prev) = &trace.sealed_prev {
-            let _ = self.terminus.unseal(prev); // post-abort: reset the terminus
+        unwind(self.plugins, op, change_dir, &trace.ran, trace.seal.as_ref());
+        if let Some(record) = &trace.seal {
+            let _ = self.terminus.unseal(&record.previous_commit); // post-abort: reset the terminus
         }
         if trace.opened {
             let _ = self.terminus.close(change_dir); // discard the change worktree
@@ -184,11 +228,12 @@ fn run_phase(
     phase: Phase,
     dir: &Path,
     list: &[PluginRef],
+    sealed: Option<&Sealed>,
     ran: &mut Vec<(PluginRef, Phase)>,
 ) -> Result<(), OpError> {
     for plugin in list {
         plugins
-            .run(plugin, op, phase, dir)
+            .run(plugin, op, phase, dir, sealed)
             .map_err(|source| OpError::Plugin { name: plugin.name.clone(), source })?;
         ran.push((plugin.clone(), phase));
     }
@@ -196,10 +241,13 @@ fn run_phase(
 }
 
 /// Roll back every recorded plugin run in strict reverse execution order,
-/// regardless of which phase it ran — the op is the unit of atomicity (§14).
-fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)]) {
+/// regardless of which phase it ran — the op is the unit of atomicity (§14). A
+/// `post`-phase rollback gets the same [`Sealed`] facts its forward run saw; a
+/// `pre`-phase one gets `None` (it ran before the seal existed, §7).
+fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)], seal: Option<&SealRecord>) {
     for (plugin, phase) in ran.iter().rev() {
-        plugins.rollback(plugin, op, *phase, dir);
+        let sealed = if *phase == Phase::Post { seal.map(SealRecord::facts) } else { None };
+        plugins.rollback(plugin, op, *phase, dir, sealed.as_ref());
     }
 }
 
