@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "probe",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":255,"source":"balls","state":"open","synced_at":"2026-06-05T08:27:18.586060852+00:00","url":"https://github.com/mudbungie/balls/issues/255"}}},
   "id": "bl-7d1e",
   "links": [],
   "parent": null,
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-05T08:27:18.597716554Z"},
   "tags": [],
   "title": "TESTPROBE delete me",
   "type": "task",
-  "updated_at": "2026-06-05T08:27:17.868563438Z"
+  "updated_at": "2026-06-05T08:27:18.597728085Z"
 }
