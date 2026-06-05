@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-70f5",
+  "claimed_by": "Roughness",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:28:17.984515026Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T08:28:18.865148701Z"},
   "tags": [],
   "title": "§10 blocker model + gating plugin",
   "type": "task",
-  "updated_at": "2026-06-05T08:28:18.865157738Z"
+  "updated_at": "2026-06-05T23:40:51.265864036Z"
 }
