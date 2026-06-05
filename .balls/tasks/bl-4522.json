@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-5d56"],
   "description": "The only remote-talker. sync = fetch + ff-only (non-ff = contention signal); push balls-state on post; prime handler (resolve remote / bootstrap-on-miss / --stealth lock); the next: trail pointer in tracker territory. Parallel with the delivery plugin (independent territory).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":267,"source":"balls","state":"open","synced_at":"2026-06-05T23:34:43.197823983+00:00","url":"https://github.com/mudbungie/balls/issues/267"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":267,"source":"balls","state":"open","synced_at":"2026-06-05T23:55:57.297398103+00:00","url":"https://github.com/mudbungie/balls/issues/267"}}},
   "id": "bl-4522",
   "links": [],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-05T23:34:43.208150090Z"},
+  "synced_at": {"github-issues":"2026-06-05T23:55:57.320923196Z"},
   "tags": [],
   "title": "tracker plugin (remote sync/push, stealth, trail pointer)",
   "type": "task",
-  "updated_at": "2026-06-05T23:55:56.646732377Z"
+  "updated_at": "2026-06-05T23:55:57.320932323Z"
 }
