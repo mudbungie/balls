@@ -1,0 +1,208 @@
+//! §8 op lifecycle + §14 rollback — the verb-agnostic engine.
+//!
+//! balls authors a base change, an ordered plugin chain acts on it, balls
+//! SEALS it (commit + integrate, atomically — [`crate::git`]), and plugins
+//! react; any abort unwinds the whole op in reverse (§14). Two collaborators
+//! are seams this engine owns the contract for: [`BaseChange`] (the verb's diff
+//! authoring — §9, bl-dfbd) and [`Plugins`] (the subprocess plugin chain —
+//! §6/§7, bl-5d56). The skeleton ships the orchestration and the real git seal;
+//! the plugin chain has no production impl yet ("no real plugins yet").
+//!
+//! Mutating ops run the full Author → Pre → Seal → Post → Teardown shape;
+//! diffless ops (reads, sync/prime/doctor) "skip steps 1/3/5" — pre/post run
+//! against `operating/` with no worktree and no seal (§8). One rule governs the
+//! unwind: every plugin that ran a phase for THIS op rolls back in reverse,
+//! THEN core un-seals its own tier-1 change — discard the worktree on a
+//! pre-abort, `git reset` the terminus on a post-abort (§14). The committed
+//! `NN-` plugin set is resolved once at op-start (§6 snapshot) and passed in,
+//! so the engine never touches the filesystem registry itself.
+
+use std::io;
+use std::path::Path;
+
+use crate::git::Terminus;
+use crate::op::Phase;
+use crate::registry::PluginRef;
+use crate::verb::Verb;
+
+/// The op's base diff — the verb's contribution (§9). Staged into the change
+/// worktree at Author (§8.1); the §5 commit message is built at Seal (§8.3) by
+/// RE-READING the post-`pre` tree, so a `pre` plugin that reassigned the id is
+/// reflected. bl-dfbd implements one per deliverable verb.
+pub trait BaseChange {
+    /// (§8.1) Stage the base diff into the change worktree `dir`.
+    fn stage(&self, dir: &Path) -> io::Result<()>;
+    /// (§8.3) Re-read `dir` after `pre` ran and render the §5 commit message
+    /// (final id/state) the seal will commit.
+    fn finalize(&self, dir: &Path) -> io::Result<String>;
+}
+
+/// The plugin chain (§6/§7) as a seam: run ONE plugin in a phase, or roll one
+/// back. The lifecycle owns ORDER (the resolved set) and the reverse-order
+/// unwind (§14); this seam owns the subprocess + wire (bl-5d56). `rollback`
+/// returns nothing — best-effort, exit IGNORED (§14), so it can never abort the
+/// unwind.
+pub trait Plugins {
+    /// Run `plugin` for `op`/`phase` against `dir`. `Err` aborts the op.
+    fn run(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path) -> io::Result<()>;
+    /// Best-effort undo of `plugin`'s `phase` contribution (§14 `rolling_back`).
+    fn rollback(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path);
+}
+
+/// Why an op aborted. The engine maps each failing step here, then unwinds.
+#[derive(Debug)]
+pub enum OpError {
+    /// A [`BaseChange`] stage/finalize failed (before the seal).
+    Author(io::Error),
+    /// A [`Terminus`] git act (open/seal/head) failed.
+    Terminus(io::Error),
+    /// A [`Plugins::run`] returned non-zero — the named plugin aborted the op.
+    Plugin { name: String, source: io::Error },
+}
+
+impl std::fmt::Display for OpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OpError::Author(e) => write!(f, "authoring the base change failed: {e}"),
+            OpError::Terminus(e) => write!(f, "sealing onto the terminus failed: {e}"),
+            OpError::Plugin { name, source } => write!(f, "plugin {name} aborted the op: {source}"),
+        }
+    }
+}
+
+impl std::error::Error for OpError {}
+
+/// What core did this op, for the §14 unwind: the plugins that ran (in order,
+/// each tagged with its phase), whether the change worktree was opened, and the
+/// pre-seal terminus tip once the seal landed (`Some` ⇒ a post-abort un-seals).
+#[derive(Default)]
+struct Trace {
+    ran: Vec<(PluginRef, Phase)>,
+    opened: bool,
+    sealed_prev: Option<String>,
+}
+
+/// The §8 engine: a terminus and a plugin chain, the two stable collaborators
+/// every op runs against.
+pub struct Engine<'a> {
+    terminus: &'a dyn Terminus,
+    plugins: &'a dyn Plugins,
+}
+
+impl<'a> Engine<'a> {
+    /// Build an engine over a terminus and a plugin chain.
+    pub fn new(terminus: &'a dyn Terminus, plugins: &'a dyn Plugins) -> Self {
+        Self { terminus, plugins }
+    }
+
+    /// Run a MUTATING op (§8 steps 1–6): Author → Pre → Seal → Post → Teardown,
+    /// with §14 rollback on any abort. `pre`/`post` are the committed `NN-`
+    /// plugin sets resolved at op-start. Returns the sealed commit sha.
+    pub fn seal(
+        &self,
+        base: &dyn BaseChange,
+        op: Verb,
+        change_dir: &Path,
+        pre: &[PluginRef],
+        post: &[PluginRef],
+    ) -> Result<String, OpError> {
+        let mut trace = Trace::default();
+        match self.run_inner(base, op, change_dir, pre, post, &mut trace) {
+            Ok(sha) => {
+                let _ = self.terminus.close(change_dir); // (5) teardown, best-effort
+                Ok(sha)
+            }
+            Err(e) => {
+                self.rollback(op, change_dir, &trace);
+                Err(e)
+            }
+        }
+    }
+
+    /// The fallible Author → Pre → Seal → Post body; `trace` records what ran so
+    /// [`Engine::rollback`] can unwind it.
+    fn run_inner(
+        &self,
+        base: &dyn BaseChange,
+        op: Verb,
+        change_dir: &Path,
+        pre: &[PluginRef],
+        post: &[PluginRef],
+        trace: &mut Trace,
+    ) -> Result<String, OpError> {
+        self.terminus.open(change_dir).map_err(OpError::Terminus)?; // (1) make the place
+        trace.opened = true;
+        base.stage(change_dir).map_err(OpError::Author)?; // (1) stage the base
+        run_phase(self.plugins, op, Phase::Pre, change_dir, pre, &mut trace.ran)?; // (2)
+        let prev = self.terminus.head().map_err(OpError::Terminus)?;
+        let message = base.finalize(change_dir).map_err(OpError::Author)?;
+        let sha = self.terminus.seal(change_dir, &message).map_err(OpError::Terminus)?; // (3) SEAL
+        trace.sealed_prev = Some(prev); // boundary crossed
+        run_phase(self.plugins, op, Phase::Post, change_dir, post, &mut trace.ran)?; // (4)
+        Ok(sha)
+    }
+
+    /// Run a DIFFLESS op (§8 "skip steps 1/3/5"): pre/post against `operating/`,
+    /// no worktree, no seal. Tier 1 is empty, so the unwind is reverse plugin
+    /// rollback only (§13/§14).
+    pub fn diffless(
+        &self,
+        op: Verb,
+        operating: &Path,
+        pre: &[PluginRef],
+        post: &[PluginRef],
+    ) -> Result<(), OpError> {
+        let mut ran = Vec::new();
+        let result = run_phase(self.plugins, op, Phase::Pre, operating, pre, &mut ran)
+            .and_then(|()| run_phase(self.plugins, op, Phase::Post, operating, post, &mut ran));
+        if result.is_err() {
+            unwind(self.plugins, op, operating, &ran);
+        }
+        result
+    }
+
+    /// §14 unwind: roll every run plugin back in reverse, THEN core un-seals its
+    /// tier-1 change — `git reset` the terminus on a post-abort, discard the
+    /// change worktree always. Core's un-seal is local, so its errors are
+    /// swallowed (best-effort; the op already failed).
+    fn rollback(&self, op: Verb, change_dir: &Path, trace: &Trace) {
+        unwind(self.plugins, op, change_dir, &trace.ran);
+        if let Some(prev) = &trace.sealed_prev {
+            let _ = self.terminus.unseal(prev); // post-abort: reset the terminus
+        }
+        if trace.opened {
+            let _ = self.terminus.close(change_dir); // discard the change worktree
+        }
+    }
+}
+
+/// Run one phase's plugins in resolved `NN-` order, recording each success on
+/// `ran` (a failing plugin cleaned up inline, so it is NOT recorded — §14).
+fn run_phase(
+    plugins: &dyn Plugins,
+    op: Verb,
+    phase: Phase,
+    dir: &Path,
+    list: &[PluginRef],
+    ran: &mut Vec<(PluginRef, Phase)>,
+) -> Result<(), OpError> {
+    for plugin in list {
+        plugins
+            .run(plugin, op, phase, dir)
+            .map_err(|source| OpError::Plugin { name: plugin.name.clone(), source })?;
+        ran.push((plugin.clone(), phase));
+    }
+    Ok(())
+}
+
+/// Roll back every recorded plugin run in strict reverse execution order,
+/// regardless of which phase it ran — the op is the unit of atomicity (§14).
+fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)]) {
+    for (plugin, phase) in ran.iter().rev() {
+        plugins.rollback(plugin, op, *phase, dir);
+    }
+}
+
+#[cfg(test)]
+#[path = "lifecycle_tests.rs"]
+mod tests;
