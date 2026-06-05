@@ -22,6 +22,11 @@ path = "src/main.rs"
 # needs them (YAML frontmatter, git plumbing, CLI parsing, ...). The skeleton
 # is std-only.
 [dependencies]
+# §3 task schema: markdown + YAML frontmatter, with unknown-key round-trip.
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10" # maintained fork of the deprecated serde_yaml.
+# § id generation: system entropy for the one shipped (random) generator.
+getrandom = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
