@@ -14,9 +14,9 @@
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "closed",
-  "synced_at": {"github-issues":"2026-06-05T22:01:48.820775911Z"},
+  "synced_at": {"github-issues":"2026-06-05T22:11:34.979966634Z"},
   "tags": [],
   "title": "Spec: greenfield architecture (working document)",
   "type": "task",
-  "updated_at": "2026-06-05T22:11:34.585599954Z"
+  "updated_at": "2026-06-05T22:11:34.979969199Z"
 }
