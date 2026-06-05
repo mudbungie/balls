@@ -32,7 +32,7 @@ use crate::verb::Verb;
 pub struct Create {
     pub id: String,
     pub actor: String,
-    pub now: String,
+    pub now: i64,
     pub title: String,
     pub parent: Option<String>,
     pub priority: Option<i64>,
@@ -47,8 +47,8 @@ impl BaseChange for Create {
     fn stage(&self, dir: &Path) -> io::Result<()> {
         let task = Task {
             title: self.title.clone(),
-            created: self.now.clone(),
-            updated: self.now.clone(),
+            created: self.now,
+            updated: self.now,
             parent: self.parent.clone(),
             priority: self.priority,
             blockers: self.blockers.clone(),
@@ -87,19 +87,19 @@ pub struct Occupancy {
     pub id: String,
     pub claimant: Option<String>,
     pub actor: String,
-    pub now: String,
+    pub now: i64,
     pub over: Option<String>,
     pub body: Option<String>,
 }
 
 impl Occupancy {
     /// `claim`: take occupancy as `actor` (guarded against an existing claim).
-    pub fn claim(id: String, actor: String, now: String) -> Self {
+    pub fn claim(id: String, actor: String, now: i64) -> Self {
         Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, over: None, body: None }
     }
 
     /// `unclaim`: release occupancy (clear `claimant`).
-    pub fn unclaim(id: String, actor: String, now: String) -> Self {
+    pub fn unclaim(id: String, actor: String, now: i64) -> Self {
         Self { verb: Verb::Unclaim, id, claimant: None, actor, now, over: None, body: None }
     }
 }
@@ -116,7 +116,7 @@ impl BaseChange for Occupancy {
             }
         }
         task.claimant.clone_from(&self.claimant);
-        task.updated.clone_from(&self.now);
+        task.updated = self.now;
         write_task(dir, &self.id, &task)
     }
 
@@ -132,7 +132,7 @@ impl BaseChange for Occupancy {
 pub struct Update {
     pub id: String,
     pub actor: String,
-    pub now: String,
+    pub now: i64,
     pub edits: Vec<FieldEdit>,
     pub over: Option<String>,
     pub body: Option<String>,
@@ -144,7 +144,7 @@ impl BaseChange for Update {
         for edit in &self.edits {
             edit.apply(&mut task);
         }
-        task.updated.clone_from(&self.now);
+        task.updated = self.now;
         write_task(dir, &self.id, &task)
     }
 
@@ -166,7 +166,7 @@ pub enum FieldEdit {
     RemoveTag(String),
     AddBlocker(Blocker),
     RemoveBlocker(String),
-    SetExtra(String, serde_yaml_ng::Value),
+    SetExtra(String, toml::Value),
     RemoveExtra(String),
 }
 
@@ -190,10 +190,10 @@ impl FieldEdit {
             }
             FieldEdit::RemoveBlocker(id) => task.blockers.retain(|b| b.id != *id),
             FieldEdit::SetExtra(k, v) => {
-                task.extra.insert(k.clone().into(), v.clone());
+                task.extra.insert(k.clone(), v.clone());
             }
             FieldEdit::RemoveExtra(k) => {
-                task.extra.remove(serde_yaml_ng::Value::from(k.clone()));
+                task.extra.remove(k.as_str());
             }
         }
     }

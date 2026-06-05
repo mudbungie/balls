@@ -136,10 +136,10 @@ mod tests {
     }
 
     #[test]
-    fn id_scheme_round_trips_through_yaml() {
+    fn id_scheme_round_trips_through_toml() {
         let scheme = IdScheme::default();
-        let yaml = serde_yaml_ng::to_string(&scheme).unwrap();
-        let back: IdScheme = serde_yaml_ng::from_str(&yaml).unwrap();
+        let text = toml::to_string(&scheme).unwrap();
+        let back: IdScheme = toml::from_str(&text).unwrap();
         assert_eq!(scheme, back);
     }
 
