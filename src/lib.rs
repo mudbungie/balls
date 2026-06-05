@@ -47,6 +47,16 @@
 //! `closeable`); [`taskfile`] is the shared `tasks/<id>.md` IO (read/write,
 //! `exists` as the §10 resolver, the front-door reciprocal `add_blocker`).
 //!
+//! # §11 — the delivery / worktree plugin
+//!
+//! The first shipped plugin: a SIBLING binary (`bl-delivery`) that owns the
+//! `work/<id>` code worktree of the PROJECT repo end to end — materialize on
+//! `claim`, deliver (direct local-squash) + tear down on `close`. [`delivery`]
+//! is the kind-blind, stateless-across-ops policy (the hook→act matrix + the
+//! derived [`delivery::worktree_path`]); [`delivery_repo`] is its real git seam.
+//! It lives in-repo as a default capability + reference impl, dispatched
+//! subprocess-uniform like any third party (§6).
+//!
 //! # §1/§2 — the layout substrate
 //!
 //! [`encoding`], [`layout`], and [`registry`] answer *where balls' state lives
@@ -64,6 +74,8 @@
 //! territory through the `doctor` hook dirs, like any diffless op's chain.
 
 pub mod change;
+pub mod delivery;
+pub mod delivery_repo;
 pub mod doctor;
 pub mod encoding;
 pub mod gate;
