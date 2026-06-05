@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f813",
+  "claimed_by": "Hallowed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:28:18.895368540Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T08:28:19.747654733Z"},
   "tags": [],
   "title": "§11 delivery/worktree plugin (direct variant)",
   "type": "task",
-  "updated_at": "2026-06-05T08:28:19.747664061Z"
+  "updated_at": "2026-06-05T23:32:56.788095430Z"
 }
