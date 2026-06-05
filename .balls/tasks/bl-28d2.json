@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:27:51.171690472Z",
+  "delivered_in": null,
+  "depends_on": ["bl-505f"],
+  "description": "subject/body/trailer-block via git interpret-trailers (no hand-rolled parser). bl-protocol/bl-op/bl-actor always; bl-id on per-task ops; bl- reserved to core, plugins self-prefix; repeated key→list; unknown keys preserved + forwarded to plugins. Subject defaults to ball title.",
+  "external": {},
+  "id": "bl-28d2",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 1,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "§5 commit-message trailer protocol",
+  "type": "task",
+  "updated_at": "2026-06-05T08:27:51.171690472Z"
+}
