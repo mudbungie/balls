@@ -18,6 +18,13 @@ path = "src/lib.rs"
 name = "bl"
 path = "src/main.rs"
 
+# §11 delivery / worktree plugin — a SIBLING binary, shipped in-repo as a
+# default capability + reference impl, dispatched subprocess-uniform like any
+# third party (§6). Owns the `work/<id>` code worktree end to end.
+[[bin]]
+name = "bl-delivery"
+path = "src/bin/bl-delivery.rs"
+
 # Greenfield rewrite: runtime deps are added per phase as the architecture
 # needs them (YAML frontmatter, git plumbing, CLI parsing, ...). The skeleton
 # is std-only.
