@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:27:53.678352727Z",
+  "delivered_in": null,
+  "depends_on": ["bl-4450"],
+  "description": "Wire deliverable verbs onto the §8 lifecycle: create (id-gen+stage), claim (set claimant; the one hardcoded already-claimed guard), unclaim (clear), update (generic edit), close/drop (stage tasks/<id>.md deletion, bl-op close|drop). NO review verb, NO init verb. Plugin reactions layer on via P5/P8/P9.",
+  "external": {},
+  "id": "bl-dfbd",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "§9 core verbs: create/claim/unclaim/update/close/drop (no review, no init)",
+  "type": "task",
+  "updated_at": "2026-06-05T08:27:53.678352727Z"
+}
