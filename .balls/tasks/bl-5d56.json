@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:27:52.850486846Z",
-  "delivered_in": null,
+  "delivered_in": "8da1d9e11233ff71cbc680d9a6ca6b2996825619",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-4450"],
   "description": "Subprocess-uniform invocation: <bin> protocol self-describe; read the filesystem symlink registry (snapshot at op-start, NN- order); build pre/post/rollback stdin JSON (§7); env BALLS_PROTOCOL/PLUGIN_NAME/PLUGIN_DEPTH; recursion guard (depth cap→plugin-free); stderr capture to logs/. NO return channel — plugins mutate the worktree.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":262,"source":"balls","state":"open","synced_at":"2026-06-05T22:34:19.786234314+00:00","url":"https://github.com/mudbungie/balls/issues/262"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-05T22:34:19.792359947Z"},
   "tags": [],
   "title": "§6 plugin dispatch (subprocess) + §7 wire payloads",
   "type": "task",
-  "updated_at": "2026-06-05T22:34:19.792364816Z"
+  "updated_at": "2026-06-05T22:49:50.627161289Z"
 }
