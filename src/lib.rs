@@ -1,125 +1,64 @@
-//! Ball: git-native task tracker for parallel agent workflows.
+//! balls — a git-native task tracker (greenfield rewrite, spec bl-2e26).
 //!
-//! Tasks are JSON files committed to your repo. Worktrees provide isolation.
-//! Git provides sync, history, and collaboration. There is no database, no
-//! daemon, no external service.
+//! This is the next major version of balls, built fresh under epic bl-72a8.
+//! The previous implementation is deleted from the working tree (recoverable
+//! from git history); the system-installed `bl` keeps tracking this work until
+//! cutover, so `main` does not need to build a functional `bl` during the
+//! rewrite — do not `make install` from this tree until the rewrite lands.
 //!
-//! # Library usage
+//! # §0 — what balls is
 //!
-//! ```no_run
-//! use balls::{Store, Task};
-//! use std::env;
+//! All state lives on ONE branch of a git repo; persistence is git,
+//! local-first. Base balls is the smallest possible thing — it commits
+//! task-file changes to that branch. Everything that touches the world beyond
+//! it (a remote, the project's code) is a plugin.
 //!
-//! let store = Store::discover(&env::current_dir().unwrap()).unwrap();
-//! let tasks = store.all_tasks().unwrap();
-//! for t in balls::ready::ready_queue(&tasks) {
-//!     println!("[P{}] {} {}", t.priority, t.id, t.title);
-//! }
-//! ```
+//! # §8 — the op lifecycle is the spine
+//!
+//! Every verb is the same shape: balls authors a base change, an ordered
+//! plugin chain acts on it, balls SEALS it (commit + integrate, atomically),
+//! and plugins react. The seal is the pre/post boundary. [`run`] is that
+//! dispatch in skeleton form — it resolves a verb to its [`op::Op`] and the
+//! lifecycle that op will run. No phase does any work yet: the phases are the
+//! seam each rewrite phase fills in.
 
-pub mod archive_recovery;
-pub mod archived_child;
-/// Greenfield balls — the next major version (spec bl-2e26, epic bl-72a8),
-/// built alongside the current modules until cutover promotes it to the crate
-/// root. See [`next`] for the architecture and the §8 op-dispatch entrypoint.
-pub mod next;
-pub mod bare_squash;
-pub mod claim_push;
-pub mod claim_sync;
-pub mod commit_msg;
-pub mod commit_policy;
-pub mod config;
-pub mod config_blocks;
-pub mod delivery;
-pub mod delivery_remote;
-#[cfg(test)]
-pub(crate) mod delivery_test_support;
-pub mod display;
-pub mod doctor;
-pub mod doctor_moved;
-pub mod clone_breadcrumb;
-pub mod clone_json;
-pub mod effective_config;
-pub mod encoding;
-pub mod layered_fields;
-pub mod legacy_layout;
-pub mod repo_json;
-pub mod tracker_json;
-pub mod xdg_discover;
-pub mod xdg_paths;
-mod doctor_config;
-mod doctor_pending_sync;
-mod doctor_symlink;
-pub mod error;
-pub mod git;
-pub mod git_merge;
-pub mod git_plumbing;
-pub mod git_state;
-#[cfg(test)]
-mod git_test_support;
-pub mod gitignore;
-mod hash;
-mod legacy_plugin_migrate;
-pub mod link;
-pub mod migrate;
-pub mod min_version;
-pub mod negotiation;
-pub mod participant;
-mod participant_projection;
-pub mod participant_config;
-pub mod plugin;
-pub mod plugin_admin;
-pub mod plugin_policy;
-pub mod policy;
-pub mod progress;
-pub mod project_config;
-pub mod ready;
-pub mod repair_rebind;
-pub mod render_list;
-pub mod render_ready;
-pub mod render_show;
-pub mod render_show_relations;
-#[cfg(test)]
-mod render_show_test_support;
-pub mod render_show_text;
-pub mod repo_url;
-pub mod resolve;
-pub mod review;
-mod review_close;
-pub mod review_deferred;
-pub mod review_safety;
-mod runtime_paths;
-pub mod sanitize;
-pub mod state_repo;
-mod state_repo_migrate;
-mod state_repo_symlinks;
-pub mod status;
-pub mod store;
-mod store_archive;
-mod store_effective;
-mod store_init;
-pub mod store_init_bare_xdg;
-pub mod store_init_xdg;
-mod store_lock;
-mod store_legacy;
-mod store_paths;
-pub mod sync_resolve;
-pub mod task;
-pub mod task_id;
-pub mod tracker_address;
-pub mod task_io;
-pub mod task_type;
-pub mod task_validate;
-pub mod tree;
-#[cfg(test)]
-mod tree_test_support;
-pub mod worktree;
-pub mod worktree_teardown;
+pub mod op;
+pub mod verb;
 
-pub use config::Config;
-pub use error::{BallError, Result};
-pub use project_config::ProjectConfig;
-pub use store::Store;
-pub use task::{
-    validate_id, ArchivedChild, Link, LinkType, NewTaskOpts, Note, Status, Task, TaskType,
-};
+use op::Op;
+use verb::Verb;
+
+/// The §8 dispatch entrypoint, skeleton form: resolve argv to the op it names
+/// and report the lifecycle that op will run.
+///
+/// Returns the process exit code — `0` for a recognized verb, `2` for an
+/// unknown or missing one (the usage-error convention).
+pub fn run(args: &[String]) -> i32 {
+    if let Some(verb) = args.first().map(String::as_str).and_then(Verb::parse) {
+        println!("{}", Op::new(verb).plan());
+        0
+    } else {
+        eprintln!("usage: bl <verb>");
+        2
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_resolves_a_known_verb() {
+        assert_eq!(run(&["claim".to_string()]), 0);
+    }
+
+    #[test]
+    fn run_rejects_an_unknown_verb() {
+        assert_eq!(run(&["frobnicate".to_string()]), 2);
+    }
+
+    #[test]
+    fn run_rejects_missing_verb() {
+        assert_eq!(run(&[]), 2);
+    }
+}
