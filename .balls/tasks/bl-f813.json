@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-5d56","bl-dfbd"],
   "description": "Sibling binary owning the CODE worktree (git worktree of project repo on work/<id>). Kind-blind, stateless-across-ops (derived path = f(binding,id)). Hooks: claim.post materialize, close.pre deliver (squash→integration, sorts last), close.post teardown (+cwd guard), unclaim/drop.post release. delivered_in = git-log-grep query. §14 rollback tiers.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":266,"source":"balls","state":"open","synced_at":"2026-06-05T23:32:57.624752846+00:00","url":"https://github.com/mudbungie/balls/issues/266"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":266,"source":"balls","state":"open","synced_at":"2026-06-05T23:54:25.224512273+00:00","url":"https://github.com/mudbungie/balls/issues/266"}}},
   "id": "bl-f813",
   "links": [],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-05T23:32:57.639421322Z"},
+  "synced_at": {"github-issues":"2026-06-05T23:54:25.245894220Z"},
   "tags": [],
   "title": "§11 delivery/worktree plugin (direct variant)",
   "type": "task",
-  "updated_at": "2026-06-05T23:54:23.186765755Z"
+  "updated_at": "2026-06-05T23:54:25.245901564Z"
 }
