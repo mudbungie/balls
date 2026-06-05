@@ -6,7 +6,7 @@
   "created_at": "2026-06-05T08:28:20.850494072Z",
   "delivered_in": null,
   "depends_on": ["bl-5d56","bl-4522"],
-  "description": "prime = idempotent orchestrator-of-syncs (bootstrap-on-miss = retired init); sync = the synchronization primitive (terminus / named branch); trail walk anchor→step(s)→terminus stop-on-revisit; config VALUES layer down the trail at read time; worktree re-materialization on prime.post. Two-tier sync (terminus every-op, topology on sync/prime).",
+  "description": "prime = idempotent orchestrator-of-syncs (bootstrap-on-miss = retired init); sync = the synchronization primitive (terminus / named branch); trail walk landing→step(s)→terminus stop-on-revisit; config VALUES layer down the trail at read time; worktree re-materialization on prime.post. Two-tier sync (terminus every-op, topology on sync/prime).",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":268,"source":"balls","state":"open","synced_at":"2026-06-05T08:28:22.094187015+00:00","url":"https://github.com/mudbungie/balls/issues/268"}}},
   "id": "bl-be5f",
   "links": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "§12/§13 prime + sync + federation trail",
   "type": "task",
-  "updated_at": "2026-06-05T08:28:22.108400303Z"
+  "updated_at": "2026-06-05T21:51:18.705798506Z"
 }
