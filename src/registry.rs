@@ -34,6 +34,16 @@ pub struct PluginRef {
     pub bin: Option<PathBuf>,
 }
 
+/// One wired plugin together with the `<op>/<phase>/` it runs in — the unit
+/// `bl doctor` (§16) iterates to surface a LOCAL `bin/` dangle or protocol
+/// drift across the whole registry, not just one phase.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Wired {
+    pub op: String,
+    pub phase: String,
+    pub plugin: PluginRef,
+}
+
 /// The `config/plugins/` subtree of one operating checkout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Registry {
@@ -95,6 +105,43 @@ impl Registry {
         refs.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name)));
         Ok(refs)
     }
+
+    /// Every plugin wired anywhere under `config/plugins/`, each tagged with its
+    /// `<op>/<phase>/`. Walks the two-level tree (skipping the sibling `bin/`)
+    /// and reuses [`Registry::resolve`] per phase, so ordering and bin
+    /// resolution match a normal dispatch. An absent registry yields an empty
+    /// list — the §16 audit's whole-registry view of `bin/` dangle and drift.
+    pub fn wired(&self) -> io::Result<Vec<Wired>> {
+        let mut out = Vec::new();
+        for op in child_dirs(&self.plugins)? {
+            if op == "bin" {
+                continue;
+            }
+            for phase in child_dirs(&self.plugins.join(&op))? {
+                for plugin in self.resolve(&op, &phase)? {
+                    out.push(Wired { op: op.clone(), phase: phase.clone(), plugin });
+                }
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// The immediate subdirectory NAMES of `dir`, or an empty list if `dir` is
+/// absent — the per-level step [`Registry::wired`] walks `<op>/` then `<phase>/`
+/// with. A non-directory child (a stray file) is skipped, not an error.
+fn child_dirs(dir: &Path) -> io::Result<Vec<String>> {
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut names = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            names.push(entry.file_name().to_string_lossy().into_owned());
+        }
+    }
+    Ok(names)
 }
 
 /// Parse a registry entry filename `NN-<name>` into `(order, name)`. A name
