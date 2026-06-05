@@ -4,10 +4,10 @@
 //! SEALS it (commit + integrate, atomically), and plugins react. The seal is
 //! the pre/post boundary: `pre` modifiers shape what gets sealed, `post`
 //! reactors act on the now-landed record. This skeleton names the phases and
-//! the per-class sequence; the work inside each phase is the seam later phases
-//! implement.
+//! the per-class sequence; the work inside each phase is the seam each rewrite
+//! phase fills in.
 
-use crate::next::verb::{OpClass, Verb};
+use crate::verb::{OpClass, Verb};
 
 /// One step of the §8 lifecycle. A mutating op runs all five in order; a
 /// diffless op runs only [`Phase::Pre`] and [`Phase::Post`] — it authors and
@@ -37,7 +37,7 @@ const MUTATING_PHASES: [Phase; 5] = [
 const DIFFLESS_PHASES: [Phase; 2] = [Phase::Pre, Phase::Post];
 
 /// A resolved op: a verb plus the §8 lifecycle it will run. No phase does any
-/// work yet — that is the seam each greenfield phase fills in.
+/// work yet — that is the seam each rewrite phase fills in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Op {
     verb: Verb,

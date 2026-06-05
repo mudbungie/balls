@@ -18,14 +18,10 @@ path = "src/lib.rs"
 name = "bl"
 path = "src/main.rs"
 
+# Greenfield rewrite: runtime deps are added per phase as the architecture
+# needs them (YAML frontmatter, git plumbing, CLI parsing, ...). The skeleton
+# is std-only.
 [dependencies]
-clap = { version = "4", features = ["derive"] }
-clap_complete = "4"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-chrono = { version = "0.4", default-features = false, features = ["now", "std", "serde"] }
-libc = "0.2"
-owo-colors = "4"
 
 [dev-dependencies]
 tempfile = "3"
