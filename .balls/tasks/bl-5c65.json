@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T17:57:04.466221582Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Supersedes bl-505f's src/next/ alongside-quarantine. Per owner: this is a dev repo; the system-installed bl is the self-hoster, so main need not stay operationally live. Replace in place — new minimal main.rs/lib.rs at crate root, bl dispatches the §8 verb->op entrypoint (Verb/OpClass/Op::phases), ALL ~140 legacy modules + old tests/ deleted (recoverable from git history). Tests bootstrap a /tmp repo and exec the freshly-built binary by path. main builds a stub bl during the 16-phase build; don't make install until cutover.",
+  "external": {},
+  "id": "bl-5c65",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 1,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Greenfield skeleton (in-place): new crate root + §8 dispatch, old src deleted",
+  "type": "task",
+  "updated_at": "2026-06-05T17:57:04.466221582Z"
+}
