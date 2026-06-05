@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [],
+  "closed_children": [{"closed_at":"2026-06-05T08:54:06.754025167Z","id":"bl-505f","title":"Greenfield skeleton: alongside module tree + op-dispatch entrypoint (§0/§8)"}],
   "created_at": "2026-06-05T08:27:46.196483584Z",
   "delivered_in": null,
   "depends_on": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Implement greenfield balls (per spec bl-2e26)",
   "type": "epic",
-  "updated_at": "2026-06-05T08:27:48.537991399Z"
+  "updated_at": "2026-06-05T08:54:06.754057810Z"
 }
