@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:27:17.868563438Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "probe",
+  "external": {},
+  "id": "bl-7d1e",
+  "links": [],
+  "parent": null,
+  "priority": 4,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "TESTPROBE delete me",
+  "type": "task",
+  "updated_at": "2026-06-05T08:27:17.868563438Z"
+}
