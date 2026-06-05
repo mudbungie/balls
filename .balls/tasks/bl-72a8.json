@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-06-05T08:54:06.754025167Z","id":"bl-505f","title":"Greenfield skeleton: alongside module tree + op-dispatch entrypoint (§0/§8)"}],
+  "closed_children": [{"closed_at":"2026-06-05T08:54:06.754025167Z","id":"bl-505f","title":"Greenfield skeleton: alongside module tree + op-dispatch entrypoint (§0/§8)"},{"closed_at":"2026-06-05T17:59:23.551178989Z","id":"bl-5c65","title":"Greenfield skeleton (in-place): new crate root + §8 dispatch, old src deleted"}],
   "created_at": "2026-06-05T08:27:46.196483584Z",
   "delivered_in": null,
   "depends_on": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Implement greenfield balls (per spec bl-2e26)",
   "type": "epic",
-  "updated_at": "2026-06-05T08:54:06.754057810Z"
+  "updated_at": "2026-06-05T17:59:23.551202916Z"
 }
