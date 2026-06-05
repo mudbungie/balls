@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T23:31:27.333767183Z",
-  "delivered_in": null,
+  "delivered_in": "55f4f9ef38162fdfd0f92879ad5e7ab74352c9a1",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Revise the bl-7b8f task schema to the resolved format decision (spec bl-2e26 §3/§4, amended 2026-06-05): ONE serialization format, TOML, everywhere — task frontmatter and config. Swap serde_yaml_ng -> toml in src/task.rs. Task files are '+++'-fenced TOML frontmatter + free-form markdown body; canonical serializer form is scalars-first, each blocker a [[blockers]] table. created/updated become i64 unix seconds (storage/transit always unix-time; ISO-8601 only at display, §9) — drops all date code from the storage layer. Unknown-key passthrough still via #[serde(flatten)] toml::Table (verified: toml 0.8 hoists scalars before tables, no ordering error). src/id.rs is format-agnostic, unchanged. Config files rename .yaml->.toml is a separate ball (config loader). Keep 100% coverage + <300 lines/file.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":275,"source":"balls","state":"open","synced_at":"2026-06-05T23:31:31.325285103+00:00","url":"https://github.com/mudbungie/balls/issues/275"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-05T23:31:31.346451454Z"},
   "tags": [],
   "title": "Schema format: TOML frontmatter + unix-time timestamps (revises §3/§4)",
   "type": "task",
-  "updated_at": "2026-06-05T23:31:31.346463727Z"
+  "updated_at": "2026-06-05T23:38:08.752454137Z"
 }
