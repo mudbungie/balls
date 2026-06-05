@@ -21,9 +21,20 @@
 //! dispatch in skeleton form — it resolves a verb to its [`op::Op`] and the
 //! lifecycle that op will run. No phase does any work yet: the phases are the
 //! seam each rewrite phase fills in.
+//!
+//! # §1/§2 — the layout substrate
+//!
+//! [`encoding`], [`layout`], and [`registry`] answer *where balls' state lives
+//! and how it is named*: percent-encoded (never hashed) paths under the XDG
+//! dirs, and the `config/plugins/` symlink registry on the `balls` branch.
+//! Pure path arithmetic plus the registry's filesystem ops — no git, no env
+//! reads (the binary edge supplies those), no bootstrap (that is prime's job).
 
+pub mod encoding;
 pub mod id;
+pub mod layout;
 pub mod op;
+pub mod registry;
 pub mod task;
 pub mod verb;
 
