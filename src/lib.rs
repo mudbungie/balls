@@ -39,7 +39,10 @@
 //! subtree between two `balls` branches (the plugins object mirrors only
 //! relative-symlink wiring, so `bin/` and the trail pointer never travel),
 //! unions `tasks/` on migration, and resolves + validates a local binary
-//! against its `protocol` self-describe before binding it.
+//! against its `protocol` self-describe before binding it. [`tracker`] is the
+//! one shipped remote-talker (a separate binary): it reads the §7 wire and does
+//! the §12/§13 git acts — sync (fetch + ff-only), push on post, and prime
+//! (adopt/found/stealth-lock) — and nothing local touches a remote without it.
 //!
 //! # §3/§10 — task files & the blocker model
 //!
@@ -90,6 +93,7 @@ pub mod plugin;
 pub mod registry;
 pub mod task;
 pub mod taskfile;
+pub mod tracker;
 pub mod verb;
 pub mod wire;
 
