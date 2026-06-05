@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-505f"],
   "description": "One node type: tasks/<id>.md markdown + YAML frontmatter (title/created/updated/claimant/parent/priority/blockers/tags). NO status field — derived status ladder (claimed/blocked/ready). id_scheme {prefix,length,alphabet}, random generator, string-safety validation, id = filename basename (Model A). Parse/serialize + unknown-key preservation.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":258,"source":"balls","state":"open","synced_at":"2026-06-05T08:27:50.352955526+00:00","url":"https://github.com/mudbungie/balls/issues/258"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":258,"source":"balls","state":"open","synced_at":"2026-06-05T21:09:12.875617394+00:00","url":"https://github.com/mudbungie/balls/issues/258"}}},
   "id": "bl-7b8f",
   "links": [],
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-05T08:27:50.366107738Z"},
+  "synced_at": {"github-issues":"2026-06-05T21:09:12.884771793Z"},
   "tags": [],
   "title": "§3 task schema + § id generation",
   "type": "task",
-  "updated_at": "2026-06-05T21:09:12.003562369Z"
+  "updated_at": "2026-06-05T21:09:12.884775330Z"
 }
