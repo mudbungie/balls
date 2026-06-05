@@ -23,9 +23,16 @@
 //! that runs the shape and unwinds it in reverse on any abort (§14). [`change`]
 //! implements the verb diff ([`lifecycle::BaseChange`]) for each §9 deliverable
 //! verb (create/claim/unclaim/update/close/drop); the plugin chain
-//! ([`lifecycle::Plugins`]) is a seam a later phase fills. [`run`] is still the
-//! skeleton dispatch — it prints the [`op::Op`] plan; wiring it to the engine is
-//! a later phase.
+//! ([`lifecycle::Plugins`]) is filled by [`plugin::Subprocess`] over the §7 wire
+//! ([`wire`]). [`run`] is still the skeleton dispatch — it prints the [`op::Op`]
+//! plan; wiring it to the engine is a later phase.
+//!
+//! # §6/§7 — the plugin contract
+//!
+//! Plugins are subprocesses, invoked uniformly (`<bin> <op> <phase>`) with the
+//! §7 payload on stdin and no return channel — they mutate the change worktree,
+//! never print state back. [`plugin`] is the dispatch (env, recursion guard,
+//! stderr-to-logs, `protocol` self-describe); [`wire`] is the payload shape.
 //!
 //! # §1/§2 — the layout substrate
 //!
@@ -43,9 +50,11 @@ pub mod layout;
 pub mod lifecycle;
 pub mod message;
 pub mod op;
+pub mod plugin;
 pub mod registry;
 pub mod task;
 pub mod verb;
+pub mod wire;
 
 use op::Op;
 use verb::Verb;
