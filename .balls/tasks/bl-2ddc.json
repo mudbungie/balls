@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2ddc",
+  "claimed_by": "Requires",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T21:51:35.663384652Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T21:51:36.363518489Z"},
   "tags": [],
   "title": "Vocab: rename anchor→landing in landed doc-comments [bl-2e26]",
   "type": "task",
-  "updated_at": "2026-06-05T21:51:36.363523137Z"
+  "updated_at": "2026-06-05T21:51:39.240522209Z"
 }
