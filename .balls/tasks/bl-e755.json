@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-505f"],
   "description": "XDG path resolution; clones/<enc>/{binding,operating,changes}; the single balls orphan branch holding tasks/ + config/; the config/plugins/<op>/<phase>/NN-<name> two-level symlink registry (committed relative→../bin/<name>; local gitignored bin/<name> absolute). Percent-encoding, never hashing.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":259,"source":"balls","state":"open","synced_at":"2026-06-05T08:27:51.126519717+00:00","url":"https://github.com/mudbungie/balls/issues/259"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":259,"source":"balls","state":"open","synced_at":"2026-06-05T21:07:30.172623587+00:00","url":"https://github.com/mudbungie/balls/issues/259"}}},
   "id": "bl-e755",
   "links": [],
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-05T08:27:51.141481984Z"},
+  "synced_at": {"github-issues":"2026-06-05T21:07:30.188230782Z"},
   "tags": [],
   "title": "§1/§2 XDG layout + single balls orphan branch + symlink registry",
   "type": "task",
-  "updated_at": "2026-06-05T21:07:29.356700745Z"
+  "updated_at": "2026-06-05T21:07:30.188241282Z"
 }
