@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:28:25.095814483Z",
+  "delivered_in": null,
+  "depends_on": ["bl-0802"],
+  "description": "Promote §8's draft sequences + the spec into docs/; README; 0.x greenfield release notes; demonstration proof (core stories end-to-end after cutover). Final pass.",
+  "external": {},
+  "id": "bl-37b1",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 4,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Docs + 0.x greenfield release notes + demonstration proof",
+  "type": "task",
+  "updated_at": "2026-06-05T08:28:25.095814483Z"
+}
