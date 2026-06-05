@@ -1,0 +1,161 @@
+//! End-to-end harness for the `bl-delivery` plugin binary (§11): build it and
+//! drive a full claim→work→close lifecycle by subprocess, exactly as balls'
+//! `plugin::Subprocess` would — §7 payload on stdin, §6 env, `<op> <phase>`
+//! argv. The git all happens on throwaway repos in a temp dir.
+
+use std::fs;
+use std::path::Path;
+
+use assert_cmd::Command;
+use balls::delivery::worktree_path;
+use balls::layout::Xdg;
+use predicates::str::contains;
+use tempfile::TempDir;
+
+/// Run `git <args>` in `cwd`, asserting success.
+fn git(cwd: &Path, args: &[&str]) {
+    Command::new("git").current_dir(cwd).args(args).assert().success();
+}
+
+/// A throwaway project repo on `main` with a seed commit.
+fn project(tmp: &Path) -> std::path::PathBuf {
+    let root = tmp.join("proj");
+    fs::create_dir(&root).unwrap();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["config", "user.name", "test"]);
+    git(&root, &["config", "user.email", "test@example.com"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "-qm", "seed"]);
+    root
+}
+
+/// The `bl-delivery` binary, wired with the §6 env, run from `cwd`.
+fn delivery(cwd: &Path, home: &Path, op: &str, phase: &str, stdin: &str) -> Command {
+    let mut cmd = Command::cargo_bin("bl-delivery").unwrap();
+    cmd.current_dir(cwd)
+        .env("BALLS_PLUGIN_NAME", "delivery")
+        .env("HOME", home)
+        .env("XDG_STATE_HOME", home.join("state"))
+        .args([op, phase])
+        .write_stdin(stdin.to_string());
+    cmd
+}
+
+fn post(invocation: &str, id: &str, title: &str) -> String {
+    format!(
+        r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}},"metadata":{{"bl-id":["{id}"]}}}}"#
+    )
+}
+
+fn pre(invocation: &str, title: &str) -> String {
+    format!(r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}}}}"#)
+}
+
+#[test]
+fn protocol_self_describes_without_env_or_stdin() {
+    Command::cargo_bin("bl-delivery")
+        .unwrap()
+        .arg("protocol")
+        .assert()
+        .success()
+        .stdout(contains(r#""ops":["claim","unclaim","drop","close"]"#));
+}
+
+#[test]
+fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let root = project(tmp.path());
+    let inv = root.to_str().unwrap();
+
+    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
+    let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
+
+    // claim.post — materialize the code worktree (id off the sealed metadata).
+    delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "Add feature")).assert().success();
+    assert!(wt.join("seed.txt").exists());
+
+    // work happens in the code worktree.
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+
+    // close.pre — id recovered from the change worktree's deleted task file.
+    let change = tmp.path().join("change");
+    fs::create_dir(&change).unwrap();
+    git(&change, &["init", "-q", "-b", "balls"]);
+    git(&change, &["config", "user.name", "test"]);
+    git(&change, &["config", "user.email", "test@example.com"]);
+    fs::create_dir(change.join("tasks")).unwrap();
+    fs::write(change.join("tasks/bl-x.md"), "x\n").unwrap();
+    git(&change, &["add", "-A"]);
+    git(&change, &["commit", "-qm", "seed"]);
+    fs::remove_file(change.join("tasks/bl-x.md")).unwrap();
+    delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
+
+    assert_eq!(
+        String::from_utf8(Command::new("git").current_dir(&root).args(["log", "-1", "--format=%s", "main"]).output().unwrap().stdout)
+            .unwrap()
+            .trim(),
+        "Add feature [bl-x]"
+    );
+
+    // close.post — teardown removes the worktree (cwd outside it).
+    delivery(&root, &home, "close", "post", &post(inv, "bl-x", "Add feature")).assert().success();
+    assert!(!wt.exists());
+}
+
+#[test]
+fn close_refuses_when_invoked_from_inside_the_worktree() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let root = project(tmp.path());
+    let inv = root.to_str().unwrap();
+    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
+    let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
+    delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "T")).assert().success();
+
+    // The user's shell $PWD is inside the code worktree → teardown refuses.
+    delivery(&root, &home, "close", "post", &post(inv, "bl-x", "T"))
+        .env("PWD", &wt)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("inside the worktree"));
+}
+
+#[test]
+fn missing_op_and_phase_is_a_usage_error() {
+    let tmp = TempDir::new().unwrap();
+    Command::cargo_bin("bl-delivery")
+        .unwrap()
+        .env("BALLS_PLUGIN_NAME", "delivery")
+        .env("HOME", tmp.path())
+        .write_stdin(String::new())
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("usage: bl-delivery"));
+}
+
+#[test]
+fn malformed_stdin_is_an_error() {
+    let tmp = TempDir::new().unwrap();
+    delivery(tmp.path(), tmp.path(), "claim", "post", "not json").assert().failure().code(1);
+}
+
+#[test]
+fn a_missing_protocol_env_var_is_reported() {
+    let tmp = TempDir::new().unwrap();
+    Command::cargo_bin("bl-delivery")
+        .unwrap()
+        .env_remove("BALLS_PLUGIN_NAME")
+        .env("HOME", tmp.path())
+        .args(["claim", "post"])
+        .write_stdin(post("/proj", "bl-x", "T"))
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("BALLS_PLUGIN_NAME is unset"));
+}
