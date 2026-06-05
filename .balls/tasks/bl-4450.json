@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-7b8f","bl-e755","bl-28d2"],
   "description": "Core engine: change worktree off operating/, balls stages base change, pre/post phase runner (skeleton, no real plugins yet), SEAL = commit+integrate atomic (the pre/post boundary), teardown. §14 reverse-order rollback, three side-effect tiers, core tier-1 un-seal (discard worktree / git reset terminus). No-diff ops skip the seal.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":261,"source":"balls","state":"open","synced_at":"2026-06-05T08:27:52.809778435+00:00","url":"https://github.com/mudbungie/balls/issues/261"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":261,"source":"balls","state":"open","synced_at":"2026-06-05T22:08:22.163193018+00:00","url":"https://github.com/mudbungie/balls/issues/261"}}},
   "id": "bl-4450",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-05T08:27:52.826564442Z"},
+  "synced_at": {"github-issues":"2026-06-05T22:08:22.166763126Z"},
   "tags": [],
   "title": "§8 op lifecycle (change-worktree + seal) + §14 rollback",
   "type": "task",
-  "updated_at": "2026-06-05T22:08:21.206624615Z"
+  "updated_at": "2026-06-05T22:08:22.166768877Z"
 }
