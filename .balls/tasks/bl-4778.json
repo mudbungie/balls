@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-04T22:10:03.920596864Z"},
   "tags": [],
   "title": "Topic: states as extensible config",
   "type": "task",
-  "updated_at": "2026-06-04T22:10:03.920604238Z"
+  "updated_at": "2026-06-05T06:16:58.612954605Z"
 }
