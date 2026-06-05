@@ -2,7 +2,7 @@
 //!
 //! There is exactly one node type: **task**. `epic`/`gate`/`bug` are *tags*
 //! with zero core behavior; an "epic" is emergent from a task having children.
-//! A task is a `tasks/<id>.md` file: a YAML frontmatter block fenced by `---`,
+//! A task is a `tasks/<id>.md` file: a TOML frontmatter block fenced by `+++`,
 //! then a free-form markdown body. The id is the filename basename (Model A),
 //! so it is NOT a field here — see [`crate::id`].
 //!
@@ -15,12 +15,16 @@ use serde::{Deserialize, Serialize};
 
 /// A task's frontmatter, plus its markdown body. Mirrors `tasks/<id>.md`; the
 /// id lives in the filename, not in here.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+///
+/// Not `Eq`: `extra` is a [`toml::Table`], whose `Value` can hold a float, so
+/// only `PartialEq` is available — fine, we never key a map/set on a `Task`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Task {
     pub title: String,
-    /// RFC3339 UTC. Kept as text — it round-trips verbatim and sorts lexically.
-    pub created: String,
-    pub updated: String,
+    /// Unix seconds. Storage/transit is ALWAYS unix-time; only display renders
+    /// ISO-8601 (§9). An int needs no date code and sorts numerically.
+    pub created: i64,
+    pub updated: i64,
     /// Occupancy and its SOLE source of truth: present ⇒ claimed, absent ⇒ not.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claimant: Option<String>,
@@ -38,7 +42,7 @@ pub struct Task {
     /// Unknown frontmatter keys, preserved on writeback. Not part of the
     /// schema core reads — the severable seam for a team's own `state:` field.
     #[serde(flatten)]
-    pub extra: serde_yaml_ng::Mapping,
+    pub extra: toml::Table,
     /// The markdown body after the closing fence. Not frontmatter.
     #[serde(skip)]
     pub body: String,
@@ -46,7 +50,7 @@ pub struct Task {
 
 /// A blocker edge: this task can't make transition `on` until task `id`
 /// resolves (is closed or dropped). The two sugar-supported uses are a
-/// dependency (`on: claim`) and a gate (`on: close`).
+/// dependency (`on = "claim"`) and a gate (`on = "close"`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Blocker {
     pub id: String,
@@ -75,25 +79,25 @@ pub enum Status {
 pub enum ParseError {
     MissingFrontmatter,
     UnterminatedFrontmatter,
-    Yaml(serde_yaml_ng::Error),
+    Toml(toml::de::Error),
 }
 
 impl Task {
-    /// Parse a `tasks/<id>.md` file: a `---`-fenced YAML frontmatter block, then
+    /// Parse a `tasks/<id>.md` file: a `+++`-fenced TOML frontmatter block, then
     /// the markdown body. The id is NOT read here — it is the filename.
     pub fn parse(content: &str) -> Result<Task, ParseError> {
         let rest = content
-            .strip_prefix("---\n")
+            .strip_prefix("+++\n")
             .ok_or(ParseError::MissingFrontmatter)?;
-        let (frontmatter, body) = match rest.split_once("\n---\n") {
+        let (frontmatter, body) = match rest.split_once("\n+++\n") {
             Some((frontmatter, body)) => (frontmatter, body),
             None => (
-                rest.strip_suffix("\n---")
+                rest.strip_suffix("\n+++")
                     .ok_or(ParseError::UnterminatedFrontmatter)?,
                 "",
             ),
         };
-        let mut task: Task = serde_yaml_ng::from_str(frontmatter).map_err(ParseError::Yaml)?;
+        let mut task: Task = toml::from_str(frontmatter).map_err(ParseError::Toml)?;
         task.body = body.to_string();
         Ok(task)
     }
@@ -102,11 +106,11 @@ impl Task {
     /// unknown keys included.
     ///
     /// # Panics
-    /// Only if the frontmatter fails to serialize to YAML, which a well-formed
+    /// Only if the frontmatter fails to serialize to TOML, which a well-formed
     /// in-memory `Task` never does.
     pub fn to_markdown(&self) -> String {
-        let frontmatter = serde_yaml_ng::to_string(self).expect("task frontmatter serializes");
-        format!("---\n{frontmatter}---\n{}", self.body)
+        let frontmatter = toml::to_string(self).expect("task frontmatter serializes");
+        format!("+++\n{frontmatter}+++\n{}", self.body)
     }
 
     /// The §3 status ladder, computed on read. `is_resolved(id)` answers
@@ -132,11 +136,11 @@ impl Task {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::MissingFrontmatter => f.write_str("missing opening `---` frontmatter fence"),
+            ParseError::MissingFrontmatter => f.write_str("missing opening `+++` frontmatter fence"),
             ParseError::UnterminatedFrontmatter => {
-                f.write_str("unterminated frontmatter: no closing `---` fence")
+                f.write_str("unterminated frontmatter: no closing `+++` fence")
             }
-            ParseError::Yaml(e) => write!(f, "invalid frontmatter: {e}"),
+            ParseError::Toml(e) => write!(f, "invalid frontmatter: {e}"),
         }
     }
 }
@@ -148,22 +152,23 @@ mod tests {
     use super::*;
 
     const FULL: &str = concat!(
-        "---\n",
-        "title: Refactor the foo system\n",
-        "created: 2026-05-27T14:32:00Z\n",
-        "updated: 2026-05-28T09:15:00Z\n",
-        "claimant: orionriver@gmail.com\n",
-        "parent: bl-1000\n",
-        "priority: 2\n",
-        "blockers:\n",
-        "- id: bl-1100\n",
-        "  on: claim\n",
-        "- id: bl-1200\n",
-        "  on: close\n",
-        "tags:\n",
-        "- refactor\n",
-        "- infra\n",
-        "---\n",
+        "+++\n",
+        "title = \"Refactor the foo system\"\n",
+        "created = 1748357520\n",
+        "updated = 1748443920\n",
+        "claimant = \"orionriver@gmail.com\"\n",
+        "parent = \"bl-1000\"\n",
+        "priority = 2\n",
+        "tags = [\"refactor\", \"infra\"]\n",
+        "\n",
+        "[[blockers]]\n",
+        "id = \"bl-1100\"\n",
+        "on = \"claim\"\n",
+        "\n",
+        "[[blockers]]\n",
+        "id = \"bl-1200\"\n",
+        "on = \"close\"\n",
+        "+++\n",
         "Free-form markdown body.\n",
     );
 
@@ -175,7 +180,8 @@ mod tests {
     fn parses_every_field_and_the_body() {
         let task = Task::parse(FULL).unwrap();
         assert_eq!(task.title, "Refactor the foo system");
-        assert_eq!(task.created, "2026-05-27T14:32:00Z");
+        assert_eq!(task.created, 1_748_357_520);
+        assert_eq!(task.updated, 1_748_443_920);
         assert_eq!(task.claimant.as_deref(), Some("orionriver@gmail.com"));
         assert_eq!(task.parent.as_deref(), Some("bl-1000"));
         assert_eq!(task.priority, Some(2));
@@ -197,7 +203,7 @@ mod tests {
 
     #[test]
     fn a_minimal_task_omits_optionals_and_has_no_body() {
-        let src = "---\ntitle: t\ncreated: c\nupdated: u\n---\n";
+        let src = "+++\ntitle = \"t\"\ncreated = 1\nupdated = 2\n+++\n";
         let task = Task::parse(src).unwrap();
         assert_eq!(task.claimant, None);
         assert!(task.blockers.is_empty());
@@ -207,10 +213,10 @@ mod tests {
 
     #[test]
     fn unknown_keys_survive_a_round_trip() {
-        let src = "---\ntitle: t\ncreated: c\nupdated: u\nstate: doing\n---\nbody\n";
+        let src = "+++\ntitle = \"t\"\ncreated = 1\nupdated = 2\nstate = \"doing\"\n+++\nbody\n";
         let task = Task::parse(src).unwrap();
         assert_eq!(
-            task.extra.get("state").and_then(serde_yaml_ng::Value::as_str),
+            task.extra.get("state").and_then(toml::Value::as_str),
             Some("doing")
         );
         assert_eq!(task.to_markdown(), src);
@@ -218,22 +224,22 @@ mod tests {
 
     #[test]
     fn missing_opening_fence_is_an_error() {
-        let err = Task::parse("title: t\n").unwrap_err();
+        let err = Task::parse("title = \"t\"\n").unwrap_err();
         assert!(matches!(err, ParseError::MissingFrontmatter));
         assert!(err.to_string().contains("missing opening"));
     }
 
     #[test]
     fn missing_closing_fence_is_an_error() {
-        let err = Task::parse("---\ntitle: t\n").unwrap_err();
+        let err = Task::parse("+++\ntitle = \"t\"\n").unwrap_err();
         assert!(matches!(err, ParseError::UnterminatedFrontmatter));
         assert!(err.to_string().contains("unterminated"));
     }
 
     #[test]
-    fn invalid_yaml_frontmatter_is_an_error() {
-        let err = Task::parse("---\ntitle: [unterminated\n---\n").unwrap_err();
-        assert!(matches!(err, ParseError::Yaml(_)));
+    fn invalid_toml_frontmatter_is_an_error() {
+        let err = Task::parse("+++\ntitle = [unterminated\n+++\n").unwrap_err();
+        assert!(matches!(err, ParseError::Toml(_)));
         assert!(err.to_string().contains("invalid frontmatter"));
     }
 

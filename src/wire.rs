@@ -55,7 +55,9 @@ pub struct Command {
 /// The op-constant §7 wire data: everything identical across a plugin's `pre`
 /// and `post` calls. The verb layer authors it once per op; [`OpContext::wire`]
 /// stamps a per-phase [`Payload`] from it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Not `Eq` (it holds a [`Task`], which is only `PartialEq`).
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpContext {
     pub actor: String,
     pub binding: Binding,
