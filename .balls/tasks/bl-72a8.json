@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Build the greenfield architecture in bl-2e26 (§0–§17) as a fresh implementation ALONGSIDE current balls; current balls keeps tracking the work until cutover. Strategy (confirmed 2026-06-05): finish development, THEN install + run the §17 migration on THIS repo as the final validation story. bl-f021 (XDG relocation) is CLOSED — subsumed here. Source of truth = bl-2e26; this epic implements, it does not re-litigate design. Subtasks are --dep-linked (claim-blockers) so independent layers parallelize.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":256,"source":"balls","state":"open","synced_at":"2026-06-05T08:27:48.509952904+00:00","url":"https://github.com/mudbungie/balls/issues/256"}}},
   "id": "bl-72a8",
   "links": [],
   "parent": null,
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-05T08:27:48.537982793Z"},
   "tags": [],
   "title": "Implement greenfield balls (per spec bl-2e26)",
   "type": "epic",
-  "updated_at": "2026-06-05T08:27:46.196483584Z"
+  "updated_at": "2026-06-05T08:27:48.537991399Z"
 }
