@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Build the greenfield architecture in bl-2e26 (§0–§17) as a fresh implementation that REPLACES current balls IN PLACE at the crate root — same `balls` crate / `bl` binary, a major version bump at cutover. NOT a separate crate, NOT a coexistence/next:: namespace, NOT a rebrand. The system-installed `bl` is the self-hoster and keeps tracking this work, so the repo's `main` need NOT build a functional `bl` during the rewrite (it carries a stub/partial `bl` until cutover). Rules: do NOT `make install` from this tree until cutover, and never point a new `bl` at this repo's task list. Tests bootstrap a throwaway /tmp dir and exec the freshly-built binary by path. Strategy (confirmed 2026-06-05): finish development, THEN run the §17 migration on THIS repo + install + cut over as the final validation story. bl-f021 (XDG relocation) is CLOSED — subsumed here. Source of truth = bl-2e26; this epic implements, it does not re-litigate design. Subtasks are --dep-linked (claim-blockers) so independent layers parallelize. P0 skeleton DELIVERED: bl-505f first shipped a src/next/ quarantine (90faf06) under a wrong \"alongside\" model; bl-5c65 superseded it (f53259b) — deleted the ~140 legacy modules + old tests/, greenfield now lives at the crate root (src/lib.rs+main.rs+verb.rs+op.rs, the §0/§8 spine). The L0 phases' deps name the closed bl-505f, which resolves them (substrate exists).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":256,"source":"balls","state":"open","synced_at":"2026-06-05T08:27:48.509952904+00:00","url":"https://github.com/mudbungie/balls/issues/256"}}},
+  "external": {"github-issues":{}},
   "id": "bl-72a8",
   "links": [],
   "parent": null,
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-05T08:27:48.537982793Z"},
+  "synced_at": {"github-issues":"2026-06-05T21:00:51.858333092Z"},
   "tags": [],
   "title": "Implement greenfield balls (per spec bl-2e26)",
   "type": "epic",
-  "updated_at": "2026-06-05T21:00:51.491537367Z"
+  "updated_at": "2026-06-05T21:00:51.858338703Z"
 }
