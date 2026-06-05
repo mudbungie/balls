@@ -13,10 +13,10 @@
   "parent": "bl-b465",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
-  "synced_at": {"github-issues":"2026-06-05T07:37:25.758894120Z"},
+  "status": "closed",
+  "synced_at": {"github-issues":"2026-06-05T22:01:48.820775911Z"},
   "tags": [],
   "title": "Spec: greenfield architecture (working document)",
   "type": "task",
-  "updated_at": "2026-06-05T21:51:05.743299997Z"
+  "updated_at": "2026-06-05T22:01:48.820776953Z"
 }
