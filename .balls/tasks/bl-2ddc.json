@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T21:51:35.663384652Z",
-  "delivered_in": null,
+  "delivered_in": "dd170d23c7e0165154eb7550d634639a5d65bcf8",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Greenfield vocab rebrand: the always-present, path-derived local balls branch is now the **landing** (was **anchor**). Landing carries the dual metaphor cleanly — a landing pad for ground truth, and a porch you depart from down the trail (landing → step(s) → terminus). Spec bl-2e26 and task descriptions (bl-66e7, bl-be5f) already swept; this ball sweeps the only landed-code mention. 'satellite' was considered for the federated spoke and dropped (a spoke is just a remote); naming the convergence point (center/focus/hub) is deferred.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":274,"source":"balls","state":"open","synced_at":"2026-06-05T21:51:40.065515126+00:00","url":"https://github.com/mudbungie/balls/issues/274"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-05T21:51:40.071595550Z"},
   "tags": [],
   "title": "Vocab: rename anchor→landing in landed doc-comments [bl-2e26]",
   "type": "task",
-  "updated_at": "2026-06-05T21:51:40.071606250Z"
+  "updated_at": "2026-06-05T21:52:18.730204034Z"
 }
