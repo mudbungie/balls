@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:28:16.546271619Z",
-  "delivered_in": null,
+  "delivered_in": "03fe1ed71a6f9ede8ca6fd2525c603e09b4467ed",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-5d56"],
   "description": "Symmetric install verb: copy committed plugin wiring + config between branches (--from/--to, default terminus→landing); NEVER bin/ (recipient resolves locally) nor the trail pointer (Pointer-exclusion); tasks is the MERGE object (union, same-id=conflict). Local bin resolution + protocol validation.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":276,"source":"balls","state":"open","synced_at":"2026-06-05T23:36:22.438622313+00:00","url":"https://github.com/mudbungie/balls/issues/276"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-05T23:36:22.454469328Z"},
   "tags": [],
   "title": "§6 bl install — capability transfer (committed-subtree copy)",
   "type": "task",
-  "updated_at": "2026-06-05T23:36:22.454473696Z"
+  "updated_at": "2026-06-05T23:42:38.962020421Z"
 }
