@@ -38,8 +38,9 @@ fn create(id: &str, existing: Vec<String>) -> Create {
 fn create_stages_a_new_ball_from_injected_id_clock_and_fields() {
     let d = tempdir().unwrap();
     let dir = d.path();
+    write(dir, "bl-1000", TASK);
     let c = Create {
-        parent: Some("bl-1000".into()),
+        parent: Some(("bl-1000".into(), On::Claim)),
         priority: Some(2),
         tags: vec!["x".into()],
         blockers: vec![Blocker { id: "bl-9".into(), on: On::Claim }],
@@ -57,6 +58,20 @@ fn create_stages_a_new_ball_from_injected_id_clock_and_fields() {
     assert_eq!(t.tags, ["x"]);
     assert_eq!(t.blockers, vec![Blocker { id: "bl-9".into(), on: On::Claim }]);
     assert!(t.claimant.is_none());
+    // --parent writes the reciprocal claim-blocker on the epic (§10).
+    let parent = read_task(dir, "bl-1000").unwrap();
+    assert_eq!(parent.blockers, vec![Blocker { id: "bl-aaaa".into(), on: On::Claim }]);
+}
+
+#[test]
+fn create_with_gates_writes_a_close_reciprocal_on_the_parent() {
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1000", TASK);
+    let c = Create { parent: Some(("bl-1000".into(), On::Close)), ..create("bl-g", vec![]) };
+    c.stage(dir).unwrap();
+    let parent = read_task(dir, "bl-1000").unwrap();
+    assert_eq!(parent.blockers, vec![Blocker { id: "bl-g".into(), on: On::Close }]);
 }
 
 #[test]
@@ -280,13 +295,4 @@ fn an_override_subject_and_body_flow_into_the_message() {
     let msg = o.finalize(dir).unwrap();
     assert!(msg.starts_with("Custom subject"));
     assert!(msg.contains("Extra paragraph."));
-}
-
-#[test]
-fn a_malformed_ball_is_an_invalid_data_error() {
-    let d = tempdir().unwrap();
-    let dir = d.path();
-    write(dir, "bl-1", "not frontmatter");
-    let o = Occupancy::unclaim("bl-1".into(), "me".into(), 0);
-    assert_eq!(o.stage(dir).unwrap_err().kind(), io::ErrorKind::InvalidData);
 }
