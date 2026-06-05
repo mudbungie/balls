@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:28:23.185816699Z",
+  "delivered_in": null,
+  "depends_on": ["bl-f813","bl-be5f"],
+  "description": "Forge variant (approval gate child at claim.post; push work/<id> + PR at close.pre; forge sync closes gate on merge). Port github-issues to the subprocess protocol + one-time legacy-adoption seeding plugin scratch from old issue numbers (§17). Forge/issues plugins live in the sibling balls-github-plugin repo.",
+  "external": {},
+  "id": "bl-1280",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 4,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Forge delivery variant + github-issues plugin port",
+  "type": "task",
+  "updated_at": "2026-06-05T08:28:23.185816699Z"
+}
