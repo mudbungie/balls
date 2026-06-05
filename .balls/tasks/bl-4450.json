@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:27:52.025547981Z",
+  "delivered_in": null,
+  "depends_on": ["bl-7b8f","bl-e755","bl-28d2"],
+  "description": "Core engine: change worktree off operating/, balls stages base change, pre/post phase runner (skeleton, no real plugins yet), SEAL = commit+integrate atomic (the pre/post boundary), teardown. §14 reverse-order rollback, three side-effect tiers, core tier-1 un-seal (discard worktree / git reset terminus). No-diff ops skip the seal.",
+  "external": {},
+  "id": "bl-4450",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "§8 op lifecycle (change-worktree + seal) + §14 rollback",
+  "type": "task",
+  "updated_at": "2026-06-05T08:27:52.025547981Z"
+}
