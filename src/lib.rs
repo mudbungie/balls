@@ -33,11 +33,19 @@
 //! §7 payload on stdin and no return channel — they mutate the change worktree,
 //! never print state back. [`plugin`] is the dispatch (env, recursion guard,
 //! stderr-to-logs, `protocol` self-describe); [`wire`] is the payload shape.
-//! [`install`] is the §6 `bl install` capability transfer: it copies the
-//! committed wiring + config subtree between two `balls` branches (the plugins
-//! object mirrors only relative-symlink wiring, so `bin/` and the trail pointer
-//! never travel), unions `tasks/` on migration, and resolves + validates a local
-//! binary against its `protocol` self-describe before binding it.
+//! [`gate`] is the one shipped plugin (its own `gate` binary): the §10 SOLE
+//! enforcer of the blocker model, which core only stores. [`install`] is the §6
+//! `bl install` capability transfer: it copies the committed wiring + config
+//! subtree between two `balls` branches (the plugins object mirrors only
+//! relative-symlink wiring, so `bin/` and the trail pointer never travel),
+//! unions `tasks/` on migration, and resolves + validates a local binary
+//! against its `protocol` self-describe before binding it.
+//!
+//! # §3/§10 — task files & the blocker model
+//!
+//! [`task`] is the schema and its derived predicates (`status`/`ready`/
+//! `closeable`); [`taskfile`] is the shared `tasks/<id>.md` IO (read/write,
+//! `exists` as the §10 resolver, the front-door reciprocal `add_blocker`).
 //!
 //! # §1/§2 — the layout substrate
 //!
@@ -58,6 +66,7 @@
 pub mod change;
 pub mod doctor;
 pub mod encoding;
+pub mod gate;
 pub mod git;
 pub mod id;
 pub mod install;
@@ -68,6 +77,7 @@ pub mod op;
 pub mod plugin;
 pub mod registry;
 pub mod task;
+pub mod taskfile;
 pub mod verb;
 pub mod wire;
 

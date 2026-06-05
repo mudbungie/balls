@@ -17,24 +17,33 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::id;
 use crate::lifecycle::BaseChange;
 use crate::message::{self, Message};
-use crate::task::{Blocker, Task};
+use crate::task::{Blocker, On, Task};
+use crate::taskfile::{add_blocker, invalid, read_task, task_ids, task_path, write_task};
 use crate::verb::Verb;
 
 /// `create` (§9): mint a fresh `tasks/<id>.md` with no prior state. The id and
 /// clock are injected; `existing` is the id set present before the op, so
 /// [`BaseChange::finalize`] can find the single new file even after a
 /// `create/pre` plugin renamed it.
+///
+/// `parent` carries the §10 front-door semantics of `--parent`/`--gates`: both
+/// set the child's `parent`, differing only in the reciprocal blocker `on` we
+/// add to that parent — `On::Claim` (subtask claim-blocks its epic) for
+/// `--parent`, `On::Close` (gate close-blocks its parent) for `--gates`.
+/// `--needs` is just a claim-blocker on the child itself (`blockers`). The
+/// reciprocal names the minted `id`; a `create/pre` id reassignment is the one
+/// case it would not track (the new file is found at finalize, the edge is not).
 pub struct Create {
     pub id: String,
     pub actor: String,
     pub now: i64,
     pub title: String,
-    pub parent: Option<String>,
+    pub parent: Option<(String, On)>,
     pub priority: Option<i64>,
     pub tags: Vec<String>,
     pub blockers: Vec<Blocker>,
@@ -49,13 +58,17 @@ impl BaseChange for Create {
             title: self.title.clone(),
             created: self.now,
             updated: self.now,
-            parent: self.parent.clone(),
+            parent: self.parent.as_ref().map(|(id, _)| id.clone()),
             priority: self.priority,
             blockers: self.blockers.clone(),
             tags: self.tags.clone(),
             ..Task::default()
         };
-        write_task(dir, &self.id, &task)
+        write_task(dir, &self.id, &task)?;
+        if let Some((parent_id, on)) = &self.parent {
+            add_blocker(dir, parent_id, Blocker { id: self.id.clone(), on: *on }, self.now)?;
+        }
+        Ok(())
     }
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {
@@ -234,40 +247,6 @@ impl BaseChange for Retire {
     }
 }
 
-/// `<dir>/tasks/<id>.md` — a ball's path within a worktree.
-fn task_path(dir: &Path, id: &str) -> PathBuf {
-    dir.join("tasks").join(format!("{id}.md"))
-}
-
-/// Read and parse `tasks/<id>.md`; a parse failure maps to invalid-data.
-fn read_task(dir: &Path, id: &str) -> io::Result<Task> {
-    let text = fs::read_to_string(task_path(dir, id))?;
-    Task::parse(&text).map_err(|e| invalid(e.to_string()))
-}
-
-/// Render and write `tasks/<id>.md`, creating `tasks/` if absent.
-fn write_task(dir: &Path, id: &str, task: &Task) -> io::Result<()> {
-    let path = task_path(dir, id);
-    fs::create_dir_all(path.parent().expect("task_path always has a tasks/ parent"))?;
-    fs::write(path, task.to_markdown())
-}
-
-/// The ids present in `tasks/` (basename minus `.md`); an absent dir is empty.
-fn task_ids(dir: &Path) -> io::Result<Vec<String>> {
-    let tasks = dir.join("tasks");
-    if !tasks.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut ids = Vec::new();
-    for entry in fs::read_dir(tasks)? {
-        let name = entry?.file_name().to_string_lossy().into_owned();
-        if let Some(id) = name.strip_suffix(".md") {
-            ids.push(id.to_string());
-        }
-    }
-    Ok(ids)
-}
-
 /// Build and render the §5 message: subject is the `-m` override else `title`.
 fn commit_message(
     verb: Verb,
@@ -285,11 +264,6 @@ fn commit_message(
         body: body.map(str::to_string),
     }
     .render()
-}
-
-/// An invalid-data error from a String.
-fn invalid(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, msg)
 }
 
 #[cfg(test)]
