@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-5d56","bl-dfbd"],
   "description": "doctor as an ordinary read-op with doctor/pre|post hook dirs. Base audits core-owned structure only (stale change worktrees, operating/ resolves, bin/ dangle, protocol drift, EffectiveConfig resolves, circular blockers); plugins delegate own-territory checks. NO repair verb — names the existing verb per finding.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":269,"source":"balls","state":"open","synced_at":"2026-06-05T23:36:47.922881507+00:00","url":"https://github.com/mudbungie/balls/issues/269"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":269,"source":"balls","state":"open","synced_at":"2026-06-05T23:41:55.724192350+00:00","url":"https://github.com/mudbungie/balls/issues/269"}}},
   "id": "bl-d024",
   "links": [],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-05T23:36:47.939411055Z"},
+  "synced_at": {"github-issues":"2026-06-05T23:41:55.733684107Z"},
   "tags": [],
   "title": "§16 bl doctor — drift diagnosis (read-op, delegated checks)",
   "type": "task",
-  "updated_at": "2026-06-05T23:41:54.963519040Z"
+  "updated_at": "2026-06-05T23:41:55.733689998Z"
 }
