@@ -22,9 +22,10 @@ path = "src/main.rs"
 # needs them (YAML frontmatter, git plumbing, CLI parsing, ...). The skeleton
 # is std-only.
 [dependencies]
-# §3 task schema: markdown + YAML frontmatter, with unknown-key round-trip.
+# §3 task schema + §4 config: one serialization format, TOML, with unknown-key
+# round-trip. Pure-Rust (no C libyaml); exports losslessly to JSON for tooling.
 serde = { version = "1", features = ["derive"] }
-serde_yaml_ng = "0.10" # maintained fork of the deprecated serde_yaml.
+toml = "0.8"
 # §7 plugin wire: payloads are serialized to plugin stdin as JSON.
 serde_json = "1"
 # § id generation: system entropy for the one shipped (random) generator.

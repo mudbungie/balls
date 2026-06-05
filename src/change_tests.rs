@@ -7,10 +7,10 @@ use crate::message::parse;
 use crate::task::On;
 use tempfile::tempdir;
 
-const TASK: &str = "---\ntitle: A task\ncreated: c\nupdated: u\n---\nbody\n";
-const CLAIMED: &str = "---\ntitle: A task\ncreated: c\nupdated: u\nclaimant: bob\n---\n";
-const RICH: &str = "---\ntitle: A task\ncreated: c\nupdated: u\nparent: bl-old\n\
-priority: 1\nblockers:\n- id: bl-z\n  on: claim\ntags:\n- a\n---\nbody\n";
+const TASK: &str = "+++\ntitle = \"A task\"\ncreated = 0\nupdated = 0\n+++\nbody\n";
+const CLAIMED: &str = "+++\ntitle = \"A task\"\ncreated = 0\nupdated = 0\nclaimant = \"bob\"\n+++\n";
+const RICH: &str = "+++\ntitle = \"A task\"\ncreated = 0\nupdated = 0\nparent = \"bl-old\"\n\
+priority = 1\ntags = [\"a\"]\n\n[[blockers]]\nid = \"bl-z\"\non = \"claim\"\n+++\nbody\n";
 
 fn write(dir: &Path, id: &str, md: &str) {
     let tasks = dir.join("tasks");
@@ -22,7 +22,7 @@ fn create(id: &str, existing: Vec<String>) -> Create {
     Create {
         id: id.into(),
         actor: "me".into(),
-        now: "now".into(),
+        now: 0,
         title: "Created title".into(),
         parent: None,
         priority: None,
@@ -43,15 +43,15 @@ fn create_stages_a_new_ball_from_injected_id_clock_and_fields() {
         priority: Some(2),
         tags: vec!["x".into()],
         blockers: vec![Blocker { id: "bl-9".into(), on: On::Claim }],
-        now: "2026-06-05T00:00:00Z".into(),
+        now: 1_749_081_600,
         title: "New thing".into(),
         ..create("bl-aaaa", vec![])
     };
     c.stage(dir).unwrap();
     let t = read_task(dir, "bl-aaaa").unwrap();
     assert_eq!(t.title, "New thing");
-    assert_eq!(t.created, "2026-06-05T00:00:00Z");
-    assert_eq!(t.updated, "2026-06-05T00:00:00Z");
+    assert_eq!(t.created, 1_749_081_600);
+    assert_eq!(t.updated, 1_749_081_600);
     assert_eq!(t.parent.as_deref(), Some("bl-1000"));
     assert_eq!(t.priority, Some(2));
     assert_eq!(t.tags, ["x"]);
@@ -120,11 +120,11 @@ fn claim_sets_the_claimant_and_bumps_updated() {
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1", TASK);
-    let o = Occupancy::claim("bl-1".into(), "alice".into(), "2026-06-05T01:00:00Z".into());
+    let o = Occupancy::claim("bl-1".into(), "alice".into(), 1_749_085_200);
     o.stage(dir).unwrap();
     let t = read_task(dir, "bl-1").unwrap();
     assert_eq!(t.claimant.as_deref(), Some("alice"));
-    assert_eq!(t.updated, "2026-06-05T01:00:00Z");
+    assert_eq!(t.updated, 1_749_085_200);
     let md = parse(&o.finalize(dir).unwrap()).unwrap();
     assert_eq!(md["bl-op"], ["claim"]);
     assert_eq!(md["bl-id"], ["bl-1"]);
@@ -135,7 +135,7 @@ fn claim_refuses_an_already_claimed_ball() {
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1", CLAIMED);
-    let o = Occupancy::claim("bl-1".into(), "alice".into(), "now".into());
+    let o = Occupancy::claim("bl-1".into(), "alice".into(), 0);
     let err = o.stage(dir).unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
     assert!(err.to_string().contains("already claimed by bob"));
@@ -146,11 +146,11 @@ fn unclaim_clears_the_claimant() {
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1", CLAIMED);
-    let o = Occupancy::unclaim("bl-1".into(), "alice".into(), "t2".into());
+    let o = Occupancy::unclaim("bl-1".into(), "alice".into(), 22);
     o.stage(dir).unwrap();
     let t = read_task(dir, "bl-1").unwrap();
     assert!(t.claimant.is_none());
-    assert_eq!(t.updated, "t2");
+    assert_eq!(t.updated, 22);
     let md = parse(&o.finalize(dir).unwrap()).unwrap();
     assert_eq!(md["bl-op"], ["unclaim"]);
 }
@@ -163,7 +163,7 @@ fn update_applies_every_field_edit_and_bumps_updated() {
     let u = Update {
         id: "bl-1".into(),
         actor: "me".into(),
-        now: "later".into(),
+        now: 99,
         over: None,
         body: None,
         edits: vec![
@@ -190,9 +190,9 @@ fn update_applies_every_field_edit_and_bumps_updated() {
     assert_eq!(t.priority, Some(3));
     assert_eq!(t.tags, ["b"]);
     assert_eq!(t.blockers, vec![Blocker { id: "bl-x".into(), on: On::Close }]);
-    assert_eq!(t.updated, "later");
+    assert_eq!(t.updated, 99);
     assert_eq!(
-        t.extra.get("state").and_then(serde_yaml_ng::Value::as_str),
+        t.extra.get("state").and_then(toml::Value::as_str),
         Some("doing")
     );
     assert!(!t.extra.contains_key("foo"));
@@ -206,7 +206,7 @@ fn update_clears_optional_fields_with_none() {
     let u = Update {
         id: "bl-1".into(),
         actor: "me".into(),
-        now: "later".into(),
+        now: 99,
         over: None,
         body: None,
         edits: vec![FieldEdit::Parent(None), FieldEdit::Priority(None)],
@@ -225,7 +225,7 @@ fn update_finalizes_with_the_retitled_subject() {
     let u = Update {
         id: "bl-1".into(),
         actor: "me".into(),
-        now: "later".into(),
+        now: 99,
         over: None,
         body: None,
         edits: vec![FieldEdit::Title("Renamed".into())],
@@ -273,7 +273,7 @@ fn an_override_subject_and_body_flow_into_the_message() {
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1", TASK);
-    let mut o = Occupancy::claim("bl-1".into(), "me".into(), "now".into());
+    let mut o = Occupancy::claim("bl-1".into(), "me".into(), 0);
     o.over = Some("Custom subject".into());
     o.body = Some("Extra paragraph.".into());
     o.stage(dir).unwrap();
@@ -287,6 +287,6 @@ fn a_malformed_ball_is_an_invalid_data_error() {
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1", "not frontmatter");
-    let o = Occupancy::unclaim("bl-1".into(), "me".into(), "now".into());
+    let o = Occupancy::unclaim("bl-1".into(), "me".into(), 0);
     assert_eq!(o.stage(dir).unwrap_err().kind(), io::ErrorKind::InvalidData);
 }
