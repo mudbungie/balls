@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:28:17.984515026Z",
+  "delivered_in": null,
+  "depends_on": ["bl-dfbd","bl-5d56"],
+  "description": "Core: ready()/closeable() predicates reading blockers (best-effort, enforce nothing); front-door flags --parent/--gates/--needs writing the {id,on} edges; epic = task with claim-blocking children (emergent). The default gating plugin binary: claim.pre rejects open claim-blocker, close.pre rejects open close-blocker — the SOLE enforcer.",
+  "external": {},
+  "id": "bl-70f5",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "§10 blocker model + gating plugin",
+  "type": "task",
+  "updated_at": "2026-06-05T08:28:17.984515026Z"
+}
