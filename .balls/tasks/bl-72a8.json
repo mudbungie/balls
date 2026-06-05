@@ -2,7 +2,7 @@
   "branch": null,
   "claimed_by": null,
   "closed_at": null,
-  "closed_children": [{"closed_at":"2026-06-05T08:54:06.754025167Z","id":"bl-505f","title":"Greenfield skeleton: alongside module tree + op-dispatch entrypoint (§0/§8)"},{"closed_at":"2026-06-05T17:59:23.551178989Z","id":"bl-5c65","title":"Greenfield skeleton (in-place): new crate root + §8 dispatch, old src deleted"},{"closed_at":"2026-06-05T21:14:20.455986560Z","id":"bl-7b8f","title":"§3 task schema + § id generation"},{"closed_at":"2026-06-05T21:16:12.054383723Z","id":"bl-e755","title":"§1/§2 XDG layout + single balls orphan branch + symlink registry"},{"closed_at":"2026-06-05T21:23:13.560709675Z","id":"bl-28d2","title":"§5 commit-message trailer protocol"},{"closed_at":"2026-06-05T21:52:30.036513004Z","id":"bl-2ddc","title":"Vocab: rename anchor→landing in landed doc-comments [bl-2e26]"},{"closed_at":"2026-06-05T22:16:39.210651364Z","id":"bl-4450","title":"§8 op lifecycle (change-worktree + seal) + §14 rollback"},{"closed_at":"2026-06-05T22:39:31.962182890Z","id":"bl-dfbd","title":"§9 core verbs: create/claim/unclaim/update/close/drop (no review, no init)"},{"closed_at":"2026-06-05T22:49:56.152089035Z","id":"bl-5d56","title":"§6 plugin dispatch (subprocess) + §7 wire payloads"}],
+  "closed_children": [{"closed_at":"2026-06-05T08:54:06.754025167Z","id":"bl-505f","title":"Greenfield skeleton: alongside module tree + op-dispatch entrypoint (§0/§8)"},{"closed_at":"2026-06-05T17:59:23.551178989Z","id":"bl-5c65","title":"Greenfield skeleton (in-place): new crate root + §8 dispatch, old src deleted"},{"closed_at":"2026-06-05T21:14:20.455986560Z","id":"bl-7b8f","title":"§3 task schema + § id generation"},{"closed_at":"2026-06-05T21:16:12.054383723Z","id":"bl-e755","title":"§1/§2 XDG layout + single balls orphan branch + symlink registry"},{"closed_at":"2026-06-05T21:23:13.560709675Z","id":"bl-28d2","title":"§5 commit-message trailer protocol"},{"closed_at":"2026-06-05T21:52:30.036513004Z","id":"bl-2ddc","title":"Vocab: rename anchor→landing in landed doc-comments [bl-2e26]"},{"closed_at":"2026-06-05T22:16:39.210651364Z","id":"bl-4450","title":"§8 op lifecycle (change-worktree + seal) + §14 rollback"},{"closed_at":"2026-06-05T22:39:31.962182890Z","id":"bl-dfbd","title":"§9 core verbs: create/claim/unclaim/update/close/drop (no review, no init)"},{"closed_at":"2026-06-05T22:49:56.152089035Z","id":"bl-5d56","title":"§6 plugin dispatch (subprocess) + §7 wire payloads"},{"closed_at":"2026-06-05T23:38:19.242419733Z","id":"bl-651c","title":"Schema format: TOML frontmatter + unix-time timestamps (revises §3/§4)"}],
   "created_at": "2026-06-05T08:27:46.196483584Z",
   "delivered_in": null,
   "depends_on": [],
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Implement greenfield balls (per spec bl-2e26)",
   "type": "epic",
-  "updated_at": "2026-06-05T22:49:56.152114733Z"
+  "updated_at": "2026-06-05T23:38:19.242446613Z"
 }
