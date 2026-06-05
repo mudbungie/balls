@@ -1,2 +1,0 @@
-{"ts":"2026-06-03T22:29:24.324026274Z","author":"github-issues","text":"GH issue #213 no longer found in repo (on_external_delete=deferred)"}
-{"ts":"2026-06-05T08:27:30.348029842Z","author":"Derby","text":"Restored open: prior deferred was a github-issues defer-cascade (commit c4570fa, on_external_delete=deferred when GH mirror issue #213 was wiped 2026-06-03), not a deliberate pause. Design work was continuous — bl-cef0 (last migration topic) closed 2026-06-05. Same spurious pattern that hit the f021 children."}
