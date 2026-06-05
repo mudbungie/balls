@@ -106,7 +106,7 @@ impl CloneDir {
     }
 
     /// `operating/` — the git repo balls operates against. A real dir in
-    /// stealth (the anchor itself); a symlink into tracker territory when a
+    /// stealth (the landing itself); a symlink into tracker territory when a
     /// tracker is enabled. This layer only names the path.
     #[must_use]
     pub fn operating(&self) -> PathBuf {
