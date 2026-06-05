@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-651c",
+  "claimed_by": "Finest",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T23:31:27.333767183Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T23:31:27.989155850Z"},
   "tags": [],
   "title": "Schema format: TOML frontmatter + unix-time timestamps (revises §3/§4)",
   "type": "task",
-  "updated_at": "2026-06-05T23:31:27.989164015Z"
+  "updated_at": "2026-06-05T23:31:30.585540406Z"
 }
