@@ -145,8 +145,9 @@ fn child_dirs(dir: &Path) -> io::Result<Vec<String>> {
 }
 
 /// Parse a registry entry filename `NN-<name>` into `(order, name)`. A name
-/// with no `-`, an empty name, or a non-numeric prefix is not an entry.
-fn parse_entry(file_name: &str) -> Option<(u32, String)> {
+/// with no `-`, an empty name, or a non-numeric prefix is not an entry. Shared
+/// with [`crate::install`], which reads the same `NN-<name>` wiring it copies.
+pub(crate) fn parse_entry(file_name: &str) -> Option<(u32, String)> {
     let (prefix, rest) = file_name.split_once('-')?;
     if rest.is_empty() {
         return None;
@@ -157,7 +158,9 @@ fn parse_entry(file_name: &str) -> Option<(u32, String)> {
 
 /// Create `link` → `original`, first removing any path already at `link` so
 /// re-linking is idempotent. Removing a symlink never touches its target.
-fn replace_symlink(original: &Path, link: &Path) -> io::Result<()> {
+/// Shared with [`crate::install`], whose plugins-object copy re-creates each
+/// committed relative symlink (idempotent replace = innermost wins, §6).
+pub(crate) fn replace_symlink(original: &Path, link: &Path) -> io::Result<()> {
     if link.symlink_metadata().is_ok() {
         fs::remove_file(link)?;
     }
