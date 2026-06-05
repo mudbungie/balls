@@ -33,6 +33,11 @@
 //! §7 payload on stdin and no return channel — they mutate the change worktree,
 //! never print state back. [`plugin`] is the dispatch (env, recursion guard,
 //! stderr-to-logs, `protocol` self-describe); [`wire`] is the payload shape.
+//! [`install`] is the §6 `bl install` capability transfer: it copies the
+//! committed wiring + config subtree between two `balls` branches (the plugins
+//! object mirrors only relative-symlink wiring, so `bin/` and the trail pointer
+//! never travel), unions `tasks/` on migration, and resolves + validates a local
+//! binary against its `protocol` self-describe before binding it.
 //!
 //! # §1/§2 — the layout substrate
 //!
@@ -55,6 +60,7 @@ pub mod doctor;
 pub mod encoding;
 pub mod git;
 pub mod id;
+pub mod install;
 pub mod layout;
 pub mod lifecycle;
 pub mod message;
