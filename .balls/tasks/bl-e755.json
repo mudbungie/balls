@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:27:50.389498858Z",
+  "delivered_in": null,
+  "depends_on": ["bl-505f"],
+  "description": "XDG path resolution; clones/<enc>/{binding,operating,changes}; the single balls orphan branch holding tasks/ + config/; the config/plugins/<op>/<phase>/NN-<name> two-level symlink registry (committed relative→../bin/<name>; local gitignored bin/<name> absolute). Percent-encoding, never hashing.",
+  "external": {},
+  "id": "bl-e755",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 1,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "§1/§2 XDG layout + single balls orphan branch + symlink registry",
+  "type": "task",
+  "updated_at": "2026-06-05T08:27:50.389498858Z"
+}
