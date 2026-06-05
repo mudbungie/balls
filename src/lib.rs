@@ -41,8 +41,17 @@
 //! dirs, and the `config/plugins/` symlink registry on the `balls` branch.
 //! Pure path arithmetic plus the registry's filesystem ops — no git, no env
 //! reads (the binary edge supplies those), no bootstrap (that is prime's job).
+//!
+//! # §16 — drift diagnosis
+//!
+//! [`doctor`] is base balls' half of the `doctor` read op: it audits only
+//! core-owned structure (stale change worktrees, an unresolved `operating/`, a
+//! `bin/` dangle, protocol drift, circular blockers) and names the existing
+//! verb that fixes each — there is no `repair` verb. Plugins audit their own §1
+//! territory through the `doctor` hook dirs, like any diffless op's chain.
 
 pub mod change;
+pub mod doctor;
 pub mod encoding;
 pub mod git;
 pub mod id;
