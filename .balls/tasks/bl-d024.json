@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-05T08:28:22.133180590Z",
+  "delivered_in": null,
+  "depends_on": ["bl-5d56","bl-dfbd"],
+  "description": "doctor as an ordinary read-op with doctor/pre|post hook dirs. Base audits core-owned structure only (stale change worktrees, operating/ resolves, bin/ dangle, protocol drift, EffectiveConfig resolves, circular blockers); plugins delegate own-territory checks. NO repair verb — names the existing verb per finding.",
+  "external": {},
+  "id": "bl-d024",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "§16 bl doctor — drift diagnosis (read-op, delegated checks)",
+  "type": "task",
+  "updated_at": "2026-06-05T08:28:22.133180590Z"
+}
