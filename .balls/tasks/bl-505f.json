@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-505f",
+  "claimed_by": "Nadirs",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:27:48.562467623Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T08:27:49.540646778Z"},
   "tags": [],
   "title": "Greenfield skeleton: alongside module tree + op-dispatch entrypoint (§0/§8)",
   "type": "task",
-  "updated_at": "2026-06-05T08:27:49.540655995Z"
+  "updated_at": "2026-06-05T08:44:00.038906536Z"
 }
