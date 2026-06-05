@@ -1,0 +1,181 @@
+//! §1 XDG layout — where balls' host-side state lives, as pure path arithmetic.
+//!
+//! Two coordinate roots, both under `balls/`:
+//!
+//! ```text
+//! $XDG_CONFIG_HOME/balls/config.yaml          # user-level config
+//! $XDG_STATE_HOME/balls/
+//!   plugins/<name>/                           # each plugin owns this subtree
+//!   clones/<pct-enc-invocation-path>/         # one bundle per invocation path
+//!     binding.yaml                            #   tracker remote + invocation_path
+//!     operating/                              #   the git repo balls operates against
+//!     changes/<uuid>/                         #   in-flight CHANGE worktrees (§8)
+//!     logs/<name>/plugin.log                  #   per-plugin diagnostics
+//! ```
+//!
+//! No env reads here: the binary edge resolves `HOME` and the XDG variables
+//! once and hands them in (the bl-bfa8 lesson — env reads at the edge so
+//! parallel tests vary the layout without racing). No `mkdir`: this layer
+//! answers *where*, never *make it so*. Per §0, core gives a plugin only its
+//! territory root ([`Xdg::plugin_territory`]); the tracker's `<pct-enc-remote>/`
+//! and the delivery plugin's `<pct-enc-local>/<id>/` are those plugins' own
+//! business, built from the same [`crate::encoding`] primitive.
+
+use crate::encoding::percent_encode;
+use std::path::{Path, PathBuf};
+
+/// The two XDG base directories balls roots its state under. Built once at the
+/// binary edge from `HOME` + the XDG variables via [`Xdg::with`]; an absent or
+/// empty variable falls back to its XDG-spec default under `home`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Xdg {
+    config_home: PathBuf,
+    state_home: PathBuf,
+}
+
+impl Xdg {
+    /// Resolve the bases from `home` plus `$XDG_CONFIG_HOME` / `$XDG_STATE_HOME`
+    /// (each `None` or empty falling back to `~/.config` / `~/.local/state`).
+    /// Pure — no env reads, no I/O.
+    #[must_use]
+    pub fn with(home: &Path, config_home: Option<&str>, state_home: Option<&str>) -> Self {
+        Self {
+            config_home: resolve_base(home, ".config", config_home),
+            state_home: resolve_base(home, ".local/state", state_home),
+        }
+    }
+
+    /// `$XDG_CONFIG_HOME/balls/config.yaml` — the user-level config layer (§4).
+    #[must_use]
+    pub fn user_config(&self) -> PathBuf {
+        self.config_home.join("balls").join("config.yaml")
+    }
+
+    /// `$XDG_STATE_HOME/balls/` — the single state root for every clone and
+    /// plugin on this host.
+    #[must_use]
+    pub fn state_dir(&self) -> PathBuf {
+        self.state_home.join("balls")
+    }
+
+    /// `$XDG_STATE_HOME/balls/plugins/<name>/` — the one subtree a plugin owns.
+    /// Core hands over the root and reads nothing inside it (§0).
+    #[must_use]
+    pub fn plugin_territory(&self, name: &str) -> PathBuf {
+        self.state_dir().join("plugins").join(name)
+    }
+
+    /// The clone bundle for one invocation path, percent-encoded into a single
+    /// component: `$XDG_STATE_HOME/balls/clones/<pct-enc-invocation-path>/`.
+    #[must_use]
+    pub fn clone_dir(&self, invocation_path: &Path) -> CloneDir {
+        let enc = percent_encode(&invocation_path.to_string_lossy());
+        CloneDir {
+            root: self.state_dir().join("clones").join(enc),
+        }
+    }
+}
+
+fn resolve_base(home: &Path, default_rel: &str, xdg: Option<&str>) -> PathBuf {
+    match xdg.filter(|s| !s.is_empty()) {
+        Some(v) => PathBuf::from(v),
+        None => home.join(default_rel),
+    }
+}
+
+/// The per-invocation-path bundle `clones/<pct-enc-invocation-path>/` and the
+/// four things that live in it. Pure paths; the change worktree is core and
+/// uuid-named (nothing keys off the uuid — §1), distinct from the delivery
+/// plugin's code worktree in plugin territory.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloneDir {
+    root: PathBuf,
+}
+
+impl CloneDir {
+    /// The bundle root itself.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// `binding.yaml` — which tracker remote (if any) + the invocation path.
+    #[must_use]
+    pub fn binding(&self) -> PathBuf {
+        self.root.join("binding.yaml")
+    }
+
+    /// `operating/` — the git repo balls operates against. A real dir in
+    /// stealth (the anchor itself); a symlink into tracker territory when a
+    /// tracker is enabled. This layer only names the path.
+    #[must_use]
+    pub fn operating(&self) -> PathBuf {
+        self.root.join("operating")
+    }
+
+    /// `changes/<uuid>/` — one ephemeral CHANGE worktree for an in-flight op
+    /// (§8). The caller supplies the uuid; nothing keys off it.
+    #[must_use]
+    pub fn change(&self, uuid: &str) -> PathBuf {
+        self.root.join("changes").join(uuid)
+    }
+
+    /// `logs/<name>/plugin.log` — a plugin's captured stderr (suggested; §1).
+    #[must_use]
+    pub fn log(&self, plugin: &str) -> PathBuf {
+        self.root.join("logs").join(plugin).join("plugin.log")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn home() -> &'static Path {
+        Path::new("/home/mark")
+    }
+
+    #[test]
+    fn xdg_variables_when_set_override_the_home_defaults() {
+        let x = Xdg::with(home(), Some("/cfg"), Some("/st"));
+        assert_eq!(x.user_config(), Path::new("/cfg/balls/config.yaml"));
+        assert_eq!(x.state_dir(), Path::new("/st/balls"));
+    }
+
+    #[test]
+    fn absent_or_empty_variables_fall_back_under_home() {
+        // `None` and `Some("")` both take the default branch.
+        let x = Xdg::with(home(), None, Some(""));
+        assert_eq!(x.user_config(), Path::new("/home/mark/.config/balls/config.yaml"));
+        assert_eq!(x.state_dir(), Path::new("/home/mark/.local/state/balls"));
+    }
+
+    #[test]
+    fn a_plugin_gets_a_territory_root_under_state() {
+        let x = Xdg::with(home(), None, None);
+        assert_eq!(
+            x.plugin_territory("tracker"),
+            Path::new("/home/mark/.local/state/balls/plugins/tracker")
+        );
+    }
+
+    #[test]
+    fn the_clone_bundle_encodes_the_invocation_path_to_one_component() {
+        let x = Xdg::with(home(), None, Some("/st"));
+        let c = x.clone_dir(Path::new("/home/mark/dev/balls"));
+        assert_eq!(
+            c.root(),
+            Path::new("/st/balls/clones/%2Fhome%2Fmark%2Fdev%2Fballs")
+        );
+    }
+
+    #[test]
+    fn the_bundle_names_its_four_inhabitants() {
+        let c = Xdg::with(home(), None, Some("/st")).clone_dir(Path::new("/p"));
+        let root = c.root().to_path_buf();
+        assert_eq!(c.binding(), root.join("binding.yaml"));
+        assert_eq!(c.operating(), root.join("operating"));
+        assert_eq!(c.change("abc-123"), root.join("changes/abc-123"));
+        assert_eq!(c.log("tracker"), root.join("logs/tracker/plugin.log"));
+    }
+}
