@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-5c65",
+  "claimed_by": "Nadirs",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T17:57:04.466221582Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-05T17:57:05.336979727Z"},
   "tags": [],
   "title": "Greenfield skeleton (in-place): new crate root + §8 dispatch, old src deleted",
   "type": "task",
-  "updated_at": "2026-06-05T17:57:05.336992326Z"
+  "updated_at": "2026-06-05T17:57:11.674274867Z"
 }
