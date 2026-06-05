@@ -33,6 +33,7 @@
 pub mod encoding;
 pub mod id;
 pub mod layout;
+pub mod message;
 pub mod op;
 pub mod registry;
 pub mod task;
