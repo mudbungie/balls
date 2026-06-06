@@ -113,8 +113,10 @@ fn remote_for_prime(operating: &Path, clone: &CloneDir, opts: &PrimeOpts) -> Opt
 }
 
 /// The auto-discovered wire remote — `git remote get-url origin`, a LOCAL config
-/// read (no network). Absent origin (the common stealth case) ⇒ `None`.
-fn origin_of(operating: &Path) -> Option<String> {
+/// read (no network). Absent origin (the common stealth case) ⇒ `None`. Shared
+/// with [`crate::mutate`], the mutating-verb dispatch that resolves the same §7
+/// binding for a ball-file op.
+pub(crate) fn origin_of(operating: &Path) -> Option<String> {
     match git::run(operating, &["remote", "get-url", "origin"], None) {
         Ok(url) => Some(url.trim().to_string()),
         Err(_) => None,
@@ -162,8 +164,10 @@ fn commit_config(operating: &Path, message: &str) -> io::Result<()> {
     Ok(())
 }
 
-/// Build the §7 binding for a diffless op over `operating` on `branch`.
-fn binding(operating: &Path, invocation: &Path, remote: Option<String>, branch: &str) -> Binding {
+/// Build the §7 binding for an op over `operating` on `branch`. Shared with
+/// [`crate::mutate`] — a mutating ball-file op binds the same way a diffless
+/// checkout op does (§7).
+pub(crate) fn binding(operating: &Path, invocation: &Path, remote: Option<String>, branch: &str) -> Binding {
     Binding {
         remote,
         branch: branch.to_string(),
