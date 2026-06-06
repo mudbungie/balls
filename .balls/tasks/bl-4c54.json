@@ -9,7 +9,7 @@
   "description": "Deferred from bl-be5f. Spec bl-2e26 §12/§4: config/balls.toml scalar/list VALUES layer DOWN the trail at READ time, innermost(landing)-wins, no depth cap (tasks do NOT federate; exactly one store at the terminus). No config module / EffectiveConfig exists in the greenfield rewrite yet, and nothing consumes config values today (branch name is hardcoded 'balls'), so building the layering now would be a consumer-less mechanism. The trail walk landed in bl-be5f produces the ordered local-checkout sequence this would read config from.",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":286,"source":"balls","state":"open","synced_at":"2026-06-06T03:13:47.518391777+00:00","url":"https://github.com/mudbungie/balls/issues/286"}}},
   "id": "bl-4c54",
-  "links": [],
+  "links": [{"link_type":"relates_to","target":"bl-be5f"}],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "Config VALUES trail-layering (§4 EffectiveConfig down the trail)",
   "type": "task",
-  "updated_at": "2026-06-06T03:13:47.528632035Z"
+  "updated_at": "2026-06-06T03:14:07.326220506Z"
 }
