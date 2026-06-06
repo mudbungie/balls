@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-f970","bl-9329"],
   "description": "Post-finalization spec revision 2026-06-05 (bl-2e26 §12/§13/§16 tracker parts). Amends landed bl-4522 ('§12/§13 tracker plugin: remote sync/push, prime, trail pointer', commit 9124d4d). SUPERSEDES the in-progress bl-02c3 ('Tracker adopt-into-empty: fresh-clone materialization / close the 2-hop trail loop') — its 2-hop-trail premise is dissolved; let bl-02c3 land, then this corrects.\n\nWHY: federation is now many landings naming ONE shared store branch (tasks_branch), backed by a common remote. No transitive trail, no origin->central auto-discovery, no zero-touch onboarding (onboarding = explicit 'bl install --from <center>', the consent boundary).\n\nWHAT (src/bin tracker plugin):\n- The tracker syncs the STORE branch (tasks_branch) with its configured remote ONLY: sync/pre = git fetch + ff-only (non-ff = contention, non-zero exit); present->ff/adopt, absent->bootstrap(create+push). prime resolves the remote (--remote > --center > XDG > origin) for tasks_branch.\n- Pointer is the store's REMOTE (tracker territory), NOT a transitive next: chain. Drop trail-walk handling and the origin->central discovery.\n- --stealth = store stays local (no remote).\n- doctor hook: audit the tasks_branch remote reachable + its clone healthy / stale-beyond-TTL (TTL is tracker's own territory).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":299,"source":"balls","state":"open","synced_at":"2026-06-06T06:48:39.451035978+00:00","url":"https://github.com/mudbungie/balls/issues/299"}}},
   "id": "bl-cd21",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-06T06:48:39.461536708Z"},
   "tags": [],
   "title": "Greenfield tracker: sync tasks_branch<->remote (ff-only/union); store-remote config, not transitive next: pointer",
   "type": "task",
-  "updated_at": "2026-06-06T06:48:38.808896103Z"
+  "updated_at": "2026-06-06T06:48:39.461544162Z"
 }
