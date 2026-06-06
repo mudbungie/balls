@@ -150,15 +150,17 @@ impl Subprocess {
             io::Error::other(format!("plugin {} referenced but not installed here", plugin.name))
         })?;
         // Parse the §5 trailers into the post wire's `metadata` (the engine
-        // handed us the raw message — §5 lives on this side of the seam).
-        let metadata = match sealed {
-            Some(s) => Some(message::parse(s.message)?),
+        // handed us the raw message — §5 lives on this side of the seam). A
+        // diffless op (§13) seals no message, so `s.message` is `None` and the
+        // facts go out commit-pair-only, metadata absent.
+        let metadata = match sealed.and_then(|s| s.message) {
+            Some(m) => Some(message::parse(m)?),
             None => None,
         };
-        let facts = sealed.zip(metadata.as_ref()).map(|(s, md)| SealFacts {
+        let facts = sealed.map(|s| SealFacts {
             commit: s.commit,
             previous_commit: s.previous_commit,
-            metadata: md,
+            metadata: metadata.as_ref(),
         });
         let payload = self.ctx.wire(&plugin.name, op.token(), phase.token(), facts, rolling_back);
         let json = serde_json::to_string(&payload).map_err(io::Error::other)?;
