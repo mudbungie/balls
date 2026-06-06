@@ -20,10 +20,12 @@
 //! and plugins react. The seal is the pre/post boundary. [`op`] names the
 //! verb-agnostic phase shape; [`git`] is the terminus seal (change worktree,
 //! commit + ff-integrate, un-seal); [`lifecycle`] is the [`lifecycle::Engine`]
-//! that runs the shape and unwinds it in reverse on any abort (§14). The verb
-//! diff ([`lifecycle::BaseChange`]) and the plugin chain ([`lifecycle::Plugins`])
-//! are seams later phases fill. [`run`] is still the skeleton dispatch — it
-//! prints the [`op::Op`] plan; wiring it to the engine is a later phase.
+//! that runs the shape and unwinds it in reverse on any abort (§14). [`change`]
+//! implements the verb diff ([`lifecycle::BaseChange`]) for each §9 deliverable
+//! verb (create/claim/unclaim/update/close/drop); the plugin chain
+//! ([`lifecycle::Plugins`]) is a seam a later phase fills. [`run`] is still the
+//! skeleton dispatch — it prints the [`op::Op`] plan; wiring it to the engine is
+//! a later phase.
 //!
 //! # §1/§2 — the layout substrate
 //!
@@ -33,6 +35,7 @@
 //! Pure path arithmetic plus the registry's filesystem ops — no git, no env
 //! reads (the binary edge supplies those), no bootstrap (that is prime's job).
 
+pub mod change;
 pub mod encoding;
 pub mod git;
 pub mod id;
