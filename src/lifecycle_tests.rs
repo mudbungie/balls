@@ -28,11 +28,12 @@ struct FakeTerminus {
     j: Journal,
     fail: Option<&'static str>,
     sealed_msg: RefCell<Option<String>>,
+    heads: RefCell<u32>,
 }
 
 impl FakeTerminus {
     fn new(j: Journal, fail: Option<&'static str>) -> Self {
-        Self { j, fail, sealed_msg: RefCell::new(None) }
+        Self { j, fail, sealed_msg: RefCell::new(None), heads: RefCell::new(0) }
     }
     fn log(&self, s: String) {
         self.j.borrow_mut().push(s);
@@ -46,7 +47,11 @@ impl Terminus for FakeTerminus {
     fn head(&self) -> io::Result<String> {
         self.log("head".into());
         self.gate("head")?;
-        Ok("T0".into())
+        // A distinct tip per read so a diffless before/after pair differs (T0,
+        // T1, …); the seal path reads head once, so it stays "T0".
+        let n = *self.heads.borrow();
+        *self.heads.borrow_mut() += 1;
+        Ok(format!("T{n}"))
     }
     fn open(&self, _dir: &Path) -> io::Result<()> {
         self.log("open".into());
@@ -257,33 +262,6 @@ fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, None);
 }
 
-/// Run a diffless op through the engine, returning the result and the journal.
-fn run_diffless(run_fail: Option<&'static str>, pre: &[&str], post: &[&str]) -> (Result<(), OpError>, Vec<String>) {
-    let jrn = journal();
-    let term = FakeTerminus::new(jrn.clone(), None);
-    let plugins = FakePlugins::new(jrn.clone(), run_fail);
-    let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
-    let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
-    let result = Engine::new(&term, &plugins).diffless(Verb::Sync, Path::new("/op"), &pre, &post);
-    let log = jrn.borrow().clone();
-    (result, log)
-}
-
-#[test]
-fn a_diffless_op_runs_pre_then_post_with_no_seal() {
-    let (r, log) = run_diffless(None, &["a"], &["b"]);
-    assert!(r.is_ok());
-    assert_eq!(log, ["run:a:pre", "run:b:post"]); // no open/seal/close
-}
-
-#[test]
-fn a_diffless_abort_unwinds_only_its_plugins() {
-    // "a" lands, "b" fails in pre; post never runs; tier 1 is empty.
-    let (r, log) = run_diffless(Some("b"), &["a", "b"], &["c"]);
-    assert!(matches!(r, Err(OpError::Plugin { ref name, .. }) if name == "b"));
-    assert_eq!(log, ["run:a:pre", "run:b:pre", "rollback:a:pre"]);
-}
-
 #[test]
 fn op_error_renders_each_variant_and_is_an_error() {
     let author = OpError::Author(ioerr("x"));
@@ -295,3 +273,7 @@ fn op_error_renders_each_variant_and_is_an_error() {
     assert!(format!("{author:?}").contains("Author"));
     let _: &dyn std::error::Error = &plugin;
 }
+
+// §13 diffless-op tests share this module's engine harness (fakes + helpers).
+#[path = "lifecycle_diffless_tests.rs"]
+mod diffless;

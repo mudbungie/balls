@@ -56,7 +56,7 @@ fn a_post_payload_adds_commits_metadata_and_advances_the_state_pair() {
     let c = ctx();
     let mut md = Metadata::new();
     md.insert("bl-id".into(), vec!["bl-1234".into()]);
-    let facts = SealFacts { commit: "C1", previous_commit: "T0", metadata: &md };
+    let facts = SealFacts { commit: "C1", previous_commit: "T0", metadata: Some(&md) };
     let v = json(&c.wire("tracker", "close", "post", Some(facts), None));
     // post advances: current is the after-state, before slides to previous.
     assert_eq!(v["current_state"]["title"], "after");
@@ -71,10 +71,26 @@ fn a_post_payload_adds_commits_metadata_and_advances_the_state_pair() {
 fn a_rollback_payload_carries_the_phase_shape_plus_rolling_back() {
     let c = ctx();
     let md = Metadata::new();
-    let facts = SealFacts { commit: "C1", previous_commit: "T0", metadata: &md };
+    let facts = SealFacts { commit: "C1", previous_commit: "T0", metadata: Some(&md) };
     let v = json(&c.wire("tracker", "close", "post", Some(facts), Some("post")));
     assert_eq!(v["rolling_back"], "post");
     assert_eq!(v["commit"], "C1");
+}
+
+#[test]
+fn a_diffless_post_carries_the_commit_pair_but_omits_metadata() {
+    // §13: a sync/prime post payload carries previous_commit/commit — the
+    // operating tip before/after the op — but no §5 metadata (none was sealed).
+    let binding = ctx().binding;
+    let c = OpContext::diffless("me@example.com".into(), binding);
+    let facts = SealFacts { commit: "T1", previous_commit: "T0", metadata: None };
+    let v = json(&c.wire("tracker", "sync", "post", Some(facts), None));
+    assert_eq!(v["commit"], "T1");
+    assert_eq!(v["previous_commit"], "T0");
+    // diffless authors no ball, so both states stay absent even on post.
+    for absent in ["metadata", "current_state", "previous_state"] {
+        assert!(v.get(absent).is_none(), "diffless post must omit {absent}");
+    }
 }
 
 #[test]

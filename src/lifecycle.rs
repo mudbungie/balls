@@ -37,16 +37,20 @@ pub trait BaseChange {
     fn finalize(&self, dir: &Path) -> io::Result<String>;
 }
 
-/// What the seal produced, threaded to every `post` reactor and any `post`-phase
-/// rollback so the §7 post payload can carry it: the sealed commit, the terminus
-/// tip it landed on, and the §5 commit `message` (the plugin seam parses its
-/// trailers into `metadata` — the engine stays §5-agnostic). `None` on `pre`
-/// (nothing is sealed yet — the id is not assigned, §7).
+/// What the op moved, threaded to every `post` reactor and any `post`-phase
+/// rollback so the §7 post payload can carry it: the new commit, the tip it
+/// landed on, and the §5 commit `message` (the plugin seam parses its trailers
+/// into `metadata` — the engine stays §5-agnostic). `None` on `pre` (nothing is
+/// sealed yet — the id is not assigned, §7).
+///
+/// On a DIFFLESS op (§13) there is no seal and no §5 message, so `message` is
+/// `None`: the facts degrade to the operating tip before/after the op
+/// (`previous_commit`/`commit`), and `post` carries them metadata-less.
 #[derive(Debug, Clone, Copy)]
 pub struct Sealed<'a> {
     pub commit: &'a str,
     pub previous_commit: &'a str,
-    pub message: &'a str,
+    pub message: Option<&'a str>,
 }
 
 /// The plugin chain (§6/§7) as a seam: run ONE plugin in a phase, or roll one
@@ -92,13 +96,15 @@ impl std::fmt::Display for OpError {
 
 impl std::error::Error for OpError {}
 
-/// What the seal landed, owned for the §14 unwind: the pre-seal tip to reset
-/// back to, the sealed commit, and the §5 message — enough to hand a `post`-phase
-/// rollback the same [`Sealed`] facts its forward run saw (§7).
+/// What the op moved, owned for the §14 unwind: the prior tip to reset back to,
+/// the new commit, and the §5 message — enough to hand a `post`-phase rollback
+/// the same [`Sealed`] facts its forward run saw (§7). `message` is `None` on a
+/// diffless op (§13): no seal ran, so there is no §5 message to parse, and the
+/// facts the record renders are the operating tip before/after the op.
 struct SealRecord {
     previous_commit: String,
     commit: String,
-    message: String,
+    message: Option<String>,
 }
 
 impl SealRecord {
@@ -107,7 +113,7 @@ impl SealRecord {
         Sealed {
             commit: &self.commit,
             previous_commit: &self.previous_commit,
-            message: &self.message,
+            message: self.message.as_deref(),
         }
     }
 }
@@ -178,7 +184,7 @@ impl<'a> Engine<'a> {
         let message = base.finalize(change_dir).map_err(OpError::Author)?;
         let sha = self.terminus.seal(change_dir, &message).map_err(OpError::Terminus)?; // (3) SEAL
         // boundary crossed: record the seal so post (and any post-abort) gets §7 facts.
-        trace.seal = Some(SealRecord { previous_commit: prev, commit: sha.clone(), message });
+        trace.seal = Some(SealRecord { previous_commit: prev, commit: sha.clone(), message: Some(message) });
         let sealed = trace.seal.as_ref().expect("just set").facts();
         run_phase(self.plugins, op, Phase::Post, change_dir, post, Some(&sealed), &mut trace.ran)?; // (4)
         Ok(sha)
@@ -186,7 +192,14 @@ impl<'a> Engine<'a> {
 
     /// Run a DIFFLESS op (§8 "skip steps 1/3/5"): pre/post against `operating/`,
     /// no worktree, no seal. Tier 1 is empty, so the unwind is reverse plugin
-    /// rollback only (§13/§14).
+    /// rollback only (§13/§14). Unlike the seal path there is no commit to land,
+    /// but the op can still MOVE the operating tip — a `pre` participant (sync
+    /// ff/push) advances `balls/tasks`. So balls reads the tip before `pre` and
+    /// after it and threads those as the §13 `previous_commit`/`commit` facts to
+    /// `post` (and any `post`-phase rollback), metadata-less: a diffless op
+    /// authors no §5 message, so `message` is `None` and the wire omits
+    /// `metadata`. No shipped plugin reads them yet; a sync/post cache-rebuild
+    /// participant will.
     pub fn diffless(
         &self,
         op: Verb,
@@ -195,14 +208,33 @@ impl<'a> Engine<'a> {
         post: &[PluginRef],
     ) -> Result<(), OpError> {
         let mut ran = Vec::new();
-        // Diffless ops never seal, so every phase passes `None` and the unwind
-        // has no terminus tier to un-seal (§8 "skip steps 1/3/5").
-        let result = run_phase(self.plugins, op, Phase::Pre, operating, pre, None, &mut ran)
-            .and_then(|()| run_phase(self.plugins, op, Phase::Post, operating, post, None, &mut ran));
+        let mut moved = None;
+        let result = self.diffless_inner(op, operating, pre, post, &mut ran, &mut moved);
         if result.is_err() {
-            unwind(self.plugins, op, operating, &ran, None);
+            unwind(self.plugins, op, operating, &ran, moved.as_ref());
         }
         result
+    }
+
+    /// The fallible pre→post body of a diffless op. Captures the operating tip
+    /// before `pre` and after it (§13), records those facts in `moved` so a
+    /// post-abort unwind hands `post`-phase rollbacks the same shape (mirroring
+    /// [`Trace::seal`] on the mutating path), and threads them — metadata-less —
+    /// to the `post` phase.
+    fn diffless_inner(
+        &self,
+        op: Verb,
+        operating: &Path,
+        pre: &[PluginRef],
+        post: &[PluginRef],
+        ran: &mut Vec<(PluginRef, Phase)>,
+        moved: &mut Option<SealRecord>,
+    ) -> Result<(), OpError> {
+        let previous_commit = self.terminus.head().map_err(OpError::Terminus)?;
+        run_phase(self.plugins, op, Phase::Pre, operating, pre, None, ran)?;
+        let commit = self.terminus.head().map_err(OpError::Terminus)?;
+        let record = moved.insert(SealRecord { previous_commit, commit, message: None });
+        run_phase(self.plugins, op, Phase::Post, operating, post, Some(&record.facts()), ran)
     }
 
     /// §14 unwind: roll every run plugin back in reverse, THEN core un-seals its
