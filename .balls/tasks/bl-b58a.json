@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-06T01:16:32.061156434Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "# Open question\n\nStandardize how balls and its plugins emit observability — logs and metrics — instead of the ad-hoc conventions accreting per phase. bl-5d56 (§6 dispatch) invented `clones/<enc>/logs/<name>/<op>-<phase>.log` (append) with zero spec backing; §6 only says \"stderr: human log; captured to clones/<enc>/logs/<name>/\" and §1 only reserves `clones/<enc>/logs/`. There is no metrics concept anywhere. Two ad-hoc choices already exist; a third will diverge.\n\n## Subtraction-first position (argue me UP from here)\n\n- METRICS ARE NOT CORE — probably not anywhere yet. balls is a local git-native tracker; the git log already records every op (§5 trailers: op/actor/id/commit). \"Metrics\" over that is a QUERY, not a stored stream. If timing/counters are ever wanted, they are a `*.post` plugin that watches the op lifecycle and writes wherever it likes — core emits none. Default: cut \"metrics\" from scope until a concrete consumer exists.\n- LOGS ARE A THIN DERIVED CONVENTION, NOT CONFIG. Core owns exactly one fact: WHERE a plugin's stderr lands (`logs/<name>/...`), a DERIVED path (encode of name + op/phase), never a configured one — single-source-of-truth, severable. No rotation/retention/levels in core: a log file is append-only stderr; the human (or doctor/prime) prunes, same stale-but-harmless rule as orphan worktrees.\n\n## Concrete decisions to nail\n\n1. PLUGIN LOG PATH — exact layout + filename. bl-5d56 picked `logs/<name>/<op>-<phase>.log`; ratify or change. Per-op-phase file vs per-run vs one appended stream? Does `doctor` (bl-e8a5) audit/prune it?\n2. BALLS' OWN DIAGNOSTICS — core writes to its own stderr today (message.rs/git.rs errors). Captured anywhere, or just inherited to the user's terminal? Should core op-level diagnostics share the `logs/` tree or stay on stderr?\n3. THE PLUGIN-FACING CONTRACT — today a plugin just writes stderr and balls routes it (no env telling it where). Keep that (balls owns routing, plugin stays dumb), or expose a `BALLS_LOG_DIR` for structured artifacts beyond stderr? Lean: keep dumb — stderr IS the interface, no new env (a new env/flag is a smell).\n4. METRICS, IF IT SURVIVES THE CUT — define the minimal seam (a lifecycle event a plugin can subscribe to) and confirm it is plugin-only, no core storage.\n\n## Resolution folds into\n\nThe §1 layout + §6 dispatch sections of spec bl-2e26 (ratify the `logs/` layout there) and retro-confirms or amends bl-5d56's invented path. Relates to doctor (bl-e8a5) for any prune/audit duty.",
+  "external": {},
+  "id": "bl-b58a",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": ["greenfield"],
+  "title": "Topic: standardize observability interfaces — logs and metrics",
+  "type": "task",
+  "updated_at": "2026-06-06T01:16:32.061156434Z"
+}
