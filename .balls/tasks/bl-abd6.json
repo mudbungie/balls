@@ -5,7 +5,7 @@
   "closed_children": [],
   "created_at": "2026-06-06T03:05:13.937756669Z",
   "delivered_in": null,
-  "depends_on": [],
+  "depends_on": ["bl-4c54"],
   "description": "Add the one §16 base-doctor check deferred by bl-d024: EffectiveConfig (§4) resolution. Spec bl-2e26 §16, verbatim: 'EffectiveConfig (§4) resolves — flag a trail-layer conflict that yields no satisfiable config.' Per the no-repair-verb rule, the named fix is: 'an unsatisfiable resolved config → hand-edit the named config/balls.toml layer' (NOT a verb — a deliberate human act on the conflicting layer).\n\nWHY DEFERRED: bl-d024 built base doctor (src/doctor.rs::audit) with the other five core-owned checks (stale change worktrees, operating/ resolves, bin/ dangle, protocol drift, circular blockers). This sixth check needs the config-layering subsystem (§4 EffectiveConfig), which does not exist yet — bl-651c was the schema/format only; the config LOADER is a separate, not-yet-filed ball. So this rides that loader: it cannot be implemented until EffectiveConfig resolution exists to call.\n\nSCOPE WHEN PICKED UP: one more check appended to doctor::audit — resolve EffectiveConfig over the trail layers; on an unsatisfiable resolution, push a Finding naming the conflicting config/balls.toml layer path and the hand-edit fix. The audit's shape does not change (it already returns Vec<Finding>); this is purely additive, ~one helper + Finding constructor + tests, 100% coverage. Cleanest is to fold this INTO the config-loader ball's scope rather than land it standalone, so the check ships with the capability it audits.",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":283,"source":"balls","state":"open","synced_at":"2026-06-06T03:05:14.749197190+00:00","url":"https://github.com/mudbungie/balls/issues/283"}}},
   "id": "bl-abd6",
@@ -18,5 +18,5 @@
   "tags": [],
   "title": "§16 doctor: EffectiveConfig-resolves check (rides config layering)",
   "type": "task",
-  "updated_at": "2026-06-06T03:05:14.767488132Z"
+  "updated_at": "2026-06-06T03:41:22.505978576Z"
 }
