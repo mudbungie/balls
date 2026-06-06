@@ -3,11 +3,11 @@
 //! Two coordinate roots, both under `balls/`:
 //!
 //! ```text
-//! $XDG_CONFIG_HOME/balls/config.yaml          # user-level config
+//! $XDG_CONFIG_HOME/balls/config.toml          # user-level config
 //! $XDG_STATE_HOME/balls/
 //!   plugins/<name>/                           # each plugin owns this subtree
 //!   clones/<pct-enc-invocation-path>/         # one bundle per invocation path
-//!     binding.yaml                            #   tracker remote + invocation_path
+//!     binding.toml                            #   tracker remote + invocation_path
 //!     operating/                              #   the git repo balls operates against
 //!     changes/<uuid>/                         #   in-flight CHANGE worktrees (§8)
 //!     logs/<name>/plugin.log                  #   per-plugin diagnostics
@@ -45,10 +45,10 @@ impl Xdg {
         }
     }
 
-    /// `$XDG_CONFIG_HOME/balls/config.yaml` — the user-level config layer (§4).
+    /// `$XDG_CONFIG_HOME/balls/config.toml` — the user-level config layer (§4).
     #[must_use]
     pub fn user_config(&self) -> PathBuf {
-        self.config_home.join("balls").join("config.yaml")
+        self.config_home.join("balls").join("config.toml")
     }
 
     /// `$XDG_STATE_HOME/balls/` — the single state root for every clone and
@@ -99,10 +99,10 @@ impl CloneDir {
         &self.root
     }
 
-    /// `binding.yaml` — which tracker remote (if any) + the invocation path.
+    /// `binding.toml` — which tracker remote (if any) + the invocation path.
     #[must_use]
     pub fn binding(&self) -> PathBuf {
-        self.root.join("binding.yaml")
+        self.root.join("binding.toml")
     }
 
     /// `operating/` — the git repo balls operates against. A real dir in
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn xdg_variables_when_set_override_the_home_defaults() {
         let x = Xdg::with(home(), Some("/cfg"), Some("/st"));
-        assert_eq!(x.user_config(), Path::new("/cfg/balls/config.yaml"));
+        assert_eq!(x.user_config(), Path::new("/cfg/balls/config.toml"));
         assert_eq!(x.state_dir(), Path::new("/st/balls"));
     }
 
@@ -146,7 +146,7 @@ mod tests {
     fn absent_or_empty_variables_fall_back_under_home() {
         // `None` and `Some("")` both take the default branch.
         let x = Xdg::with(home(), None, Some(""));
-        assert_eq!(x.user_config(), Path::new("/home/mark/.config/balls/config.yaml"));
+        assert_eq!(x.user_config(), Path::new("/home/mark/.config/balls/config.toml"));
         assert_eq!(x.state_dir(), Path::new("/home/mark/.local/state/balls"));
     }
 
@@ -173,7 +173,7 @@ mod tests {
     fn the_bundle_names_its_four_inhabitants() {
         let c = Xdg::with(home(), None, Some("/st")).clone_dir(Path::new("/p"));
         let root = c.root().to_path_buf();
-        assert_eq!(c.binding(), root.join("binding.yaml"));
+        assert_eq!(c.binding(), root.join("binding.toml"));
         assert_eq!(c.operating(), root.join("operating"));
         assert_eq!(c.change("abc-123"), root.join("changes/abc-123"));
         assert_eq!(c.log("tracker"), root.join("logs/tracker/plugin.log"));
