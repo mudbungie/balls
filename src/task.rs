@@ -131,6 +131,24 @@ impl Task {
             Status::Ready
         }
     }
+
+    /// §10 `ready()`: claimable now — unclaimed with every CLAIM-blocker
+    /// resolved. Exactly the [`Status::Ready`] rung of the ladder, named for the
+    /// `bl ready` question it answers. A best-effort hint: core enforces
+    /// nothing, the gating plugin does (§10).
+    pub fn ready(&self, is_resolved: &dyn Fn(&str) -> bool) -> bool {
+        matches!(self.status(is_resolved), Status::Ready)
+    }
+
+    /// §10 `closeable()`: every CLOSE-blocker (gate) resolved — checked at
+    /// `close.pre`. Independent of the claim ladder: a close-blocker never shows
+    /// as a status, it only gates the finish. Best-effort, like [`Task::ready`].
+    pub fn closeable(&self, is_resolved: &dyn Fn(&str) -> bool) -> bool {
+        !self
+            .blockers
+            .iter()
+            .any(|b| b.on == On::Close && !is_resolved(&b.id))
+    }
 }
 
 impl std::fmt::Display for ParseError {
@@ -148,127 +166,5 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const FULL: &str = concat!(
-        "+++\n",
-        "title = \"Refactor the foo system\"\n",
-        "created = 1748357520\n",
-        "updated = 1748443920\n",
-        "claimant = \"orionriver@gmail.com\"\n",
-        "parent = \"bl-1000\"\n",
-        "priority = 2\n",
-        "tags = [\"refactor\", \"infra\"]\n",
-        "\n",
-        "[[blockers]]\n",
-        "id = \"bl-1100\"\n",
-        "on = \"claim\"\n",
-        "\n",
-        "[[blockers]]\n",
-        "id = \"bl-1200\"\n",
-        "on = \"close\"\n",
-        "+++\n",
-        "Free-form markdown body.\n",
-    );
-
-    fn unresolved(_: &str) -> bool {
-        false
-    }
-
-    #[test]
-    fn parses_every_field_and_the_body() {
-        let task = Task::parse(FULL).unwrap();
-        assert_eq!(task.title, "Refactor the foo system");
-        assert_eq!(task.created, 1_748_357_520);
-        assert_eq!(task.updated, 1_748_443_920);
-        assert_eq!(task.claimant.as_deref(), Some("orionriver@gmail.com"));
-        assert_eq!(task.parent.as_deref(), Some("bl-1000"));
-        assert_eq!(task.priority, Some(2));
-        assert_eq!(
-            task.blockers,
-            vec![
-                Blocker { id: "bl-1100".into(), on: On::Claim },
-                Blocker { id: "bl-1200".into(), on: On::Close },
-            ]
-        );
-        assert_eq!(task.tags, ["refactor", "infra"]);
-        assert_eq!(task.body, "Free-form markdown body.\n");
-    }
-
-    #[test]
-    fn full_task_round_trips_byte_for_byte() {
-        assert_eq!(Task::parse(FULL).unwrap().to_markdown(), FULL);
-    }
-
-    #[test]
-    fn a_minimal_task_omits_optionals_and_has_no_body() {
-        let src = "+++\ntitle = \"t\"\ncreated = 1\nupdated = 2\n+++\n";
-        let task = Task::parse(src).unwrap();
-        assert_eq!(task.claimant, None);
-        assert!(task.blockers.is_empty());
-        assert_eq!(task.body, "");
-        assert_eq!(task.to_markdown(), src);
-    }
-
-    #[test]
-    fn unknown_keys_survive_a_round_trip() {
-        let src = "+++\ntitle = \"t\"\ncreated = 1\nupdated = 2\nstate = \"doing\"\n+++\nbody\n";
-        let task = Task::parse(src).unwrap();
-        assert_eq!(
-            task.extra.get("state").and_then(toml::Value::as_str),
-            Some("doing")
-        );
-        assert_eq!(task.to_markdown(), src);
-    }
-
-    #[test]
-    fn missing_opening_fence_is_an_error() {
-        let err = Task::parse("title = \"t\"\n").unwrap_err();
-        assert!(matches!(err, ParseError::MissingFrontmatter));
-        assert!(err.to_string().contains("missing opening"));
-    }
-
-    #[test]
-    fn missing_closing_fence_is_an_error() {
-        let err = Task::parse("+++\ntitle = \"t\"\n").unwrap_err();
-        assert!(matches!(err, ParseError::UnterminatedFrontmatter));
-        assert!(err.to_string().contains("unterminated"));
-    }
-
-    #[test]
-    fn invalid_toml_frontmatter_is_an_error() {
-        let err = Task::parse("+++\ntitle = [unterminated\n+++\n").unwrap_err();
-        assert!(matches!(err, ParseError::Toml(_)));
-        assert!(err.to_string().contains("invalid frontmatter"));
-    }
-
-    #[test]
-    fn a_claimant_yields_claimed_even_with_an_open_blocker() {
-        let mut task = Task::parse(FULL).unwrap();
-        task.claimant = Some("me".into());
-        assert_eq!(task.status(&unresolved), Status::Claimed);
-    }
-
-    #[test]
-    fn an_unresolved_claim_blocker_yields_blocked() {
-        let mut task = Task::parse(FULL).unwrap();
-        task.claimant = None;
-        assert_eq!(task.status(&unresolved), Status::Blocked);
-    }
-
-    #[test]
-    fn a_resolved_claim_blocker_yields_ready() {
-        let mut task = Task::parse(FULL).unwrap();
-        task.claimant = None;
-        assert_eq!(task.status(&|_| true), Status::Ready);
-    }
-
-    #[test]
-    fn a_lone_close_blocker_never_blocks_status() {
-        let mut task = Task::parse(FULL).unwrap();
-        task.claimant = None;
-        task.blockers.retain(|b| b.on == On::Close);
-        assert_eq!(task.status(&unresolved), Status::Ready);
-    }
-}
+#[path = "task_tests.rs"]
+mod tests;
