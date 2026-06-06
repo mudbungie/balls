@@ -43,8 +43,7 @@
 //! §7 payload on stdin and no return channel — they mutate the change worktree,
 //! never print state back. [`plugin`] is the dispatch (env, recursion guard,
 //! stderr-to-logs, `protocol` self-describe); [`wire`] is the payload shape.
-//! [`gate`] is the one shipped plugin (its own `gate` binary): the §10 SOLE
-//! enforcer of the blocker model, which core only stores. [`install`] is the §6
+//! [`install`] is the §6
 //! `bl install` capability transfer: it copies the committed wiring + config
 //! subtree between two `balls` branches (the plugins object mirrors only
 //! relative-symlink wiring, so `bin/` and the trail pointer never travel),
@@ -59,6 +58,10 @@
 //! [`task`] is the schema and its derived predicates (`status`/`ready`/
 //! `closeable`); [`taskfile`] is the shared `tasks/<id>.md` IO (read/write,
 //! `exists` as the §10 resolver, the front-door reciprocal `add_blocker`).
+//! Enforcement is CORE (§10): [`enforce`] guards `claim` on [`task::Task::ready`]
+//! and `close` on [`task::Task::closeable`] (called from [`change`] at stage),
+//! so a blocker actually blocks without a plugin — its meaning is enforced where
+//! the op is authored.
 //!
 //! # §11 — the delivery / worktree plugin
 //!
@@ -93,7 +96,7 @@ pub mod delivery_repo;
 pub mod doctor;
 pub mod edge;
 pub mod encoding;
-pub mod gate;
+pub mod enforce;
 pub mod git;
 pub mod id;
 pub mod install;
