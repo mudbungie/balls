@@ -115,12 +115,14 @@ fn re_creatable_rollbacks_and_unwired_hooks_are_noops() {
 }
 
 #[test]
-fn close_hooks_refuse_when_invoked_from_inside_the_worktree() {
+fn every_worktree_deleting_hook_refuses_when_invoked_from_inside_the_worktree() {
     let repo = FakeRepo::default();
     let inside = Spec { cwd: Some(Path::new("/wt/sub")), ..spec() };
-    for phase in ["pre", "post"] {
-        let err = dispatch("close", phase, false, &repo, &inside).unwrap_err();
-        assert!(err.to_string().contains("cwd is inside the worktree"));
+    // close delivers + tears down; unclaim/drop release — all delete the
+    // worktree, so all must refuse a cwd standing inside it (protect the agent).
+    for (op, phase) in [("close", "pre"), ("close", "post"), ("unclaim", "post"), ("drop", "post")] {
+        let err = dispatch(op, phase, false, &repo, &inside).unwrap_err();
+        assert!(err.to_string().contains("cwd is inside the worktree"), "{op}.{phase} did not refuse");
     }
     assert!(repo.calls().is_empty()); // refused before any git act
 }
