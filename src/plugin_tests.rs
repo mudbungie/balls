@@ -98,7 +98,7 @@ fn run_captures_stderr_to_the_logs_dir() {
 fn a_post_run_carries_the_sealed_commit_and_parsed_metadata() {
     let e = Env::new();
     let bin = script(&e.at("bin"), "rec", RECORDER);
-    let sealed = Sealed { commit: "C1", previous_commit: "T0", message: "subj\n\nbl-id: bl-9\n" };
+    let sealed = Sealed { commit: "C1", previous_commit: "T0", message: Some("subj\n\nbl-id: bl-9\n") };
     e.dispatcher(0)
         .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Post, &e.at("cwd"), Some(&sealed))
         .unwrap();
@@ -107,6 +107,23 @@ fn a_post_run_carries_the_sealed_commit_and_parsed_metadata() {
     assert_eq!(v["commit"], "C1");
     assert_eq!(v["previous_commit"], "T0");
     assert_eq!(v["metadata"]["bl-id"][0], "bl-9");
+}
+
+#[test]
+fn a_diffless_post_run_carries_the_commit_pair_but_no_metadata() {
+    // §13: a messageless `Sealed` (sync/prime moved the tip, sealed no §5
+    // message) wires previous_commit/commit through but omits `metadata`.
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "rec", RECORDER);
+    let sealed = Sealed { commit: "T1", previous_commit: "T0", message: None };
+    e.dispatcher(0)
+        .run(&pref("tracker", Some(bin)), Verb::Sync, Phase::Post, &e.at("cwd"), Some(&sealed))
+        .unwrap();
+    let v: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(e.at("cwd").join("stdin.txt")).unwrap()).unwrap();
+    assert_eq!(v["commit"], "T1");
+    assert_eq!(v["previous_commit"], "T0");
+    assert!(v.get("metadata").is_none(), "diffless post must omit metadata");
 }
 
 #[test]
@@ -172,7 +189,7 @@ fn rollback_tags_the_payload_and_ignores_the_exit() {
     let e = Env::new();
     // Records its stdin, then exits non-zero — rollback must swallow the exit.
     let bin = script(&e.at("bin"), "rec", &format!("{RECORDER}exit 3\n"));
-    let sealed = Sealed { commit: "C1", previous_commit: "T0", message: "s\n\nbl-id: bl-1\n" };
+    let sealed = Sealed { commit: "C1", previous_commit: "T0", message: Some("s\n\nbl-id: bl-1\n") };
     e.dispatcher(0)
         .rollback(&pref("tracker", Some(bin)), Verb::Close, Phase::Post, &e.at("cwd"), Some(&sealed));
     let v: serde_json::Value =
