@@ -73,21 +73,23 @@ pub struct OpContext {
     pub after: Option<Task>,
 }
 
-/// Post-seal facts threaded onto a `post`/`rollback` payload: the sealed commit,
-/// the tip it landed on, and the §5 trailers parsed from the seal message (incl.
-/// the now-assigned `bl-id`). `None` of these is on a `pre` payload — the id is
-/// not sealed yet (§7).
+/// Post facts threaded onto a `post`/`rollback` payload: the new commit, the tip
+/// it landed on, and the §5 trailers parsed from the seal message (incl. the
+/// now-assigned `bl-id`). `None` of these is on a `pre` payload — the id is not
+/// sealed yet (§7). `metadata` is `None` on a diffless op (§13): sync/prime
+/// author no §5 message, so the wire carries the commit pair alone.
 #[derive(Debug, Clone, Copy)]
 pub struct SealFacts<'a> {
     pub commit: &'a str,
     pub previous_commit: &'a str,
-    pub metadata: &'a Metadata,
+    pub metadata: Option<&'a Metadata>,
 }
 
 /// One fully-assembled §7 payload, serialized to a plugin's stdin. Built by
 /// [`OpContext::wire`]; `serde` omits every `None`, so the same struct renders
-/// the `pre` shape (states only), the `post` shape (+ commits + metadata), and a
-/// `rollback` shape (+ `rolling_back`).
+/// the `pre` shape (states only), the `post` shape (+ commits, + metadata on a
+/// sealing op, commits-only on a diffless one — §13), and a `rollback` shape
+/// (+ `rolling_back`).
 #[derive(Debug, Serialize)]
 pub struct Payload<'a> {
     pub protocol: u32,
@@ -152,12 +154,14 @@ impl OpContext {
         };
         if let Some(s) = sealed {
             // post shape: current advances to the sealed after-state, the
-            // op-start state slides into previous_state, commits + metadata land.
+            // op-start state slides into previous_state, the commit pair lands.
+            // `metadata` follows only when the op sealed a §5 message — a
+            // diffless op (§13) carries the commit pair alone.
             p.current_state = self.after.as_ref();
             p.previous_state = self.before.as_ref();
             p.commit = Some(s.commit);
             p.previous_commit = Some(s.previous_commit);
-            p.metadata = Some(s.metadata);
+            p.metadata = s.metadata;
         }
         p
     }
