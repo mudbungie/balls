@@ -77,6 +77,13 @@ fn claim_post_materializes() {
 }
 
 #[test]
+fn prime_post_re_materializes_like_a_claim() {
+    // The binary drives one `prime`/`post` per still-claimed ball; each runs the
+    // same `materialize` act a `claim` would (§11/§12).
+    assert_eq!(drive("prime", "post", false), ["materialize /wt work/bl-f813"]);
+}
+
+#[test]
 fn unclaim_and_drop_post_release() {
     assert_eq!(drive("unclaim", "post", false), ["release /wt"]);
     assert_eq!(drive("drop", "post", false), ["release /wt"]);
@@ -188,10 +195,10 @@ fn resolve_id_propagates_a_lister_error() {
 }
 
 #[test]
-fn protocol_self_description_lists_the_four_hooked_ops() {
+fn protocol_self_description_lists_the_five_hooked_ops() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
-    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close"]));
+    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime"]));
 }
 
 #[test]
@@ -204,7 +211,9 @@ fn wire_deserializes_the_slice_the_plugin_needs() {
         "metadata": {"bl-id": ["bl-f813"]}, "commit": "c", "previous_commit": "p"
     }"#;
     let wire: Wire = serde_json::from_str(json).unwrap();
+    assert_eq!(wire.actor, "me");
     assert_eq!(wire.binding.invocation_path, "/proj");
+    assert_eq!(wire.binding.operating.as_deref(), Some("/o"));
     assert_eq!(wire.current_state.unwrap().title, "Refactor foo");
     assert_eq!(wire.metadata.unwrap()["bl-id"], ["bl-f813"]);
     assert!(wire.rolling_back.is_none());
@@ -215,6 +224,8 @@ fn wire_tolerates_a_minimal_pre_payload_and_a_rollback_tag() {
     let json = r#"{"binding": {"invocation_path": "/p"}, "rolling_back": "pre"}"#;
     let wire: Wire = serde_json::from_str(json).unwrap();
     assert_eq!(wire.rolling_back.as_deref(), Some("pre"));
+    assert_eq!(wire.actor, ""); // absent actor defaults empty (per-ball ops ignore it)
+    assert!(wire.binding.operating.is_none()); // absent on a minimal per-ball payload
     assert!(wire.metadata.is_none());
     assert!(wire.current_state.is_none());
 }
