@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Deferred from bl-be5f. Spec bl-2e26 §13: a sync/prime POST payload carries 'previous_commit/commit — the operating branch HEAD before and after the op' (metadata still absent — no §5 trailer). Today Engine::diffless passes None for sealed to both phases, so post gets no commit facts. No shipped plugin reads them (tracker push + delivery re-materialize don't need them), so deferred; a future sync/post cache-rebuild plugin will. Requires Engine::diffless to capture operating HEAD before/after pre and thread a metadata-less facts shape to post.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":288,"source":"balls","state":"open","synced_at":"2026-06-06T03:42:42.455985136+00:00","url":"https://github.com/mudbungie/balls/issues/288"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":288,"source":"balls","state":"open","synced_at":"2026-06-06T03:49:44.410053661+00:00","url":"https://github.com/mudbungie/balls/issues/288"}}},
   "id": "bl-154f",
   "links": [{"link_type":"relates_to","target":"bl-be5f"}],
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-06T03:42:42.477850355Z"},
+  "synced_at": {"github-issues":"2026-06-06T03:49:44.423782456Z"},
   "tags": [],
   "title": "Diffless post-wire commit/previous_commit facts (§13)",
   "type": "task",
-  "updated_at": "2026-06-06T03:49:43.686887562Z"
+  "updated_at": "2026-06-06T03:49:44.423790592Z"
 }
