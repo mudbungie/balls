@@ -81,18 +81,25 @@ pub struct Spec<'a> {
 
 /// Run the hook `(op, phase)` — or its rollback when `rolling_back` is `Some`
 /// (§14) — against `repo`. Unknown hooks no-op (the plugin acts only where it
-/// is wired). The cwd guard makes `close.*` refuse when `bl` was invoked from
-/// INSIDE the worktree balls is about to deliver/tear down — this is where the
-/// "never close from inside the worktree" rule lives, as a plugin precondition.
+/// is wired). The cwd guard makes EVERY worktree-deleting hook
+/// (`close.{pre,post}` deliver/teardown AND `unclaim`/`drop.post` release)
+/// refuse when `bl` was invoked from INSIDE the worktree balls is about to
+/// tear down — this is where the "never close from inside the worktree" rule
+/// lives, as a plugin precondition. It protects the agent: deleting a process's
+/// cwd strands it (getcwd fails, relative paths resolve nowhere), and `bl
+/// claim` drops the agent INSIDE this worktree, so a `drop`/`unclaim` from
+/// there is just as dangerous as a `close`.
 pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     match (op, phase, rolling_back) {
         ("claim", "post", false) => repo.materialize(spec.worktree, spec.branch),
-        ("unclaim" | "drop", "post", false) => repo.release(spec.worktree),
         ("close", "pre", false) => {
             guard_cwd(spec)?;
             repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject)
         }
-        ("close", "post", false) => {
+        // Every worktree-deleting teardown: guard the agent, then release. One
+        // arm — the act is identical whichever deleting op (close.post,
+        // unclaim, drop) triggers it.
+        ("close" | "unclaim" | "drop", "post", false) => {
             guard_cwd(spec)?;
             repo.release(spec.worktree)
         }
@@ -105,8 +112,10 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
 }
 
 /// Refuse when the user's shell cwd (`$PWD`) is the worktree or a descendant of
-/// it — the "never close from inside the worktree" precondition (§11).
-/// Best-effort: an unknown `$PWD` waves through. balls spawns the plugin with
+/// it — the "never tear down from inside the worktree" precondition (§11),
+/// fired on every hook that deletes the worktree (close deliver/teardown,
+/// unclaim/drop release). Best-effort: an unknown `$PWD` waves through. balls
+/// spawns the plugin with
 /// its process cwd at the change worktree but leaves `$PWD` inherited from the
 /// shell, so `$PWD` is the human's real location even though `current_dir` is
 /// not (the id-resolution read uses `current_dir`; only this guard uses `$PWD`).
