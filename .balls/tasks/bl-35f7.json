@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-35f7",
+  "claimed_by": "Aurally",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-06T00:59:10.640142321Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-06T00:59:11.922601643Z"},
   "tags": [],
   "title": "§9 CLI dispatch: wire run() → arg-parse + clock + mutating-verb execution",
   "type": "task",
-  "updated_at": "2026-06-06T00:59:11.922610899Z"
+  "updated_at": "2026-06-06T03:40:09.017056943Z"
 }
