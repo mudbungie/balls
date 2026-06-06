@@ -1,0 +1,79 @@
+//! Input-side §7 payload — the slice of the wire the tracker reads back.
+//!
+//! [`crate::wire`] is output-only: balls serializes a payload to a plugin's
+//! stdin and never deserializes one (the §7 no-return-channel rule). The
+//! tracker is the SEPARATE binary on the receiving end, so it owns its own
+//! input type — and it needs exactly the `binding`, "exactly what a fetcher
+//! needs" (§7). The op and phase arrive on argv (§6 `<bin> <op> <phase>`), so
+//! the payload contributes only the binding; every other wire field is ignored
+//! by serde, which keeps this type stable as the wire grows.
+
+use serde::Deserialize;
+use std::io::{self, Read};
+
+/// §7 binding — where the op is happening, from the tracker's seat. `remote` is
+/// absent in a stealth (no-remote) repo, which is the tracker's whole branch
+/// point: no remote ⇒ nothing to talk to. `operating` is the terminus checkout
+/// it fetches/pushes against; `invocation_path` locates this checkout's clone
+/// bundle (§1) for the stealth lock.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Binding {
+    #[serde(default)]
+    pub remote: Option<String>,
+    pub branch: String,
+    pub operating: String,
+    pub invocation_path: String,
+}
+
+/// Just enough of the §7 envelope to reach the `binding`; serde drops the rest.
+#[derive(Deserialize)]
+struct Envelope {
+    binding: Binding,
+}
+
+/// Read the §7 payload JSON from `input` and return its [`Binding`]. Unparseable
+/// JSON (or a payload with no `binding`) is an [`io::Error`] — the plugin aborts
+/// the op, exactly as a non-zero exit does for any other failure (§6).
+pub fn read_binding(input: &mut impl Read) -> io::Result<Binding> {
+    let mut buf = String::new();
+    input.read_to_string(&mut buf)?;
+    let envelope: Envelope = serde_json::from_str(&buf).map_err(io::Error::other)?;
+    Ok(envelope.binding)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn read(json: &str) -> io::Result<Binding> {
+        read_binding(&mut json.as_bytes())
+    }
+
+    #[test]
+    fn reads_a_tracked_binding_and_ignores_extra_wire_fields() {
+        let b = read(
+            r#"{"op":"sync","phase":"pre","actor":"x","command":{"op":"sync"},
+                "binding":{"remote":"git@h:r","branch":"balls",
+                           "operating":"/op","invocation_path":"/proj"}}"#,
+        )
+        .unwrap();
+        assert_eq!(b.remote.as_deref(), Some("git@h:r"));
+        assert_eq!(b.branch, "balls");
+        assert_eq!(b.operating, "/op");
+        assert_eq!(b.invocation_path, "/proj");
+    }
+
+    #[test]
+    fn an_absent_remote_is_the_stealth_binding() {
+        let b = read(
+            r#"{"binding":{"branch":"balls","operating":"/op","invocation_path":"/p"}}"#,
+        )
+        .unwrap();
+        assert_eq!(b.remote, None);
+    }
+
+    #[test]
+    fn malformed_json_is_an_error() {
+        assert!(read("not json").is_err());
+    }
+}
