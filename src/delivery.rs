@@ -14,6 +14,14 @@
 //! ([`resolve_id`]). Every hook recomputes its resource and checks the
 //! filesystem, so every hook is idempotent by construction.
 //!
+//! **Per-session re-materialization (§11/§12).** `prime.post` carries no single
+//! ball (it is a diffless checkout-lifecycle op, §13), so it does not derive one
+//! `<id>`: instead it scans the terminus checkout for every task still claimed
+//! by the actor ([`crate::delivery_repo::claimed_ids`]) and re-materializes each
+//! one's worktree — the SAME `materialize` act `claim.post` performs, just
+//! driven per-claimed-task. Create-if-absent makes it idempotent, so a prime on
+//! a session whose worktrees already exist converges to a no-op.
+//!
 //! This module is the policy: [`dispatch`] maps `(op, phase, rolling_back)` to
 //! the [`Repo`] act it performs (§11 hooks + §14 rollback). The git itself is
 //! the [`Repo`] seam — [`crate::delivery_repo::Project`] is the real impl;
@@ -30,9 +38,10 @@ use crate::layout::Xdg;
 use crate::message::Metadata;
 
 /// The protocol self-description (`<bin> protocol`, §6): this plugin speaks
-/// protocol 1 and handles the four ops whose hooks it wires into. balls reads
-/// it at install time and never persists it.
-pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close"]}"#;
+/// protocol 1 and handles the five ops whose hooks it wires into (the four
+/// per-ball lifecycle ops plus `prime` for re-materialization). balls reads it
+/// at install time and never persists it.
+pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close","prime"]}"#;
 
 /// The project-repo git acts the delivery hooks need, behind a seam so
 /// [`dispatch`] is testable without a real repo. Each is idempotent — it
@@ -91,7 +100,9 @@ pub struct Spec<'a> {
 /// there is just as dangerous as a `close`.
 pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     match (op, phase, rolling_back) {
-        ("claim", "post", false) => repo.materialize(spec.worktree, spec.branch),
+        // `prime.post` re-materializes per still-claimed ball (the binary loops
+        // and calls one dispatch per id) — the same act as a fresh `claim.post`.
+        ("claim" | "prime", "post", false) => repo.materialize(spec.worktree, spec.branch),
         ("close", "pre", false) => {
             guard_cwd(spec)?;
             repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject)
@@ -184,6 +195,11 @@ pub fn resolve_id(
 /// `rolling_back` tag.
 #[derive(Debug, Deserialize)]
 pub struct Wire {
+    /// The invoking identity (`--as`). Only `prime` reads it (to pick out the
+    /// actor's still-claimed balls); the per-ball ops act on a single derived
+    /// id and ignore it, so it defaults empty when a payload omits it.
+    #[serde(default)]
+    pub actor: String,
     pub binding: WireBinding,
     #[serde(default)]
     pub metadata: Option<Metadata>,
@@ -193,10 +209,15 @@ pub struct Wire {
     pub rolling_back: Option<String>,
 }
 
-/// The one binding field the plugin needs: where `bl` was invoked (§7/§11).
+/// The binding fields the plugin needs: where `bl` was invoked (§7/§11), and —
+/// for `prime` — the terminus checkout whose `tasks/` the re-materialization
+/// scans. `operating` is absent on the minimal per-ball payloads (which never
+/// scan), so it is optional.
 #[derive(Debug, Deserialize)]
 pub struct WireBinding {
     pub invocation_path: String,
+    #[serde(default)]
+    pub operating: Option<String>,
 }
 
 /// The one ball field the plugin needs: the title, for the squash subject.

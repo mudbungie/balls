@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use balls::delivery::{self, Spec, Wire};
-use balls::delivery_repo::{changed_task_paths, Project};
+use balls::delivery_repo::{changed_task_paths, claimed_ids, Project};
 use balls::layout::Xdg;
 
 fn main() {
@@ -44,6 +44,14 @@ fn run(args: &[String]) -> io::Result<()> {
     let xdg = Xdg::with(Path::new(&home), env::var("XDG_CONFIG_HOME").ok().as_deref(), env::var("XDG_STATE_HOME").ok().as_deref());
 
     let invocation = &wire.binding.invocation_path;
+    let repo = Project::at(Path::new(invocation));
+
+    // `prime` carries no single ball (§13 diffless) — it re-materializes one
+    // worktree per still-claimed ball, so it takes its own path here.
+    if op == "prime" {
+        return prime(phase, &wire, &xdg, &plugin, &repo);
+    }
+
     let cwd = env::current_dir()?;
     let id = delivery::resolve_id(wire.metadata.as_ref(), || changed_task_paths(&cwd))?;
 
@@ -55,7 +63,6 @@ fn run(args: &[String]) -> io::Result<()> {
     // `$PWD` is the human's shell cwd (balls leaves it inherited); the guard
     // refuses a close from inside the worktree on it, not on `current_dir`.
     let pwd = env::var_os("PWD").map(PathBuf::from);
-    let repo = Project::at(Path::new(invocation));
     let spec = Spec {
         worktree: &worktree,
         branch: &branch,
@@ -64,6 +71,27 @@ fn run(args: &[String]) -> io::Result<()> {
         marker: &marker,
     };
     delivery::dispatch(op, phase, wire.rolling_back.is_some(), &repo, &spec)
+}
+
+/// `prime.post` re-materialization (§11/§12): for every ball in the terminus
+/// checkout still claimed by the actor, run the same `materialize` act a
+/// `claim.post` would, behind the dispatch matrix. The claimed set replaces the
+/// single derived id; each worktree is recomputed from `(invocation, id)`, so a
+/// re-prime whose worktrees already exist is a no-op (create-if-absent).
+fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> io::Result<()> {
+    let operating = wire
+        .binding
+        .operating
+        .as_deref()
+        .ok_or_else(|| io::Error::other("prime: wire missing binding.operating"))?;
+    let rolling_back = wire.rolling_back.is_some();
+    for id in claimed_ids(Path::new(operating), &wire.actor)? {
+        let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
+        let branch = format!("work/{id}");
+        let spec = Spec { worktree: &worktree, branch: &branch, cwd: None, subject: "", marker: "" };
+        delivery::dispatch("prime", phase, rolling_back, repo, &spec)?;
+    }
+    Ok(())
 }
 
 /// Read a required env var, mapping absence to a clear protocol error.
