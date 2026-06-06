@@ -117,6 +117,34 @@ fn non_entry_filenames_are_ignored() {
 }
 
 #[test]
+fn wired_on_an_absent_registry_is_empty() {
+    let (_tmp, reg) = fixture();
+    assert!(reg.wired().unwrap().is_empty());
+}
+
+#[test]
+fn wired_walks_every_phase_skipping_bin_and_stray_files() {
+    let (tmp, reg) = fixture();
+    let bin = tmp.path().join("real-binary");
+    fs::write(&bin, "x").unwrap();
+    reg.link("close", "pre", 0, "installed").unwrap();
+    reg.link("claim", "post", 0, "dangling").unwrap();
+    reg.bind("installed", &bin).unwrap(); // also creates the sibling bin/ dir
+    // A stray file directly under config/plugins/ is not an op dir → skipped.
+    fs::write(tmp.path().join("config/plugins/README"), "").unwrap();
+
+    let mut wired = reg.wired().unwrap();
+    wired.sort_by(|a, b| (&a.op, &a.phase).cmp(&(&b.op, &b.phase)));
+    assert_eq!(wired.len(), 2);
+    assert_eq!((wired[0].op.as_str(), wired[0].phase.as_str()), ("claim", "post"));
+    assert_eq!(wired[0].plugin.name, "dangling");
+    assert_eq!(wired[0].plugin.bin, None);
+    assert_eq!((wired[1].op.as_str(), wired[1].phase.as_str()), ("close", "pre"));
+    assert_eq!(wired[1].plugin.name, "installed");
+    assert_eq!(wired[1].plugin.bin, Some(fs::canonicalize(&bin).unwrap()));
+}
+
+#[test]
 fn linking_and_binding_are_idempotent() {
     let (tmp, reg) = fixture();
     let first = tmp.path().join("one");
