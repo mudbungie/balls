@@ -61,7 +61,10 @@ pub struct Command {
 pub struct OpContext {
     pub actor: String,
     pub binding: Binding,
-    pub command: Command,
+    /// The op + its intended diff. `None` on a diffless checkout-lifecycle op
+    /// (`sync`/`prime`): those author no ball, so the §13 wire omits `command`
+    /// entirely — a plugin gets meaning from its `binding`, not a command.
+    pub command: Option<Command>,
     /// The ball at op-start, before the base change. `None` on create (no ball
     /// yet). This is `pre`'s `current_state` and `post`'s `previous_state` (§7).
     pub before: Option<Task>,
@@ -93,7 +96,8 @@ pub struct Payload<'a> {
     pub plugin_name: &'a str,
     pub actor: &'a str,
     pub binding: &'a Binding,
-    pub command: &'a Command,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<&'a Command>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_state: Option<&'a Task>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,6 +113,15 @@ pub struct Payload<'a> {
 }
 
 impl OpContext {
+    /// The op-constant wire for a DIFFLESS checkout-lifecycle op (`sync`/`prime`,
+    /// §13): a plugin gets meaning from its `binding` alone, so `command` and
+    /// both task states are absent (these ops author no ball). `actor` is the
+    /// invoking identity (`--as`).
+    #[must_use]
+    pub fn diffless(actor: String, binding: Binding) -> Self {
+        Self { actor, binding, command: None, before: None, after: None }
+    }
+
     /// Stamp the §7 payload for `plugin_name` in `phase`. `sealed` is `Some` once
     /// the op has sealed (every `post` call and any `post`-phase rollback),
     /// which selects the after-state and adds the commit facts; `pre` passes
@@ -129,7 +142,7 @@ impl OpContext {
             plugin_name,
             actor: &self.actor,
             binding: &self.binding,
-            command: &self.command,
+            command: self.command.as_ref(),
             current_state: self.before.as_ref(),
             previous_state: None,
             commit: None,
