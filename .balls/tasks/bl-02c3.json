@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Deferred from bl-be5f (core §12/§13). The shipped tracker (bl-4522) adopt path assumes operating/ is ALREADY a clone with the branch checked out; it cannot materialize an ABSENT hop into a freshly-init'd empty dir. This blocks the load-bearing 2-hop case (spec bl-2e26 §12): a fresh clone of a code repo auto-onboarding onto a central task store (landing -> origin:balls -> central:balls). Core (bl-be5f) lays operating/ -> plugins/tracker/<enc-remote>/ + walks the trail over LOCAL checkouts; the tracker must fetch+checkout an absent terminus into the core-init'd dir so the walk has more than the landing to traverse end-to-end.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":285,"source":"balls","state":"open","synced_at":"2026-06-06T03:13:46.800272203+00:00","url":"https://github.com/mudbungie/balls/issues/285"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":285,"source":"balls","state":"open","synced_at":"2026-06-06T03:48:15.559918239+00:00","url":"https://github.com/mudbungie/balls/issues/285"}}},
   "id": "bl-02c3",
   "links": [{"link_type":"relates_to","target":"bl-be5f"}],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-06T03:13:46.803472703Z"},
+  "synced_at": {"github-issues":"2026-06-06T03:48:15.568704399Z"},
   "tags": [],
   "title": "Tracker adopt-into-empty: fresh-clone materialization (close the 2-hop trail loop)",
   "type": "task",
-  "updated_at": "2026-06-06T03:48:14.804842291Z"
+  "updated_at": "2026-06-06T03:48:15.568710550Z"
 }
