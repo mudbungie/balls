@@ -106,7 +106,7 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
 }
 
 #[test]
-fn close_refuses_when_invoked_from_inside_the_worktree() {
+fn every_teardown_refuses_when_invoked_from_inside_the_worktree() {
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
     fs::create_dir_all(&home).unwrap();
@@ -116,13 +116,19 @@ fn close_refuses_when_invoked_from_inside_the_worktree() {
     let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
     delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "T")).assert().success();
 
-    // The user's shell $PWD is inside the code worktree → teardown refuses.
-    delivery(&root, &home, "close", "post", &post(inv, "bl-x", "T"))
-        .env("PWD", &wt)
-        .assert()
-        .failure()
-        .code(1)
-        .stderr(contains("inside the worktree"));
+    // The user's shell $PWD is inside the code worktree → every hook that would
+    // delete it refuses, leaving the agent's worktree standing (close.post tears
+    // down; unclaim/drop release — `bl claim` drops the agent in here, so a
+    // teardown from here would strand them just as a close would).
+    for (op, phase) in [("close", "post"), ("unclaim", "post"), ("drop", "post")] {
+        delivery(&root, &home, op, phase, &post(inv, "bl-x", "T"))
+            .env("PWD", &wt)
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("inside the worktree"));
+        assert!(wt.join("seed.txt").exists(), "{op}.{phase} tore down the worktree it should have refused");
+    }
 }
 
 #[test]
