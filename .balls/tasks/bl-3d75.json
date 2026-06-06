@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Deferred from bl-be5f. Spec bl-2e26 §12/§13/§11: 'Per-session worktree re-materialization for still-claimed tasks rides the same chain (the delivery plugin's prime.post, idempotent create-if-absent).' The shipped delivery plugin (bl-f813, src/delivery.rs dispatch matrix) handles claim/unclaim/drop/close but has NO prime handler. Add a prime.post arm that re-materializes work/<id> worktrees for tasks still claimed by this actor. Delivery-plugin territory, not core; core's prime chain (bl-be5f) already invokes prime/post.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":287,"source":"balls","state":"open","synced_at":"2026-06-06T03:13:48.258387078+00:00","url":"https://github.com/mudbungie/balls/issues/287"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":287,"source":"balls","state":"open","synced_at":"2026-06-06T03:45:23.954763305+00:00","url":"https://github.com/mudbungie/balls/issues/287"}}},
   "id": "bl-3d75",
   "links": [{"link_type":"relates_to","target":"bl-be5f"}],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-06T03:13:48.274936143Z"},
+  "synced_at": {"github-issues":"2026-06-06T03:45:23.964889285Z"},
   "tags": [],
   "title": "Delivery plugin prime.post worktree re-materialization (§11)",
   "type": "task",
-  "updated_at": "2026-06-06T03:45:23.201958207Z"
+  "updated_at": "2026-06-06T03:45:23.964897995Z"
 }
