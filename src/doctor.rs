@@ -24,15 +24,17 @@
 //!   includes balls' current version.
 //! - circular blockers (§10) — a cycle in the `blockers` edges across `tasks/`.
 //!
-//! `EffectiveConfig` resolution (§4) is the one listed base check left for when
-//! the config-layering subsystem lands; the audit gains a check then with no
-//! shape change.
+//! - the §4 [`EffectiveConfig`] resolves (the config-layering subsystem):
+//!   the layered `config/balls.toml` parses, and the resolved `branch`/`id_scheme`
+//!   are usable — an empty `branch`, empty `alphabet`, or zero `length` would
+//!   break id generation, so doctor surfaces it before `create` panics.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::config::EffectiveConfig;
 use crate::layout::CloneDir;
 use crate::message::PROTOCOL;
 use crate::plugin::Protocol;
@@ -55,20 +57,59 @@ pub struct Report {
     pub findings: Vec<Finding>,
 }
 
-/// Audit the core-owned structure of one clone bundle. `probe` re-queries a
+/// Audit the core-owned structure of one clone bundle. `user_config` is the XDG
+/// `config.toml` path (the §4 outermost-but-one layer); `probe` re-queries a
 /// plugin binary's `protocol` (the edge passes [`crate::plugin::describe`];
-/// tests pass a fake) — injected so the audit stays a pure, testable read.
-pub fn audit(clone: &CloneDir, probe: &dyn Fn(&Path) -> io::Result<Protocol>) -> io::Result<Report> {
+/// tests pass a fake) — both injected so the audit stays a pure, testable read.
+pub fn audit(
+    clone: &CloneDir,
+    user_config: &Path,
+    probe: &dyn Fn(&Path) -> io::Result<Protocol>,
+) -> io::Result<Report> {
     let mut findings = Vec::new();
     stale_changes(clone, &mut findings)?;
     let operating = clone.operating();
     if operating.is_dir() {
         registry_drift(&operating, probe, &mut findings)?;
         circular_blockers(&operating, &mut findings)?;
+        config_resolution(&operating, user_config, &mut findings);
     } else {
         findings.push(Finding::operating_unresolved(&operating));
     }
     Ok(Report { findings })
+}
+
+/// Resolve the §4 layered config (§12 trail terminus→landing, then the XDG
+/// `user_config`) and check it can drive core: a parse/projection failure, or a
+/// resolved `branch`/`id_scheme` that would break id generation, is drift a
+/// `config/balls.toml` edit + `bl prime` clears. Reading config is a local act
+/// (§4 — no fetch), so doctor layers it over `operating`'s own trail; today that
+/// is just `operating` (core materializes no remote hop, §12 SEAM).
+fn config_resolution(operating: &Path, user_config: &Path, findings: &mut Vec<Finding>) {
+    let trail = crate::trail::walk(operating.to_path_buf(), &mut |_| None);
+    match EffectiveConfig::resolve(&trail, user_config) {
+        Err(e) => findings.push(Finding::config_unresolved(&e.to_string())),
+        Ok(cfg) => {
+            if let Some(reason) = config_defect(&cfg) {
+                findings.push(Finding::config_unusable(reason));
+            }
+        }
+    }
+}
+
+/// Why a resolved §4 config cannot drive `create`, or `None` if it is usable. An
+/// empty `branch` has no task-store branch; an empty `alphabet` or zero `length`
+/// makes id generation impossible (the [`crate::id::IdScheme`] precondition).
+fn config_defect(cfg: &EffectiveConfig) -> Option<&'static str> {
+    if cfg.branch.is_empty() {
+        Some("branch is empty — no task-store branch to root on")
+    } else if cfg.id_scheme.alphabet.is_empty() {
+        Some("id_scheme.alphabet is empty — id generation has no characters to draw")
+    } else if cfg.id_scheme.length == 0 {
+        Some("id_scheme.length is zero — every id would be the bare prefix")
+    } else {
+        None
+    }
 }
 
 /// Any leftover `changes/<uuid>/` is crash debris — an op whose teardown (§8)
@@ -220,6 +261,20 @@ impl Finding {
         Finding {
             drift: format!("circular blockers: {}", loop_path.join(" -> ")),
             fix: "bl update (unlink one blockers edge to break the cycle)".into(),
+        }
+    }
+
+    fn config_unresolved(err: &str) -> Finding {
+        Finding {
+            drift: format!("§4 config drift: {err}"),
+            fix: "edit config/balls.toml (the malformed layer), then bl prime".into(),
+        }
+    }
+
+    fn config_unusable(reason: &str) -> Finding {
+        Finding {
+            drift: format!("§4 config is unusable: {reason}"),
+            fix: "correct config/balls.toml, then bl prime".into(),
         }
     }
 }

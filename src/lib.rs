@@ -73,6 +73,16 @@
 //! It lives in-repo as a default capability + reference impl, dispatched
 //! subprocess-uniform like any third party (§6).
 //!
+//! # §4 — config values, layered down the trail
+//!
+//! [`config`] is the §4 `EffectiveConfig`: `config/balls.toml` scalars/objects/
+//! lists layer DOWN the §12 trail at READ time, innermost(landing)-wins, with
+//! the XDG user config above them and built-in defaults beneath. Pure over the
+//! [`trail`] walk output (no fetch) — the declarative half of the trail
+//! asymmetry (§12: values auto-layer because they are data; the plugin chain and
+//! `tasks/` do not). [`doctor`] is its first consumer — it validates the resolved
+//! `branch`/`id_scheme` (a config that would break id generation is drift, §16).
+//!
 //! # §1/§2 — the layout substrate
 //!
 //! [`encoding`], [`layout`], and [`registry`] answer *where balls' state lives
@@ -85,12 +95,14 @@
 //!
 //! [`doctor`] is base balls' half of the `doctor` read op: it audits only
 //! core-owned structure (stale change worktrees, an unresolved `operating/`, a
-//! `bin/` dangle, protocol drift, circular blockers) and names the existing
-//! verb that fixes each — there is no `repair` verb. Plugins audit their own §1
+//! `bin/` dangle, protocol drift, circular blockers, an unresolvable §4
+//! [`config`]) and names the existing verb that fixes each — there is no
+//! `repair` verb. Plugins audit their own §1
 //! territory through the `doctor` hook dirs, like any diffless op's chain.
 
 pub mod change;
 pub mod checkout;
+pub mod config;
 pub mod delivery;
 pub mod delivery_repo;
 pub mod doctor;
