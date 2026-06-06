@@ -22,7 +22,9 @@
 //! lifecycle that op will run. No phase does any work yet: the phases are the
 //! seam each rewrite phase fills in.
 
+pub mod id;
 pub mod op;
+pub mod task;
 pub mod verb;
 
 use op::Op;
