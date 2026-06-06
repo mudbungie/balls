@@ -195,10 +195,17 @@ fn resolve_id_propagates_a_lister_error() {
 }
 
 #[test]
-fn protocol_self_description_lists_the_five_hooked_ops() {
+fn protocol_self_description_lists_every_hooked_op() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
-    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime"]));
+    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime", "doctor"]));
+}
+
+#[test]
+fn binding_territory_is_the_parent_of_every_worktree() {
+    let xdg = Xdg::with(Path::new("/home/me"), None, Some("/st"));
+    let territory = binding_territory(&xdg, "delivery", "/home/me/dev/proj");
+    assert_eq!(territory, worktree_path(&xdg, "delivery", "/home/me/dev/proj", "bl-x").parent().unwrap());
 }
 
 #[test]
