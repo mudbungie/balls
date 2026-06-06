@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Per the revised §10 (bl-2e26, 'Enforcement is CORE'), make core the enforcer and delete the standalone gating plugin shipped by bl-70f5. Core: in the claim op reject when !ready() (any unresolved claim-blocker), in the close op reject when !closeable() (any unresolved close-blocker) — sitting next to the existing already-claimed guard in change::Occupancy::stage / a close-only guard in change::Retire::stage (verb==Close; drop is never gated), using taskfile::exists as the file-existence resolver, evaluated before the seal (abort-safe) and, for close, before the delivery plugin squashes. DELETE: src/gate.rs, src/gate_tests.rs, src/bin/gate.rs, tests/gate.rs, and the 'pub mod gate;' + gate doc line in src/lib.rs. KEEP: Task::ready()/closeable(), the front-door reciprocal flags, and src/taskfile.rs (all already core). Rationale: enforcement is the MEANING of a blocker, and forge/build gates create gate children that rely on those children BLOCKING — a separate gating plugin makes them silently depend on it being installed (plugin-on-plugin dependency); core already computes the predicates, so this is a deletion plus ~two guards. Coordinate with bl-bdeb (dispatch wiring): the guards live in the claim/close op path, but can be built+tested in the change layer now (like the already-claimed guard) independent of full dispatch.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":289,"source":"balls","state":"open","synced_at":"2026-06-06T03:28:28.809186095+00:00","url":"https://github.com/mudbungie/balls/issues/289"}}},
   "id": "bl-295e",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-06T03:28:28.825120127Z"},
   "tags": [],
   "title": "Move blocker enforcement into core; retire the gate plugin (§10 revision)",
   "type": "task",
-  "updated_at": "2026-06-06T03:28:28.121369875Z"
+  "updated_at": "2026-06-06T03:28:28.825128363Z"
 }
