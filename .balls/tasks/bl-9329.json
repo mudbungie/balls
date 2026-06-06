@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-f970","bl-30e2"],
   "description": "Post-finalization spec revision 2026-06-05 (bl-2e26 §12/§13). Amends landed bl-be5f ('§12/§13 prime + sync: run->engine dispatch, trail walk, pointer', commit 82e32b8) — assume it landed; this corrects it.\n\nWHY: with config no longer layering and the store named directly by tasks_branch, the trail's every job (find-store, sync-target, install-source, doctor-resolves) collapses to one indirection. No trail, no terminus, no operating, no transitive discovery, no chains.\n\nWHAT (src/ trail/substrate/checkout/sync modules):\n- REMOVE the trail walk (src/trail.rs walk + its callers) as a CONFIG/store-location mechanism. 'Where are the tasks?' = config.tasks_branch, read directly.\n- bl sync (no arg) syncs the STORE: ff-only/union of tasks_branch with its configured remote. bl sync <branch> syncs a named branch. Moves task state ONLY.\n- Config NEVER syncs (landing-local, changes only by install). sync structurally cannot re-home config or activate code. There is no topology to refresh beyond tasks_branch (which is config).\n- prime = ensure landing+store substrate, sync the store, bootstrap-on-miss; idempotent converge. No operating/ resolution. Delivery prime.post worktree re-materialization unchanged.\n- The landing is never a sync target (it is single-owner, upstream-less by construction, §4).\n- 'Stealth' = a local tasks_branch (no remote), not a mode.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":298,"source":"balls","state":"open","synced_at":"2026-06-06T06:48:25.522294980+00:00","url":"https://github.com/mudbungie/balls/issues/298"}}},
+  "external": {"github-issues":{}},
   "id": "bl-9329",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-06T06:48:25.544023655Z"},
+  "synced_at": {"github-issues":"2026-06-06T22:59:28.369071353Z"},
   "tags": [],
   "title": "Greenfield §12/§13: dissolve trail walk; sync the store branch (tasks_branch) with its remote; config never syncs",
   "type": "task",
-  "updated_at": "2026-06-06T22:59:28.024192128Z"
+  "updated_at": "2026-06-06T22:59:28.369076592Z"
 }
