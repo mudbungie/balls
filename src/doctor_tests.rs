@@ -26,6 +26,18 @@ fn with_operating(clone: &CloneDir) -> PathBuf {
     op
 }
 
+/// An absent XDG user-config path — the §4 layer contributes nothing, so the
+/// config check sees only `operating`'s own `config/balls.toml`.
+fn no_user_config() -> PathBuf {
+    PathBuf::from("/nonexistent/balls/config.toml")
+}
+
+/// Write `body` to `operating`'s `config/balls.toml` — one §4 layer doctor reads.
+fn with_config(operating: &Path, body: &str) {
+    fs::create_dir_all(operating.join("config")).unwrap();
+    fs::write(operating.join("config").join("balls.toml"), body).unwrap();
+}
+
 /// Write `tasks/<id>.md` declaring claim-blockers on each id in `blockers`.
 fn write_task(operating: &Path, id: &str, blockers: &[&str]) {
     let task = Task {
@@ -58,7 +70,7 @@ fn has(report: &Report, needle: &str) -> bool {
 fn a_clean_clone_yields_no_findings() {
     let (_t, clone) = fixture();
     with_operating(&clone);
-    let report = audit(&clone, &speaks_current).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
     assert!(report.findings.is_empty());
     assert_eq!(report.to_string(), "doctor: no core-owned drift detected\n");
 }
@@ -66,7 +78,7 @@ fn a_clean_clone_yields_no_findings() {
 #[test]
 fn an_unresolved_operating_is_a_finding_fixed_by_prime() {
     let (_t, clone) = fixture(); // operating/ never created
-    let report = audit(&clone, &speaks_current).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
     assert!(has(&report, "operating checkout does not resolve"));
     assert!(report.findings[0].fix.contains("bl prime"));
 }
@@ -77,7 +89,7 @@ fn a_leftover_change_worktree_is_named_with_its_removal() {
     with_operating(&clone);
     let debris = clone.root().join("changes").join("dead-uuid");
     fs::create_dir_all(&debris).unwrap();
-    let report = audit(&clone, &speaks_current).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
     assert!(has(&report, "stale change worktree"));
     let finding = report.findings.iter().find(|f| f.drift.contains("stale")).unwrap();
     assert!(finding.fix.contains("git worktree remove"));
@@ -89,7 +101,7 @@ fn a_wired_but_uninstalled_plugin_is_a_dangle_fixed_by_install() {
     let (_t, clone) = fixture();
     let op = with_operating(&clone);
     Registry::at(&op).link("close", "pre", 0, "tracker").unwrap(); // no bind → dangling
-    let report = audit(&clone, &speaks_current).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
     assert!(has(&report, "tracker referenced but not installed"));
     let finding = report.findings.iter().find(|f| f.drift.contains("tracker")).unwrap();
     assert!(finding.fix.contains("bl install"));
@@ -104,7 +116,7 @@ fn a_plugin_that_no_longer_speaks_the_protocol_is_drift() {
     fs::write(&bin, "x").unwrap();
     reg.link("close", "pre", 0, "tracker").unwrap();
     reg.bind("tracker", &bin).unwrap();
-    let report = audit(&clone, &speaks_other).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_other).unwrap();
     assert!(has(&report, "protocol drift"));
     assert!(report.findings[0].fix.contains("bl install"));
 }
@@ -118,7 +130,7 @@ fn a_plugin_whose_self_describe_fails_is_also_drift() {
     fs::write(&bin, "x").unwrap();
     reg.link("close", "pre", 0, "tracker").unwrap();
     reg.bind("tracker", &bin).unwrap();
-    let report = audit(&clone, &probe_fails).unwrap();
+    let report = audit(&clone, &no_user_config(), &probe_fails).unwrap();
     assert!(has(&report, "protocol drift"));
 }
 
@@ -131,7 +143,7 @@ fn an_installed_plugin_that_still_speaks_is_clean() {
     fs::write(&bin, "x").unwrap();
     reg.link("close", "pre", 0, "tracker").unwrap();
     reg.bind("tracker", &bin).unwrap();
-    assert!(audit(&clone, &speaks_current).unwrap().findings.is_empty());
+    assert!(audit(&clone, &no_user_config(), &speaks_current).unwrap().findings.is_empty());
 }
 
 #[test]
@@ -140,7 +152,7 @@ fn a_blocker_cycle_is_reported_with_the_loop_and_an_update_fix() {
     let op = with_operating(&clone);
     write_task(&op, "bl-a", &["bl-b"]);
     write_task(&op, "bl-b", &["bl-a"]);
-    let report = audit(&clone, &speaks_current).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
     let finding = report.findings.iter().find(|f| f.drift.contains("circular")).unwrap();
     assert!(finding.drift.contains("bl-a -> bl-b -> bl-a"));
     assert!(finding.fix.contains("bl update"));
@@ -158,14 +170,60 @@ fn a_dag_with_a_diamond_and_a_dangling_edge_has_no_cycle() {
     write_task(&op, "bl-d", &["bl-x"]);
     // A non-`.md` file in tasks/ is not a task and is skipped.
     fs::write(op.join("tasks").join("notes.txt"), "scratch").unwrap();
-    let report = audit(&clone, &speaks_current).unwrap();
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
     assert!(!has(&report, "circular"));
+}
+
+#[test]
+fn a_malformed_config_layer_is_drift_fixed_by_editing_and_priming() {
+    let (_t, clone) = fixture();
+    let op = with_operating(&clone);
+    with_config(&op, "branch = [not valid toml\n");
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
+    let finding = report.findings.iter().find(|f| f.drift.contains("§4 config drift")).unwrap();
+    assert!(finding.fix.contains("config/balls.toml"));
+    assert!(finding.fix.contains("bl prime"));
+}
+
+#[test]
+fn an_empty_branch_is_an_unusable_config() {
+    let (_t, clone) = fixture();
+    let op = with_operating(&clone);
+    with_config(&op, "branch = \"\"\n");
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
+    assert!(has(&report, "branch is empty"));
+}
+
+#[test]
+fn an_empty_id_alphabet_is_an_unusable_config() {
+    let (_t, clone) = fixture();
+    let op = with_operating(&clone);
+    with_config(&op, "id_scheme = { prefix = \"bl-\", length = 4, alphabet = \"\" }\n");
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
+    assert!(has(&report, "id_scheme.alphabet is empty"));
+}
+
+#[test]
+fn a_zero_id_length_is_an_unusable_config() {
+    let (_t, clone) = fixture();
+    let op = with_operating(&clone);
+    with_config(&op, "id_scheme = { prefix = \"bl-\", length = 0, alphabet = \"ab\" }\n");
+    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
+    assert!(has(&report, "id_scheme.length is zero"));
+}
+
+#[test]
+fn a_valid_custom_config_is_clean() {
+    let (_t, clone) = fixture();
+    let op = with_operating(&clone);
+    with_config(&op, "branch = \"work\"\n");
+    assert!(audit(&clone, &no_user_config(), &speaks_current).unwrap().findings.is_empty());
 }
 
 #[test]
 fn the_report_renders_each_finding_with_its_fix() {
     let (_t, clone) = fixture(); // unresolved operating → exactly one finding
-    let rendered = audit(&clone, &speaks_current).unwrap().to_string();
+    let rendered = audit(&clone, &no_user_config(), &speaks_current).unwrap().to_string();
     assert!(rendered.starts_with("doctor: 1 core-owned finding(s)\n"));
     assert!(rendered.contains("  - operating checkout does not resolve"));
     assert!(rendered.contains("    fix: bl prime"));
