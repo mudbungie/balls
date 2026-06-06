@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-06T02:14:55.885687973Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Follow-up to bl-f813 (§11 delivery plugin). The cwd-guard exists to PROTECT THE AGENT: a process whose cwd is deleted out from under it breaks (getcwd fails, relative paths resolve nowhere, the shell wedges). Agents work INSIDE the code worktree (where bl claim drops them), so a teardown of that worktree from there strands them — that is the real meaning of 'never close from inside the worktree'.\n\nTwo gaps in the shipped bl-f813 implementation (src/delivery.rs dispatch + guard_cwd):\n\n(1) COVERAGE — the guard fires on 'close' only (close.pre + close.post). But unclaim.post and drop.post ALSO delete the worktree (both call Repo::release), with NO guard. An agent that runs 'bl drop'/'bl unclaim' from inside its worktree is stranded just as badly. Fix: guard_cwd on every hook that deletes the worktree — add it to the (\"unclaim\"|\"drop\",\"post\",false) arm. Plugin-local, cheap, covered by a FakeRepo dispatch test + an integration test that sets $PWD inside the worktree for drop/unclaim.\n\n(2) RELIABILITY — the guard keys on $PWD (the invoker's shell cwd), which is the right TARGET (invocation_path is the normalized project root the worktree is derived from, so it can never be inside the worktree) but a fragile SIGNAL: $PWD can be stale or unset, and then a dangerous teardown is silently waved through. The robust fix is a CORE change: balls runs in the agent's real cwd, so it should capture its own invocation getcwd() and put it on the §7 wire as a field DISTINCT from the normalized project-root that keys the derived worktree path (binding currently carries only invocation_path). The delivery plugin then guards on that reliable field, falling back to $PWD. This must be settled when run() is wired to the engine (invocation_path is not yet populated end-to-end — run() is still the skeleton plan-printer), so this ball coordinates with / blocks on that engine-wiring phase for part (2). Part (1) can land immediately and standalone.\n\nDo NOT fold this into bl-1280 (forge variant) — keep the agent-protection rationale first-class.",
+  "external": {},
+  "id": "bl-4d00",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Delivery cwd-guard: protect the agent on ALL teardown hooks (+ reliable cwd signal)",
+  "type": "task",
+  "updated_at": "2026-06-06T02:14:55.885687973Z"
+}
