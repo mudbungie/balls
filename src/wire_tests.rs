@@ -18,11 +18,11 @@ fn ctx() -> OpContext {
             operating: "/op".into(),
             invocation_path: "/proj".into(),
         },
-        command: Command {
+        command: Some(Command {
             op: "close".into(),
             field_changes: vec![FieldChange { field: "claimant".into(), value: None }],
             body_change: Some("new body".into()),
-        },
+        }),
         before: Some(before),
         after: Some(after),
     }
@@ -92,6 +92,19 @@ fn a_clearing_field_change_serializes_a_null_value() {
     assert_eq!(v["command"]["field_changes"][0]["field"], "claimant");
     assert!(v["command"]["field_changes"][0]["value"].is_null());
     assert_eq!(v["command"]["body_change"], "new body");
+}
+
+#[test]
+fn a_diffless_op_omits_command_and_both_states() {
+    let binding = ctx().binding;
+    let c = OpContext::diffless("me@example.com".into(), binding);
+    let v = json(&c.wire("tracker", "sync", "pre", None, None));
+    assert_eq!(v["op"], "sync");
+    assert_eq!(v["binding"]["branch"], "balls");
+    // §13: a sync/prime plugin gets meaning from its binding, not a command.
+    for absent in ["command", "current_state", "previous_state"] {
+        assert!(v.get(absent).is_none(), "diffless wire must omit {absent}");
+    }
 }
 
 #[test]
