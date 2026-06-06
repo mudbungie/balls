@@ -69,9 +69,10 @@
 //! `work/<id>` code worktree of the PROJECT repo end to end — materialize on
 //! `claim`, deliver (direct local-squash) + tear down on `close`. [`delivery`]
 //! is the kind-blind, stateless-across-ops policy (the hook→act matrix + the
-//! derived [`delivery::worktree_path`]); [`delivery_repo`] is its real git seam.
-//! It lives in-repo as a default capability + reference impl, dispatched
-//! subprocess-uniform like any third party (§6).
+//! derived [`delivery::worktree_path`]); [`delivery_repo`] is its real git seam;
+//! [`delivery_doctor`] is its §16 hook — the CODE-worktree drift audit base
+//! cannot see (it owns that territory). It lives in-repo as a default capability
+//! + reference impl, dispatched subprocess-uniform like any third party (§6).
 //!
 //! # §4 — config values, layered down the trail
 //!
@@ -97,13 +98,15 @@
 //! core-owned structure (stale change worktrees, an unresolved `operating/`, a
 //! `bin/` dangle, protocol drift, circular blockers, an unresolvable §4
 //! [`config`]) and names the existing verb that fixes each — there is no
-//! `repair` verb. Plugins audit their own §1
-//! territory through the `doctor` hook dirs, like any diffless op's chain.
+//! `repair` verb. Plugins audit their own §1 territory through the `doctor`
+//! hook dirs, like any diffless op's chain — [`delivery_doctor`] is the
+//! delivery plugin's half (the code-worktree drift).
 
 pub mod change;
 pub mod checkout;
 pub mod config;
 pub mod delivery;
+pub mod delivery_doctor;
 pub mod delivery_repo;
 pub mod doctor;
 pub mod edge;
