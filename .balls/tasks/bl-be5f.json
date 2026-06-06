@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-be5f",
+  "claimed_by": "Aphelia",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:28:20.850494072Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-06T02:55:09.719420890Z"},
   "tags": [],
   "title": "§12/§13 prime + sync + federation trail",
   "type": "task",
-  "updated_at": "2026-06-06T02:55:09.719428956Z"
+  "updated_at": "2026-06-06T03:12:24.035220586Z"
 }
