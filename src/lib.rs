@@ -24,8 +24,18 @@
 //! implements the verb diff ([`lifecycle::BaseChange`]) for each §9 deliverable
 //! verb (create/claim/unclaim/update/close/drop); the plugin chain
 //! ([`lifecycle::Plugins`]) is filled by [`plugin::Subprocess`] over the §7 wire
-//! ([`wire`]). [`run`] is still the skeleton dispatch — it prints the [`op::Op`]
-//! plan; wiring it to the engine is a later phase.
+//! ([`wire`]). [`run`] dispatches the checkout-lifecycle verbs (`prime`/`sync`,
+//! §12/§13) to the engine via [`checkout`]; the deliverable verbs are not wired
+//! yet, so they still print their [`op::Op`] plan.
+//!
+//! # §12/§13 — readiness & synchronization
+//!
+//! [`checkout`] is `bl prime` (idempotent orchestrator: bootstrap-on-miss via
+//! [`substrate`], the trail pointer, then the prime chain) and `bl sync` (the
+//! synchronization primitive: walk the [`trail`] to its terminus, run the sync
+//! chain). Core stays local-only — it walks LOCAL checkouts and commits config;
+//! the [`tracker`] plugin the chain runs is the one component that talks to a
+//! remote (§0). [`edge`] is the host inputs `main` resolves at the boundary.
 //!
 //! # §6/§7 — the plugin contract
 //!
@@ -77,9 +87,11 @@
 //! territory through the `doctor` hook dirs, like any diffless op's chain.
 
 pub mod change;
+pub mod checkout;
 pub mod delivery;
 pub mod delivery_repo;
 pub mod doctor;
+pub mod edge;
 pub mod encoding;
 pub mod gate;
 pub mod git;
@@ -91,46 +103,114 @@ pub mod message;
 pub mod op;
 pub mod plugin;
 pub mod registry;
+pub mod substrate;
 pub mod task;
 pub mod taskfile;
 pub mod tracker;
+pub mod trail;
 pub mod verb;
 pub mod wire;
 
+use edge::Edge;
 use op::Op;
 use verb::Verb;
 
-/// The §8 dispatch entrypoint, skeleton form: resolve argv to the op it names
-/// and report the lifecycle that op will run.
+/// The state branch every checkout roots its task store + config on (§2). One
+/// name, compiled in — the bootstrap fact a fresh checkout needs (§12).
+pub const STATE_BRANCH: &str = "balls";
+
+/// The §8 dispatch entrypoint: resolve argv to its verb and run it. The
+/// checkout-lifecycle verbs (`prime`/`sync`, §12/§13) are wired to the engine
+/// via [`checkout`]; the remaining verbs are not yet, so they report their §8 op
+/// plan (the skeleton dispatch). `edge` carries the host inputs `main` resolved.
 ///
-/// Returns the process exit code — `0` for a recognized verb, `2` for an
-/// unknown or missing one (the usage-error convention).
-pub fn run(args: &[String]) -> i32 {
-    if let Some(verb) = args.first().map(String::as_str).and_then(Verb::parse) {
-        println!("{}", Op::new(verb).plan());
-        0
-    } else {
+/// Returns the process exit code: `0` on success, `1` on an op failure (a plugin
+/// aborted, a bad flag), `2` for an unknown or missing verb (usage convention).
+pub fn run(edge: &Edge, args: &[String]) -> i32 {
+    let Some(verb) = args.first().map(String::as_str).and_then(Verb::parse) else {
         eprintln!("usage: bl <verb>");
-        2
+        return 2;
+    };
+    let result = match verb {
+        Verb::Prime => checkout::prime(edge, &args[1..]),
+        Verb::Sync => checkout::sync(edge, &args[1..]),
+        other => {
+            println!("{}", Op::new(other).plan());
+            Ok(())
+        }
+    };
+    match result {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("bl {}: {e}", verb.token());
+            1
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    /// An edge rooted in `tmp` with no tracker installed (stealth) — prime founds
+    /// substrate and runs an empty chain, so `run` needs no plugin subprocess.
+    fn edge(tmp: &TempDir) -> Edge {
+        Edge {
+            xdg: layout::Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy())),
+            invocation_path: tmp.path().join("proj"),
+            default_actor: "tester".into(),
+            depth: 0,
+            tracker_bin: None,
+        }
+    }
+
+    fn run_in(tmp: &TempDir, args: &[&str]) -> i32 {
+        run(&edge(tmp), &args.iter().map(ToString::to_string).collect::<Vec<_>>())
+    }
 
     #[test]
-    fn run_resolves_a_known_verb() {
-        assert_eq!(run(&["claim".to_string()]), 0);
+    fn a_skeleton_verb_reports_its_op_plan() {
+        assert_eq!(run_in(&TempDir::new().unwrap(), &["claim"]), 0);
     }
 
     #[test]
     fn run_rejects_an_unknown_verb() {
-        assert_eq!(run(&["frobnicate".to_string()]), 2);
+        assert_eq!(run_in(&TempDir::new().unwrap(), &["frobnicate"]), 2);
     }
 
     #[test]
     fn run_rejects_missing_verb() {
-        assert_eq!(run(&[]), 2);
+        assert_eq!(run_in(&TempDir::new().unwrap(), &[]), 2);
+    }
+
+    #[test]
+    fn prime_founds_a_landing_then_converges_on_re_run() {
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+        let operating = edge(&tmp).xdg.clone_dir(Path::new(&edge(&tmp).invocation_path)).operating();
+        assert!(operating.join("config").join("balls.toml").is_file());
+        // Idempotent: a second prime is a no-op-converge, not an error (§12).
+        assert_eq!(run_in(&tmp, &["prime"]), 0);
+    }
+
+    #[test]
+    fn sync_before_prime_is_an_error() {
+        assert_eq!(run_in(&TempDir::new().unwrap(), &["sync"]), 1);
+    }
+
+    #[test]
+    fn sync_after_prime_walks_the_trail_to_its_terminus() {
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(run_in(&tmp, &["prime"]), 0);
+        // Stealth landing == terminus; the empty sync chain converges.
+        assert_eq!(run_in(&tmp, &["sync"]), 0);
+        assert_eq!(run_in(&tmp, &["sync", "landing"]), 0); // landing is never a target
+    }
+
+    #[test]
+    fn a_bad_flag_is_an_op_error() {
+        assert_eq!(run_in(&TempDir::new().unwrap(), &["prime", "--center"]), 1);
     }
 }
