@@ -1,0 +1,1 @@
+{"ts":"2026-06-06T23:03:30.466344461Z","author":"Besting","text":"AFFECTED by config/store split: `make install` must SHIP the app-level default-config/ seed folder to $XDG_CONFIG_HOME/balls/default-config/ (prime copies it into a fresh landing — bl-4e14). Add it as a component target alongside the binaries. bl-2e26 §1/§12."}
