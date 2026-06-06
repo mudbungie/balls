@@ -19,6 +19,10 @@
 
 pub mod archive_recovery;
 pub mod archived_child;
+/// Greenfield balls — the next major version (spec bl-2e26, epic bl-72a8),
+/// built alongside the current modules until cutover promotes it to the crate
+/// root. See [`next`] for the architecture and the §8 op-dispatch entrypoint.
+pub mod next;
 pub mod bare_squash;
 pub mod claim_push;
 pub mod claim_sync;
