@@ -115,6 +115,7 @@ pub mod install;
 pub mod layout;
 pub mod lifecycle;
 pub mod message;
+pub mod mutate;
 pub mod op;
 pub mod plugin;
 pub mod registry;
@@ -128,16 +129,18 @@ pub mod wire;
 
 use edge::Edge;
 use op::Op;
-use verb::Verb;
+use verb::{OpClass, Verb};
 
 /// The state branch every checkout roots its task store + config on (§2). One
 /// name, compiled in — the bootstrap fact a fresh checkout needs (§12).
 pub const STATE_BRANCH: &str = "balls";
 
 /// The §8 dispatch entrypoint: resolve argv to its verb and run it. The
-/// checkout-lifecycle verbs (`prime`/`sync`, §12/§13) are wired to the engine
-/// via [`checkout`]; the remaining verbs are not yet, so they report their §8 op
-/// plan (the skeleton dispatch). `edge` carries the host inputs `main` resolved.
+/// checkout-lifecycle verbs (`prime`/`sync`, §12/§13) wire to the engine via
+/// [`checkout`]; the deliverable verbs (`create`/`claim`/`unclaim`/`update`/
+/// `close`/`drop`, §9) wire via [`mutate`]; the read verbs are not yet, so they
+/// report their §8 op plan (the skeleton dispatch). `edge` carries the host
+/// inputs `main` resolved.
 ///
 /// Returns the process exit code: `0` on success, `1` on an op failure (a plugin
 /// aborted, a bad flag), `2` for an unknown or missing verb (usage convention).
@@ -149,6 +152,7 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
     let result = match verb {
         Verb::Prime => checkout::prime(edge, &args[1..]),
         Verb::Sync => checkout::sync(edge, &args[1..]),
+        v if v.class() == OpClass::Mutating => mutate::run(edge, v, &args[1..]),
         other => {
             println!("{}", Op::new(other).plan());
             Ok(())
@@ -187,7 +191,44 @@ mod tests {
 
     #[test]
     fn a_skeleton_verb_reports_its_op_plan() {
-        assert_eq!(run_in(&TempDir::new().unwrap(), &["claim"]), 0);
+        // A read verb is still unwired, so it prints its §8 op plan and exits 0.
+        assert_eq!(run_in(&TempDir::new().unwrap(), &["list"]), 0);
+    }
+
+    #[test]
+    fn a_mutating_verb_before_prime_is_an_error() {
+        // No landing yet — a deliverable op never bootstraps, it reports the miss.
+        assert_eq!(run_in(&TempDir::new().unwrap(), &["create", "A task"]), 1);
+    }
+
+    #[test]
+    fn create_claim_update_close_round_trip_through_the_engine() {
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+        // create seals a fresh ball file onto the terminus.
+        assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
+        let tasks = operating(&tmp).join("tasks");
+        let id = sole_task_id(&tasks);
+        assert_eq!(run_in(&tmp, &["claim", &id, "--as", "me"]), 0);
+        assert_eq!(run_in(&tmp, &["update", &id, "state=doing", "--as", "me"]), 0);
+        assert_eq!(run_in(&tmp, &["close", &id, "--as", "me"]), 0);
+        // close retires the file; the terminus has advanced past it.
+        assert!(!tasks.join(format!("{id}.md")).exists());
+    }
+
+    /// The operating landing for `tmp`'s edge.
+    fn operating(tmp: &TempDir) -> std::path::PathBuf {
+        edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).operating()
+    }
+
+    /// The single ball id under `tasks/` (basename minus `.md`).
+    fn sole_task_id(tasks: &Path) -> String {
+        let mut ids: Vec<String> = std::fs::read_dir(tasks)
+            .unwrap()
+            .filter_map(|e| e.unwrap().file_name().to_string_lossy().strip_suffix(".md").map(str::to_string))
+            .collect();
+        assert_eq!(ids.len(), 1, "expected exactly one ball");
+        ids.pop().unwrap()
     }
 
     #[test]

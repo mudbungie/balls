@@ -1,7 +1,8 @@
 //! End-to-end harness: build the `bl` binary and run it from a throwaway temp
-//! directory, never against the dev repo's own task list. The skeleton verbs
+//! directory, never against the dev repo's own task list. The read verbs still
 //! report their §8 op plan; the checkout-lifecycle verbs (`prime`/`sync`,
-//! §12/§13) run the real engine + the shipped `tracker` sibling end to end.
+//! §12/§13) and the deliverable verbs (`create`/`claim`/`close`, §9) run the real
+//! engine + the shipped `tracker` sibling end to end.
 
 use assert_cmd::Command;
 use predicates::str::contains;
@@ -40,10 +41,10 @@ fn stealth_lock(state: &Path, project: &Path) -> PathBuf {
 fn dispatches_a_known_verb_to_its_op_plan() {
     let workspace = TempDir::new().unwrap();
     bl(&workspace)
-        .arg("close")
+        .arg("dep-tree")
         .assert()
         .success()
-        .stdout(contains("close: author -> pre -> seal -> post -> teardown"));
+        .stdout(contains("dep-tree: pre -> post"));
 }
 
 #[test]
@@ -83,4 +84,28 @@ fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
     // (length-1) trail and runs the tracker's sync/pre against the terminus.
     bl_primed(&project, &home, &state).arg("prime").assert().success();
     bl_primed(&project, &home, &state).arg("sync").assert().success();
+}
+
+#[test]
+fn create_seals_a_ball_and_runs_the_mutating_post_chain() {
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+
+    bl_primed(&project, &home, &state).arg("prime").assert().success();
+    // A real deliverable op: author → seal → the tracker's mutating post (which
+    // no-ops on a stealth binding). Its success proves the whole engine→
+    // subprocess→tracker path runs for a mutating verb, not just prime/sync.
+    bl_primed(&project, &home, &state)
+        .args(["create", "A real task", "--as", "me"])
+        .assert()
+        .success();
+
+    // The ball file landed on the operating terminus.
+    let tasks = balls::layout::Xdg::with(Path::new("/unused"), None, Some(&state.to_string_lossy()))
+        .clone_dir(&project)
+        .operating()
+        .join("tasks");
+    let count = std::fs::read_dir(&tasks).unwrap().filter(|e| e.as_ref().unwrap().path().extension().is_some()).count();
+    assert_eq!(count, 1, "create sealed exactly one ball file");
 }
