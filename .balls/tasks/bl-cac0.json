@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "The design was finalized-then-reopened three times (bl-62bc -> bl-0601 -> config/store split). bl-2e26's body is now an ~85KB working ball that its own §8 says should move to docs/ 'once the design stops churning.' It has churned and held under attack — freeze it. This should have happened BEFORE implementation started; doing it now as catch-up.\n\nSCOPE:\n- Extract bl-2e26's description into an authoritative doc under docs/ (e.g. docs/architecture.md, or split by §). Keep the §15 revision log + the why.\n- Make docs/ the source of truth implementation builds against — a frozen reference, not a moving ball.\n- Then close bl-2e26 (closing ARCHIVES it — fine once docs/ holds the content; the worktree recovery recipe is in the config/store-split memory if needed again).\n\nORDERING: SHOULD PRECEDE further correction implementation (bl-f970 and the rest) so the build targets a frozen reference. Not hard-wired as a dep on those tasks — wire it if you want a gate, or just land this first by priority.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":306,"source":"balls","state":"open","synced_at":"2026-06-06T23:24:01.637801871+00:00","url":"https://github.com/mudbungie/balls/issues/306"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":306,"source":"balls","state":"open","synced_at":"2026-06-06T23:25:09.703200060+00:00","url":"https://github.com/mudbungie/balls/issues/306"}}},
   "id": "bl-cac0",
   "links": [],
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-06T23:24:01.656879977Z"},
+  "synced_at": {"github-issues":"2026-06-06T23:25:09.725508054Z"},
   "tags": [],
   "title": "Freeze the greenfield design: migrate bl-2e26 spec -> docs/, close the working ball",
   "type": "task",
-  "updated_at": "2026-06-06T23:25:09.017410585Z"
+  "updated_at": "2026-06-06T23:25:09.725517602Z"
 }
