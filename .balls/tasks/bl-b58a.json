@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-b58a",
-  "claimed_by": "Humpbacked",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-06T01:16:32.061156434Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-06-06T03:50:58.859951422Z"},
   "tags": ["greenfield"],
   "title": "Topic: standardize observability interfaces — logs and metrics",
   "type": "task",
-  "updated_at": "2026-06-06T03:50:58.859956022Z"
+  "updated_at": "2026-06-06T06:35:10.157295775Z"
 }
