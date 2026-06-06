@@ -1,0 +1,1 @@
+{"ts":"2026-06-06T23:03:30.122980291Z","author":"Besting","text":"AFFECTED (light) by config/store split: the §7 binding shape is now { remote, tasks_branch, store, landing, invocation_path } (was {remote, branch, operating, invocation_path}); the reliable invocation-getcwd field this task adds composes with that binding. bl-2e26 §7; see bl-f970/bl-8c0b for the binding rename."}
