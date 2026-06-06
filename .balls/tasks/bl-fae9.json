@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-bdeb"],
   "description": "Part (2) of bl-4d00 (part 1 — guard on ALL teardown hooks — landed standalone in bl-4d00). Split out because it is a CORE change that depends on run()→engine wiring being PRESENT ON MAIN. Note: bl-bdeb's task is closed but its code is NOT yet on main (main tip 82e32b8; run() still prints Op::plan for the deliverable verbs). Do not start until the claim/close/drop/unclaim verbs actually emit the §7 wire end-to-end on main, else this is untestable dead plumbing (100% coverage gate) racing an undelivered change.\n\nRELIABILITY: the cwd-guard (src/delivery.rs guard_cwd) keys on $PWD, the invoker's shell cwd. Right TARGET — invocation_path is the normalized project root the derived worktree path is keyed on, so it can never be inside the worktree — but fragile SIGNAL: $PWD can be stale or unset, and then a dangerous teardown is silently waved through (guard_cwd's best-effort 'cwd: None waves through' branch).\n\nFIX: balls runs in the agent's real cwd, so core should capture its own invocation getcwd() and put it on the §7 wire as a field DISTINCT from invocation_path (src/wire.rs Binding currently carries only remote/branch/operating/invocation_path; src/edge.rs Edge carries invocation_path). The delivery plugin (src/delivery.rs Spec.cwd + Wire::WireBinding) then guards on that reliable field, FALLING BACK to $PWD when absent. Settle in the same phase that populates invocation_path end-to-end.\n\nDo NOT fold into bl-1280 (forge variant) — keep the agent-protection rationale first-class.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":291,"source":"balls","state":"open","synced_at":"2026-06-06T03:46:20.712067239+00:00","url":"https://github.com/mudbungie/balls/issues/291"}}},
+  "external": {"github-issues":{}},
   "id": "bl-fae9",
   "links": [{"link_type":"relates_to","target":"bl-4d00"}],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-06T03:46:20.717785966Z"},
+  "synced_at": {"github-issues":"2026-06-06T23:03:30.442047320Z"},
   "tags": [],
   "title": "Delivery cwd-guard: reliable invocation-getcwd wire field (part 2 of bl-4d00)",
   "type": "task",
-  "updated_at": "2026-06-06T23:03:30.122709883Z"
+  "updated_at": "2026-06-06T23:03:30.442052790Z"
 }
