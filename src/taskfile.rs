@@ -1,10 +1,11 @@
-//! Task-file IO on a worktree dir — the primitives every base change and the
-//! gating plugin share, so `tasks/<id>.md`'s path arithmetic and read/write
-//! live in ONE place (§3). Pure filesystem ops: no git (the terminus owns
-//! that), no clock (the verb layer injects `now`).
+//! Task-file IO on a worktree dir — the primitives every base change shares, so
+//! `tasks/<id>.md`'s path arithmetic and read/write live in ONE place (§3). Pure
+//! filesystem ops: no git (the terminus owns that), no clock (the verb layer
+//! injects `now`).
 //!
 //! "Resolved" is file-existence (§10): a closed or dropped ball's file is gone,
-//! so [`exists`] is the resolver both `ready`/`closeable` and the gate read.
+//! so [`exists`] is the resolver `ready`/`closeable` (and the core claim/close
+//! guards over them) read.
 
 use std::fs;
 use std::io;

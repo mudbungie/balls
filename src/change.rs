@@ -9,16 +9,22 @@
 //! unit-testable on a plain temp dir.
 //!
 //! `claim`/`unclaim`/`close`/`drop` are NAMED specializations of `update` (§9):
-//! [`Occupancy`] fixes `claimant` (claim carries the one hardcoded guard —
-//! refuse a ball whose `claimant` is already set), [`Retire`] stages the file
-//! DELETION, [`Update`] applies a generic [`FieldEdit`] list. They stay distinct
-//! ops because the op NAME is the §6 hook-dispatch key.
+//! [`Occupancy`] fixes `claimant` (claim carries two guards — the already-claimed
+//! refusal here, plus the §10 claim-blocker guard via [`crate::enforce`]),
+//! [`Retire`] stages the file DELETION (`close` adds the §10 close-blocker guard;
+//! `drop` is never gated), [`Update`] applies a generic [`FieldEdit`] list. They
+//! stay distinct ops because the op NAME is the §6 hook-dispatch key.
+//!
+//! The §10 guards run at [`BaseChange::stage`] — before the seal, so a refusal
+//! aborts the op cleanly, and for `close` before any `close.pre` plugin (e.g.
+//! delivery) squashes. The enforcement itself lives in [`crate::enforce`].
 
 use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::Path;
 
+use crate::enforce;
 use crate::id;
 use crate::lifecycle::BaseChange;
 use crate::message::{self, Message};
@@ -127,6 +133,7 @@ impl BaseChange for Occupancy {
                     format!("claim: {} is already claimed by {who}", self.id),
                 ));
             }
+            enforce::claim(&task, &self.id, dir)?;
         }
         task.claimant.clone_from(&self.claimant);
         task.updated = self.now;
@@ -239,6 +246,9 @@ impl Retire {
 
 impl BaseChange for Retire {
     fn stage(&self, dir: &Path) -> io::Result<()> {
+        if self.verb == Verb::Close {
+            enforce::close(&read_task(dir, &self.id)?, &self.id, dir)?;
+        }
         fs::remove_file(task_path(dir, &self.id))
     }
 

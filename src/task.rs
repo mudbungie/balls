@@ -134,15 +134,16 @@ impl Task {
 
     /// §10 `ready()`: claimable now — unclaimed with every CLAIM-blocker
     /// resolved. Exactly the [`Status::Ready`] rung of the ladder, named for the
-    /// `bl ready` question it answers. A best-effort hint: core enforces
-    /// nothing, the gating plugin does (§10).
+    /// `bl ready` question it answers. Enforcement is CORE (§10): the `claim` op
+    /// rejects a non-ready ball ([`crate::change::Occupancy`]).
     pub fn ready(&self, is_resolved: &dyn Fn(&str) -> bool) -> bool {
         matches!(self.status(is_resolved), Status::Ready)
     }
 
-    /// §10 `closeable()`: every CLOSE-blocker (gate) resolved — checked at
-    /// `close.pre`. Independent of the claim ladder: a close-blocker never shows
-    /// as a status, it only gates the finish. Best-effort, like [`Task::ready`].
+    /// §10 `closeable()`: every CLOSE-blocker (gate) resolved — enforced by core
+    /// at the `close` op ([`crate::change::Retire`]), before any `close.pre`
+    /// plugin runs. Independent of the claim ladder: a close-blocker never shows
+    /// as a status, it only gates the finish.
     pub fn closeable(&self, is_resolved: &dyn Fn(&str) -> bool) -> bool {
         !self
             .blockers
