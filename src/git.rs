@@ -44,30 +44,39 @@ impl Git {
         Self { operating: operating.to_path_buf() }
     }
 
-    /// Run `git -C <cwd> <args>`, optionally feeding `stdin`, returning stdout.
-    /// A non-zero exit becomes an [`io::Error`] carrying git's stderr — the one
-    /// git-invocation site, so every method funnels its failure path here.
+    /// Run `git -C <cwd> <args>` against the terminus — every method funnels its
+    /// failure path through the shared [`run`] plumbing.
     fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
-        let mut cmd = Command::new("git");
-        cmd.arg("-C").arg(cwd).args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
-        if stdin.is_some() {
-            cmd.stdin(Stdio::piped());
-        }
-        let mut child = cmd.spawn()?;
-        if let Some(text) = stdin {
-            use io::Write;
-            child.stdin.take().expect("stdin was configured as a pipe").write_all(text.as_bytes())?;
-        }
-        let out = child.wait_with_output()?;
-        if out.status.success() {
-            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-        } else {
-            Err(io::Error::other(format!(
-                "git {}: {}",
-                args.join(" "),
-                String::from_utf8_lossy(&out.stderr).trim()
-            )))
-        }
+        run(cwd, args, stdin)
+    }
+}
+
+/// Run `git -C <cwd> <args>`, optionally feeding `stdin`, returning stdout. A
+/// non-zero exit becomes an [`io::Error`] carrying git's stderr — the one
+/// git-invocation site. Shared between the §8 terminus seal ([`Git`]) and the
+/// §12/§13 checkout-lifecycle ops ([`crate::substrate`]): both author LOCAL git
+/// only — never a remote, which is the tracker's alone (§0) — so they run the
+/// same plumbing.
+pub(crate) fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(cwd).args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if stdin.is_some() {
+        cmd.stdin(Stdio::piped());
+    }
+    let mut child = cmd.spawn()?;
+    if let Some(text) = stdin {
+        use io::Write;
+        child.stdin.take().expect("stdin was configured as a pipe").write_all(text.as_bytes())?;
+    }
+    let out = child.wait_with_output()?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    } else {
+        Err(io::Error::other(format!(
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        )))
     }
 }
 

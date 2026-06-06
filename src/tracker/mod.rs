@@ -19,7 +19,9 @@
 
 mod git;
 mod payload;
-mod pointer;
+// `pointer` is the single source of the committed `next:` format; core's
+// `prime` writes/clears it (§12), so it is crate-visible, not tracker-private.
+pub(crate) mod pointer;
 mod prime;
 mod remote_ops;
 
