@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-cd21"],
   "description": "Gap (A) of bl-ca3f, which the 2026-06-05 REVISION note folded into bl-9329 — but bl-9329 closed having touched ONLY src/tracker/fixtures.rs (delivery a9b476b, 2 lines), so (A) never actually landed and ca3f shipped only gap (C). Confirmed unimplemented on main 2026-06-07.\n\nTHE GAP: checkout::prime() (src/checkout.rs) runs substrate(found) + the prime CHAIN and returns; it never invokes checkout::sync(). At dispatch (src/lib.rs) Verb::Prime and Verb::Sync are independent — prime does not chain to sync. The prime chain's tracker handler (src/tracker/prime.rs) ADOPTS an established remote store branch (leaves it for sync, no fetch) or FOUNDS an absent one (push). Neither fetches. Net: on an established/joined checkout, 'bl prime' does NOT pull current task state.\n\nSPEC (docs/architecture.md §13): 'bl prime — readiness, built FROM sync ... it is an orchestrator of syncs (§12): ensure the landing + store substrate, bl sync the store, and bootstrap it if it has nothing to sync from.' And: 'prime drives sync; it does not duplicate it ... currency it gets by invoking sync, not by reimplementing a fetch. On an already-joined checkout prime is exactly the sync you'd run by hand plus the idempotent worktree pass.'\n\nFIX: after substrate + the prime chain (the adopt/found step), checkout::prime should drive checkout::sync against the store so an established checkout is brought current. Idempotent: on a just-founded remote the sync fetch is a no-op; in stealth (no remote) the tracker sync/pre no-ops. Keep the single-codepath invariant — prime calls the sync primitive, never a reimplemented fetch.\n\nDepends on bl-cd21 (gap B: tracker store-remote resolution / origin autodiscovery) so prime's driven sync resolves the right remote. Sibling of bl-ca3f (gap C, CLOSED). 100% coverage + 300-line cap gates apply.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_body_hash":"17327d2e46241791","last_synced_status":"open","last_synced_title":"prime drives sync for currency: checkout::prime must invoke sync after the prime chain (§12/§13 gap A) [bl-8328]","number":352,"source":"balls","state":"open","synced_at":"2026-06-07T20:56:22.685879961+00:00","url":"https://github.com/mudbungie/balls/issues/352"}}},
   "id": "bl-8328",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T20:56:22.697752823Z"},
   "tags": [],
   "title": "prime drives sync for currency: checkout::prime must invoke sync after the prime chain (§12/§13 gap A)",
   "type": "task",
-  "updated_at": "2026-06-07T20:56:22.019639836Z"
+  "updated_at": "2026-06-07T20:56:22.697760969Z"
 }
