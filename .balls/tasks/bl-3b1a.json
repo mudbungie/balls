@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-3b1a",
+  "claimed_by": "Chestnut",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:13:27.934670993Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:13:28.958013230Z"},
   "tags": [],
   "title": "§9 create emits the minted id to stdout (+ verb result lines)",
   "type": "task",
-  "updated_at": "2026-06-07T20:13:28.958017799Z"
+  "updated_at": "2026-06-07T20:47:35.578109418Z"
 }
