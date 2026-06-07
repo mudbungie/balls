@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-f74d",
+  "claimed_by": "Aurally",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T00:31:38.528102910Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T00:31:39.337743966Z"},
   "tags": [],
   "title": "Remove the id_scheme config knob — one fixed scheme, custom via plugin",
   "type": "task",
-  "updated_at": "2026-06-07T00:31:39.337753033Z"
+  "updated_at": "2026-06-07T00:31:42.463077587Z"
 }
