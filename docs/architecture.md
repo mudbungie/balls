@@ -120,7 +120,10 @@ $XDG_STATE_HOME/balls/
   format — the source is a stamped FIELD, so you grep one source or read the whole sequence; metrics
   (§6) compose over it. It is local runtime state, gitignored, never on a committed branch (like
   `binding.toml`) — which the §4 "landing cannot be published" rule makes doubly correct. One object
-  per line keeps concurrent appends from parallel agents atomic (sub-`PIPE_BUF`, `O_APPEND`). Stale-
+  per line keeps concurrent appends from parallel agents atomic — every line is held at or below
+  `PIPE_BUF` (4096 bytes) so a single `O_APPEND` write never interleaves with another agent's, and the
+  one unbounded field (the §6 enveloped plugin-stderr `msg`) is truncated with a `…[truncated]` marker
+  to honour that bound (bl-e6a0, §15). Stale-
   but-harmless like an orphan worktree: no core rotation/retention; prune is
   manual; the `log_level` knob (§4) limits volume instead. Scope is per-clone (per invocation-path),
   so one timeline covers both this clone's store *and* landing ops.
@@ -1307,6 +1310,20 @@ RESOLVED (folded into the body, no longer open):
   `claimant` field, the one structured fact the claim-guard reads (§0/§3). A team wanting a stored,
   ordered pipeline opts in OUTSIDE core via an unknown preserved `state:` key + a display plugin
   (§3) — severable, never a core field. Touched §0/§3/§4/§5/§9.
+- **log line bound (2026-06-07, bl-e6a0 — post-freeze, correctness on bl-2e9f/bl-b58a).** A spec
+  attack on §1's atomicity sentence: "One object per line keeps concurrent appends … atomic
+  (sub-`PIPE_BUF`, `O_APPEND`)" was a CONDITIONAL guarantee left unenforced. `PIPE_BUF` (4096 on
+  Linux) is the largest write the kernel won't interleave, and the §6 enveloped plugin-stderr `msg`
+  is unbounded — a stack trace, a long git error, a diff line. The exact records the log exists to
+  capture are the ones that overflow, and the failure mode (parallel agents + a verbose/failing
+  plugin) is the design's stated use case. RESOLUTION: enforce the bound the claim already makes,
+  rather than weaken the claim. Every serialized line is held at or below `LINE_MAX` = `PIPE_BUF`;
+  `msg` (the only unbounded field) is truncated on a `char` boundary with a `…[truncated]` marker
+  until the whole line fits. The lock-free `O_APPEND` fast path is KEPT (no `flock`, the rejected
+  option 2 — it would contradict the "sub-`PIPE_BUF`" framing and add a mechanism); truncation
+  re-serializes to measure real JSON escaping rather than reimplementing serde's escape table (single
+  source of that truth). Lossy on giant lines by design — logs shouldn't carry them. Touched §1;
+  code is `src/log.rs` (`Log::line`).
 
 ## §16 Migration from legacy balls
 
