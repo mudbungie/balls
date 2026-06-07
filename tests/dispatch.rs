@@ -1,8 +1,8 @@
 //! End-to-end harness: build the `bl` binary and run it from a throwaway temp
 //! directory, never against the dev repo's own task list. The read verbs
 //! (`show`/`list`/`ready`/`dep-tree`, §9) render the store; the still-unwired
-//! diffless verbs (`doctor`/`install`) report their §8 op plan; the
-//! checkout-lifecycle verbs (`prime`/`sync`, §12/§13) and the deliverable verbs
+//! diffless verb (`install`) reports its §8 op plan; the checkout-lifecycle
+//! verbs (`prime`/`sync`, §12/§13) and the deliverable verbs
 //! (`create`/`claim`/`close`, §9) run the real engine + the shipped `tracker`
 //! sibling end to end.
 
@@ -42,13 +42,13 @@ fn stealth_lock(state: &Path, project: &Path) -> PathBuf {
 
 #[test]
 fn an_unwired_diffless_verb_reports_its_op_plan() {
-    // doctor is not yet wired into the read path, so it still prints its §8 plan.
+    // install is not yet wired, so it still prints its §8 plan.
     let workspace = TempDir::new().unwrap();
     bl(&workspace)
-        .arg("doctor")
+        .arg("install")
         .assert()
         .success()
-        .stdout(contains("doctor: pre -> post"));
+        .stdout(contains("install: pre -> post"));
 }
 
 #[test]
