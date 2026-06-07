@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "deferred",
+  "status": "open",
   "synced_at": {"github-issues":"2026-06-07T19:52:40.644939723Z"},
   "tags": [],
   "title": "Implement greenfield balls (per spec bl-2e26)",
   "type": "epic",
-  "updated_at": "2026-06-07T20:18:37.904074517Z"
+  "updated_at": "2026-06-07T20:26:24.668977650Z"
 }
