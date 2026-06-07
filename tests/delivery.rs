@@ -70,6 +70,43 @@ fn claimed_ball(store: &Path, id: &str, claimant: &str) {
 }
 
 #[test]
+fn claim_pre_stages_the_worktree_path_field_then_unclaim_pre_clears_it() {
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let root = project(tmp.path());
+    let inv = root.to_str().unwrap();
+
+    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
+    let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
+
+    // The change worktree balls runs a pre hook in: a git repo whose staged
+    // change is the op's `tasks/bl-x.md`. The id is recovered from it — no
+    // metadata on the pre wire (§7).
+    let change = tmp.path().join("change");
+    fs::create_dir(&change).unwrap();
+    git(&change, &["init", "-q", "-b", "balls"]);
+    git(&change, &["config", "user.name", "test"]);
+    git(&change, &["config", "user.email", "test@example.com"]);
+    fs::write(change.join("seed"), "s\n").unwrap();
+    git(&change, &["add", "-A"]);
+    git(&change, &["commit", "-qm", "seed"]);
+    fs::create_dir(change.join("tasks")).unwrap();
+    let ball = change.join("tasks/bl-x.md");
+    fs::write(&ball, "+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\nclaimant = \"me\"\n+++\n").unwrap();
+    git(&change, &["add", "-A"]);
+
+    // claim.pre — the plugin writes the derived path under `delivery-worktree`.
+    delivery(&change, &home, "claim", "pre", &pre(inv, "T")).assert().success();
+    assert!(fs::read_to_string(&ball).unwrap().contains(&format!("delivery-worktree = \"{}\"", wt.display())));
+
+    // unclaim.pre — the key is cleared in lockstep (present iff claimed).
+    git(&change, &["add", "-A"]);
+    delivery(&change, &home, "unclaim", "pre", &pre(inv, "T")).assert().success();
+    assert!(!fs::read_to_string(&ball).unwrap().contains("delivery-worktree"));
+}
+
+#[test]
 fn protocol_self_describes_without_env_or_stdin() {
     Command::cargo_bin("bl-delivery")
         .unwrap()

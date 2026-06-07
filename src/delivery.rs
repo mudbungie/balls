@@ -36,6 +36,7 @@ use serde::Deserialize;
 use crate::encoding::percent_encode;
 use crate::layout::Xdg;
 use crate::message::Metadata;
+use crate::task::Task;
 
 /// The protocol self-description (`<bin> protocol`, §6): this plugin speaks
 /// protocol 1 and handles the ops whose hooks it wires into — the four per-ball
@@ -104,6 +105,43 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
         // branch, so their rollback is a no-op (§14); any unwired hook too.
         _ => Ok(()),
     }
+}
+
+/// The plugin-namespaced preserved frontmatter key (§3 seam) the delivery plugin
+/// stages the derived worktree path under, so the seal captures it and
+/// `bl show --json` surfaces it authoritatively (§11). Purely consumer-facing:
+/// the plugin RECOMPUTES the path for its own acts and never reads this back.
+pub const WORKTREE_KEY: &str = "delivery-worktree";
+
+/// The pre-seal frontmatter staging the delivery plugin performs (§11), the
+/// store-side counterpart to [`dispatch`]'s project-repo acts: it edits the
+/// op's `tasks/<id>.md` in the change worktree so the seal captures the result.
+/// `claim.pre` writes the derived `worktree` path under [`WORKTREE_KEY`] (the
+/// consumer's authoritative read); `unclaim.pre` clears it in lockstep with core
+/// clearing `claimant`, so the field is present exactly while the ball is claimed
+/// and never names a released worktree. Every other hook — and any rollback,
+/// since a `claim.post` failure post-aborts the whole seal (§8) and the staged
+/// field vanishes with the store reset — leaves the file untouched (`None`); the
+/// edge then skips the rewrite (and the lazy `content` read with it). Pure: the
+/// edge owns the fs.
+pub fn stage_field(
+    op: &str,
+    phase: &str,
+    rolling_back: bool,
+    worktree: &Path,
+    content: impl FnOnce() -> io::Result<String>,
+) -> io::Result<Option<String>> {
+    let staged = match (op, phase, rolling_back) {
+        ("claim", "pre", false) => Some(worktree),
+        ("unclaim", "pre", false) => None,
+        _ => return Ok(None),
+    };
+    let mut task = Task::parse(&content()?).map_err(io::Error::other)?;
+    match staged {
+        Some(path) => task.extra.insert(WORKTREE_KEY.into(), path.to_string_lossy().into_owned().into()),
+        None => task.extra.remove(WORKTREE_KEY),
+    };
+    Ok(Some(task.to_markdown()))
 }
 
 /// This binding's worktree territory (§11):

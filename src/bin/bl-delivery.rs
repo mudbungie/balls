@@ -8,6 +8,7 @@
 //! git seam); `main` only adapts the boundary, the way `bl` does.
 
 use std::env;
+use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 use std::process::exit;
@@ -57,6 +58,19 @@ fn run(args: &[String]) -> io::Result<()> {
 
     let worktree = delivery::worktree_path(&xdg, &plugin, invocation, &id);
     let branch = delivery::work_branch(&id);
+    let rolling_back = wire.rolling_back.is_some();
+
+    // `claim.pre`/`unclaim.pre` stage/clear the worktree-path field in the change
+    // worktree's `tasks/<id>.md` so the seal captures it (§11). The read is lazy —
+    // every other hook returns `None` and never touches the file (close.post, e.g.,
+    // runs after the file is deleted).
+    let task_file = cwd.join("tasks").join(format!("{id}.md"));
+    if let Some(rewritten) =
+        delivery::stage_field(op, phase, rolling_back, &worktree, || fs::read_to_string(&task_file))?
+    {
+        fs::write(&task_file, rewritten)?;
+    }
+
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
     let subject = delivery::subject(title, &id);
     let marker = delivery::marker(&id);
@@ -66,7 +80,7 @@ fn run(args: &[String]) -> io::Result<()> {
         subject: &subject,
         marker: &marker,
     };
-    delivery::dispatch(op, phase, wire.rolling_back.is_some(), &repo, &spec)
+    delivery::dispatch(op, phase, rolling_back, &repo, &spec)
 }
 
 /// `prime.post` re-materialization (§11/§12): for every ball in the store
