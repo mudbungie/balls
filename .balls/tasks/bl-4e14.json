@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-f970","bl-8540"],
   "description": "Post-finalization spec revision 2026-06-06 (bl-2e26 §0/§1/§4/§12). The trusted default capability set is config-time, not run-time.\n\nWHY: 'all config is RCE, explicitly installed' + 'core reads only landing config' means there must be NO runtime plugin magic. Instead, defaults live in a real folder that prime copies in — so the tracker/delivery/builtin plugins are ordinary landing entries, and the default set is swappable policy (an org ships its own seed) rather than core code (severability).\n\nWHAT:\n- Ship an app-level default-config/ folder at $XDG_CONFIG_HOME/balls/default-config/ (§1). Its install-default version wires tracker + delivery + builtin plugins and a default balls.toml (tasks_branch=balls/tasks, id_scheme, etc.).\n- prime's local-miss/substrate path SEEDS a fresh landing by copying default-config/ into balls/config (same path-copy as install). On an established landing the seed step is a no-op.\n- Remove any run-time default plugin wiring / 'run the default plugin (tracker)' code path — core only ever runs what is in the landing list (§0).\n- Make the seed folder replaceable (org override) without touching core.\n\nPairs with bl-f970 (substrate creates the branches + invokes seed) and bl-30e2 (config defaults now come from the seed, serde is last-ditch fallback).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":336,"source":"balls","state":"open","synced_at":"2026-06-07T10:12:21.438109527+00:00","url":"https://github.com/mudbungie/balls/issues/336"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":336,"source":"balls","state":"open","synced_at":"2026-06-07T19:52:41.549053839+00:00","url":"https://github.com/mudbungie/balls/issues/336"}}},
   "id": "bl-4e14",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-07T10:12:21.445808830Z"},
+  "synced_at": {"github-issues":"2026-06-07T19:52:41.554385301Z"},
   "tags": [],
   "title": "Greenfield: ship app default-config/ seed folder; prime seeds a fresh landing from it; retire run-time plugin defaults",
   "type": "task",
-  "updated_at": "2026-06-07T19:52:40.665426664Z"
+  "updated_at": "2026-06-07T19:52:41.554389278Z"
 }
