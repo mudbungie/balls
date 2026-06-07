@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-07T20:25:31.091853667Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "bl-20fc used 'doctor' as the example UNWIRED diffless verb in two op-plan tests and left a stale §16-doctor comment. Doctor is being removed (bl-77a7 spec burn, bl-a38e code). Retarget the examples to 'install' (the only unwired diffless verb after doctor) and scrub the comment. Files: tests/dispatch.rs (module doc + an_unwired_diffless_verb_reports_its_op_plan), src/lib_tests.rs (a_skeleton_verb_reports_its_op_plan), src/reads/tree.rs (module-doc cycle comment -> point at the readiness/blocker walk, not doctor/§16). NOT delivery_tests.rs (protocol ops list — coupled to delivery.rs, owned by bl-a38e). Keep 100% coverage; the install example still exercises the lib::run 'other => Op::plan' arm.",
+  "external": {},
+  "id": "bl-c541",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Scrub bl-20fc's incidental doctor refs (dispatch/lib_tests examples + tree comment)",
+  "type": "task",
+  "updated_at": "2026-06-07T20:25:31.091853667Z"
+}
