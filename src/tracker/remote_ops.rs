@@ -1,5 +1,5 @@
 //! §12/§13 remote ops: `sync` (import) and `push` (publish). The two halves of
-//! "the terminus syncs every op" — pull the remote balls branch in before an op,
+//! "the store syncs every op" — pull the remote balls branch in before an op,
 //! push the sealed result out after. Both are no-ops in a stealth (no-remote)
 //! repo: with no remote there is nothing to talk to, which is the structural
 //! opt-out (§12).
@@ -13,14 +13,14 @@ use std::path::Path;
 /// only**. That one op is atomically detect-and-act — a non-ff IS the contention
 /// signal (git's non-zero exit becomes ours: "remote wins, re-run"), so there is
 /// no separate contention probe. Nothing is pushed, so a partial sync leaves
-/// `operating/` at the old or the new tip, never wedged (§13 rollback).
+/// the store at the old or the new tip, never wedged (§13 rollback).
 pub fn sync(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
-    let operating = Path::new(&b.store);
-    git(operating, &["fetch", remote, &b.tasks_branch])?;
-    git(operating, &["merge", "--ff-only", "FETCH_HEAD"])?;
+    let store = Path::new(&b.store);
+    git(store, &["fetch", remote, &b.tasks_branch])?;
+    git(store, &["merge", "--ff-only", "FETCH_HEAD"])?;
     Ok(())
 }
 
@@ -43,47 +43,47 @@ pub fn push(b: &Binding) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::tracker::fixtures::{
-        binding, checkout, commit, empty_remote, local_unpushed, operating_clone,
+        binding, checkout, commit, empty_remote, local_unpushed, store_clone,
         remote_with_branch, tip, BRANCH,
     };
     use tempfile::TempDir;
 
     #[test]
-    fn sync_fast_forwards_operating_onto_the_advanced_remote() {
+    fn sync_fast_forwards_store_onto_the_advanced_remote() {
         let tmp = TempDir::new().unwrap();
         let remote = remote_with_branch(tmp.path());
-        let operating = operating_clone(tmp.path(), &remote);
-        // A second checkout advances the remote out from under operating.
+        let store = store_clone(tmp.path(), &remote);
+        // A second checkout advances the remote out from under the store.
         let other = checkout(tmp.path(), &remote, "other");
         let moved = commit(&other, "next.txt", "next");
         git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
 
-        sync(&binding(Some(&remote), &operating)).unwrap();
-        assert_eq!(tip(&operating, "HEAD"), moved);
+        sync(&binding(Some(&remote), &store)).unwrap();
+        assert_eq!(tip(&store, "HEAD"), moved);
     }
 
     #[test]
     fn sync_in_stealth_is_a_no_op() {
         let tmp = TempDir::new().unwrap();
         let remote = remote_with_branch(tmp.path());
-        let operating = operating_clone(tmp.path(), &remote);
-        let before = tip(&operating, "HEAD");
-        sync(&binding(None, &operating)).unwrap();
-        assert_eq!(tip(&operating, "HEAD"), before);
+        let store = store_clone(tmp.path(), &remote);
+        let before = tip(&store, "HEAD");
+        sync(&binding(None, &store)).unwrap();
+        assert_eq!(tip(&store, "HEAD"), before);
     }
 
     #[test]
     fn sync_fails_on_a_non_fast_forward_the_contention_signal() {
         let tmp = TempDir::new().unwrap();
         let remote = remote_with_branch(tmp.path());
-        let operating = operating_clone(tmp.path(), &remote);
+        let store = store_clone(tmp.path(), &remote);
         // Diverge: a local commit AND a remote commit off the same base.
-        commit(&operating, "local.txt", "local");
+        commit(&store, "local.txt", "local");
         let other = checkout(tmp.path(), &remote, "other");
         commit(&other, "remote.txt", "remote");
         git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
 
-        let err = sync(&binding(Some(&remote), &operating)).unwrap_err();
+        let err = sync(&binding(Some(&remote), &store)).unwrap_err();
         assert!(err.to_string().contains("git merge --ff-only"));
     }
 
@@ -91,10 +91,10 @@ mod tests {
     fn push_publishes_the_local_balls_branch_to_the_remote() {
         let tmp = TempDir::new().unwrap();
         let remote = remote_with_branch(tmp.path());
-        let operating = operating_clone(tmp.path(), &remote);
-        let landed = commit(&operating, "landed.txt", "landed");
+        let store = store_clone(tmp.path(), &remote);
+        let landed = commit(&store, "landed.txt", "landed");
 
-        push(&binding(Some(&remote), &operating)).unwrap();
+        push(&binding(Some(&remote), &store)).unwrap();
         assert_eq!(tip(&remote, BRANCH), landed);
     }
 
@@ -102,8 +102,8 @@ mod tests {
     fn push_in_stealth_is_a_no_op() {
         let tmp = TempDir::new().unwrap();
         let remote = empty_remote(tmp.path());
-        let operating = local_unpushed(tmp.path());
-        push(&binding(None, &operating)).unwrap();
+        let store = local_unpushed(tmp.path());
+        push(&binding(None, &store)).unwrap();
         // The empty remote still has no balls branch.
         assert!(git(&remote, &["rev-parse", BRANCH]).is_err());
     }
@@ -112,13 +112,13 @@ mod tests {
     fn push_fails_when_the_remote_rejects_a_non_fast_forward() {
         let tmp = TempDir::new().unwrap();
         let remote = remote_with_branch(tmp.path());
-        let operating = operating_clone(tmp.path(), &remote);
-        // Remote moves ahead; operating's divergent commit can't ff-push.
+        let store = store_clone(tmp.path(), &remote);
+        // Remote moves ahead; the store's divergent commit can't ff-push.
         let other = checkout(tmp.path(), &remote, "other");
         commit(&other, "remote.txt", "remote");
         git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
-        commit(&operating, "local.txt", "local");
+        commit(&store, "local.txt", "local");
 
-        assert!(push(&binding(Some(&remote), &operating)).is_err());
+        assert!(push(&binding(Some(&remote), &store)).is_err());
     }
 }

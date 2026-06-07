@@ -18,7 +18,7 @@ pub enum Phase {
     Author,
     /// (2) pre modifiers run in `NN-` order; they shape what gets sealed.
     Pre,
-    /// (3) balls SEALS — commit + integrate onto the terminus, atomically.
+    /// (3) balls SEALS — commit + integrate onto the anvil, atomically.
     Seal,
     /// (4) post reactors run in `NN-` order; they act on the sealed record.
     Post,

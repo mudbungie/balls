@@ -81,7 +81,7 @@ fn a_rollback_payload_carries_the_phase_shape_plus_rolling_back() {
 #[test]
 fn a_diffless_post_carries_the_commit_pair_but_omits_metadata() {
     // §13: a sync/prime post payload carries previous_commit/commit — the
-    // operating tip before/after the op — but no §5 metadata (none was sealed).
+    // checkout tip before/after the op — but no §5 metadata (none was sealed).
     let binding = ctx().binding;
     let c = OpContext::diffless("me@example.com".into(), binding);
     let facts = SealFacts { commit: "T1", previous_commit: "T0", metadata: None };

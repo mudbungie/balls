@@ -1,37 +1,37 @@
-//! [`Git`] terminus tests — exercised on throwaway repos so every git act and
+//! [`Git`] anvil tests — exercised on throwaway repos so every git act and
 //! its failure path is covered without touching the dev repo.
 
 use super::*;
 use std::fs;
 use tempfile::TempDir;
 
-/// A throwaway repo: an `operating/` checkout with one commit on the terminus.
-/// Returns the tempdir (kept alive), the operating path, and a [`Git`].
+/// A throwaway repo: a checkout with one commit on the anvil.
+/// Returns the tempdir (kept alive), the checkout path, and a [`Git`].
 fn repo() -> (TempDir, PathBuf, Git) {
     let tmp = TempDir::new().unwrap();
-    let operating = tmp.path().join("operating");
-    fs::create_dir(&operating).unwrap();
-    let git = |args: &[&str]| Git::run(&operating, args, None).unwrap();
+    let checkout = tmp.path().join("checkout");
+    fs::create_dir(&checkout).unwrap();
+    let git = |args: &[&str]| Git::run(&checkout, args, None).unwrap();
     git(&["init", "-q"]);
     git(&["config", "user.name", "test"]);
     git(&["config", "user.email", "test@example.com"]);
-    fs::write(operating.join("seed.txt"), "seed\n").unwrap();
+    fs::write(checkout.join("seed.txt"), "seed\n").unwrap();
     git(&["add", "-A"]);
     git(&["commit", "-q", "-m", "seed"]);
-    let g = Git::at(&operating);
-    (tmp, operating, g)
+    let g = Git::at(&checkout);
+    (tmp, checkout, g)
 }
 
 #[test]
-fn head_returns_the_terminus_tip() {
+fn head_returns_the_anvil_tip() {
     let (_tmp, _op, g) = repo();
     let head = g.head().unwrap();
     assert_eq!(head.len(), 40); // a full sha
 }
 
 #[test]
-fn open_seal_advances_the_terminus_to_the_committed_change() {
-    let (tmp, operating, g) = repo();
+fn open_seal_advances_the_anvil_to_the_committed_change() {
+    let (tmp, checkout, g) = repo();
     let before = g.head().unwrap();
     let change = tmp.path().join("change");
 
@@ -39,16 +39,16 @@ fn open_seal_advances_the_terminus_to_the_committed_change() {
     fs::write(change.join("tasks.md"), "a staged change\n").unwrap();
     let sealed = g.seal(&change, "Author a task\n\nbl-op: create\n").unwrap();
 
-    // The terminus fast-forwarded onto the sealed commit, and operating's tree
+    // The anvil fast-forwarded onto the sealed commit, and checkout's tree
     // now carries the change.
     assert_eq!(g.head().unwrap(), sealed);
     assert_ne!(sealed, before);
-    assert_eq!(fs::read_to_string(operating.join("tasks.md")).unwrap(), "a staged change\n");
+    assert_eq!(fs::read_to_string(checkout.join("tasks.md")).unwrap(), "a staged change\n");
 }
 
 #[test]
-fn unseal_resets_the_terminus_back_to_a_prior_tip() {
-    let (tmp, operating, g) = repo();
+fn unseal_resets_the_anvil_back_to_a_prior_tip() {
+    let (tmp, checkout, g) = repo();
     let before = g.head().unwrap();
     let change = tmp.path().join("change");
 
@@ -59,7 +59,7 @@ fn unseal_resets_the_terminus_back_to_a_prior_tip() {
 
     g.unseal(&before).unwrap();
     assert_eq!(g.head().unwrap(), before);
-    assert!(!operating.join("tasks.md").exists()); // the change is gone again
+    assert!(!checkout.join("tasks.md").exists()); // the change is gone again
 }
 
 #[test]
@@ -88,15 +88,15 @@ fn opening_the_same_change_worktree_twice_is_an_error() {
 }
 
 #[test]
-fn seal_fails_when_the_terminus_cannot_fast_forward() {
-    let (tmp, operating, g) = repo();
+fn seal_fails_when_the_anvil_cannot_fast_forward() {
+    let (tmp, checkout, g) = repo();
     let change = tmp.path().join("change");
     g.open(&change).unwrap();
 
-    // Advance the terminus independently so the change no longer fast-forwards.
-    fs::write(operating.join("other.txt"), "diverge\n").unwrap();
-    Git::run(&operating, &["add", "-A"], None).unwrap();
-    Git::run(&operating, &["commit", "-q", "-m", "diverge"], None).unwrap();
+    // Advance the anvil independently so the change no longer fast-forwards.
+    fs::write(checkout.join("other.txt"), "diverge\n").unwrap();
+    Git::run(&checkout, &["add", "-A"], None).unwrap();
+    Git::run(&checkout, &["commit", "-q", "-m", "diverge"], None).unwrap();
 
     fs::write(change.join("tasks.md"), "y\n").unwrap();
     let err = g.seal(&change, "wont ff\n").unwrap_err();

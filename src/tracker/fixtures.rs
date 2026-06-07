@@ -1,6 +1,6 @@
 //! Throwaway git fixtures for the tracker's handler tests (§13). Every tracker
 //! act is a real git op against a real remote, so the tests are too: a bare
-//! repo stands in for the remote and a checkout for `operating/`, exercised on
+//! repo stands in for the remote and a checkout for the store, exercised on
 //! tempdirs so no test touches the dev repo. Shared here because sync, push and
 //! prime all need the same shapes.
 
@@ -98,16 +98,16 @@ pub fn checkout(tmp: &Path, remote: &Path, name: &str) -> PathBuf {
     dest
 }
 
-/// A checkout of `remote`'s `balls` branch — `operating/` for an established
+/// A checkout of `remote`'s `balls` branch — the store for an established
 /// remote.
-pub fn operating_clone(tmp: &Path, remote: &Path) -> PathBuf {
-    checkout(tmp, remote, "operating")
+pub fn store_clone(tmp: &Path, remote: &Path) -> PathBuf {
+    checkout(tmp, remote, "store")
 }
 
 /// A fresh `balls`-branch checkout with one commit and nothing pushed — what
 /// core hands the tracker to FOUND an absent remote (bootstrap-on-miss).
 pub fn local_unpushed(tmp: &Path) -> PathBuf {
-    let op = tmp.join("operating");
+    let op = tmp.join("store");
     run(tmp, &["init", "-q", "-b", BRANCH, &op.to_string_lossy()]);
     identify(&op);
     commit(&op, "seed.txt", "seed");

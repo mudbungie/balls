@@ -16,7 +16,7 @@
 //!
 //! **Per-session re-materialization (§11/§12).** `prime.post` carries no single
 //! ball (it is a diffless checkout-lifecycle op, §13), so it does not derive one
-//! `<id>`: instead it scans the terminus checkout for every task still claimed
+//! `<id>`: instead it scans the anvil checkout for every task still claimed
 //! by the actor ([`crate::delivery_repo::claimed_ids`]) and re-materializes each
 //! one's worktree — the SAME `materialize` act `claim.post` performs, just
 //! driven per-claimed-task. Create-if-absent makes it idempotent, so a prime on

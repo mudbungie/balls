@@ -1,7 +1,7 @@
 //! §6 `bl install` — capability transfer between two `balls` branches.
 //!
 //! One symmetric verb copies a COMMITTED branch subtree from a `--from` ref to a
-//! `--to` ref (default `terminus → landing`). Adopting (`terminus → landing`) and
+//! `--to` ref (default `anvil → landing`). Adopting (`anvil → landing`) and
 //! publishing (`landing → center`, or seeding `well-configured → unconfigured`)
 //! are the same verb, direction reversed. This module is the git-free heart: it
 //! transfers the subtree between two materialized checkout roots and validates a

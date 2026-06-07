@@ -1,4 +1,4 @@
-//! §8/§14 engine tests — fakes for the three seams ([`Terminus`],
+//! §8/§14 engine tests — fakes for the three seams ([`Anvil`],
 //! [`BaseChange`], [`Plugins`]) share one journal so a single sequence assertion
 //! proves both WHAT ran and the ORDER (plugins roll back before core un-seals).
 
@@ -31,16 +31,16 @@ fn plugin(name: &str) -> PluginRef {
     PluginRef { name: name.to_string(), bin: None }
 }
 
-/// A [`Terminus`] that journals each act, fails the named one, and captures the
+/// An [`Anvil`] that journals each act, fails the named one, and captures the
 /// sealed commit message so a test can assert the §5 trailer landed.
-struct FakeTerminus {
+struct FakeAnvil {
     j: Journal,
     fail: Option<&'static str>,
     sealed_msg: RefCell<Option<String>>,
     heads: RefCell<u32>,
 }
 
-impl FakeTerminus {
+impl FakeAnvil {
     fn new(j: Journal, fail: Option<&'static str>) -> Self {
         Self { j, fail, sealed_msg: RefCell::new(None), heads: RefCell::new(0) }
     }
@@ -52,7 +52,7 @@ impl FakeTerminus {
     }
 }
 
-impl Terminus for FakeTerminus {
+impl Anvil for FakeAnvil {
     fn head(&self) -> io::Result<String> {
         self.log("head".into());
         self.gate("head")?;
@@ -129,7 +129,7 @@ impl BaseChange for FakeBase {
 
 /// Run a mutating op through the engine, returning the result and the journal.
 fn run_seal(
-    term_fail: Option<&'static str>,
+    anvil_fail: Option<&'static str>,
     fail_stage: bool,
     fail_finalize: bool,
     run_fail: Option<&'static str>,
@@ -137,12 +137,12 @@ fn run_seal(
     post: &[&str],
 ) -> (Result<String, OpError>, Vec<String>) {
     let jrn = journal();
-    let term = FakeTerminus::new(jrn.clone(), term_fail);
+    let anvil = FakeAnvil::new(jrn.clone(), anvil_fail);
     let plugins = FakePlugins::new(jrn.clone(), run_fail);
     let base = FakeBase { j: jrn.clone(), fail_stage, fail_finalize };
     let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
     let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
-    let result = Engine::new(&term, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
+    let result = Engine::new(&anvil, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
     let log = jrn.borrow().clone();
     (result, log)
 }
@@ -165,7 +165,7 @@ fn a_pre_abort_discards_the_worktree_and_never_un_seals() {
 #[test]
 fn a_post_abort_unwinds_every_plugin_in_reverse_then_un_seals() {
     // Pre "a","b" land; the seal lands; post "c" fails — the WHOLE op unwinds:
-    // every run plugin rolls back in reverse, THEN core resets the terminus.
+    // every run plugin rolls back in reverse, THEN core resets the anvil.
     let (r, log) = run_seal(None, false, false, Some("c"), &["a", "b"], &["c"]);
     assert!(matches!(r, Err(OpError::Plugin { ref name, .. }) if name == "c"));
     assert_eq!(
@@ -180,7 +180,7 @@ fn a_post_abort_unwinds_every_plugin_in_reverse_then_un_seals() {
 #[test]
 fn a_failed_open_leaves_nothing_to_unwind_or_tear_down() {
     let (r, log) = run_seal(Some("open"), false, false, None, &[], &[]);
-    assert!(matches!(r, Err(OpError::Terminus(_))));
+    assert!(matches!(r, Err(OpError::Anvil(_))));
     assert_eq!(log, ["open"]); // not opened ⇒ no close, no unwind
 }
 
@@ -194,7 +194,7 @@ fn a_stage_failure_aborts_before_any_plugin_runs() {
 #[test]
 fn a_head_failure_aborts_the_seal_pre_boundary() {
     let (r, log) = run_seal(Some("head"), false, false, None, &[], &[]);
-    assert!(matches!(r, Err(OpError::Terminus(_))));
+    assert!(matches!(r, Err(OpError::Anvil(_))));
     assert_eq!(log, ["open", "stage", "head", "close"]);
 }
 
@@ -208,7 +208,7 @@ fn a_finalize_failure_aborts_before_the_seal() {
 #[test]
 fn a_seal_failure_discards_the_worktree_without_un_sealing() {
     let (r, log) = run_seal(Some("seal"), false, false, None, &[], &[]);
-    assert!(matches!(r, Err(OpError::Terminus(_))));
+    assert!(matches!(r, Err(OpError::Anvil(_))));
     assert_eq!(log, ["open", "stage", "head", "finalize", "seal", "close"]);
 }
 
@@ -231,22 +231,22 @@ fn the_seal_commits_the_finalized_5_message() {
         }
     }
     let jrn = journal();
-    let term = FakeTerminus::new(jrn.clone(), None);
+    let anvil = FakeAnvil::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn, None);
-    Engine::new(&term, &plugins, &test_log()).seal(&MsgBase, Verb::Create, Path::new("/c"), &[], &[]).unwrap();
-    assert!(term.sealed_msg.borrow().as_deref().unwrap().contains("bl-id: bl-1234"));
+    Engine::new(&anvil, &plugins, &test_log()).seal(&MsgBase, Verb::Create, Path::new("/c"), &[], &[]).unwrap();
+    assert!(anvil.sealed_msg.borrow().as_deref().unwrap().contains("bl-id: bl-1234"));
 }
 
 #[test]
 fn post_sees_the_sealed_commit_while_pre_sees_none() {
     // Pre "a" runs before the seal (no facts); post "b" after (commit C1). §7.
     let jrn = journal();
-    let term = FakeTerminus::new(jrn.clone(), None);
+    let anvil = FakeAnvil::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn.clone(), None);
     let base = FakeBase { j: jrn, fail_stage: false, fail_finalize: false };
     let pre = [plugin("a")];
     let post = [plugin("b")];
-    Engine::new(&term, &plugins, &test_log())
+    Engine::new(&anvil, &plugins, &test_log())
         .seal(&base, Verb::Close, Path::new("/c"), &pre, &post)
         .unwrap();
     assert_eq!(
@@ -260,12 +260,12 @@ fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
     // Post "c" lands, then "d" fails — only SUCCEEDED runs unwind (§14), so "c"'s
     // post rollback sees its C1 facts and "a"'s pre rollback sees none (§7).
     let jrn = journal();
-    let term = FakeTerminus::new(jrn.clone(), None);
+    let anvil = FakeAnvil::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn.clone(), Some("d"));
     let base = FakeBase { j: jrn, fail_stage: false, fail_finalize: false };
     let pre = [plugin("a")];
     let post = [plugin("c"), plugin("d")];
-    let _ = Engine::new(&term, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
+    let _ = Engine::new(&anvil, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
     let seen = plugins.seen.borrow().clone();
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:c").unwrap().1, Some("C1".into()));
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, None);
@@ -274,10 +274,10 @@ fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
 #[test]
 fn op_error_renders_each_variant_and_is_an_error() {
     let author = OpError::Author(ioerr("x"));
-    let terminus = OpError::Terminus(ioerr("y"));
+    let anvil = OpError::Anvil(ioerr("y"));
     let plugin = OpError::Plugin { name: "p".into(), source: ioerr("z") };
     assert!(author.to_string().contains("authoring the base change failed"));
-    assert!(terminus.to_string().contains("sealing onto the terminus failed"));
+    assert!(anvil.to_string().contains("sealing onto the anvil failed"));
     assert!(plugin.to_string().contains("plugin p aborted the op"));
     assert!(format!("{author:?}").contains("Author"));
     let _: &dyn std::error::Error = &plugin;

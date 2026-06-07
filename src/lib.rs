@@ -19,7 +19,7 @@
 //! Every verb is the same shape: balls authors a base change, an ordered
 //! plugin chain acts on it, balls SEALS it (commit + integrate, atomically),
 //! and plugins react. The seal is the pre/post boundary. [`op`] names the
-//! verb-agnostic phase shape; [`git`] is the terminus seal (change worktree,
+//! verb-agnostic phase shape; [`git`] is the anvil seal (change worktree,
 //! commit + ff-integrate, un-seal); [`lifecycle`] is the [`lifecycle::Engine`]
 //! that runs the shape and unwinds it in reverse on any abort (§14). [`change`]
 //! implements the verb diff ([`lifecycle::BaseChange`]) for each §9 deliverable

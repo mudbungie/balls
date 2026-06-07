@@ -13,14 +13,14 @@
 //! against the store/landing checkout, no worktree and no seal (§8). One rule governs the
 //! unwind: every plugin that ran a phase for THIS op rolls back in reverse,
 //! THEN core un-seals its own tier-1 change — discard the worktree on a
-//! pre-abort, `git reset` the terminus on a post-abort (§14). The committed
+//! pre-abort, `git reset` the anvil on a post-abort (§14). The committed
 //! `NN-` plugin set is resolved once at op-start (§6 snapshot) and passed in,
 //! so the engine never touches the filesystem registry itself.
 
 use std::io;
 use std::path::Path;
 
-use crate::git::Terminus;
+use crate::git::Anvil;
 use crate::log::{Level, Log};
 use crate::op::Phase;
 use crate::registry::PluginRef;
@@ -45,7 +45,7 @@ pub trait BaseChange {
 /// sealed yet — the id is not assigned, §7).
 ///
 /// On a DIFFLESS op (§13) there is no seal and no §5 message, so `message` is
-/// `None`: the facts degrade to the operating tip before/after the op
+/// `None`: the facts degrade to the checkout tip before/after the op
 /// (`previous_commit`/`commit`), and `post` carries them metadata-less.
 #[derive(Debug, Clone, Copy)]
 pub struct Sealed<'a> {
@@ -79,8 +79,8 @@ pub trait Plugins {
 pub enum OpError {
     /// A [`BaseChange`] stage/finalize failed (before the seal).
     Author(io::Error),
-    /// A [`Terminus`] git act (open/seal/head) failed.
-    Terminus(io::Error),
+    /// An [`Anvil`] git act (open/seal/head) failed.
+    Anvil(io::Error),
     /// A [`Plugins::run`] returned non-zero — the named plugin aborted the op.
     Plugin { name: String, source: io::Error },
 }
@@ -89,7 +89,7 @@ impl std::fmt::Display for OpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OpError::Author(e) => write!(f, "authoring the base change failed: {e}"),
-            OpError::Terminus(e) => write!(f, "sealing onto the terminus failed: {e}"),
+            OpError::Anvil(e) => write!(f, "sealing onto the anvil failed: {e}"),
             OpError::Plugin { name, source } => write!(f, "plugin {name} aborted the op: {source}"),
         }
     }
@@ -101,7 +101,7 @@ impl std::error::Error for OpError {}
 /// the new commit, and the §5 message — enough to hand a `post`-phase rollback
 /// the same [`Sealed`] facts its forward run saw (§7). `message` is `None` on a
 /// diffless op (§13): no seal ran, so there is no §5 message to parse, and the
-/// facts the record renders are the operating tip before/after the op.
+/// facts the record renders are the checkout tip before/after the op.
 struct SealRecord {
     previous_commit: String,
     commit: String,
@@ -129,19 +129,19 @@ struct Trace {
     seal: Option<SealRecord>,
 }
 
-/// The §8 engine: a terminus, a plugin chain, and the op's [`Log`] sink. It
+/// The §8 engine: an anvil, a plugin chain, and the op's [`Log`] sink. It
 /// emits the op-level lifecycle records (begin/seal/abort, §6), interleaved with
 /// the per-plugin `invoke`/envelope records the [`Plugins`] seam writes there.
 pub struct Engine<'a> {
-    terminus: &'a dyn Terminus,
+    anvil: &'a dyn Anvil,
     plugins: &'a dyn Plugins,
     log: &'a Log,
 }
 
 impl<'a> Engine<'a> {
-    /// Build an engine over a terminus, a plugin chain, and the op's log sink.
-    pub fn new(terminus: &'a dyn Terminus, plugins: &'a dyn Plugins, log: &'a Log) -> Self {
-        Self { terminus, plugins, log }
+    /// Build an engine over an anvil, a plugin chain, and the op's log sink.
+    pub fn new(anvil: &'a dyn Anvil, plugins: &'a dyn Plugins, log: &'a Log) -> Self {
+        Self { anvil, plugins, log }
     }
 
     /// Run a MUTATING op (§8 steps 1–6): Author → Pre → Seal → Post → Teardown,
@@ -159,7 +159,7 @@ impl<'a> Engine<'a> {
         let mut trace = Trace::default();
         match self.run_inner(base, op, change_dir, pre, post, &mut trace) {
             Ok(sha) => {
-                let _ = self.terminus.close(change_dir); // (5) teardown, best-effort
+                let _ = self.anvil.close(change_dir); // (5) teardown, best-effort
                 self.log.record(Level::Info, "core", None, &format!("seal {sha}"));
                 Ok(sha)
             }
@@ -182,13 +182,13 @@ impl<'a> Engine<'a> {
         post: &[PluginRef],
         trace: &mut Trace,
     ) -> Result<String, OpError> {
-        self.terminus.open(change_dir).map_err(OpError::Terminus)?; // (1) make the place
+        self.anvil.open(change_dir).map_err(OpError::Anvil)?; // (1) make the place
         trace.opened = true;
         base.stage(change_dir).map_err(OpError::Author)?; // (1) stage the base
         run_phase(self.plugins, op, Phase::Pre, change_dir, pre, None, &mut trace.ran)?; // (2)
-        let prev = self.terminus.head().map_err(OpError::Terminus)?;
+        let prev = self.anvil.head().map_err(OpError::Anvil)?;
         let message = base.finalize(change_dir).map_err(OpError::Author)?;
-        let sha = self.terminus.seal(change_dir, &message).map_err(OpError::Terminus)?; // (3) SEAL
+        let sha = self.anvil.seal(change_dir, &message).map_err(OpError::Anvil)?; // (3) SEAL
         // boundary crossed: record the seal so post (and any post-abort) gets §7 facts.
         trace.seal = Some(SealRecord { previous_commit: prev, commit: sha.clone(), message: Some(message) });
         let sealed = trace.seal.as_ref().expect("just set").facts();
@@ -199,7 +199,7 @@ impl<'a> Engine<'a> {
     /// Run a DIFFLESS op (§8 "skip steps 1/3/5"): pre/post against the `checkout`
     /// (the STORE for sync/prime, §13), no worktree, no seal. Tier 1 is empty, so
     /// the unwind is reverse plugin rollback only (§13/§14). Unlike the seal path
-    /// there is no commit to land, but the op can still MOVE the terminus tip — a
+    /// there is no commit to land, but the op can still MOVE the anvil tip — a
     /// `pre` participant (sync ff/push) advances `tasks_branch`. So balls reads
     /// the tip before `pre` and after it and threads those as the §13
     /// `previous_commit`/`commit` facts to `post` (and any `post`-phase
@@ -227,7 +227,7 @@ impl<'a> Engine<'a> {
         result
     }
 
-    /// The fallible pre→post body of a diffless op. Captures the terminus tip
+    /// The fallible pre→post body of a diffless op. Captures the anvil tip
     /// before `pre` and after it (§13), records those facts in `moved` so a
     /// post-abort unwind hands `post`-phase rollbacks the same shape (mirroring
     /// [`Trace::seal`] on the mutating path), and threads them — metadata-less —
@@ -241,24 +241,24 @@ impl<'a> Engine<'a> {
         ran: &mut Vec<(PluginRef, Phase)>,
         moved: &mut Option<SealRecord>,
     ) -> Result<(), OpError> {
-        let previous_commit = self.terminus.head().map_err(OpError::Terminus)?;
+        let previous_commit = self.anvil.head().map_err(OpError::Anvil)?;
         run_phase(self.plugins, op, Phase::Pre, checkout, pre, None, ran)?;
-        let commit = self.terminus.head().map_err(OpError::Terminus)?;
+        let commit = self.anvil.head().map_err(OpError::Anvil)?;
         let record = moved.insert(SealRecord { previous_commit, commit, message: None });
         run_phase(self.plugins, op, Phase::Post, checkout, post, Some(&record.facts()), ran)
     }
 
     /// §14 unwind: roll every run plugin back in reverse, THEN core un-seals its
-    /// tier-1 change — `git reset` the terminus on a post-abort, discard the
+    /// tier-1 change — `git reset` the anvil on a post-abort, discard the
     /// change worktree always. Core's un-seal is local, so its errors are
     /// swallowed (best-effort; the op already failed).
     fn rollback(&self, op: Verb, change_dir: &Path, trace: &Trace) {
         unwind(self.plugins, op, change_dir, &trace.ran, trace.seal.as_ref());
         if let Some(record) = &trace.seal {
-            let _ = self.terminus.unseal(&record.previous_commit); // post-abort: reset the terminus
+            let _ = self.anvil.unseal(&record.previous_commit); // post-abort: reset the anvil
         }
         if trace.opened {
-            let _ = self.terminus.close(change_dir); // discard the change worktree
+            let _ = self.anvil.close(change_dir); // discard the change worktree
         }
     }
 }

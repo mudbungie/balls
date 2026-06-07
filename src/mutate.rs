@@ -2,7 +2,7 @@
 //! `drop`, wired to the §8 engine. The MUTATING counterpart to [`crate::checkout`]
 //! (which wires the diffless `prime`/`sync`): these author a `tasks/<id>.md` diff
 //! and SEAL it, so they run the full Author → Pre → Seal → Post → Teardown shape
-//! against a change worktree off the STORE terminus
+//! against a change worktree off the STORE anvil
 //! ([`crate::lifecycle::Engine::seal`]).
 //!
 //! Every collaborator already exists — [`crate::change`] authors each verb's diff
@@ -72,8 +72,8 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let post = hooks.resolve(&reg, verb.token(), "post");
     let change_dir = clone.change(&change_token());
     let plugins = Subprocess::new(ctx, &log, edge.depth);
-    let terminus = Git::at(&store);
-    let sha = Engine::new(&terminus, &plugins, &log)
+    let anvil = Git::at(&store);
+    let sha = Engine::new(&anvil, &plugins, &log)
         .seal(base.as_ref(), verb, &change_dir, &pre, &post)
         .map_err(|e| other(e.to_string()))?;
     report::emit(verb, &store, &sha)

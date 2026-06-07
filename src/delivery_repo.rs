@@ -146,15 +146,15 @@ impl Repo for Project {
     }
 }
 
-/// The ids of every `tasks/<id>.md` in the terminus checkout `operating` still
+/// The ids of every `tasks/<id>.md` in the checkout still
 /// claimed by `actor` — the set `prime.post` re-materializes a worktree for
 /// (§11/§12). The claimed set is not on the diffless prime wire, so the plugin
-/// reads it straight off the terminus, filtering on the ball's sole occupancy
+/// reads it straight off the checkout, filtering on the ball's sole occupancy
 /// field ([`Task::claimant`]). Non-`.md` entries and unparseable balls are
 /// skipped (a prime is best-effort and converges, not a store validator).
-pub fn claimed_ids(operating: &Path, actor: &str) -> io::Result<Vec<String>> {
+pub fn claimed_ids(checkout: &Path, actor: &str) -> io::Result<Vec<String>> {
     let mut ids = Vec::new();
-    for entry in fs::read_dir(operating.join("tasks"))? {
+    for entry in fs::read_dir(checkout.join("tasks"))? {
         let path = entry?.path();
         let Some(id) = path.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_suffix(".md")) else {
             continue; // not a ball file (e.g. a stray non-`.md` entry)

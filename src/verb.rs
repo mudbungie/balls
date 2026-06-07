@@ -40,7 +40,7 @@ pub enum OpClass {
     Mutating,
     /// Authors no ball-file diff: no seal, no change worktree (§8 "skip steps
     /// 1/3/5"). Reads and checkout-lifecycle verbs; their hooks run against
-    /// `operating/` directly.
+    /// the checkout directly.
     Diffless,
 }
 
