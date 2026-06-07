@@ -36,6 +36,12 @@ fn argv(a: &[&str]) -> Vec<String> {
     a.iter().map(ToString::to_string).collect()
 }
 
+/// The op-log this edge writes to (core emits a `begin` record per op, §6).
+fn op_log(e: &Edge) -> String {
+    let path = e.xdg.clone_dir(&e.invocation_path).op_log();
+    std::fs::read_to_string(path).unwrap_or_default()
+}
+
 #[test]
 fn prime_founds_both_branches_on_a_miss_then_converges_on_the_hit_path() {
     let tmp = TempDir::new().unwrap();
@@ -45,6 +51,20 @@ fn prime_founds_both_branches_on_a_miss_then_converges_on_the_hit_path() {
     assert!(store(&e).join("tasks").is_dir());
     // Re-prime: both checkouts already exist → hit path (rebind None), no error.
     prime(&e, &[]).unwrap();
+}
+
+#[test]
+fn prime_drives_a_sync_after_the_prime_chain() {
+    // §12/§13 gap (A): prime is an orchestrator of syncs — after the prime chain
+    // it must drive `sync` so an established checkout is brought current. Core
+    // logs a `begin` per op (§6), so a `sync` op record in the op-log proves the
+    // driven sync ran (the chain is tracker-free, so the fetch itself no-ops).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    prime(&e, &argv(&["--as", "me"])).unwrap();
+    let log = op_log(&e);
+    assert!(log.contains("\"op\":\"prime\""), "prime chain ran: {log}");
+    assert!(log.contains("\"op\":\"sync\""), "prime drove a sync: {log}");
 }
 
 #[test]
