@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Spec §12 today: 'A push that fails for lack of perms falls back to stealth-local silently.' That silent fallback is only defensible for FOUNDING — the remote store branch is absent and you lack create perms, so 'couldn't found, stayed local' is genuinely harmless and once-per-clone.\n\nIt is WRONG for an established remote: an upstream rejection of a push to an already-existing store (non-ff, perms revoked, server hook reject) means your mutation did not land while you believe you are federated — a silent split-brain. Those two cases must not collapse to one silent path.\n\nResolution: distinguish at the tracker:\n- founding-miss (branch absent, no create perm) -> stealth fallback, as today (optionally a notice).\n- rejected push to an established remote -> ERROR (surface it; do not silently degrade to stealth).\n\nTouches §12, §15 (revision-log entry).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":330,"source":"balls","state":"open","synced_at":"2026-06-07T07:06:28.646010195+00:00","url":"https://github.com/mudbungie/balls/issues/330"}}},
   "id": "bl-9857",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T07:06:28.654436524Z"},
   "tags": [],
   "title": "Greenfield §12: split prime push-failure — founding-miss -> stealth fallback; rejected push to established remote -> error",
   "type": "task",
-  "updated_at": "2026-06-07T07:06:27.752925683Z"
+  "updated_at": "2026-06-07T07:06:28.654447134Z"
 }
