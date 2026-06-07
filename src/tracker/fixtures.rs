@@ -39,9 +39,8 @@ pub fn tip(repo: &Path, rev: &str) -> String {
 
 /// An empty bare remote on the `balls` branch — the bootstrap-on-miss case
 /// (the branch does not exist on it yet). The name is uniquely numbered so a
-/// test that builds two remotes (e.g. a wire and a pointer hop) gets two
-/// distinct repos, never one path aliased — the invariant that keeps the
-/// committed-pointer test from collapsing into a single shared remote.
+/// test that builds two remotes in one tempdir gets two distinct repos, never
+/// one path aliased — defensive uniqueness for any multi-remote fixture (bl-6a39).
 pub fn empty_remote(tmp: &Path) -> PathBuf {
     static N: AtomicU64 = AtomicU64::new(0);
     let remote = tmp.join(format!("remote-{}.git", N.fetch_add(1, Ordering::Relaxed)));
