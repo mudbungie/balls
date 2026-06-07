@@ -36,7 +36,7 @@ fn parse_collects_every_flag_and_positional() {
     let f = parse(
         &strs(&[
             "the-id", "k=v", "--as", "ann", "-m", "subj", "--body", "para", "--parent", "bl-p",
-            "--gates", "bl-g", "--needs", "bl-n", "-p", "3", "-t", "x",
+            "--blocks", "bl-g:close", "--needs", "bl-n", "-p", "3", "-t", "x",
         ]),
         "default",
     )
@@ -45,7 +45,7 @@ fn parse_collects_every_flag_and_positional() {
     assert_eq!(f.over.as_deref(), Some("subj"));
     assert_eq!(f.body.as_deref(), Some("para"));
     assert_eq!(f.parent.as_deref(), Some("bl-p"));
-    assert_eq!(f.gates.as_deref(), Some("bl-g"));
+    assert_eq!(f.blocks, ["bl-g:close"]);
     assert_eq!(f.needs, ["bl-n"]);
     assert_eq!(f.priority, Some(3));
     assert_eq!(f.tags, ["x"]);
@@ -69,65 +69,6 @@ fn parse_errors_on_a_flag_missing_its_value() {
 fn parse_rejects_a_non_integer_priority() {
     let err = parse(&strs(&["-p", "high"]), "me").unwrap_err();
     assert!(err.to_string().contains("not an integer"));
-}
-
-#[test]
-fn create_authors_a_ball_with_its_front_door_structure() {
-    let d = tempdir().unwrap();
-    let dir = d.path();
-    write(dir, "bl-1000", TASK);
-    let mut f = flags();
-    f.positionals = vec!["New thing".into()];
-    f.parent = Some("bl-1000".into());
-    f.needs = vec!["bl-9".into()];
-    f.priority = Some(2);
-    f.tags = vec!["x".into()];
-    let (base, before) = base_change(Verb::Create, dir, &f, 42).unwrap();
-    assert!(before.is_none()); // create has no op-start ball
-    base.stage(dir).unwrap();
-    let id = new_id(dir, &["bl-1000"]);
-    let t = read_task(dir, &id).unwrap();
-    assert_eq!(t.title, "New thing");
-    assert_eq!(t.created, 42);
-    assert_eq!(t.priority, Some(2));
-    assert_eq!(t.tags, ["x"]);
-    assert_eq!(t.blockers, vec![Blocker { id: "bl-9".into(), on: On::Claim }]);
-    // --parent writes the reciprocal claim-blocker on the epic (§10).
-    let parent = read_task(dir, "bl-1000").unwrap();
-    assert_eq!(parent.blockers, vec![Blocker { id, on: On::Claim }]);
-}
-
-#[test]
-fn create_with_gates_writes_a_close_reciprocal() {
-    let d = tempdir().unwrap();
-    let dir = d.path();
-    write(dir, "bl-1000", TASK);
-    let mut f = flags();
-    f.positionals = vec!["Gate".into()];
-    f.gates = Some("bl-1000".into());
-    let (base, _) = base_change(Verb::Create, dir, &f, 0).unwrap();
-    base.stage(dir).unwrap();
-    let id = new_id(dir, &["bl-1000"]);
-    assert_eq!(read_task(dir, "bl-1000").unwrap().blockers, vec![Blocker { id, on: On::Close }]);
-}
-
-#[test]
-fn create_rejects_parent_and_gates_together() {
-    let mut f = flags();
-    f.positionals = vec!["t".into()];
-    f.parent = Some("a".into());
-    f.gates = Some("b".into());
-    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
-    assert!(err.to_string().contains("mutually exclusive"));
-}
-
-#[test]
-fn create_requires_exactly_one_positional() {
-    let dir = tempdir().unwrap();
-    assert!(base_change(Verb::Create, dir.path(), &flags(), 0).is_err()); // zero
-    let mut f = flags();
-    f.positionals = vec!["a".into(), "b".into()];
-    assert!(base_change(Verb::Create, dir.path(), &f, 0).is_err()); // two
 }
 
 #[test]
@@ -264,3 +205,7 @@ fn change_tokens_are_hex_and_distinct() {
     assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
     assert_ne!(a, b);
 }
+
+// The `create` front-door tests share this module's flags/write/new_id fixtures.
+#[path = "mutate_create_tests.rs"]
+mod create;
