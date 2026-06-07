@@ -6,41 +6,34 @@
 //! worktree, then the **store** (`tasks_branch`, holding `tasks/`) as a linked
 //! orphan-rooted worktree of the same repo. One repo, two branches, two real
 //! checkouts — no `operating/` symlink, no terminus to resolve (§1). Core knows
-//! nothing of remotes here (§0); it only ensures the two checkouts exist, then
-//! `prime` runs the configured chain whose `tracker` handler does the remote work
-//! (adopt/found/stealth-lock, §12). Re-running `prime` skips this entirely (the
-//! checkout is already a landing), so the whole verb converges to a no-op — there
-//! is no `--reinit`.
+//! nothing of remotes here (§0); it only ensures the two checkouts exist and
+//! seeds the landing's `config/` from the app default-config ([`crate::seed`]),
+//! then `prime` runs the configured chain whose `tracker` handler does the remote
+//! work (adopt/found/stealth-lock, §12). Re-running `prime` skips this entirely
+//! (the checkout is already a landing), so the whole verb converges to a no-op —
+//! there is no `--reinit`.
 
 use crate::git;
-use crate::registry::Registry;
-use crate::verb::{OpClass, Verb};
+use crate::layout::Xdg;
+use crate::seed;
 use crate::{DEFAULT_TASKS_BRANCH, LANDING_BRANCH};
 use std::fs;
 use std::io;
 use std::path::Path;
 
-/// Run order for the tracker in `sync/prime` `pre` (it imports remote state
-/// before reactors run) and in every deliverable verb's `post` — high, so the
-/// irreversible push sorts LAST among reactors (§8).
-const PRE_ORDER: u32 = 50;
-const POST_ORDER: u32 = 90;
-
 /// Found the two-branch substrate (§2 bootstrap-on-miss): the `balls/config`
-/// landing at `landing` (seeded `config/` + default tracker wiring, only when
-/// `tracker_bin` names an installed binary — else a tracker-free, stealth box)
-/// and the `balls/tasks` store at `store` (a linked worktree on an orphan
-/// branch, seeded `tasks/`). The caller guarantees neither checkout already
-/// exists, so this never clobbers an established checkout.
-pub fn found(landing: &Path, store: &Path, tracker_bin: Option<&Path>) -> io::Result<()> {
+/// landing at `landing` (its `config/` SEEDED from the app default-config — the
+/// `balls.toml` + the `plugins.toml` hook schedule, with each named plugin found
+/// beside `bl` in `exe_dir` bound and every absent-binary entry pruned, §12) and
+/// the `balls/tasks` store at `store` (a linked worktree on an orphan branch,
+/// seeded `tasks/`). The caller guarantees neither checkout already exists, so
+/// this never clobbers an established checkout.
+pub fn found(landing: &Path, store: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::Result<()> {
     fs::create_dir_all(landing)?;
     git::run(landing, &["init", "-q", "-b", LANDING_BRANCH], None)?;
     identify(landing)?;
-    seed_config(landing)?;
-    if let Some(bin) = tracker_bin {
-        wire_tracker(landing)?;
-        Registry::at(landing).bind("tracker", bin)?;
-    }
+    fs::write(landing.join(".gitignore"), "/config/plugins/bin/\n")?;
+    seed::seed_landing(xdg, landing, exe_dir)?;
     git::run(landing, &["add", "-A"], None)?;
     git::run(landing, &["commit", "-q", "-m", "balls: found"], None)?;
     found_store(landing, store)?;
@@ -70,35 +63,6 @@ fn found_store(landing: &Path, store: &Path) -> io::Result<()> {
 fn identify(landing: &Path) -> io::Result<()> {
     git::run(landing, &["config", "user.name", "balls"], None)?;
     git::run(landing, &["config", "user.email", "balls@localhost"], None)?;
-    Ok(())
-}
-
-/// Seed the committed landing substrate: a `.gitignore` for the machine-local
-/// `config/plugins/bin/` (§2) and a `config/balls.toml` (§4 — read from the
-/// landing, never layered down a trail). Empty `op/phase/` dirs are never seeded
-/// — empty means "run nothing" (§12).
-fn seed_config(landing: &Path) -> io::Result<()> {
-    fs::write(landing.join(".gitignore"), "/config/plugins/bin/\n")?;
-    let config = landing.join("config");
-    fs::create_dir_all(&config)?;
-    fs::write(
-        config.join("balls.toml"),
-        "# balls config (§4) — read from the landing\n",
-    )?;
-    Ok(())
-}
-
-/// Lay the committed registry symlinks for the default tracker (§6/§12): import
-/// in `sync/pre` + `prime/pre`, publish in every deliverable verb's `post`. The
-/// LOCAL `bin/tracker` binding is laid separately by [`found`] (it is
-/// gitignored — only the portable relative wiring travels with the branch, §2).
-fn wire_tracker(landing: &Path) -> io::Result<()> {
-    let reg = Registry::at(landing);
-    reg.link("sync", "pre", PRE_ORDER, "tracker")?;
-    reg.link("prime", "pre", PRE_ORDER, "tracker")?;
-    for verb in Verb::ALL.into_iter().filter(|v| v.class() == OpClass::Mutating) {
-        reg.link(verb.token(), "post", POST_ORDER, "tracker")?;
-    }
     Ok(())
 }
 
