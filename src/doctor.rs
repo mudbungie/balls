@@ -25,9 +25,9 @@
 //! - circular blockers (§10) — a cycle in the `blockers` edges across `tasks/`.
 //!
 //! - the §4 [`EffectiveConfig`] resolves (the config-layering subsystem):
-//!   the layered `config/balls.toml` parses, and the resolved `branch`/`id_scheme`
-//!   are usable — an empty `branch`, empty `alphabet`, or zero `length` would
-//!   break id generation, so doctor surfaces it before `create` panics.
+//!   the layered `config/balls.toml` parses, and the resolved `branch` is usable
+//!   — an empty `branch` has no task-store to root on, so doctor surfaces it
+//!   before an op fails.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -81,7 +81,7 @@ pub fn audit(
 
 /// Resolve the §4 layered config (§12 trail terminus→landing, then the XDG
 /// `user_config`) and check it can drive core: a parse/projection failure, or a
-/// resolved `branch`/`id_scheme` that would break id generation, is drift a
+/// resolved `branch` that would break the task store, is drift a
 /// `config/balls.toml` edit + `bl prime` clears. Reading config is a local act
 /// (§4 — no fetch), so doctor layers it over `operating`'s own trail; today that
 /// is just `operating` (core materializes no remote hop, §12 SEAM).
@@ -97,19 +97,14 @@ fn config_resolution(operating: &Path, user_config: &Path, findings: &mut Vec<Fi
     }
 }
 
-/// Why a resolved §4 config cannot drive `create`, or `None` if it is usable. An
-/// empty `branch` has no task-store branch; an empty `alphabet` or zero `length`
-/// makes id generation impossible (the [`crate::id::IdScheme`] precondition).
+/// Why a resolved §4 config cannot drive core, or `None` if it is usable. An
+/// empty `branch` has no task-store branch to root on. (The id scheme is fixed,
+/// not config — [`crate::id::IdScheme::default`] is always valid, so there is
+/// nothing to validate there.)
 fn config_defect(cfg: &EffectiveConfig) -> Option<&'static str> {
-    if cfg.branch.is_empty() {
-        Some("branch is empty — no task-store branch to root on")
-    } else if cfg.id_scheme.alphabet.is_empty() {
-        Some("id_scheme.alphabet is empty — id generation has no characters to draw")
-    } else if cfg.id_scheme.length == 0 {
-        Some("id_scheme.length is zero — every id would be the bare prefix")
-    } else {
-        None
-    }
+    cfg.branch
+        .is_empty()
+        .then_some("branch is empty — no task-store branch to root on")
 }
 
 /// Any leftover `changes/<uuid>/` is crash debris — an op whose teardown (§8)
