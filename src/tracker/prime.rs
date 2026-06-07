@@ -11,8 +11,13 @@
 //!   crosses a checkout boundary exactly once, by `install`, §4/§12). Then
 //!   **adopt or found**, the one sync-or-bootstrap step: an established remote
 //!   store branch is left for `sync` to keep current (adopt); an ABSENT one is
-//!   founded by pushing the local checkout (bootstrap-on-miss).
-//!   Established-vs-absent is read from the remote, not declared.
+//!   founded by pushing the local checkout (bootstrap-on-miss). A founding push
+//!   REJECTED for lack of a create permission falls back to stealth-local
+//!   silently — harmless by definition, since nothing existed to land on (§12).
+//!   That silent fallback is founding's ALONE: a rejected push to an ESTABLISHED
+//!   store ([`super::remote_ops::push`], every op's post) ERRORS (E5), never
+//!   degrades to stealth — a believed-federated mutation that vanished is
+//!   split-brain. Established-vs-absent is read from the remote, not declared.
 
 use super::git::git;
 use super::payload::Binding;
@@ -23,7 +28,9 @@ use std::path::Path;
 
 /// Bring the tracker to readiness for `b` (§12). Idempotent: a re-run founds
 /// nothing new (the branch now exists → adopt) and re-locks an already-locked
-/// stealth checkout, so it converges to a no-op.
+/// stealth checkout, so it converges to a no-op. A founding push the remote
+/// rejects (no create perm) degrades to stealth — the founding-miss case, kept
+/// distinct from an established-store push reject, which errors (`remote_ops`).
 pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
     let Some(remote) = b.remote.clone() else {
         return stealth_lock(b, env);
@@ -35,9 +42,14 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
     if remote_has_branch(store, &remote, &b.tasks_branch)? {
         return Ok(()); // established → adopt; `sync` keeps it current
     }
-    // Absent → bootstrap (create+push). A push that fails for lack of perms falls
-    // back to stealth-local SILENTLY (§12): founding a branch you can't push is
-    // harmless by definition, so a no-write-access box just keeps the store local.
+    // FOUNDING-MISS: the branch is absent, so this push CREATES it. A rejection
+    // here is the once-per-clone founding attempt failing for lack of a create
+    // permission — harmless by definition (nothing existed to land on), so we
+    // degrade to stealth-local SILENTLY rather than error (§12). This silent
+    // fallback is founding's ALONE: an established-store push (every op's
+    // `*/post`, `remote_ops::push`) ERRORS on rejection (E5), because there a
+    // believed-federated mutation did NOT land — silently degrading would be
+    // split-brain.
     if git(store, &["push", &remote, &b.tasks_branch]).is_err() {
         return stealth_lock(b, env);
     }
