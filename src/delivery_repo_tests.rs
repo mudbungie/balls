@@ -159,6 +159,31 @@ fn unsquash_resets_integration_only_when_its_tip_is_the_delivery_commit() {
 }
 
 #[test]
+fn delivered_in_returns_the_marked_commits_newest_first() {
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+
+    // First incarnation of bl-x: deliver onto main, then close it out (discard).
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("a.txt"), "1\n").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "first [bl-x]").unwrap();
+    p.discard(&wt, "work/bl-x").unwrap();
+
+    // A reused id only begins after the prior closed, so its delivery lands
+    // LATER — deliveries are monotonic with incarnations (§11).
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("b.txt"), "2\n").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "second [bl-x]").unwrap();
+
+    let shas = p.delivered_in("main", "[bl-x]").unwrap();
+    let subject = |sha: &str| Project::run(&root, &["log", "-1", "--format=%s", sha]).unwrap().trim().to_string();
+    // Newest first: the k-th-most-recent incarnation maps to the k-th element.
+    assert_eq!(shas.iter().map(|s| subject(s)).collect::<Vec<_>>(), ["second [bl-x]", "first [bl-x]"]);
+    // A never-delivered id → empty (an honest cross-clone miss, §11).
+    assert!(p.delivered_in("main", "[bl-zzzz]").unwrap().is_empty());
+}
+
+#[test]
 fn changed_task_paths_lists_the_ops_touched_task_file() {
     let (tmp, root, _p) = project();
     fs::create_dir(root.join("tasks")).unwrap();
