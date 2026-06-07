@@ -455,9 +455,23 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   (§12). (`bl install` subsumes the older `bl plugin install <name> <path>` and `--from <branch>`
   spellings.)
 
-- **Recursion guard:** `BALLS_PLUGIN_DEPTH` (built-in cap). At the cap, nested ops run PLUGIN-FREE
-  (suppressed, not refused) — a plugin can always shell back to `bl` without cascading chains. A
-  plugin may deliberately re-enable plugins on a nested call.
+- **Invocation-tree cap (the runaway backstop):** every nested `bl` — a plugin shelling back, an op
+  triggering another op, a clone spawning a clone — runs as a descendant process and inherits one
+  depth odometer (`BALLS_PLUGIN_DEPTH`, bumped once per nested invocation whatever its SOURCE; plugin
+  recursion is just ONE dimension of it, clone-spawn another). A single built-in cap bounds the
+  odometer along any root-to-leaf path. **Crossing the cap ABORTS the op — fail, not silent:** core
+  rolls the run plugins back in reverse order (§8/§14) and emits a diagnostic naming the op/plugin
+  chain that overran, so the loop SURFACES instead of hiding. (The retired disposition — "run
+  PLUGIN-FREE at the cap, suppressed not refused" — was the worst option: it converted a runaway into
+  quiet wrong-behavior, the offending plugin getting no signal and the op silently running without the
+  plugins it expected.) The cap is the general failback for UNBOUNDED RECURSION in any dimension: a
+  plugin wired on op X whose handler runs `bl X` (self-retrigger — the common bug), recursive
+  clone-spawning, and mutual `plugin1`↔`plugin2` loops are all the one odometer crossing the one cap.
+  A BOUNDED chain never nears it — forge `claim.post` running `bl create` for the gate child goes 1
+  deep and never re-triggers its own op. There is no hatch to re-enable plugins on a nested call (it
+  would let a runaway defeat its own backstop). A plugin SHOULD NOT re-trigger its own op; §0 already
+  bars a plugin from depending on another plugin's presence (the mutual half). Finer-grained per-op
+  controls can layer ON TOP; this cap is the failback under them.
 - **Snapshot:** an op reads the effective `[hooks]` schedule at op-start and uses that frozen set;
   an install landing mid-op affects only the next op.
 - **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key; reads stay
@@ -1067,6 +1081,25 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **recursion guard → general invocation-tree cap, fail+rollback (2026-06-07, bl-7110 — post-freeze).**
+  §6 read: at the `BALLS_PLUGIN_DEPTH` cap "nested ops run PLUGIN-FREE (suppressed, not refused)" and "a
+  plugin may deliberately re-enable plugins on a nested call." Two defects. (1) What the guard catches is
+  almost always a BUG — self-retrigger, a plugin wired on op X whose handler shells `bl X` (a `sync.post`
+  plugin running `bl sync`), climbing depth to the cap; the legit shell-back (forge `claim.post` →
+  `bl create` for the gate child) goes 1 deep and never re-triggers its own op, so it never nears the
+  cap. Running PLUGIN-FREE at the cap converts that runaway into QUIET wrong-behavior: the offending
+  plugin gets no signal and the op silently runs without the plugins it expected — the worst disposition.
+  (2) The re-enable hatch lets a runaway defeat its own backstop. RESOLVED, two moves: disposition FLIP
+  (suppress → fail+rollback) and GENERALIZE. Cap-hit now ABORTS + rolls back (§8/§14 reverse-order) with a
+  diagnostic naming the op/plugin chain, so the loop surfaces. And the cap is no longer plugin-specific:
+  it is ONE odometer over the whole INVOCATION TREE — every nested `bl` bumps it whatever the source
+  (plugin shell-back, op→op, clone→clone), so plugin-recursion-depth is just one DIMENSION and the same
+  backstop also catches runaway clone-spawning. The hatch is DELETED; a one-line note discourages a
+  plugin from re-triggering its own op (the §0 "plugins don't depend on each other's presence" already
+  covers the mutual `plugin1`↔`plugin2` half). Bounded chains are unaffected (they never hit the cap);
+  finer-grained per-op controls can layer on top — this is the failback under them. Touched §6 (rewrote
+  the guard bullet). No code follow-up filed; enforcement lives in core dispatch/run alongside the
+  existing depth env.
 - **`status` plugin SUBTRACTED — bedrock vs render projection (2026-06-07, bl-d074 — post-freeze).** The
   topic proposed a shipped default `status` plugin that persists a 4-value field (`open`/`blocked`/
   `in_progress`/`in_review`) and keeps it fresh by **cross-task fan-out** (`close.post`/`drop.post`
