@@ -1,0 +1,1 @@
+{"ts":"2026-06-07T20:09:47.714757322Z","author":"Awhile","text":"Read verbs --json is the bedrock projection: raw stored frontmatter only (literal i64 timestamps), no derived status/children/tree/ISO — aligns the impl with bl-588b §9"}
