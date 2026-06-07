@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-07T20:10:48.156867179Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-06-07T20:14:38.538327701Z"},
   "tags": ["greenfield"],
   "title": "Flaky test under parallel run: tracker::prime::the_committed_pointer_overrides_the_wire_remote",
   "type": "task",
-  "updated_at": "2026-06-07T20:10:48.156870996Z"
+  "updated_at": "2026-06-07T20:14:38.538329144Z"
 }
