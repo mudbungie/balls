@@ -6,7 +6,7 @@ use crate::reads::{Flags, Style};
 use crate::task::{On, Task};
 
 fn flags(json: bool) -> Flags {
-    Flags { json, plain: true, target: None }
+    Flags { json, plain: true, status: None, target: None }
 }
 
 fn plain() -> Style {
