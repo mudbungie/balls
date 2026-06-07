@@ -17,6 +17,7 @@ fn edge(tmp: &TempDir, tracker: Option<PathBuf>) -> Edge {
         default_actor: "tester".into(),
         depth: 0,
         tracker_bin: tracker,
+        color: false,
     }
 }
 
