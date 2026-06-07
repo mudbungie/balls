@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2e9f",
+  "claimed_by": "Implanted",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T05:09:27.805493986Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:19:21.907327987Z"},
   "tags": ["greenfield"],
   "title": "Greenfield observability: unified per-clone JSON-lines log (clones/<enc>/log)",
   "type": "task",
-  "updated_at": "2026-06-07T20:19:21.907330782Z"
+  "updated_at": "2026-06-07T20:19:21.925981074Z"
 }
