@@ -4,7 +4,7 @@
 //! renders its §5 message at [`BaseChange::finalize`] by RE-READING the
 //! post-`pre` tree (so a `create/pre` reassigned id, or a `pre` retitle, is
 //! reflected). The impls are git-free — they read/write the worktree dir
-//! directly, leaving the [`crate::lifecycle::Engine`]'s terminus the only git in
+//! directly, leaving the [`crate::lifecycle::Engine`]'s anvil the only git in
 //! an op — and the clock and minted id are injected, so authoring is pure and
 //! unit-testable on a plain temp dir.
 //!

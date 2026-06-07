@@ -1,6 +1,6 @@
 //! Task-file IO on a worktree dir — the primitives every base change shares, so
 //! `tasks/<id>.md`'s path arithmetic and read/write live in ONE place (§3). Pure
-//! filesystem ops: no git (the terminus owns that), no clock (the verb layer
+//! filesystem ops: no git (the anvil owns that), no clock (the verb layer
 //! injects `now`).
 //!
 //! "Resolved" is file-existence (§10): a closed or dropped ball's file is gone,
