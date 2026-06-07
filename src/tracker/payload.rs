@@ -13,15 +13,16 @@ use std::io::{self, Read};
 
 /// §7 binding — where the op is happening, from the tracker's seat. `remote` is
 /// absent in a stealth (no-remote) repo, which is the tracker's whole branch
-/// point: no remote ⇒ nothing to talk to. `operating` is the terminus checkout
-/// it fetches/pushes against; `invocation_path` locates this checkout's clone
-/// bundle (§1) for the stealth lock.
+/// point: no remote ⇒ nothing to talk to. `store` is the STORE checkout it
+/// fetches/pushes `tasks_branch` against (§2); `invocation_path` locates this
+/// checkout's clone bundle (§1) for the stealth lock. (The wire also carries
+/// `landing`, which the tracker ignores — serde drops it.)
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Binding {
     #[serde(default)]
     pub remote: Option<String>,
-    pub branch: String,
-    pub operating: String,
+    pub tasks_branch: String,
+    pub store: String,
     pub invocation_path: String,
 }
 
@@ -53,20 +54,20 @@ mod tests {
     fn reads_a_tracked_binding_and_ignores_extra_wire_fields() {
         let b = read(
             r#"{"op":"sync","phase":"pre","actor":"x","command":{"op":"sync"},
-                "binding":{"remote":"git@h:r","branch":"balls",
-                           "operating":"/op","invocation_path":"/proj"}}"#,
+                "binding":{"remote":"git@h:r","tasks_branch":"balls/tasks",
+                           "store":"/store","landing":"/landing","invocation_path":"/proj"}}"#,
         )
         .unwrap();
         assert_eq!(b.remote.as_deref(), Some("git@h:r"));
-        assert_eq!(b.branch, "balls");
-        assert_eq!(b.operating, "/op");
+        assert_eq!(b.tasks_branch, "balls/tasks");
+        assert_eq!(b.store, "/store");
         assert_eq!(b.invocation_path, "/proj");
     }
 
     #[test]
     fn an_absent_remote_is_the_stealth_binding() {
         let b = read(
-            r#"{"binding":{"branch":"balls","operating":"/op","invocation_path":"/p"}}"#,
+            r#"{"binding":{"tasks_branch":"balls/tasks","store":"/store","invocation_path":"/p"}}"#,
         )
         .unwrap();
         assert_eq!(b.remote, None);
