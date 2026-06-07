@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-77a7",
+  "claimed_by": "Adware",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T06:01:27.916557585Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T06:01:30.264116173Z"},
   "tags": [],
   "title": "Burn §16 bl doctor out of docs/architecture.md",
   "type": "chore",
-  "updated_at": "2026-06-07T06:01:30.264127044Z"
+  "updated_at": "2026-06-07T06:01:56.184740174Z"
 }
