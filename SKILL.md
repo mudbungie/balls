@@ -6,7 +6,7 @@ You are using **balls** (`bl`), a git-native task tracker. Tasks are JSON files 
 
 **One agent takes the task all the way through: claim → work → review → close → done.** That's the default. The `review` status is a checkpoint, not a stopping point. If nobody else is lined up to review your work, *you* do the close step yourself and the task is finished. Do not leave tasks sitting in `review` waiting for a reviewer who does not exist.
 
-There is one inviolable rule: **never run `bl close` while you're standing inside the worktree it would delete.** `cd` back to the repo root first. The binary will refuse otherwise with `cannot close from within the worktree`.
+One recommendation worth following: **`cd` out of the worktree (back to the repo root) before you run `bl close`.** Close tears the worktree down, and if your shell is sitting inside it, your working directory gets deleted underneath you. balls does **not** enforce this — it's a courtesy to your own shell, not a precondition.
 
 Splitting the work across two agents — one submits, a different one approves — is an opt-in pattern, covered at the end of this guide. Don't reach for it unless the user has actually set up a reviewer. An agent that submits and then stops is an agent that didn't finish its job.
 
@@ -24,7 +24,7 @@ The recommended deployment is a **bare clone** (`core.bare = true` on the clone'
 
 - `git status` at the bare root is **fatal by design** (`fatal: this operation must be run in a work tree`), not a broken repo. To see state: `bl list` for tasks; `git status`/`git diff` *inside* your `.balls-worktrees/<id>/` worktree for code.
 - Read-only and root commands (`bl prime`/`ready`/`list`/`show`, and `bl close`) all work from the bare root. `bl review` does its own squash via an internal detached worktree — nothing extra for you to do.
-- The inviolable rule is unchanged and really means "not from inside the bl worktree." On a bare clone there is no checked-out main to stand in, so `cd <repo root>` before `bl close` means `cd` to the bare directory.
+- The `cd`-out recommendation still applies and really means "don't stand inside the bl worktree when you close it." On a bare clone there is no checked-out main to stand in, so `cd <repo root>` before `bl close` means `cd` to the bare directory.
 
 ## Session Start
 
@@ -457,7 +457,7 @@ Set `BALLS_IDENTITY` in your environment or use `--as` on commands that accept i
 | Situation | Solution |
 |-----------|----------|
 | Merge conflict on `bl review` | Resolve in worktree, run `bl review` again |
-| `bl close` errors "cannot close from within the worktree" | `cd` to the repo root, retry |
+| Shell wedged after `bl close` (cwd was inside the torn-down worktree) | `cd` to the repo root; close out of the worktree next time (not enforced) |
 | Task claimed by someone else | Pick another from `bl ready` |
 | Worktree in bad state | `bl drop TASK_ID --force` (loses uncommitted work) |
 | Orphaned claims/worktrees | `bl repair --fix` |

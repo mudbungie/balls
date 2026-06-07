@@ -650,9 +650,10 @@ with zero core knowledge of the plugin's territory (no privileged plugin, §0/§
 in plugin XDG territory, not the project tree.
 
 **Hooks:** `claim.post` materialize (create-if-absent); `unclaim.post`/`drop.post` release
-(remove-if-present); **`close.pre` deliver** (sorts last); **`close.post` teardown** (+ the
-best-effort cwd-safety guard: refuse teardown if cwd is inside the worktree — this is where the
-"never close from inside the worktree" rule lives, as a plugin precondition, not a core guarantee).
+(remove-if-present); **`close.pre` deliver** (sorts last); **`close.post` teardown**. balls does not
+guard against tearing a worktree down from inside it — the agent SHOULD `cd` out of the worktree
+before closing so its shell cwd is not deleted underneath it (a recommendation in the skill guide,
+not an enforced precondition).
 
 **Two variants** (only "what's wired into the delivery hooks" differs; both kind-blind and idempotent):
 - DIRECT (default, local-squash): `close.pre` squashes `work/<id>` → integration as one commit

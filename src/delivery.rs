@@ -74,73 +74,37 @@ pub trait Repo {
     fn unsquash(&self, integration: &str, marker: &str) -> io::Result<()>;
 }
 
-/// The resolved facts one hook acts on — the derived worktree, its branch, the
-/// user's shell cwd (for the guard), and the delivery commit's `subject` /
-/// `marker`. Assembled by the binary edge from the §7 wire + env.
+/// The resolved facts one hook acts on — the derived worktree, its branch, and
+/// the delivery commit's `subject` / `marker`. Assembled by the binary edge
+/// from the §7 wire + env.
 pub struct Spec<'a> {
     pub worktree: &'a Path,
     pub branch: &'a str,
-    /// The user's shell working directory (`$PWD`), if known. Distinct from the
-    /// normalized `invocation_path` that DERIVES the worktree — this is where
-    /// the human actually stands, the only signal for the cwd guard. `None`
-    /// when `$PWD` is unset (the guard then waves through, best-effort).
-    pub cwd: Option<&'a Path>,
     pub subject: &'a str,
     pub marker: &'a str,
 }
 
 /// Run the hook `(op, phase)` — or its rollback when `rolling_back` is `Some`
 /// (§14) — against `repo`. Unknown hooks no-op (the plugin acts only where it
-/// is wired). The cwd guard makes EVERY worktree-deleting hook
-/// (`close.{pre,post}` deliver/teardown AND `unclaim`/`drop.post` release)
-/// refuse when `bl` was invoked from INSIDE the worktree balls is about to
-/// tear down — this is where the "never close from inside the worktree" rule
-/// lives, as a plugin precondition. It protects the agent: deleting a process's
-/// cwd strands it (getcwd fails, relative paths resolve nowhere), and `bl
-/// claim` drops the agent INSIDE this worktree, so a `drop`/`unclaim` from
-/// there is just as dangerous as a `close`.
+/// is wired).
 pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     match (op, phase, rolling_back) {
         // `prime.post` re-materializes per still-claimed ball (the binary loops
         // and calls one dispatch per id) — the same act as a fresh `claim.post`.
         ("claim" | "prime", "post", false) => repo.materialize(spec.worktree, spec.branch),
         ("close", "pre", false) => {
-            guard_cwd(spec)?;
             repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject)
         }
-        // Every worktree-deleting teardown: guard the agent, then release. One
-        // arm — the act is identical whichever deleting op (close.post,
-        // unclaim, drop) triggers it.
-        ("close" | "unclaim" | "drop", "post", false) => {
-            guard_cwd(spec)?;
-            repo.release(spec.worktree)
-        }
+        // Every worktree-deleting teardown is the same act — release the
+        // worktree directory — whichever deleting op (close.post, unclaim,
+        // drop) triggers it.
+        ("close" | "unclaim" | "drop", "post", false) => repo.release(spec.worktree),
         ("claim", "post", true) => repo.discard(spec.worktree, spec.branch),
         ("close", "pre", true) => repo.unsquash(&repo.integration()?, spec.marker),
         // close.post teardown + unclaim/drop release are re-creatable from the
         // branch, so their rollback is a no-op (§14); any unwired hook too.
         _ => Ok(()),
     }
-}
-
-/// Refuse when the user's shell cwd (`$PWD`) is the worktree or a descendant of
-/// it — the "never tear down from inside the worktree" precondition (§11),
-/// fired on every hook that deletes the worktree (close deliver/teardown,
-/// unclaim/drop release). Best-effort: an unknown `$PWD` waves through. balls
-/// spawns the plugin with
-/// its process cwd at the change worktree but leaves `$PWD` inherited from the
-/// shell, so `$PWD` is the human's real location even though `current_dir` is
-/// not (the id-resolution read uses `current_dir`; only this guard uses `$PWD`).
-fn guard_cwd(spec: &Spec) -> io::Result<()> {
-    if let Some(cwd) = spec.cwd {
-        if cwd.starts_with(spec.worktree) {
-            return Err(io::Error::other(format!(
-                "refusing to deliver/tear down {}: cwd is inside the worktree — cd out and retry",
-                spec.worktree.display()
-            )));
-        }
-    }
-    Ok(())
 }
 
 /// This binding's worktree territory (§11):
