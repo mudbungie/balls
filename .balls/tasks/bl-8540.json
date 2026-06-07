@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Post-finalization design revision. FLIPS the §4 sentence 'There is likewise no plugins config list — the filesystem symlink registry (§6) IS the plugin chain' 180 degrees.\n\nWHY: the symlink registry (config/plugins/<op>/<phase>/NN-<name> -> ../../bin/<name>) reinvented an ordered list — order via NN- string-prefix sorting, a sysvinit/rc.d tic — as a SECOND config mechanism running parallel to balls.toml's §4 layering. But §4 ALREADY has ordered lists with merge directives (compose_list / _prepend/_append/_ban, built + tested in config.rs). So the schedule belongs in config, not the filesystem: ONE layering mechanism, not two. Subtraction (§0: minimize interface, subtract mechanism).\n\nWHAT (deliverable = docs/architecture.md revision + a §15 revision-log entry):\n- The HOOK SCHEDULE moves to a committed, §4-layered config/plugins.toml — a [hooks] table mapping <op>.<phase> -> an ORDERED LIST of plugin names. List position = run order (tracker runs last because it is last in the list). Replaces the <op>/<phase>/NN-<name> symlink tree entirely.\n- The BIN folder STAYS: config/plugins/<name> machine-local gitignored symlinks — install drops a symlink, dispatch resolves name->binary. The schedule moves OUT of the dir into plugins.toml; the dir becomes purely the name->binary map.\n- Order is a BARE POSITIONAL LIST (not {name,order}); the file is not the unit of atomicity (per user).\n- install: Object::Plugins-as-symlink-mirror dissolves into a config copy; plugins.toml is layered + installed like balls.toml ('handled like the others'); resolve_and_bind (the binary bind + protocol validation) stays.\n- §6 'the registry is the filesystem' -> 'the hook list is config'; §2 drops the <op>/<phase>/NN-<name> tree from the layout but keeps config/plugins/<name> bin symlinks; §1/§4 cross-refs updated.\n\nLOSES (honest): sparse mid-phase insertion. NN- was a sparse integer keyspace (slot in at 70 between 50 and 90); a positional list with _prepend/_append only lands at an END of a phase — mid-insertion needs a full-list replacement. The one HARD order constraint (tracker's irreversible push sorts LAST, §8) is held because _prepend covers 'run before the push'. Accepted.\n\nBonus: collapses bl-4e14's seed to a plain text file (include_str!, no build.rs, no symlink-embedding wart).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":337,"source":"balls","state":"open","synced_at":"2026-06-07T19:32:58.945831470+00:00","url":"https://github.com/mudbungie/balls/issues/337"}}},
   "id": "bl-8540",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T19:32:58.953898307Z"},
   "tags": [],
   "title": "Spec §2/§4/§6: plugins.toml hook-list replaces the filesystem symlink registry",
   "type": "task",
-  "updated_at": "2026-06-07T19:32:58.258269334Z"
+  "updated_at": "2026-06-07T19:32:58.953903607Z"
 }
