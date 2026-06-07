@@ -71,8 +71,8 @@ fn walk(cat: &Catalog, e: &Entry, depth: usize, style: &Style, out: &mut String)
 }
 
 /// The inline blocker annotation for a node — ` [needs A, gate B]`, or empty
-/// when the ball has no edges. `needs` is a claim-blocker (dependency), `gate`
-/// a close-blocker (§10).
+/// when the ball has no edges. `needs` is a claim-blocker (dependency), `gate` a
+/// close-blocker; an edge on any OTHER op (§10/§15) is labelled by its op token.
 fn annotation(e: &Entry) -> String {
     if e.task.blockers.is_empty() {
         return String::new();
@@ -85,6 +85,7 @@ fn annotation(e: &Entry) -> String {
             let kind = match b.on {
                 On::Claim => "needs",
                 On::Close => "gate",
+                other => other.token(),
             };
             format!("{kind} {}", b.id)
         })
