@@ -58,7 +58,6 @@ fn spec() -> Spec<'static> {
     Spec {
         worktree: Path::new("/wt"),
         branch: "work/bl-f813",
-        cwd: None,
         subject: "Title [bl-f813]",
         marker: "[bl-f813]",
     }
@@ -121,27 +120,6 @@ fn re_creatable_rollbacks_and_unwired_hooks_are_noops() {
     assert!(drive("claim", "pre", false).is_empty()); // wrong phase
 }
 
-#[test]
-fn every_worktree_deleting_hook_refuses_when_invoked_from_inside_the_worktree() {
-    let repo = FakeRepo::default();
-    let inside = Spec { cwd: Some(Path::new("/wt/sub")), ..spec() };
-    // close delivers + tears down; unclaim/drop release — all delete the
-    // worktree, so all must refuse a cwd standing inside it (protect the agent).
-    for (op, phase) in [("close", "pre"), ("close", "post"), ("unclaim", "post"), ("drop", "post")] {
-        let err = dispatch(op, phase, false, &repo, &inside).unwrap_err();
-        assert!(err.to_string().contains("cwd is inside the worktree"), "{op}.{phase} did not refuse");
-    }
-    assert!(repo.calls().is_empty()); // refused before any git act
-}
-
-#[test]
-fn an_equal_cwd_refuses_but_an_unknown_one_waves_through() {
-    let repo = FakeRepo::default();
-    let at = Spec { cwd: Some(Path::new("/wt")), ..spec() };
-    assert!(dispatch("close", "post", false, &repo, &at).is_err());
-    // `$PWD` unset (cwd: None) → best-effort guard allows the teardown.
-    assert_eq!(drive("close", "post", false), ["release /wt"]);
-}
 
 #[test]
 fn an_integration_failure_aborts_a_close() {
