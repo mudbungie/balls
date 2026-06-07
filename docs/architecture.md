@@ -11,7 +11,7 @@
 > §15 revision log — never a silent edit here. That discipline is what keeps "frozen"
 > meaningful.
 
-Consolidated spec: the single current source of truth (§0–§17). Assembled 2026-06-02 from the prior
+Consolidated spec: the single current source of truth (§0–§16). Assembled 2026-06-02 from the prior
 body and 13 working notes, then completed as each topic ball under epic bl-b465 settled and edited
 its § here directly. **Every design topic is now resolved and folded (§15); this is the finished
 design, the basis for the implementation epic.** Implementation diverges from current balls — the
@@ -25,7 +25,7 @@ no terminus, no `operating/` symlink, no config layering down a chain. **Landing
 authority** for what runs + where it syncs; ALL config is potential RCE and crosses only by `install`,
 a **pure path-copy** (folder = mirror, file/glob = union — §6); a fresh landing is SEEDED at prime from
 the app `default-config/` folder (no run-time defaults — §1); `sync` moves only the store. Touched
-§0/§1/§2/§4/§6/§7/§8/§12/§13/§16/§17. Corrections to already-built phases are tracked under bl-72a8.
+§0/§1/§2/§4/§6/§7/§8/§12/§13/§16. Corrections to already-built phases are tracked under bl-72a8.
 
 ## §0 Overview & core principles
 
@@ -121,7 +121,7 @@ $XDG_STATE_HOME/balls/
   (§6) compose over it. It is local runtime state, gitignored, never on a committed branch (like
   `binding.toml`) — which the §4 "landing cannot be published" rule makes doubly correct. One object
   per line keeps concurrent appends from parallel agents atomic (sub-`PIPE_BUF`, `O_APPEND`). Stale-
-  but-harmless like an orphan worktree: no core rotation/retention; `doctor` may report size, prune is
+  but-harmless like an orphan worktree: no core rotation/retention; prune is
   manual; the `log_level` knob (§4) limits volume instead. Scope is per-clone (per invocation-path),
   so one timeline covers both this clone's store *and* landing ops.
 
@@ -473,11 +473,11 @@ the five verbs — they differ only in which fields the base change stages.
   "base change" is a path-copy (§6), not a staged frontmatter edit, and it carries none of the
   task-shaped wire fields (`current_state`, `field_changes`). Symmetric in skeleton, different in
   target and mechanics.
-- **`sync` / `prime` / `doctor`** (§13/§16) author NO diff at all, so there is no change worktree and
+- **`sync` / `prime`** (§13) author NO diff at all, so there is no change worktree and
   no core seal. They inherit only what generalizes — the `pre`→`post` hook spine in `NN-` order,
   reverse-order rollback, and the §7 wire minus its task fields — and do their own work where the seal
   would be: `sync`'s integration is the tracker's fetch+ff, owned by a PLUGIN not core (remote-talk is
-  plugin-exclusive, §0/§13); `prime` orchestrates syncs + substrate; `doctor` only reads and prints.
+  plugin-exclusive, §0/§13); `prime` orchestrates syncs + substrate.
   Their hooks run against the live store/landing checkout directly.
 
 The canonical task-op sequence (verb-agnostic):
@@ -511,9 +511,9 @@ The canonical task-op sequence (verb-agnostic):
 Deliverable lifecycle verbs: **`create` (`bl new`), `claim`, `unclaim`, `update`, `close`, `drop`.**
 There is **no `review` verb** — see "close" below.
 
-Read verbs (no seal, no change worktree — hook dirs only, §13/§16): **`show`, `list`, `ready`,
-`dep tree`, `doctor`.** They author no ball-file diff; their whole contribution is what the hook
-chain prints (§16).
+Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `ready`,
+`dep tree`.** They author no ball-file diff; their whole contribution is what the hook
+chain prints (§7).
 
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`** (§13, §6).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
@@ -602,8 +602,9 @@ does NOT block the gate child, so the gate is freely claimable. The gate-check r
 parent's pre-delivery WORK BRANCH (which exists once the parent is claimed), so nothing needs the
 parent formally "done" — no `review` window is resurrected. "Do the gate after the parent's work" is a
 skill habit, deliberately UNENFORCED. A cycle is now only reachable by explicitly authoring both
-edges; it is still not gated by code (links are mutable — unlink to fix), and `bl doctor` may surface
-it (§16).
+edges; it is still not gated by code (links are mutable — unlink to fix); a cycle is caught where it
+bites — the blocker walk that resolves readiness errors on revisiting a node and names the
+`bl update` to unlink an edge.
 
 **Enforcement is CORE.** Core stores the schema (`parent`, `blockers`, `tags`) AND enforces every
 blocker (the `.pre` of the named `on` op rejects while unresolved), joining the one occupancy guard
@@ -710,7 +711,7 @@ by the change-worktree/store un-seal). `rollback claim.post` = remove the worktr
 --hard HEAD~1` un-squash (reversible — nothing pushed); forge = **no-op** — a pushed branch + open PR
 is the correct in-review state, never undone (abandon is `bl drop`, whose `drop.post` tears down the
 PR/branch). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
-is rollback-safe); deleting `work/<id>` is deferred, non-transactional cleanup (`prime`/`bl doctor`).
+is rollback-safe); deleting `work/<id>` is deferred, non-transactional cleanup (`prime`).
 The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
 
 ## §12 bl prime & federation (the store pointer)
@@ -1046,6 +1047,21 @@ RESOLVED (folded into the body, no longer open):
   (3) METRICS CUT from core entirely (§6) — the log is the event stream and §5 trailers the history;
   metrics are a query or a `*.post` plugin, never core storage, no new seam. Touched §1/§4/§6/§14.
   Code reconciliation (replace bl-5d56's per-op-phase capture; delete dead `layout::log()`) is bl-2e9f.
+- **doctor SUBTRACTED (2026-06-06, bl-77a7 — post-freeze).** The old §16 was `bl doctor`, a read-op
+  drift-scanner (resolved earlier under bl-e8a5). Cut ENTIRELY — verb and section. The test it failed:
+  given an agent holding the skill doc and a doctor-covered scenario, doctor's existence does not
+  meaningfully raise fix-success. 5 of its 8 checks (stale change worktree, unresolved `tasks_branch`,
+  unparseable config, missing claimed-ball worktree, stale store) fail LOUD already — git or the next
+  op surfaces them, and an agent's reflex is `git status`/`ls`, not a tool-specific scan verb. The 3
+  SILENT checks move to POINT-OF-USE errors that name the fix verb: protocol drift is already rejected
+  at dispatch (§6); a missing local `bin/<name>` fails at the op that needs the plugin ("referenced but
+  not installed — `bl install`"); a blocker cycle errors in the readiness walk that hits it (§10). A
+  fixed checklist enumerates only KNOWN drift, so doctor helped least on the weird unenumerated cases
+  agents actually get stuck on — and an agent only reaches for it once already debugging, when it is
+  already exploring git+files. The no-repair-verb principle (every fix is an existing idempotent verb —
+  `prime`/`install`/`sync`/`update`) survives without a doctor section; §16 migration's tail now routes
+  residual drift to point-of-use. Touched §1/§8/§9/§10/§11; deleted old §16 and scrubbed its
+  cross-refs, renumbered §17 migration→§16. Code removal is bl-a38e.
 - **coherence pass (2026-06-06, bl-7d46 — post-freeze).** An adversarial read of the just-frozen doc
   (bl-cac0) fixed defects the config/store split and the original drafting left behind:
   (1) §13 `prime --install` still described the RETIRED config CHAIN ("recursively down the config
@@ -1061,7 +1077,7 @@ RESOLVED (folded into the body, no longer open):
   on the wire — keeps the stateless-recompute property; disambiguates a reclaim by a new actor).
   (4) §8 "every op is the same shape" was oversold. Reframed to TWO families: task ops (the symmetric
   sealing shape) vs the rest, which inherit partially — `config`/`install` seal to the landing; `sync`/
-  `prime`/`doctor` author no diff, inherit only the pre→post spine + rollback, and `sync`'s integration
+  `prime` author no diff, inherit only the pre→post spine + rollback, and `sync`'s integration
   is the tracker's ff (a plugin's, not core's).
   (5) Soft spots made structural where cheap: landing single-owner is now "balls cannot publish it"
   (only the tracker pushes, only `tasks_branch`; raw `git push` by hand is the only residue, §4);
@@ -1075,7 +1091,7 @@ RESOLVED (folded into the body, no longer open):
   nothing by itself; closing a task with live children is allowed (their `parent:` dangles, display-
   only). The standard subtask/gate/review patterns are skill-doc hints, never core rules. This was the
   load-bearing subtraction — every edge is explicit and self-describing, and the deadlock-reciprocal
-  and late-add gaps both dissolve because nothing is auto-minted. Touched §3/§9/§10/§17. bl-7d46 fully
+  and late-add gaps both dissolve because nothing is auto-minted. Touched §3/§9/§10/§16. bl-7d46 fully
   resolved.
 - **config/store split (2026-06-05, post-finalization revision — supersedes parts of bl-62bc and
   bl-0601).** The trigger: config-shadowing (§4 values layering down the trail) and `install` were two
@@ -1089,7 +1105,7 @@ RESOLVED (folded into the body, no longer open):
   top-level folders always — this makes the transport asymmetry STRUCTURAL (config = single-owner,
   destructive install-replace; store = shared, sync-merge) instead of disciplinary, and DISSOLVES the
   whole trail/terminus/`operating`/stealth-mode apparatus: config NAMES the store via `tasks_branch`,
-  one indirection that subsumes find-store + sync-target + install-source + doctor-resolves. Chains
+  one indirection that subsumes find-store + sync-target + install-source. Chains
   and transitive auto-discovery go (a layering artifact; one shared store needs no transitivity).
   "Stealth" becomes a `tasks_branch` value, not a mode. (3) `install` is **pure path-copy** —
   `install <path>` makes dest/`<path>` == source/`<path>`, siblings untouched; folder = mirror
@@ -1107,12 +1123,12 @@ RESOLVED (folded into the body, no longer open):
   prime create+push; `--stealth` opts out; no-perms → stealth fallback). Footprint cost = +1 (cheap,
   local) ref; mechanism deleted >> ref added. Reuse of one branch for both roles is legal
   (folder-namespaced) but a config ref shared AS config between clones corrupts (no merge) — so the
-  landing is single-owner-by-discipline (§4). Touched §0/§1/§2/§4/§6/§7/§8/§12/§13/§16/§17; build
+  landing is single-owner-by-discipline (§4). Touched §0/§1/§2/§4/§6/§7/§8/§12/§13/§16; build
   corrections under bl-72a8.
-- **bl-cef0** migration from legacy balls — RESOLVED into **§17**. A one-shot throwaway *script*
+- **bl-cef0** migration from legacy balls — RESOLVED into **§16**. A one-shot throwaway *script*
   (not a verb — same retirement as init→prime / review→close / remaster), splitting base-field
-  migration from per-plugin state migration on the §14/§16 plugin-territory boundary, governed by
-  migrate-clean-or-delink. Re-admits `priority` to core (§3/§9/§10). See §17.
+  migration from per-plugin state migration on the §14 plugin-territory boundary, governed by
+  migrate-clean-or-delink. Re-admits `priority` to core (§3/§9/§10). See §16.
 - **bl-4778** states-as-config — RESOLVED by SUBTRACTION: there is **no `state`/`status` field at
   all**. Status is a DERIVED VIEW computed by a short-circuit ladder over exactly THREE live states:
   `claimant` set ⇒ **claimed** (claim-blockers not even evaluated); else unresolved claim-blocker ⇒
@@ -1128,75 +1144,7 @@ RESOLVED (folded into the body, no longer open):
   ordered pipeline opts in OUTSIDE core via an unknown preserved `state:` key + a display plugin
   (§3) — severable, never a core field. Touched §0/§3/§4/§5/§9.
 
-## §16 bl doctor — drift diagnosis
-
-`bl doctor` is an ordinary **read op** (§6 — "reads are not special-cased; every op has hook
-dirs"), not a diagnostic subsystem with a hardcoded checklist. Like `sync`/`prime` (§13) it authors
-NO ball-file diff, so there is no seal and no change worktree; its checks run with cwd =
-the store checkout. It **never mutates** — and there is nothing to mutate WITH: `bl repair` is retired
-(see "No repair verb" below). Doctor's whole job is to REPORT drift and name, per finding, the
-existing verb or deliberate act that fixes it.
-
-**Checks are contributed run-parts, not centralized.** Doctor's `doctor/pre|post` dirs make its
-report the union of its hook chain, exactly as every other op's behavior is the union of its chain.
-This is what lets doctor finalize without waiting on the sibling topics (bl-0601/bl-4778/bl-cef0):
-it enumerates no plugin's checks centrally, so each per-plugin check set settles WITH its plugin.
-
-- **Base doctor audits only core-owned structure** — what base balls itself creates and can see
-  without opening the project repo or reading a plugin's config (§0):
-  - stale CHANGE worktrees under `clones/<enc-local>/changes/<uuid>/` — crash debris from an op
-    whose teardown (§8) never completed.
-  - the landing exists and `tasks_branch` resolves to a valid `tasks/` checkout (§1/§4) — the §12
-    converging predicate, here CHECKED, not enforced.
-  - the registry's LOCAL dangle: a committed `config/plugins/<op>/<phase>/NN-<name>` (relative →
-    `../bin/<name>`) whose machine-local `bin/<name>` is missing — "plugin <name> referenced but not
-    installed here." `bin/` is gitignored and per-machine (§6), so its drift is the one artifact
-    only doctor can surface.
-  - protocol-version drift: re-query each wired plugin's `protocol` and flag any whose declared set
-    no longer includes balls' current version (the same validation §6 runs at dispatch).
-  - config resolves — the landing's `config/balls.toml` (+ XDG) parses and yields a usable config
-    (§4); there is no trail layer left to conflict, so this reduces to a parse + field-sanity check.
-  - circular blockers (§10) — scan the `blockers` edges across `tasks/` for a cycle (core schema,
-    core-readable).
-- **Each plugin contributes checks for ITS OWN §1 territory** by wiring a binary into `doctor` — the
-  same structural boundary as everywhere: base balls cannot audit plugin territory, so it DELEGATES
-  (this resolves the topic's "audit directly or delegate?" question to delegate, as the general
-  doctor architecture, not a delivery-plugin special case):
-  - the **delivery plugin** audits CODE worktrees — a claimed ball whose `worktree_path(binding,
-    id)` (§11) is missing (failed `claim.post` or a hand-deletion), or a closed/dropped ball whose
-    worktree still exists (failed `close.post`/`drop.post` teardown). Base balls never derives that
-    path nor opens the project repo.
-  - the **tracker** audits the store remote: the `tasks_branch` remote is reachable and its clone
-    (`plugins/tracker/<enc-remote>/`) healthy, or the store is stale beyond a TTL. The TTL is tracker
-    config (its own §1 territory), never a base field.
-
-Reads have no return channel (§7: stdout is diagnostics only) — for doctor that is the FEATURE, not
-a limit: findings ARE diagnostics. A `doctor` hook prints its report to stdout/stderr and that is
-its whole contribution; nothing is parsed back into state.
-
-**No repair verb — every fix is an existing verb or a deliberate act.** `bl repair`/`--fix` is
-retired; doctor names, per finding, the verb that already does the job idempotently:
-
-- a claimed ball's worktree missing, or the store unresolved → **`bl prime`** (idempotent
-  create-if-absent re-materializes it, §12).
-- a dangling `bin/<name>` or a protocol mismatch → **`bl install`** (re-resolves the local binary
-  and re-validates its `protocol`, §6).
-- the store stale → **`bl sync`**.
-- a circular blocker → **`bl update`** (links are mutable; unlink one `blockers` edge).
-- an unsatisfiable resolved config → hand-edit the named `config/balls.toml` layer.
-- an orphan worktree that may hold uncommitted work (a crashed-op change worktree, a closed ball's
-  leftover code worktree) → doctor names the precise `git worktree remove <path>` (or `bl drop <id>`
-  for a claimed ball you mean to abandon) and the USER runs it.
-
-This is "subtract before adding" applied to a verb current balls ships. The architecture already
-dissolved most of repair's jobs: greenfield `sync` is ff-only single-step (§13), so there is no
-half-push state to retract; derived paths + idempotent `prime` (§11/§12) cover the
-materialize-missing class. What remained was destructive prune of rare debris — and automating an
-irreversible worktree delete behind a friendly verb is the smell `prime` stays create-if-absent
-(never destructive) to avoid. So session-start `prime` can never nuke a worktree holding unpushed
-work; doctor points at it and the human decides.
-
-## §17 Migration from legacy balls
+## §16 Migration from legacy balls
 
 Legacy balls (pre-greenfield): task JSON on the `balls/tasks` orphan branch, plugin state inline in
 the core JSON, a pile of config knobs, `[bl-xxxx]` tags on `main`. Greenfield: §2 markdown `tasks/`
@@ -1209,11 +1157,11 @@ job (§12/§13), so the script ends by handing off to `prime`.
 
 **Governing principle — migrate-clean-or-delink, never guess.** The script transforms only what maps
 deterministically and DELINKS anything it cannot prove (an unresolvable reference, a plugin's private
-state); reconstruction is deferred to the authoritative source — the plugin's own adoption (below) or
-doctor-guided repair (§16). Single-source-of-truth applied to migration: never fabricate a mapping
+state); reconstruction is deferred to the authoritative source — the plugin's own adoption (below).
+Single-source-of-truth applied to migration: never fabricate a mapping
 the transform can't derive.
 
-**Split on the plugin-territory boundary** (the same boundary as §14 scratch and §16 doctor):
+**Split on the plugin-territory boundary** (the same plugin-territory boundary as §14 scratch):
 migration is NOT one script but **base-migrates-core PLUS each-plugin-migrates-its-own-territory.**
 - **Base migrator** owns core fields only (§3 schema); it never reads plugin state.
 - **Each plugin** owns its legacy state: its greenfield port carries a one-time *legacy-adoption*
@@ -1272,5 +1220,7 @@ works over old history for free.
 script REFUSES if `balls/config` already exists, and REFUSES if any live task is `claimed` (a claimed task's
 in-flight code worktree would be stranded when `prime` re-materializes a fresh `work/<id>` — quiesce
 first: merge/close/unclaim in-flight work before migrating). Sequence: run the script → `bl prime`
-brings XDG/worktrees/config to readiness (§12) → each plugin's port runs its one-time adoption →
-`bl doctor` (§16) surfaces any residual drift and names the verb that fixes it.
+brings XDG/worktrees/config to readiness (§12) → each plugin's port runs its one-time adoption.
+Any residual drift surfaces at point-of-use: the next op that needs a missing or stale piece fails
+naming the verb that fixes it (`prime` re-materializes, `install` re-resolves a `bin/`, `sync`
+refreshes the store, `update` unlinks a bad edge) — there is no separate scan verb.
