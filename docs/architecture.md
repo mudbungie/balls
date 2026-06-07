@@ -102,7 +102,7 @@ $XDG_STATE_HOME/balls/
     tasks/                             #   the STORE — tasks_branch checkout; local (stealth) or a
                                        #     worktree tracking tracker/<remote>/ when remote-backed
     changes/<uuid>/                    #   in-flight CHANGE worktrees (core, ephemeral, one per op)
-    logs/<name>/plugin.log             #   suggested; plugins do as they please
+    log                                #   the unified op log: JSON-lines, balls-owned (§4/§6)
 ```
 
 - URLs and paths are **percent-encoded, never hashed**, so directory names stay inspectable.
@@ -115,6 +115,15 @@ $XDG_STATE_HOME/balls/
   delivery plugin's CODE worktree (§11), which lives in plugin territory and checks out the *project*
   repo.
 - Two clones sharing one store remote share one `plugins/tracker/<remote>/` dir.
+- **`log` is ONE unified per-clone op log** (not a per-plugin or per-op-phase tree): JSON-lines, one
+  object per line `{ts, lvl, src, op, phase, msg}` with `src ∈ {core, <plugin>}`. balls owns the
+  format — the source is a stamped FIELD, so you grep one source or read the whole sequence; metrics
+  (§6) compose over it. It is local runtime state, gitignored, never on a committed branch (like
+  `binding.toml`) — which the §4 "landing cannot be published" rule makes doubly correct. One object
+  per line keeps concurrent appends from parallel agents atomic (sub-`PIPE_BUF`, `O_APPEND`). Stale-
+  but-harmless like an orphan worktree: no core rotation/retention; `doctor` may report size, prune is
+  manual; the `log_level` knob (§4) limits volume instead. Scope is per-clone (per invocation-path),
+  so one timeline covers both this clone's store *and* landing ops.
 
 ## §2 Branch layout — two branches, folder-namespaced
 
@@ -279,6 +288,14 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   store. The one config→store indirection ("config tells us where the tasks are"). A local-only value
   is stealth; the remote that backs it is the tracker's own config (§0 — core names no remote). The
   landing branch itself is path-derived (`balls/config`), NOT a config field (bootstrap fixed point).
+- `log_level` (string, default `"info"`) — the single threshold for the unified op log (§1/§6),
+  applied at WRITE time so it gates BOTH file persistence and terminal echo (a line below threshold is
+  never emitted anywhere). A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
+  entry and NOT a "run-time default" carve-out: the seed is for capability *sets* (the plugin chain),
+  the layer-4 serde fallback is exactly "for a field no layer set." Read order is the normal §4 stack,
+  so `--log-level` (layer 1) overrides for one run. Default mapping: core narrates mutating-op
+  lifecycle at `info` and read-op narration (`show`/`list`/`ready`) at `debug`, so default-`info`
+  keeps read chatter out of the log; plugin-enveloped stderr is `info`.
 
 The id scheme is deliberately NOT a config field — it is fixed (§ id generation): a team wanting a
 different scheme supplies a `create/pre` plugin, not a config knob.
@@ -343,9 +360,23 @@ plugin <name> <op> <phase>` is the canonical dispatch and balls dogfoods it.
           user-relevant value (the delivery plugin's worktree path, a forge PR URL) PRINTS IT HERE;
           core neither computes nor consumes it. "claim prints the worktree path" is exactly this —
           the delivery plugin printing, not core knowing the path.
-  stderr: human/diagnostic log; captured to clones/<enc>/logs/<name>/
-  exit:   0 = ok; non-zero = abort + roll prior plugins back in reverse
+  stderr: the plugin's diagnostic channel. The plugin stays DUMB — it writes raw stderr and is told
+          nothing about where it lands (no BALLS_LOG_DIR; a new env is a §0 smell). balls pipes the
+          child's stderr and ENVELOPES each line as a JSON-lines record into clones/<enc>/log
+          (`src=<name>`, the op/phase, `lvl=info`), interleaved with core's own lifecycle records.
+          Structured (non-diagnostic) artifacts a plugin wants go to its OWN territory
+          (plugins/<name>/, §1), derived from BALLS_PLUGIN_NAME — never the shared log.
+  exit:   0 = ok; non-zero = abort + roll prior plugins back in reverse. On a non-zero exit core
+          additionally emits an `error` record (op/phase/name/exit) so the failure locus survives any
+          `log_level` threshold (§4) even when the plugin's own info-level stderr is filtered out.
 ```
+
+**Metrics are a query, not core state.** balls stores and emits no metrics: the unified `log` (§1) is
+the event stream — every op/phase/plugin record is timestamped — and the §5 commit trailers are the
+durable history. Counters/timing compose over those by `jq`/parse, or a `*.post` plugin observes the
+lifecycle and writes to its own territory. There is no metric seam to add: the registry + this
+dispatch + the §7 payload IS the subscription, and a plugin times an op by stamping its own clock
+across the `pre`/`post` it already runs. No core storage, ever.
 
 **The registry is the filesystem.** Symlinks under `config/plugins/<op>/<phase>/` on the landing
 (§2) are the single source of truth for wiring: symlink present = run this plugin in this
@@ -944,8 +975,8 @@ unwinding whatever it exits — it never retries and cannot verify success. If a
 could abort the unwind, one plugin would strand every earlier-run plugin; continue-regardless is the
 only composition that fully unwinds. Core's tier-1 un-seal always succeeds (local), so the op's core
 invariant holds even if every plugin rollback fails. A FAILING plugin's own rollback is not called —
-it cleans up inline before exiting non-zero. Plugins log load-bearing detail to stderr
-(`clones/<enc>/logs/<name>/`). Rollback MUST be idempotent — safe when the side-effect was never made
+it cleans up inline before exiting non-zero. Plugins log load-bearing detail to stderr, which balls
+envelopes into the unified `clones/<enc>/log` (§6). Rollback MUST be idempotent — safe when the side-effect was never made
 or already undone; the derive-and-check pattern below gives this for free.
 
 **post never mutates the ball; derive-don't-store is what makes that safe.** The ball is sealed at the
@@ -1002,6 +1033,19 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **observability — logs & metrics (2026-06-06, bl-b58a — post-freeze).** A topic raised AFTER the
+  freeze (so the "None open" above had missed it): the doc carried three divergent log conventions —
+  §1 `logs/<name>/plugin.log` "suggested; plugins do as they please", §6 "stderr captured to
+  clones/<enc>/logs/<name>/", and §14's rollback echo — while the code (bl-5d56) had invented a fourth,
+  per-op-phase `logs/<name>/<op>-<phase>.log`. RESOLUTION by reframe + subtraction:
+  (1) ONE unified per-clone log `clones/<enc>/log` (§1) — JSON-lines, balls-owned, the source a stamped
+  FIELD not a directory split, so you grep one source or read the whole sequence. Core emits its own
+  lifecycle records AND envelopes each plugin stderr line; the plugin stays dumb (no `BALLS_LOG_DIR`).
+  (2) `log_level` (§4) is the single write-time threshold over both file and terminal; a non-zero
+  plugin exit emits a core `error` record that survives any threshold (§6).
+  (3) METRICS CUT from core entirely (§6) — the log is the event stream and §5 trailers the history;
+  metrics are a query or a `*.post` plugin, never core storage, no new seam. Touched §1/§4/§6/§14.
+  Code reconciliation (replace bl-5d56's per-op-phase capture; delete dead `layout::log()`) is bl-2e9f.
 - **coherence pass (2026-06-06, bl-7d46 — post-freeze).** An adversarial read of the just-frozen doc
   (bl-cac0) fixed defects the config/store split and the original drafting left behind:
   (1) §13 `prime --install` still described the RETIRED config CHAIN ("recursively down the config
