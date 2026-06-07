@@ -138,16 +138,19 @@ fn the_status_and_op_words_are_stable_tokens() {
 
 #[test]
 fn task_json_carries_the_machine_contract_fields() {
-    let mut t = task("Title", 0);
+    let mut t = task("Title", 1_700_000_000);
     t.priority = Some(3);
     t.tags = vec!["x".into()];
     t.blockers = vec![blocker("bl-b", On::Close)];
-    let v = task_json("bl-1", &t, Status::Ready);
+    let v = task_json("bl-1", &t);
     assert_eq!(v["id"], "bl-1");
-    assert_eq!(v["status"], "ready");
     assert_eq!(v["priority"], 3);
-    assert_eq!(v["created"], "1970-01-01T00:00:00Z");
+    // The LITERAL stored i64, not an ISO string — the lossless export (§3).
+    assert_eq!(v["created"], 1_700_000_000);
+    assert!(v["created"].is_i64());
     assert_eq!(v["blockers"][0]["on"], "close");
+    // Bedrock carries NO derived field — the status ladder is human-only (§9).
+    assert!(v.get("status").is_none());
 }
 
 #[test]
