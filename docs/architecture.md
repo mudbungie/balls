@@ -268,7 +268,10 @@ because only it is sync-merged (§6/§12).
   store. The one config→store indirection ("config tells us where the tasks are"). A local-only value
   is stealth; the remote that backs it is the tracker's own config (§0 — core names no remote). The
   landing branch itself is path-derived (`balls/config`), NOT a config field (bootstrap fixed point).
-- `id_scheme` (object, default `{ prefix: "bl-", length: 4, alphabet: "0123456789abcdef" }`)
+
+The id scheme is deliberately NOT a config field — it is fixed (§ id generation): a team wanting a
+different scheme supplies a `create/pre` plugin, not a config knob.
+
 No state-related config exists at all (bl-4778, RESOLVED): **no `default_state`, no `states` vocab
 list, no per-op state-target knob.** There is no `state` field for them to configure (§3) — status
 is derived from `claimant`/`blockers`/file-existence, and human intent is a `tag`. The whole cluster
@@ -734,10 +737,11 @@ downstream-layer-introduces-plugins — there is no downstream layer.)
 
 ## § id generation
 
-`id_scheme = { prefix, length, alphabet }` only (no generator enum). Default
-`{ "bl-", 4, "0123456789abcdef" }` — today's scheme. Base balls ships ONE generator (random);
-non-default generation (timestamp/sequential/uuid) is a `create/pre` plugin via the same `git mv`
-reassign seam — "custom generation" and "plugin-assigned id" are one seam. **Validation is
+The id scheme is FIXED — `bl-` + 4 lowercase-hex digits (`{ prefix, length, alphabet }` =
+`{ "bl-", 4, "0123456789abcdef" }`), no generator enum and NOT a config knob. Base balls ships ONE
+generator (random) over that one scheme; ANY customization — a different prefix/length/alphabet, OR a
+non-random strategy (timestamp/sequential/uuid) — is a `create/pre` plugin via the same `git mv`
+reassign seam, so "custom generation" and "plugin-assigned id" are one seam. **Validation is
 string-safety**, not an arbitrary charset: `^[A-Za-z0-9][A-Za-z0-9_-]*$` (no `/`, no `.`, no
 whitespace/metacharacters, no leading `-`). The default alphabet is lowercase to sidestep
 case-insensitive-FS collisions. **Collision:** auto-gen → retry (bounded); plugin-assigned → abort
@@ -1094,7 +1098,8 @@ migration is NOT one script but **base-migrates-core PLUS each-plugin-migrates-i
   `links` (legacy-unused); `external`/`synced_at` (plugin territory — below).
 
 **Config mapping — most knobs dissolve** (`.balls/config.json` → `config/balls.toml` on `balls/config`,
-§4): `id_length` → `id_scheme`; the remote becomes the tracker's; `tasks_branch` defaults to
+§4): `id_length` is dropped (the id scheme is fixed — a custom scheme is a `create/pre` plugin, not
+config); the remote becomes the tracker's; `tasks_branch` defaults to
 `balls/tasks` (§4). Gone entirely — `version`, `worktree_dir` (path derived, §11), `protected_main`
 (nothing-on-main is structural, §0), `auto_fetch_on_ready` (sync-every-op default, §13),
 `stale_threshold_seconds` (→ the tracker's own §1 territory, not core). The legacy
