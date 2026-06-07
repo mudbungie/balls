@@ -1,0 +1,1 @@
+{"ts":"2026-06-07T19:53:10.815002470Z","author":"Unlearn","text":"NOTE (bl-8540, merged e9b44cc): if/when built, the status plugin wires into op-phases via config/plugins.toml [hooks] (an ordered name list per <op>.<phase>), NOT the retired symlink registry (§6). Its close.post/drop.post fan-out = this plugin's name appearing in those hook lists."}
