@@ -1,40 +1,33 @@
-//! `bl list` and `bl ready` — the set-of-balls reads, one line per ball.
+//! `bl list` — the set-of-balls read, one line per ball.
 //!
-//! `list` shows every live ball in id order with its §3 status badge. `ready`
-//! shows only the [`Status::Ready`] rung and ORDERS it the §10 way: `priority`
-//! ascending (absent LAST), then `created` ascending, with id as a stable final
-//! tiebreak. The ordering is display-only — it never enters the `ready()`
-//! predicate (§3/§10).
+//! `list` is the SINGLE listing verb (§9 — the old `bl ready` folded in as the
+//! `--status ready` filter). It shows every live ball, optionally narrowed to
+//! one §3 status rung by `flags.status`, and ORDERS every invocation the §10
+//! way: `priority` ascending (absent LAST), then `created` ascending, with id as
+//! a stable final tiebreak. Ordering is uniform — ready's order was never
+//! special — and display-only: it never enters the `ready()` predicate (§3/§10).
 
 use std::fmt::Write;
 
 use serde_json::Value;
 
 use super::{json_line, task_json, Catalog, Entry, Flags, Style};
-use crate::task::Status;
 
-/// `bl list` — every live ball, id order. `--json` emits the array of
-/// machine-contract objects; otherwise one badge line per ball.
+/// `bl list` — every live ball (or one `--status` rung), §10-ordered. `--json`
+/// emits the array of machine-contract objects; otherwise one badge line each.
 pub(crate) fn render_list(cat: &Catalog, flags: &Flags, style: &Style) -> String {
-    let rows: Vec<&Entry> = cat.entries().iter().collect();
-    render(cat, &rows, flags, style)
-}
-
-/// `bl ready` — the ready set, §10-ordered. Same rendering as `list` over the
-/// filtered, sorted rows.
-pub(crate) fn render_ready(cat: &Catalog, flags: &Flags, style: &Style) -> String {
     let mut rows: Vec<&Entry> = cat
         .entries()
         .iter()
-        .filter(|e| cat.status(e) == Status::Ready)
+        .filter(|e| flags.status.is_none_or(|want| cat.status(e) == want))
         .collect();
     rows.sort_by(|a, b| order_key(a).cmp(&order_key(b)));
     render(cat, &rows, flags, style)
 }
 
-/// The §10 display order of a ready ball: `(absent-priority, priority, created,
-/// id)`. `priority.is_none()` sorts `true` last, so a no-priority ball follows
-/// every prioritised one; ties break by `created` then id.
+/// The §10 display order of a ball: `(absent-priority, priority, created, id)`.
+/// `priority.is_none()` sorts `true` last, so a no-priority ball follows every
+/// prioritised one; ties break by `created` then id.
 fn order_key(e: &Entry) -> (bool, i64, i64, &str) {
     (e.task.priority.is_none(), e.task.priority.unwrap_or(0), e.task.created, &e.id)
 }

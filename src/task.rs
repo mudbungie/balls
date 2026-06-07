@@ -31,7 +31,7 @@ pub struct Task {
     /// Containment pointer only; never read for enforcement.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
-    /// The one ordering input for `bl ready`. Lower = higher; absent sorts last.
+    /// The one ordering input for `bl list`. Lower = higher; absent sorts last.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub priority: Option<i64>,
     /// The relational primitive (§10): `{id, on}` edges on the BLOCKED task.
@@ -133,7 +133,8 @@ impl Task {
 
     /// §10 `ready()`: claimable now — unclaimed with every CLAIM-blocker
     /// resolved. Exactly the [`Status::Ready`] rung of the ladder, named for the
-    /// `bl ready` question it answers. Enforcement is CORE (§10): the `claim` op
+    /// `bl list --status ready` question it answers. Enforcement is CORE (§10):
+    /// the `claim` op
     /// rejects a non-ready ball ([`crate::change::Occupancy`]).
     pub fn ready(&self, is_resolved: &dyn Fn(&str) -> bool) -> bool {
         matches!(self.status(is_resolved), Status::Ready)

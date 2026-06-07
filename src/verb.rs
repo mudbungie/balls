@@ -25,7 +25,6 @@ pub enum Verb {
     // Reads (§9): author no diff; hook dirs only.
     Show,
     List,
-    Ready,
     DepTree,
     // Checkout lifecycle (§9/§13): act on the checkout, not a ball.
     Prime,
@@ -47,7 +46,7 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 13] = [
+    pub const ALL: [Verb; 12] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
@@ -56,7 +55,6 @@ impl Verb {
         Verb::Drop,
         Verb::Show,
         Verb::List,
-        Verb::Ready,
         Verb::DepTree,
         Verb::Prime,
         Verb::Sync,
@@ -74,7 +72,6 @@ impl Verb {
             Verb::Drop => "drop",
             Verb::Show => "show",
             Verb::List => "list",
-            Verb::Ready => "ready",
             Verb::DepTree => "dep-tree",
             Verb::Prime => "prime",
             Verb::Sync => "sync",
@@ -98,7 +95,6 @@ impl Verb {
             | Verb::Drop => OpClass::Mutating,
             Verb::Show
             | Verb::List
-            | Verb::Ready
             | Verb::DepTree
             | Verb::Prime
             | Verb::Sync
