@@ -6,10 +6,12 @@
 //! ready/closeable predicates two ways: a human view (status glyphs, ANSI
 //! colour) and `--json` (the supported machine contract).
 //!
-//! Rendering is the SOLE place storage's i64 unix-time becomes a date — every
-//! timestamp goes through [`crate::civil::iso8601`] (§9). Colour is suppressed
-//! for stable ASCII whenever `--plain` is passed, `NO_COLOR` is set, or stdout
-//! is not a tty (the last two resolved at the edge — [`Edge::color`]).
+//! The HUMAN view is the sole place storage's i64 unix-time becomes a date — it
+//! renders through [`crate::civil::iso8601`] (§9). `--json` does NOT: it emits
+//! the literal stored i64, the lossless export the i64 storage was chosen for
+//! (§3). Colour is suppressed for stable ASCII whenever `--plain` is passed,
+//! `NO_COLOR` is set, or stdout is not a tty (the last two resolved at the edge
+//! — [`Edge::color`]).
 //!
 //! The silent-empty case (a store with no `tasks/` yet) renders as an empty set,
 //! not an error — surfacing an un-primed checkout is the tracker's job (§13),
@@ -20,7 +22,6 @@ use std::io;
 
 use serde_json::{json, Value};
 
-use crate::civil::iso8601;
 use crate::edge::Edge;
 use crate::task::{On, Status, Task};
 use crate::taskfile;
@@ -167,10 +168,14 @@ pub(crate) fn on_word(on: On) -> &'static str {
     }
 }
 
-/// One ball as the machine-contract JSON object — the shared shape `list`,
-/// `ready`, and (nested) `show`/`dep-tree` all serialise. Timestamps render to
-/// ISO-8601 here, the sole conversion point (§9).
-pub(crate) fn task_json(id: &str, task: &Task, status: Status) -> Value {
+/// One ball as the **bedrock** JSON record — the single shape every read verb's
+/// `--json` emits (§9). It is the lossless mirror of stored frontmatter ONLY:
+/// every field round-trips back to the file, and NOTHING derived appears — no
+/// `status` ladder, no ISO dates (timestamps stay the literal stored i64), no
+/// inverse-derived `children`, no tree nesting. The derived columns live on the
+/// orthogonal HUMAN render alone (§3, bl-d074). `id` is the filename identity
+/// (the round-trip key), not a frontmatter field.
+pub(crate) fn task_json(id: &str, task: &Task) -> Value {
     let blockers: Vec<Value> = task
         .blockers
         .iter()
@@ -179,14 +184,13 @@ pub(crate) fn task_json(id: &str, task: &Task, status: Status) -> Value {
     json!({
         "id": id,
         "title": task.title,
-        "status": status_word(status),
         "claimant": task.claimant,
         "priority": task.priority,
         "parent": task.parent,
         "tags": task.tags,
         "blockers": blockers,
-        "created": iso8601(task.created),
-        "updated": iso8601(task.updated),
+        "created": task.created,
+        "updated": task.updated,
     })
 }
 

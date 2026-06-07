@@ -8,8 +8,6 @@
 use std::fmt::Write;
 use std::io;
 
-use serde_json::{json, Value};
-
 use super::{json_line, on_word, status_word, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 
@@ -20,31 +18,22 @@ pub(crate) fn render(cat: &Catalog, flags: &Flags, style: &Style) -> io::Result<
     let e = cat
         .get(id)
         .ok_or_else(|| io::Error::other(format!("no such ball: {id}")))?;
-    let children = child_ids(cat, id);
     Ok(if flags.json {
-        json_line(&detail_json(cat, e, &children))
+        // `--json` is the bedrock record (§9) — no derived `children`, no body,
+        // identical to a `list` row. The rich view is the human projection.
+        json_line(&task_json(&e.id, &e.task))
     } else {
-        human(cat, e, &children, style)
+        human(cat, e, &child_ids(cat, id), style)
     })
 }
 
 /// The ids of balls whose `parent` points at `id`, in catalog (id) order —
-/// the emergent containment rollup (§10), display-only.
+/// the emergent containment rollup (§10), display-only (human render).
 fn child_ids<'a>(cat: &'a Catalog, id: &str) -> Vec<&'a Entry> {
     cat.entries()
         .iter()
         .filter(|c| c.task.parent.as_deref() == Some(id))
         .collect()
-}
-
-/// The `--json` detail: the shared task object, plus the markdown `body` and the
-/// containment child ids (the two things `show` adds over a list row).
-fn detail_json(cat: &Catalog, e: &Entry, children: &[&Entry]) -> Value {
-    let mut obj = task_json(&e.id, &e.task, cat.status(e));
-    let kids: Vec<Value> = children.iter().map(|c| json!(c.id)).collect();
-    obj["children"] = Value::Array(kids);
-    obj["body"] = json!(e.task.body);
-    obj
 }
 
 /// The human field block: badge + title, then one labelled line per present
