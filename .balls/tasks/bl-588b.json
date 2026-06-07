@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-588b",
+  "claimed_by": "Spits",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:01:47.906573515Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:01:48.603744390Z"},
   "tags": [],
   "title": "Fold bl-d074 resolution into docs/architecture.md (§3/§9/§15) — bedrock-vs-render projection",
   "type": "task",
-  "updated_at": "2026-06-07T20:01:48.603749921Z"
+  "updated_at": "2026-06-07T20:01:52.124397406Z"
 }
