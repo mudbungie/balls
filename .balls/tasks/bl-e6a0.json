@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-e6a0",
+  "claimed_by": "Psychiatry",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T06:32:48.899618410Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T06:32:49.656630291Z"},
   "tags": [],
   "title": "Unified log: bound enveloped line length so concurrent appends stay atomic",
   "type": "task",
-  "updated_at": "2026-06-07T08:20:27.304057949Z"
+  "updated_at": "2026-06-07T20:49:46.864666614Z"
 }
