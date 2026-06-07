@@ -1,3 +1,0 @@
-{"ts":"2026-06-07T20:14:38.582501261Z","author":"github-issues","text":"GH issue #317 no longer found in repo (on_external_delete=deferred)"}
-{"ts":"2026-06-07T20:26:24.918344784Z","author":"Delirium","text":"Restored from erroneous status=deferred. The github-issues plugin falsely reported the GH issue 'no longer found' (verified OPEN on GitHub) due to a list pagination bug; plugin disabled, bug filed. (was in_progress, still claimed by Heed)"}
-{"ts":"2026-06-07T20:30:11.193647240Z","author":"Heed","text":"Generalize the blocker model: on=any op + containment⊥blocking front door (§10/§15 impl)"}
