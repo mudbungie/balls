@@ -1,4 +1,4 @@
-//! §9 read verbs — `show`, `list`, `ready`, `dep-tree`. Diffless ops (§8 "skip
+//! §9 read verbs — `show`, `list`, `dep-tree`. Diffless ops (§8 "skip
 //! steps 1/3/5"): they author no ball-file diff and seal nothing; the printed
 //! output IS the whole contribution. Each walks `tasks/` on the STORE checkout
 //! (§12 — reads run with cwd = the store, never the landing), parses every
@@ -79,10 +79,14 @@ impl Catalog {
     }
 }
 
-/// Parsed read-verb flags: the two output toggles shared by every read.
+/// Parsed read-verb flags: the two output toggles shared by every read, plus
+/// `list`'s optional §3 status filter.
 pub(crate) struct Flags {
     pub json: bool,
     pub plain: bool,
+    /// `bl list --status ready|blocked|claimed` — the derived ladder (§3) as a
+    /// predicate. `None` ⇒ no filter (every live ball). Only `list` accepts it.
+    pub status: Option<Status>,
     /// The lone positional (a ball id for `show`; an optional root for others).
     pub target: Option<String>,
 }
@@ -98,7 +102,6 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let out = match verb {
         Verb::Show => show::render(&cat, &flags, &style)?,
         Verb::List => list::render_list(&cat, &flags, &style),
-        Verb::Ready => list::render_ready(&cat, &flags, &style),
         Verb::DepTree => tree::render(&cat, &flags, &style),
         other => return Err(io::Error::other(format!("{}: not a read verb", other.token()))),
     };
@@ -106,14 +109,23 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     Ok(())
 }
 
-/// Parse `[--json] [--plain] [TARGET]`. `show` requires its `TARGET` id; the
-/// others reject an unknown flag and accept at most one positional.
+/// Parse `[--json] [--plain] [--status STATUS] [TARGET]`. `--status` is a
+/// `list`-only filter taking a space-separated value (§9); for any other verb it
+/// falls through as an unexpected flag. `show` requires its `TARGET` id; every
+/// read rejects an unknown flag and accepts at most one positional.
 fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
-    let mut f = Flags { json: false, plain: false, target: None };
-    for arg in args {
+    let mut f = Flags { json: false, plain: false, status: None, target: None };
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
         match arg.as_str() {
             "--json" => f.json = true,
             "--plain" => f.plain = true,
+            "--status" if verb == Verb::List => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| io::Error::other("list: --status needs ready|blocked|claimed"))?;
+                f.status = Some(parse_status(value)?);
+            }
             flag if flag.starts_with("--") => {
                 return Err(io::Error::other(format!("{}: unexpected flag '{flag}'", verb.token())));
             }
@@ -128,6 +140,19 @@ fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
         return Err(io::Error::other("show: needs a ball id"));
     }
     Ok(f)
+}
+
+/// Parse a `--status` value into its §3 ladder rung — the inverse of
+/// [`status_word`], so the filter token matches the rendered badge word.
+fn parse_status(value: &str) -> io::Result<Status> {
+    match value {
+        "ready" => Ok(Status::Ready),
+        "blocked" => Ok(Status::Blocked),
+        "claimed" => Ok(Status::Claimed),
+        other => Err(io::Error::other(format!(
+            "list: unknown --status '{other}' (want ready|blocked|claimed)"
+        ))),
+    }
 }
 
 /// The human-output style: glyphs + ANSI colour, or stable glyph-free ASCII.

@@ -129,13 +129,18 @@ fn the_read_verbs_render_a_created_ball_end_to_end() {
         .assert()
         .success();
 
-    // `list` (piped ⇒ non-tty ⇒ plain) shows the ready ball; `ready` agrees.
+    // `list` (piped ⇒ non-tty ⇒ plain) shows the ready ball; `--status ready`
+    // (the old `bl ready`, §9) agrees.
     bl_primed(&project, &home, &state)
         .arg("list")
         .assert()
         .success()
         .stdout(contains("ready").and(contains("Render me")).and(contains("p1")));
-    bl_primed(&project, &home, &state).arg("ready").assert().success().stdout(contains("Render me"));
+    bl_primed(&project, &home, &state)
+        .args(["list", "--status", "ready"])
+        .assert()
+        .success()
+        .stdout(contains("Render me"));
 
     // `list --json` is a valid one-element array whose timestamp is the literal
     // stored i64 (the lossless export, §3) — never an ISO string.

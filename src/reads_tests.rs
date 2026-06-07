@@ -60,10 +60,16 @@ fn get_finds_a_ball_or_none() {
 #[test]
 fn parse_reads_the_two_flags_and_one_positional() {
     let f = parse(Verb::List, &["--json".into(), "--plain".into()]).unwrap();
-    assert!(f.json && f.plain && f.target.is_none());
+    assert!(f.json && f.plain && f.target.is_none() && f.status.is_none());
     let f = parse(Verb::Show, &["bl-1".into()]).unwrap();
     assert_eq!(f.target.as_deref(), Some("bl-1"));
     assert!(!f.json && !f.plain);
+}
+
+#[test]
+fn parse_reads_the_list_status_filter() {
+    let f = parse(Verb::List, &["--status".into(), "blocked".into()]).unwrap();
+    assert_eq!(f.status, Some(Status::Blocked));
 }
 
 #[test]
@@ -71,6 +77,9 @@ fn parse_rejects_bad_input() {
     assert!(parse(Verb::List, &["--nope".into()]).is_err()); // unknown flag
     assert!(parse(Verb::List, &["a".into(), "b".into()]).is_err()); // two positionals
     assert!(parse(Verb::Show, &[]).is_err()); // show needs an id
+    assert!(parse(Verb::List, &["--status".into(), "bogus".into()]).is_err()); // bad rung
+    assert!(parse(Verb::List, &["--status".into()]).is_err()); // missing value
+    assert!(parse(Verb::Show, &["--status".into(), "ready".into()]).is_err()); // list-only flag
 }
 
 /// An edge whose store is seeded with `tasks`.
@@ -97,7 +106,7 @@ fn run_dispatches_each_read_verb() {
     let tmp = TempDir::new().unwrap();
     let edge = edge_with(&tmp, &[("bl-1", task("One", 1))]);
     run(&edge, Verb::List, &[]).unwrap();
-    run(&edge, Verb::Ready, &[]).unwrap();
+    run(&edge, Verb::List, &["--status".into(), "ready".into()]).unwrap();
     run(&edge, Verb::DepTree, &[]).unwrap();
     run(&edge, Verb::Show, &["bl-1".into()]).unwrap();
 }
