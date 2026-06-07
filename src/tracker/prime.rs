@@ -27,9 +27,9 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
     let Some(remote) = resolve(b)? else {
         return stealth_lock(b, env);
     };
-    let operating = Path::new(&b.operating);
-    if !remote_has_branch(operating, &remote, &b.branch)? {
-        git(operating, &["push", &remote, &b.branch])?; // found the remote
+    let operating = Path::new(&b.store);
+    if !remote_has_branch(operating, &remote, &b.tasks_branch)? {
+        git(operating, &["push", &remote, &b.tasks_branch])?; // found the remote
     }
     Ok(())
 }
@@ -38,7 +38,7 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
 /// auto-discovered wire remote. The pointer winning is what lets a fresh clone
 /// reach a central store it could not name directly (§12).
 fn resolve(b: &Binding) -> io::Result<Option<String>> {
-    match pointer::read(Path::new(&b.operating))? {
+    match pointer::read(Path::new(&b.store))? {
         Some(next) => Ok(Some(next)),
         None => Ok(b.remote.clone()),
     }

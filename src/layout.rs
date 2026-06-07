@@ -7,8 +7,9 @@
 //! $XDG_STATE_HOME/balls/
 //!   plugins/<name>/                           # each plugin owns this subtree
 //!   clones/<pct-enc-invocation-path>/         # one bundle per invocation path
-//!     binding.toml                            #   tracker remote + invocation_path
-//!     operating/                              #   the git repo balls operates against
+//!     binding.toml                            #   tracker remote + invocation_path + tasks_branch
+//!     config/                                 #   the LANDING — balls/config checkout (§2)
+//!     tasks/                                  #   the STORE — tasks_branch checkout (§2)
 //!     changes/<uuid>/                         #   in-flight CHANGE worktrees (§8)
 //!     logs/<name>/plugin.log                  #   per-plugin diagnostics
 //! ```
@@ -84,7 +85,7 @@ fn resolve_base(home: &Path, default_rel: &str, xdg: Option<&str>) -> PathBuf {
 }
 
 /// The per-invocation-path bundle `clones/<pct-enc-invocation-path>/` and the
-/// four things that live in it. Pure paths; the change worktree is core and
+/// things that live in it. Pure paths; the change worktree is core and
 /// uuid-named (nothing keys off the uuid — §1), distinct from the delivery
 /// plugin's code worktree in plugin territory.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -99,18 +100,27 @@ impl CloneDir {
         &self.root
     }
 
-    /// `binding.toml` — which tracker remote (if any) + the invocation path.
+    /// `binding.toml` — the tracker remote (if any) + invocation path + the
+    /// `tasks_branch` the store rides (§1).
     #[must_use]
     pub fn binding(&self) -> PathBuf {
         self.root.join("binding.toml")
     }
 
-    /// `operating/` — the git repo balls operates against. A real dir in
-    /// stealth (the landing itself); a symlink into tracker territory when a
-    /// tracker is enabled. This layer only names the path.
+    /// `config/` — the LANDING checkout (the `balls/config` branch, §2). A real
+    /// worktree balls reads config from; this layer only names the path. When the
+    /// store branch coincides with the landing it doubles as the store (§2).
     #[must_use]
-    pub fn operating(&self) -> PathBuf {
-        self.root.join("operating")
+    pub fn landing(&self) -> PathBuf {
+        self.root.join("config")
+    }
+
+    /// `tasks/` — the STORE checkout (the `tasks_branch` branch, §2). The linked
+    /// worktree balls reads/writes tasks on and seals task ops onto (§8). When the
+    /// store branch coincides with the landing this resolves to [`Self::landing`].
+    #[must_use]
+    pub fn store(&self) -> PathBuf {
+        self.root.join("tasks")
     }
 
     /// `changes/<uuid>/` — one ephemeral CHANGE worktree for an in-flight op
@@ -170,11 +180,12 @@ mod tests {
     }
 
     #[test]
-    fn the_bundle_names_its_four_inhabitants() {
+    fn the_bundle_names_its_inhabitants() {
         let c = Xdg::with(home(), None, Some("/st")).clone_dir(Path::new("/p"));
         let root = c.root().to_path_buf();
         assert_eq!(c.binding(), root.join("binding.toml"));
-        assert_eq!(c.operating(), root.join("operating"));
+        assert_eq!(c.landing(), root.join("config"));
+        assert_eq!(c.store(), root.join("tasks"));
         assert_eq!(c.change("abc-123"), root.join("changes/abc-123"));
         assert_eq!(c.log("tracker"), root.join("logs/tracker/plugin.log"));
     }

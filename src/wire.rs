@@ -19,15 +19,18 @@ use serde::Serialize;
 use crate::message::Metadata;
 use crate::task::Task;
 
-/// §7 binding — where the op is happening. `operating` is the terminus checkout;
-/// `invocation_path` is where `bl` was invoked (the project-repo root the
-/// delivery plugin needs, §11). `remote` is absent in a no-remote (stealth) repo.
+/// §7 binding — where the op is happening. `store`/`landing` are the two checkout
+/// paths (§1 — the `tasks_branch` store and the `balls/config` landing);
+/// `tasks_branch` names the store branch (§4); `invocation_path` is where `bl`
+/// was invoked (the project-repo root the delivery plugin needs, §11). `remote`
+/// is absent in a no-remote (stealth) repo.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Binding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote: Option<String>,
-    pub branch: String,
-    pub operating: String,
+    pub tasks_branch: String,
+    pub store: String,
+    pub landing: String,
     pub invocation_path: String,
 }
 

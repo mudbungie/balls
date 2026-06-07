@@ -2,7 +2,7 @@
 //! `drop`, wired to the §8 engine. The MUTATING counterpart to [`crate::checkout`]
 //! (which wires the diffless `prime`/`sync`): these author a `tasks/<id>.md` diff
 //! and SEAL it, so they run the full Author → Pre → Seal → Post → Teardown shape
-//! against a change worktree off the operating terminus
+//! against a change worktree off the STORE terminus
 //! ([`crate::lifecycle::Engine::seal`]).
 //!
 //! Every collaborator already exists — [`crate::change`] authors each verb's diff
@@ -19,6 +19,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
+use crate::checkout;
+use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::git::Git;
 use crate::id::IdScheme;
@@ -29,24 +31,24 @@ use crate::task::{Blocker, On, Task};
 use crate::taskfile::{read_task, task_ids};
 use crate::verb::Verb;
 use crate::wire::{Command, OpContext};
-use crate::{checkout, STATE_BRANCH};
 
 /// Run a mutating verb (§9) end to end: parse `args`, author the verb's base
-/// change against the operating checkout, and seal it through the §8 engine + the
-/// §6 plugin chain. The checkout must already be a landing (`bl prime` founds it,
-/// §12) — a mutating op never bootstraps. `verb` is guaranteed mutating by the
-/// [`crate::run`] dispatch that calls this.
+/// change against the STORE checkout, and seal it onto `tasks_branch` through the
+/// §8 engine + the §6 plugin chain (resolved from the LANDING registry, §2). The
+/// checkout must already be a landing (`bl prime` founds it, §12) — a mutating op
+/// never bootstraps. `verb` is guaranteed mutating by the [`crate::run`] dispatch.
 pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let flags = parse(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
-    let operating = clone.operating();
-    if !operating.join("config").is_dir() {
+    let (landing, store) = (clone.landing(), clone.store());
+    if !landing.join("config").is_dir() {
         return Err(other("no balls checkout here — run `bl prime` first"));
     }
 
-    let (base, before) = base_change(verb, &operating, &flags, now())?;
-    let remote = checkout::origin_of(&operating);
-    let binding = checkout::binding(&operating, &edge.invocation_path, remote, STATE_BRANCH);
+    let (base, before) = base_change(verb, &store, &flags, now())?;
+    let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
+    let remote = checkout::origin_of(&landing);
+    let binding = checkout::binding(&landing, &store, &edge.invocation_path, remote, cfg.tasks_branch);
     let ctx = OpContext {
         actor: flags.actor.clone(),
         binding,
@@ -55,12 +57,12 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
         after: None,
     };
 
-    let reg = Registry::at(&operating);
+    let reg = Registry::at(&landing);
     let pre = reg.resolve(verb.token(), "pre")?;
     let post = reg.resolve(verb.token(), "post")?;
     let change_dir = clone.change(&change_token());
     let plugins = Subprocess::new(ctx, &clone.root().join("logs"), edge.depth);
-    let terminus = Git::at(&operating);
+    let terminus = Git::at(&store);
     Engine::new(&terminus, &plugins)
         .seal(base.as_ref(), verb, &change_dir, &pre, &post)
         .map(|_sha| ())
@@ -71,7 +73,7 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
 /// op-start state (`before`, the §7 `current_state` a `pre` plugin sees — `None`
 /// on `create`, which has no prior ball). `now` is injected, so the change stays
 /// pure (it never reads a clock). Only the six mutating verbs reach here.
-fn base_change(verb: Verb, operating: &Path, flags: &Flags, now: i64) -> io::Result<(Box<dyn BaseChange>, Option<Task>)> {
+fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<(Box<dyn BaseChange>, Option<Task>)> {
     let actor = flags.actor.clone();
     match verb {
         Verb::Create => {
@@ -87,14 +89,14 @@ fn base_change(verb: Verb, operating: &Path, flags: &Flags, now: i64) -> io::Res
                 blockers: flags.needs.iter().map(|id| Blocker { id: id.clone(), on: On::Claim }).collect(),
                 over: flags.over.clone(),
                 body: flags.body.clone(),
-                existing: task_ids(operating)?,
+                existing: task_ids(store)?,
             };
             Ok((Box::new(base), None))
         }
         Verb::Claim | Verb::Unclaim => {
             forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
-            let before = read_task(operating, &id)?;
+            let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
             let base = Occupancy { verb, id, claimant, actor, now, over: flags.over.clone(), body: flags.body.clone() };
             Ok((Box::new(base), Some(before)))
@@ -103,14 +105,14 @@ fn base_change(verb: Verb, operating: &Path, flags: &Flags, now: i64) -> io::Res
             forbid_structure(flags, verb)?;
             let mut positionals = flags.positionals.iter();
             let id = positionals.next().ok_or_else(|| other("update: needs a task id"))?.clone();
-            let before = read_task(operating, &id)?;
+            let before = read_task(store, &id)?;
             let base = Update { id, actor, now, edits: edits(positionals, flags)?, over: flags.over.clone(), body: flags.body.clone() };
             Ok((Box::new(base), Some(before)))
         }
         Verb::Close | Verb::Drop => {
             forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
-            let before = read_task(operating, &id)?;
+            let before = read_task(store, &id)?;
             let base = Retire { verb, id, title: before.title.clone(), actor, over: flags.over.clone(), body: flags.body.clone() };
             Ok((Box::new(base), Some(before)))
         }
