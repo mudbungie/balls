@@ -815,8 +815,21 @@ and prime never touches a remote (the seeded tracker *is* the consent to leave a
 Adopting an established store branch and founding an absent one are the same `sync`-or-bootstrap step,
 the difference read from remote state, not a flag. **Implicit founding is fine:** creating a `balls`
 branch on a repo you can push to is harmless and once-per-clone — `--stealth` opts out (and locks the
-store local). A push that fails for lack of perms falls back to stealth-local silently, so the
-"harmless by definition" property holds even without write access.
+store local).
+
+**Push-failure splits on founding-vs-established — the two must NOT collapse to one silent path
+(bl-9857).** Read the case from remote state, the same `ls-remote` that decides adopt-vs-found:
+- **Founding-miss** (branch ABSENT, no create perm): the bootstrap push that would CREATE the branch is
+  rejected. This falls back to stealth-local **silently** — nothing existed to land on, so "couldn't
+  found, stayed local" is harmless by definition and once-per-clone, and the property holds even without
+  write access. (Re-running `prime` re-attempts; if another clone has since founded the branch it is now
+  present → adopt.)
+- **Rejected push to an ESTABLISHED remote** (branch PRESENT — non-ff, perms revoked mid-life, a
+  server-hook reject): this is the opposite and is an **ERROR (E5)**. Your mutation did NOT land while
+  you believe you are federated; silently degrading to stealth here is a split-brain (the local store
+  diverges from the remote everyone else reads). The non-zero exit aborts the op (the §13 pull → mutate
+  → push contract), surfaced, never swallowed. `prime` never pushes to an established store (present →
+  adopt, no push), so this path is exactly every op's `*/post` publish (the tracker's `remote_ops::push`).
 
 **Federation = many landings, ONE store branch.** There is no trail, no terminus, no transitive
 discovery, no `operating/` symlink (all retired with config-shadowing — §4). A center is not a special
@@ -895,8 +908,10 @@ physical realization is §1 (`config/` and `tasks/` are two checkouts; the store
 
 Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store remote resolved
 (stealth/no-tracker is fine — this fires only when a remote was named but unresolvable); E4 [tracker]
-remote unreachable (refusing to bootstrap); E7 [balls] plugin failed during prime, rolled back K
-prior; W1 [tracker] store is stealth (local), not auto-syncing. (Retired by idempotent prime: E2
+remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an ESTABLISHED remote store
+(non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts per the §13
+pull→mutate→push contract, NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
+prime, rolled back K prior; W1 [tracker] store is stealth (local), not auto-syncing. (Retired by idempotent prime: E2
 "already initialized" — re-running prime is a no-op-converge; E3 "remote already established" —
 established vs absent is the adopt-vs-bootstrap fork, not an error. Retired by the trail's removal: N3
 downstream-layer-introduces-plugins — there is no downstream layer.)
@@ -1117,6 +1132,24 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **prime push-failure splits founding-miss vs established-reject (2026-06-07, bl-9857 —
+  post-freeze).** §12 read "A push that fails for lack of perms falls back to stealth-local silently."
+  That conflated two cases into one silent path. The fallback is defensible ONLY for FOUNDING — the
+  remote store branch is ABSENT and you lack create perms, so "couldn't found, stayed local" is
+  genuinely harmless and once-per-clone. It is WRONG for an ESTABLISHED remote: an upstream rejection of
+  a push to an already-existing store (non-ff, perms revoked mid-life, server-hook reject) means your
+  mutation did not land while you believe you are federated — a silent split-brain. RESOLVED by
+  distinguishing at the tracker on the SAME `ls-remote` that already decides adopt-vs-found: branch
+  absent → founding → silent stealth fallback (unchanged); branch present → established → ERROR (new
+  catalog code **E5**), surfaced and aborting the op (the §13 pull→mutate→push contract), never a stealth
+  degrade. The split falls out of the existing structure for free — `prime` is the only founder and never
+  pushes to a present branch (adopt = no push), so the established-reject path is exactly every op's
+  `*/post` publish, which already errored, while `prime`'s founding push already swallows its rejection
+  into stealth. The two halves were therefore already realized in code (`src/tracker/prime.rs`'s founding
+  fallback + `src/tracker/remote_ops.rs::push`'s erroring publish); this resolution makes the DISTINCTION
+  explicit so it cannot silently regress — naming it in both call sites' docs and giving the established
+  reject a catalog code. Touched §12 (rewrote the founding-fine paragraph + added E5 to the error
+  catalog). Tracked under bl-72a8.
 - **git log as content — recency-resolved id lookup; `ready`→`list --status ready`; `list` history
   filters; `show` fallthrough (2026-06-07, bl-d7a5 — post-freeze).** The build had drifted toward
   treating closed tasks as gone; the design intent was heavier *implicit* use of the log. Three changes
