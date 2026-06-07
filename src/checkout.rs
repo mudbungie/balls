@@ -34,7 +34,7 @@ use std::path::Path;
 /// `bl prime [--as ID]` — bring this checkout to readiness (§12). Bootstrap-on-
 /// miss founds both branches; then the `prime` chain runs against the store.
 pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
-    let actor = parse(args, &edge.default_actor, "prime")?;
+    let opts = parse_prime(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
 
@@ -43,8 +43,8 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     } else {
         substrate::found(&landing, &store, edge.tracker_bin.as_deref())?;
     }
-    let (binding, level) = bind(edge, &landing, &store, None)?;
-    run_chain(edge, &landing, &store, Verb::Prime, &actor, binding, level)
+    let (binding, level) = bind(edge, &landing, &store, opts.remote, None)?;
+    run_chain(edge, &landing, &store, Verb::Prime, &opts.actor, binding, level)
 }
 
 /// `bl sync [BRANCH] [--as ID]` — make state consistent (§13): run the `sync`
@@ -63,29 +63,40 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     if opts.branch.as_deref() == Some("landing") {
         return Ok(());
     }
-    let (binding, level) = bind(edge, &landing, &store, opts.branch)?;
+    let (binding, level) = bind(edge, &landing, &store, None, opts.branch)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
-/// Build the §7 binding for a checkout-lifecycle op plus the resolved §4 log
-/// [`Level`]: the auto-discovered store remote, the `tasks_branch` (the `target`
-/// override, else the config-named one — §13 `bl sync <branch>`), the two
-/// checkout paths, and the `log_level` threshold (CLI override over config). One
-/// landing config read serves both. The single construction point [`binding`]
-/// does the binding assembly.
-fn bind(edge: &Edge, landing: &Path, store: &Path, target: Option<String>) -> io::Result<(Binding, Level)> {
-    let cfg = EffectiveConfig::resolve(landing, &edge.xdg.user_config())?;
+/// [`Level`]: the §12-resolved store remote, the `tasks_branch` (the `target`
+/// override, else the config-named one — §13 `bl sync <branch>`), the two checkout
+/// paths, and the `log_level` threshold (CLI override over config). `cli_remote` is
+/// the parsed `--remote`/`--center` override (prime; `None` for sync/mutate),
+/// seeding the [`resolve_remote`] precedence. One landing config read serves both.
+/// The single construction point [`binding`] does the binding assembly.
+fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
+    let user_config = edge.xdg.user_config();
+    let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
+    let remote = resolve_remote(cli_remote, landing, &user_config);
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
-    let binding = binding(landing, store, &edge.invocation_path, origin_of(landing), tasks_branch);
+    let binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);
     Ok((binding, level))
+}
+
+/// Resolve the store remote by the §12 precedence — an explicit CLI override
+/// (`--remote` > `--center`, already collapsed by the caller) beats the
+/// per-machine XDG `remote`, which beats auto-discovered `origin`. `None` ⇒ no
+/// remote resolved = stealth (the store stays local). Shared by every op's bind
+/// (prime/sync/mutate) so they agree on ONE upstream for `tasks_branch`.
+pub(crate) fn resolve_remote(cli: Option<String>, landing: &Path, user_config: &Path) -> Option<String> {
+    cli.or_else(|| crate::config::xdg_remote(user_config))
+        .or_else(|| origin_of(landing))
 }
 
 /// The auto-discovered store remote — `git remote get-url origin` on the landing,
 /// a LOCAL config read (no network). Absent origin (the common stealth case) ⇒
-/// `None`. Shared with [`crate::mutate`], the mutating-verb dispatch that resolves
-/// the same §7 binding for a ball-file op.
-pub(crate) fn origin_of(checkout: &Path) -> Option<String> {
+/// `None`. The bottom of the [`resolve_remote`] precedence.
+fn origin_of(checkout: &Path) -> Option<String> {
     match git::run(checkout, &["remote", "get-url", "origin"], None) {
         Ok(url) => Some(url.trim().to_string()),
         Err(_) => None,
@@ -143,19 +154,34 @@ struct SyncOpts {
     branch: Option<String>,
 }
 
-/// Parse `[--as ID]` for a verb that takes no other flags (`prime`), returning
-/// the resolved actor. An unknown flag or positional is an error.
-fn parse(args: &[String], default_actor: &str, verb: &str) -> io::Result<String> {
-    let mut actor = default_actor.to_string();
+/// Parsed `bl prime` flags: the resolved actor plus the optional store-remote
+/// override that seeds the top of the [`resolve_remote`] precedence (§12).
+struct PrimeOpts {
+    actor: String,
+    remote: Option<String>,
+}
+
+/// Parse `bl prime [--as ID] [--remote URL] [--center URL]`. `--remote` and
+/// `--center` both name the store remote (the federation framing differs, the
+/// effect is one URL); `--remote` wins if both are given, whatever the order
+/// (`get_or_insert` lets a later `--center` fill an empty slot but never overwrite
+/// a `--remote`, which always assigns). An unknown flag or positional is an error.
+fn parse_prime(args: &[String], default_actor: &str) -> io::Result<PrimeOpts> {
+    let mut o = PrimeOpts { actor: default_actor.to_string(), remote: None };
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--as" => actor = value(args, &mut i, "--as")?,
-            other => return Err(io::Error::other(format!("{verb}: unexpected argument '{other}'"))),
+            "--as" => o.actor = value(args, &mut i, "--as")?,
+            "--remote" => o.remote = Some(value(args, &mut i, "--remote")?),
+            "--center" => {
+                let center = value(args, &mut i, "--center")?;
+                o.remote.get_or_insert(center);
+            }
+            other => return Err(io::Error::other(format!("prime: unexpected argument '{other}'"))),
         }
         i += 1;
     }
-    Ok(actor)
+    Ok(o)
 }
 
 fn parse_sync(args: &[String], default_actor: &str) -> io::Result<SyncOpts> {
