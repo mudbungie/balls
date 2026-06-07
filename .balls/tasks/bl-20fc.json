@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-35f7"],
   "description": "Implement the diffless read verbs (doctor already done, bl-d024): show/list/ready/dep-tree. Walk tasks/, parse Task (bl-7b8f/bl-651c), compute the §3 derived status ladder (Task::status with the store's is_resolved) and §10 ready/closeable predicates (bl-70f5, delivered); render BOTH human output (status glyphs/colors; --plain/NO_COLOR for stable ASCII) and --json (the supported machine contract). 'bl ready' ORDERS the ready set by priority asc (absent LAST) then created asc (§10) — ordering is display-only, never in the predicate. TIMESTAMP DISPLAY: storage is i64 unix-time, so this layer is the SOLE place that renders unix→ISO-8601 (§9) — hand-roll civil-from-days (~40 lines, no chrono dep) or one small display-only dep. No seal, no change worktree: the printed output is the whole contribution (§9). Reuses the CLI arg-parse surface from the dispatch ball (bl-35f7).",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":338,"source":"balls","state":"open","synced_at":"2026-06-07T19:35:48.486562583+00:00","url":"https://github.com/mudbungie/balls/issues/338"}}},
   "id": "bl-20fc",
   "links": [],
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-06T23:03:30.096676392Z"},
+  "synced_at": {"github-issues":"2026-06-07T19:35:48.499419604Z"},
   "tags": [],
   "title": "§9 read verbs: show/list/ready/dep-tree + rendering (status ladder, ISO-8601, --json)",
   "type": "task",
-  "updated_at": "2026-06-07T19:35:47.741817468Z"
+  "updated_at": "2026-06-07T19:35:48.499424603Z"
 }
