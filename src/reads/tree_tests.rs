@@ -57,11 +57,15 @@ fn an_unblocked_node_has_no_annotation() {
 }
 
 #[test]
-fn the_json_forest_nests_child_objects() {
+fn the_json_is_a_flat_bedrock_array_not_a_nested_tree() {
     let cat = catalog(&[("bl-root", task("Root", 1)), ("bl-child", child("Child", "bl-root"))]);
     let out = render(&cat, &flags(true), &plain());
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-    assert_eq!(v[0]["id"], "bl-root");
-    assert_eq!(v[0]["children"][0]["id"], "bl-child");
-    assert_eq!(v[0]["children"][0]["children"], serde_json::json!([]));
+    // Every ball is a flat top-level record; the tree is reconstructable from
+    // each record's stored `parent`, never pre-nested (§9 bedrock).
+    assert_eq!(v.as_array().unwrap().len(), 2);
+    assert_eq!(v[0]["id"], "bl-child");
+    assert_eq!(v[0]["parent"], "bl-root");
+    assert_eq!(v[1]["id"], "bl-root");
+    assert!(v[0].get("children").is_none());
 }

@@ -42,10 +42,7 @@ fn order_key(e: &Entry) -> (bool, i64, i64, &str) {
 /// Render `rows` either as the `--json` array or as badge lines.
 fn render(cat: &Catalog, rows: &[&Entry], flags: &Flags, style: &Style) -> String {
     if flags.json {
-        let arr: Vec<Value> = rows
-            .iter()
-            .map(|e| task_json(&e.id, &e.task, cat.status(e)))
-            .collect();
+        let arr: Vec<Value> = rows.iter().map(|e| task_json(&e.id, &e.task)).collect();
         return json_line(&Value::Array(arr));
     }
     let mut out = String::new();

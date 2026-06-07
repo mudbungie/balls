@@ -18,13 +18,15 @@ use crate::task::On;
 /// Render `bl dep-tree`. `--json` is the nested forest of node objects;
 /// otherwise an indented badge tree.
 pub(crate) fn render(cat: &Catalog, flags: &Flags, style: &Style) -> String {
-    let roots = roots(cat);
     if flags.json {
-        let forest: Vec<Value> = roots.iter().map(|e| node_json(cat, e)).collect();
-        return json_line(&Value::Array(forest));
+        // The nesting is derived, so `--json` is the FLAT bedrock array (§9) —
+        // every ball's stored `parent` is in its record; the consumer rebuilds
+        // the tree. The forest shape is the human projection alone.
+        let arr: Vec<Value> = cat.entries().iter().map(|e| task_json(&e.id, &e.task)).collect();
+        return json_line(&Value::Array(arr));
     }
     let mut out = String::new();
-    for root in &roots {
+    for root in &roots(cat) {
         walk(cat, root, 0, style, &mut out);
     }
     out
@@ -86,14 +88,6 @@ fn annotation(e: &Entry) -> String {
         })
         .collect();
     format!(" [{}]", parts.join(", "))
-}
-
-/// One `--json` forest node: the shared task object plus its nested children.
-fn node_json(cat: &Catalog, e: &Entry) -> Value {
-    let mut obj = task_json(&e.id, &e.task, cat.status(e));
-    let kids: Vec<Value> = children(cat, &e.id).iter().map(|c| node_json(cat, c)).collect();
-    obj["children"] = Value::Array(kids);
-    obj
 }
 
 #[cfg(test)]
