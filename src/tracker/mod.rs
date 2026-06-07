@@ -13,15 +13,12 @@
 //! - [`prime::prime`] — `prime/pre`: resolve the upstream, adopt-or-found,
 //!   or write the stealth self-lock when there is no remote (§12).
 //!
-//! The [`pointer`] is the committed `next:` trail hop the tracker owns; the
-//! wire's [`Binding`] is everything else it needs. Each handler no-ops in a
-//! stealth (no-remote) repo — the structural opt-out (§12).
+//! The wire's [`Binding`] is everything it needs — `remote` + `tasks_branch`
+//! name the store upstream DIRECTLY, with no trail to walk (§12). Each handler
+//! no-ops in a stealth (no-remote) repo — the structural opt-out (§12).
 
 mod git;
 mod payload;
-// `pointer` is the single source of the committed `next:` format; core's
-// `prime` writes/clears it (§12), so it is crate-visible, not tracker-private.
-pub(crate) mod pointer;
 mod prime;
 mod remote_ops;
 

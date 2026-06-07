@@ -6,16 +6,17 @@
 //!   there is nothing to leave on `origin`; installing the tracker (and giving
 //!   it a remote) IS the consent to federate. The lock marks the landing locked
 //!   so a later prime does not silently auto-extend it (notice W1).
-//! - **Tracked**: resolve the upstream — the committed trail pointer (§12) wins
-//!   over the auto-discovered wire remote — then **adopt or found**, the one
-//!   sync-or-bootstrap step. An established remote balls branch is left for
-//!   `sync` to keep current (adopt); an ABSENT one is founded by pushing the
-//!   local checkout (bootstrap-on-miss). Established-vs-absent is read from the
-//!   remote, not declared.
+//! - **Tracked**: the upstream is the config-named store remote
+//!   (`binding.remote`, §12) — read DIRECTLY, with no trail to walk (config
+//!   crosses a checkout boundary exactly once, by `install`, §4/§12). Then
+//!   **adopt or found**, the one sync-or-bootstrap step: an established remote
+//!   store branch is left for `sync` to keep current (adopt); an ABSENT one is
+//!   founded by pushing the local checkout (bootstrap-on-miss).
+//!   Established-vs-absent is read from the remote, not declared.
 
 use super::git::git;
 use super::payload::Binding;
-use super::{pointer, Env};
+use super::Env;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -24,24 +25,14 @@ use std::path::Path;
 /// nothing new (the branch now exists → adopt) and re-locks an already-locked
 /// stealth checkout, so it converges to a no-op.
 pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
-    let Some(remote) = resolve(b)? else {
+    let Some(remote) = b.remote.clone() else {
         return stealth_lock(b, env);
     };
-    let operating = Path::new(&b.store);
-    if !remote_has_branch(operating, &remote, &b.tasks_branch)? {
-        git(operating, &["push", &remote, &b.tasks_branch])?; // found the remote
+    let store = Path::new(&b.store);
+    if !remote_has_branch(store, &remote, &b.tasks_branch)? {
+        git(store, &["push", &remote, &b.tasks_branch])?; // found the remote
     }
     Ok(())
-}
-
-/// The upstream to ready: the committed trail pointer (`next:`) if set, else the
-/// auto-discovered wire remote. The pointer winning is what lets a fresh clone
-/// reach a central store it could not name directly (§12).
-fn resolve(b: &Binding) -> io::Result<Option<String>> {
-    match pointer::read(Path::new(&b.store))? {
-        Some(next) => Ok(Some(next)),
-        None => Ok(b.remote.clone()),
-    }
 }
 
 /// Does `remote` already carry `branch`? `git ls-remote --heads` is the one
@@ -61,8 +52,8 @@ fn stealth_lock(b: &Binding, env: &Env) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::tracker::fixtures::{
-        binding, empty_remote, env, local_unpushed, operating_clone, remote_with_branch,
-        set_pointer, tip, BRANCH,
+        binding, empty_remote, env, local_unpushed, operating_clone, remote_with_branch, tip,
+        BRANCH,
     };
     use tempfile::TempDir;
 
@@ -101,19 +92,5 @@ mod tests {
 
         prime(&binding(Some(&remote), &operating), &env).unwrap();
         assert_eq!(tip(&remote, BRANCH), before); // no push happened
-    }
-
-    #[test]
-    fn the_committed_pointer_overrides_the_wire_remote() {
-        let tmp = TempDir::new().unwrap();
-        let wire = remote_with_branch(tmp.path()); // the auto-discovered remote
-        let pointed = empty_remote(tmp.path()); // the committed next: hop, absent
-        let operating = local_unpushed(tmp.path());
-        set_pointer(&operating, &pointed.to_string_lossy());
-        let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-
-        // Resolve picks `pointed`, finds it absent, and founds it — not `wire`.
-        prime(&binding(Some(&wire), &operating), &env).unwrap();
-        assert_eq!(tip(&pointed, BRANCH), tip(&operating, "HEAD"));
     }
 }
