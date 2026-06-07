@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-cd21",
+  "claimed_by": "Serge",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-06T06:48:38.808896103Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T06:14:17.118493277Z"},
   "tags": [],
   "title": "Greenfield tracker: sync tasks_branch<->remote (ff-only/union); store-remote config, not transitive next: pointer",
   "type": "task",
-  "updated_at": "2026-06-07T20:32:08.613881173Z"
+  "updated_at": "2026-06-07T20:48:03.033749151Z"
 }
