@@ -59,11 +59,13 @@ child plus a tag), never core rules. Destination semantics, not source.
   Non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol.
 - **Core knows two things about a plugin:** its name and its binary path. It never reads a plugin's
   config. Plugins coordinate only through core schema (task fields), never by sniffing each other.
-- **Landing config is the SOLE authority.** Core evaluates exactly one thing to decide what runs and
-  where it syncs: the landing's config (`tasks_branch` + the plugin list, §4). It changes only by user
-  command (`install`, §6, or a direct edit) — never by automatic discovery. **All config is treated as
-  potential RCE** and crosses into a landing only by the explicit copy `install` performs; reading or
-  syncing a remote is free but NEVER authoritative. There are **no run-time defaults**: a fresh landing
+- **LOCAL config is the sole authority — never a remote.** Core decides what runs and where it syncs
+  from local config only: the landing's `config/balls.toml` (`tasks_branch` + the plugin registry,
+  §4), with the per-machine XDG layer and CLI flags as local-trusted overrides (§4 read order). The
+  landing is the durable, committed home of that authority; XDG and flags are your own machine, not a
+  remote input. It changes only by user command (`install`, §6, or a direct landing/XDG edit) — never
+  by automatic discovery. **All config is treated as potential RCE** and crosses into a landing only by
+  the explicit copy `install` performs; reading or syncing a remote is free but NEVER authoritative. There are **no run-time defaults**: a fresh landing
   is SEEDED at prime by copying the app-level `default-config/` folder (§1/§12), so the trusted set
   (tracker, delivery, builtin plugins) are ordinary entries in the landing's list — not a magic
   carve-out. Swap that folder and you swap the default capability set: policy lives in config, not core.
@@ -218,11 +220,13 @@ comments).
   other field can derive an order — so it does NOT pass the "zero core behavior ⇒ fold" test and
   stays a core field. Lower = higher priority; **absent sorts LAST** (a no-priority ball is lower
   than any priority). Ordering is display-only — never part of the `ready()` predicate (§10).
-- **`blockers: [{id, on}]`** — the relational primitive (§10), stored on the BLOCKED task. `on` ∈
-  `{claim, close}`: which of *this* task's own transitions is gated. The `.pre` is implicit
-  (blocking is always a pre-op rejection). Subsumes the old `deps`/`gates` link types — they were
-  one edge parameterized by `on`. Pure-metadata links (`relates_to`, `supersedes`, `duplicates`,
-  `replies_to`) remain core metadata with no enforcement.
+- **`blockers: [{id, on}]`** — the relational primitive (§10), stored on the BLOCKED task. `on` is
+  ANY op name (`claim`/`close`/`update`/`drop`/…): the op of *this* task whose `.pre` is rejected
+  while `id` is unresolved (`.pre` is implicit — blocking is always a pre-op rejection). NOT an enum —
+  `claim` (dependency) and `close` (gate) are merely the two cases with create-time sugar (§10); the
+  primitive itself gates any op. Subsumes the old `deps`/`gates` link types — they were one edge
+  parameterized by `on`. Pure-metadata links (`relates_to`, `supersedes`, `duplicates`, `replies_to`)
+  remain core metadata with no enforcement.
 - **`created`/`updated` are unix-time (i64 seconds)** — storage and transit are ALWAYS unix-time; only
   display renders ISO-8601 (§9). A timestamp is just an int, so the storage layer needs no date library,
   the value is timezone-unambiguous and numerically sortable, and the TOML→JSON export stays lossless.
@@ -231,8 +235,11 @@ comments).
 
 ## §4 Config schema
 
-Config lives ONLY on the landing (`balls/config`); it is the SOLE authority for what runs and where
-it syncs (§0), NEVER read from the store and NEVER layered down a trail (there is no trail — §12).
+Config's durable, committed home is the landing (`balls/config`); it is NEVER read from the store and
+NEVER layered down a trail (there is no trail — §12). The EFFECTIVE config is the landing overlaid by
+two local-trusted layers — the per-machine XDG file and CLI flags — and that whole LOCAL stack is the
+sole authority for what runs and where it syncs (§0): no remote is ever authoritative. A center's
+config reaches you only by `install` copying it INTO the landing, where it becomes local (§6).
 **Read layers, innermost wins:**
 1. CLI flags
 2. `$XDG_CONFIG_HOME/balls/config.toml` (per-machine, local-trusted)
@@ -257,11 +264,15 @@ bare `<field>` = full replacement; compose with `<field>_prepend` / `<field>_app
 The run-parts `config/plugins/<op>/<phase>/` dirs are landing-local, populated by `bl install` (§6) —
 never inherited. Empty dir = run nothing.
 
-**The landing is single-owner by discipline.** Config's transport is a path-copy mirror (§6
-install), which has NO cross-writer merge — so two writers to one config branch clobber. That is WHY the landing
-is path-derived per-checkout (a different fixed point per clone) and is NEVER a sync target (§13).
-Sharing a config branch between clones corrupts; only the STORE (`tasks_branch`) is shareable,
-because only it is sync-merged (§6/§12).
+**The landing is single-owner — and balls cannot publish it.** Config's transport is a path-copy
+mirror (§6 install), which has NO cross-writer merge, so two writers to one config branch clobber.
+Single-ownership is therefore STRUCTURAL, not disciplinary: the only component that pushes is the
+tracker, and it pushes ONLY `tasks_branch` (§13) — nothing in balls ever puts the landing in a push
+refspec, so `balls/config` physically cannot leave the box through balls. The landing is path-derived
+per-checkout (a different fixed point per clone) and is NEVER a sync target (§13). The one residue
+balls cannot police is a human running raw `git push origin balls/config` by hand — outside balls'
+surface, the same way `rm -rf .balls` is. Sharing a config branch between clones corrupts; only the
+STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
 
 **Built-in fields:**
 - `tasks_branch` (string, default `"balls/tasks"`) — the branch whose `tasks/` is this checkout's
@@ -327,8 +338,12 @@ plugin <name> <op> <phase>` is the canonical dispatch and balls dogfoods it.
   cwd:    the CHANGE worktree (mutating ops) or the relevant checkout (reads: store / landing)
   env:    BALLS_PROTOCOL=1, BALLS_PLUGIN_NAME=<name>, BALLS_PLUGIN_DEPTH=<n>
   stdin:  payload (§7)
-  stdout: diagnostics only — NOTHING is parsed back into state (no return channel; see §7)
-  stderr: human log; captured to clones/<enc>/logs/<name>/
+  stdout: the plugin's USER-FACING channel — balls forwards it to the invoker's stdout verbatim
+          and PARSES NOTHING back into state (no return channel; see §7). A plugin that produces a
+          user-relevant value (the delivery plugin's worktree path, a forge PR URL) PRINTS IT HERE;
+          core neither computes nor consumes it. "claim prints the worktree path" is exactly this —
+          the delivery plugin printing, not core knowing the path.
+  stderr: human/diagnostic log; captured to clones/<enc>/logs/<name>/
   exit:   0 = ok; non-zero = abort + roll prior plugins back in reverse
 ```
 
@@ -358,7 +373,10 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   source file in and leaves the destination's other files alone; `bl install tasks/bl-1234.md` ports
   one task. A same-`id` is OVERWRITTEN, NOT conflicted — there is no conflict detection; git is the
   recovery net. A deliberate sharp edge: `install tasks` is a hard wipe, `install tasks/*` a union; the
-  skill doc states it. (This is the one counterintuitive case — folder ≠ `cp`.)
+  skill doc states it. (This is the one counterintuitive case — folder ≠ `cp`.) Mitigation is honesty,
+  not a guard: install commits, so every deletion is git-recoverable, and install PRINTS its change
+  summary (`N added / M deleted`) on stdout — the blast radius is visible before you trust it, and
+  `git diff` reviews it after. No confirmation flag (a new flag is a smell, §0); the commit IS the undo.
 - **Siblings are never touched.** install builds its commit on top of `--to`'s current tip, swapping
   only `<path>` — it NEVER rebuilds the tip from the source's whole tree and NEVER resets the ref. So
   `install config` can never eat a co-resident `tasks/` (if `tasks_branch` names the same branch, §2):
@@ -408,12 +426,30 @@ tracks its own intermediate state (§11 rollback is the worked derived-state exa
 
 ## §8 Op lifecycle
 
-Every op is the same shape: **balls authors a base change, an ordered plugin chain acts on it, balls
-seals it, plugins react.** The boundary is the SEAL — `commit + integrate`, atomic: **pre** modifiers
-shape what gets sealed (the record isn't fixed yet); **post** reactors act on the now-landed record
-and MUST NOT mutate the ball (it is sealed). One commit per op. The canonical sequence (verb-agnostic)
-below is the MUTATING shape; ops that author no ball-file diff (`sync`/`prime`/`doctor`, §13/§16) have
-no seal and skip steps 1/3/5 — their plugins run against the store/landing checkout directly:
+balls runs TWO families of op, and they are deliberately NOT forced into one shape. Don't read the
+sequence below as universal — it is the **task-op** shape; the rest inherit what generalizes and no
+more.
+
+**Task ops — the symmetric family** (`create`/`claim`/`update`/`close`/`drop`): **balls authors a base
+change, an ordered plugin chain acts on it, balls seals it, plugins react.** The boundary is the SEAL —
+`commit + integrate`, atomic: **pre** modifiers shape what gets sealed (the record isn't fixed yet);
+**post** reactors act on the now-landed record and MUST NOT mutate the ball (it is sealed). One commit
+per op, sealed to the STORE. This is the canonical sequence (below), and it is fully symmetric across
+the five verbs — they differ only in which fields the base change stages.
+
+**Everything else inherits partially — a spectrum, not the same shape:**
+- **`config` / `install`** keep the sealing shape but seal to the LANDING, not the store; `install`'s
+  "base change" is a path-copy (§6), not a staged frontmatter edit, and it carries none of the
+  task-shaped wire fields (`current_state`, `field_changes`). Symmetric in skeleton, different in
+  target and mechanics.
+- **`sync` / `prime` / `doctor`** (§13/§16) author NO diff at all, so there is no change worktree and
+  no core seal. They inherit only what generalizes — the `pre`→`post` hook spine in `NN-` order,
+  reverse-order rollback, and the §7 wire minus its task fields — and do their own work where the seal
+  would be: `sync`'s integration is the tracker's fetch+ff, owned by a PLUGIN not core (remote-talk is
+  plugin-exclusive, §0/§13); `prime` orchestrates syncs + substrate; `doctor` only reads and prints.
+  Their hooks run against the live store/landing checkout directly.
+
+The canonical task-op sequence (verb-agnostic):
 
 1. **balls makes the place to work + authors the base** — the CHANGE worktree (off the STORE for task
    ops, off the landing for `config`/`install` ops),
@@ -439,8 +475,6 @@ no seal and skip steps 1/3/5 — their plugins run against the store/landing che
    Each plugin's rollback decides what undoing means; persistence-through-abort is a plugin choosing a
    no-op rollback (§14), not a core carve-out.
 
-This sequence is a draft destined for the final `docs/`.
-
 ## §9 Verbs
 
 Deliverable lifecycle verbs: **`create` (`bl new`), `claim`, `unclaim`, `update`, `close`, `drop`.**
@@ -458,8 +492,9 @@ it current (data only); `install` copies a committed path between branches (§6 
 or publish; the recommended bundle is `config/` minus `tasks/`).
 
 **`create`** (op `create`; no prior state): balls generates a default-scheme id (§ id generation)
-and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p`)/`tags`,
-and any `blockers` the front-door flags imply — §10; no status field is written, §3). A `create/pre`
+and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p`)/`tags`, plus any
+`blockers` edges spelled out by `--blocks`/`--needs` — §10; `--parent` adds containment only, no
+blocker; no status field is written, §3). A `create/pre`
 plugin may reject or *reassign*
 the id by `git mv`-ing the single staged `tasks/*.md` (it discovers the current name by reading
 that file, never hardcoding — so reassigns compose under `NN-` order). balls validates (exactly one
@@ -467,7 +502,8 @@ new `tasks/*.md`; regex-valid; no collision) and commits.
 
 **`claim`** (acquire occupancy; core's guards refuse a ball whose `claimant` is already set, or whose claim-blockers are unresolved — `!ready()`, §10): stage `claimant`, bump `updated` — the ONLY field it writes. There is no status to set:
 "claimed" is the derived view of `claimant` (§3), so claim stores the one occupancy fact in the one
-field. `claim.post`: the delivery plugin materializes the code worktree (§11); balls prints its derived path.
+field. `claim.post`: the delivery plugin materializes the code worktree AND prints its path (§11 — the
+plugin owns the path and prints it on stdout, §6; core forwards, never computes it).
 
 **`unclaim`** (release occupancy): clear `claimant` (symmetric with claim — the only field touched).
 `*.post`: the delivery plugin releases the code worktree.
@@ -505,15 +541,22 @@ what the log uses to tell an abandoned ball from a completed one — §5, no sta
 ## §10 Blocker & gating model
 
 The one relational primitive is the **blocker** (§3): a `{id, on}` edge on the BLOCKED task naming
-which of its own transitions is gated. `on: claim` and `on: close` are the only two use-cases, and
-both have direct front doors; the primitive is general (any op) but only these are sugar-supported.
+which of its own ops is gated. `on` is ANY op; `claim` and `close` are simply the two cases with
+create-time sugar (front-door flags below). **Blocking is fully separate from containment** — a
+`parent` pointer is display only and gates NOTHING. An edge gates a transition ONLY because you
+created that edge; nothing is implied. This is the load-bearing subtraction: the old `--parent`
+silently minted a claim-blocker, conflating "lives under" with "gates," which is what produced the
+late-add gaps. Now every edge is explicit and says exactly what it gates.
 
 - **dependency** = a claim-blocker ("can't START until it resolves").
-- **gate** = a close-blocker ("can't FINISH until it resolves"). Build/test/approval/forge are all
-  this.
-- **epic** = a task whose children are its claim-blockers — emergent, not a type. It isn't `ready`
-  while subtasks are open; when they close it becomes ready (claim it to do closeout, or a plugin
-  auto-closes — auto-close is plugin, default off).
+- **gate** = a close-blocker ("can't FINISH until it resolves"). Build/test/approval/forge/review are
+  all this — a "review gate" is not a mechanism, it is `--blocks close` plus a skill-doc convention.
+- **epic** = a task with children — a pure CONTAINMENT/display rollup, emergent from `parent`
+  pointers, gating NOTHING by itself. If you want "the epic can't START until its children land,"
+  add a `claim` edge per child (`--blocks claim`); if "can't FINISH until they land," a `close` edge
+  (`--blocks close`); if neither, the epic is freely claimable and closeable alongside open children
+  (their `parent:` simply dangles — display-only, §3 — never corruption). The presumptive pattern is
+  a skill-doc hint, not a core rule.
 
 **ready(A)** = A is live (file exists — not closed/dropped) + unclaimed + every CLAIM-blocker
 resolved. ready(A) true is exactly the **ready** display state (§3); claimed and blocked are the
@@ -521,17 +564,20 @@ other two. `bl ready` ORDERS the ready set by `priority` ascending (lower = high
 then `created` ascending — ordering is display-only, never part of the predicate (§3). (A gate child is a live child that does NOT affect readiness — it's a close-blocker, so it
 never shows as a status either.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker is closed OR dropped.
 
-**Deadlock avoidance:** wire exactly ONE edge — a gate child close-blocks its parent; the parent
-does NOT claim-block the gate child. So a gate is freely claimable; the reciprocal edge that would
-deadlock is simply never created. The gate-check runs against the parent's pre-delivery WORK BRANCH
-(which exists once the parent is claimed), so nothing needs the parent formally "done" — no `review`
-window is resurrected. "Do the gate after the parent's work" is a skill habit, deliberately
-UNENFORCED (enforcing it is the deadlock). Circular blockers are not gated by code (links are
-mutable — unlink to fix); `bl doctor` may surface them (§16).
+**Deadlock avoidance is now structural-by-default.** Because no edge is ever auto-minted (containment
+implies none), the reciprocal edge that would deadlock is simply never created unless you spell out
+both halves yourself. The standard gate is ONE edge — a gate child close-blocks its parent; the parent
+does NOT block the gate child, so the gate is freely claimable. The gate-check runs against the
+parent's pre-delivery WORK BRANCH (which exists once the parent is claimed), so nothing needs the
+parent formally "done" — no `review` window is resurrected. "Do the gate after the parent's work" is a
+skill habit, deliberately UNENFORCED. A cycle is now only reachable by explicitly authoring both
+edges; it is still not gated by code (links are mutable — unlink to fix), and `bl doctor` may surface
+it (§16).
 
-**Enforcement is CORE.** Core stores the schema (`parent`, `blockers`, `tags`) AND enforces the
-two blocker transitions, joining the one occupancy guard (`claim` refuses an already-claimed ball)
-as core's small fixed set of hardcoded rejections:
+**Enforcement is CORE.** Core stores the schema (`parent`, `blockers`, `tags`) AND enforces every
+blocker (the `.pre` of the named `on` op rejects while unresolved), joining the one occupancy guard
+(`claim` refuses an already-claimed ball) as core's small fixed set of hardcoded rejections. `claim`
+and `close` are the two with their own predicates:
 - `claim` refuses an unresolved claim-blocker (`ready()` false).
 - `close` refuses an unresolved close-blocker (`closeable()` false).
 Both read `blockers` against file-existence ("resolved" = closed/dropped = file gone) — the same
@@ -549,11 +595,19 @@ forge/build/human); only the *blocking* is core. A team wanting no enforcement s
 blockers; there is no enforcement to uninstall.
 
 **Front-door flags are CORE** (they write core schema; plugins are hook binaries and do not extend
-`bl`'s parser, so there is no plugin-injected-flag composition). They write the `blockers` edge on
-whichever task is blocked; core both writes the edges and enforces them:
-- `--parent E`  → child `parent: E` + `E.blockers += {child, claim}`   (subtask)
-- `--gates X`   → child `parent: X` + `X.blockers += {child, close}`   (gate)
-- `--needs B`   → `self.blockers += {B, claim}`                         (cross-tree dependency)
+`bl`'s parser, so there is no plugin-injected-flag composition). Two ORTHOGONAL flags, one for each
+fact — containment and blocking never travel together implicitly:
+- `--parent E`  → child `parent: E`                          (CONTAINMENT only — gates nothing)
+- `--blocks OP` → `E.blockers += {child, OP}` where `E` is the `--parent` (or `--blocks ID:OP` to gate
+  an explicit non-parent `ID`) — the new task gates that task's `OP`. The two everyday spellings are
+  `--blocks claim` (subtask must finish before the parent can START) and `--blocks close` (gate: must
+  finish before the parent can CLOSE). `OP` is required — there is no default-gated transition.
+- `--needs B` (or `--needs B:OP`) → `self.blockers += {B, OP}`, default `OP = claim` — the inverse
+  direction: the new task is gated BY `B` (cross-tree dependency).
+
+The retired `--gates X` is exactly `--parent X --blocks close`. Any edge the one-liner can't express
+(gate a third op, multiple blockers, a post-hoc edge) is an ordinary `bl update … blockers` edit —
+the create flags are sugar over the general primitive, never a constraint on it.
 
 **Gates are tasks only** — every gate-check is "is task X closed?". Build/test = a build-gate child a
 build plugin creates and closes on pass; forge/PR approval = a child the forge plugin creates and a
@@ -561,9 +615,10 @@ forge `sync` closes on merge; human approval = a child a person closes. Creation
 (the deliverable signal) so non-deliverables stay clutter-free. The resolution mechanism is pluggable;
 the blocking mechanism is one thing.
 
-(Open detail: a subtask claim-blocks its parent, leaving a rare gap — add a subtask to an
-already-claimed epic, then close it with the child open. Leaning skill-hint "don't" over a second
-close-block edge.)
+(The old "late-added subtask doesn't gate a claimed epic's close" gap is DISSOLVED, not patched: it
+existed only because `--parent` auto-minted a *claim* edge. With containment and blocking separated,
+you state the gate you want — `--blocks close` gates close whenever the child is added, claimed epic
+or not — and if you state nothing, nothing gates, by design. No skill-hint "don't" required.)
 
 ## §11 Delivery / worktree plugin
 
@@ -581,14 +636,18 @@ claimed non-deliverable gets a harmless EMPTY worktree (the close.pre squash is 
 **Derived path; stateless across ops.** The worktree path and branch are pure functions of
 `(binding, id)`:
 ```
-worktree_path(binding, id) = $XDG_STATE_HOME/balls/plugins/<name>/<pct-enc(binding.invocation_path)>/<id>/
-branch                     = work/<id>
+worktree_path(binding, id [, claimant]) = $XDG_STATE_HOME/balls/plugins/<name>/<pct-enc(binding.invocation_path)>/<key>/
+branch                                   = work/<key>          # <key> = <id>, or <id>-<claimant>
 ```
-`<id>` rides the post wire (the immutable `bl-id` trailer), so the plugin RECOMPUTES its resource
-each op and checks the filesystem — it needs no id-keyed scratch. Every hook is idempotent by
-construction. balls computes+prints the path (preserving "claim prints the path"); the plugin
-creates it at the same location — no return channel. The worktree lives in plugin XDG territory,
-not the project tree.
+`<id>` (and `claimant`, if keyed on) ride the post wire — `<id>` is the immutable `bl-id` trailer,
+`claimant` an ordinary frontmatter field — so the plugin RECOMPUTES its resource each op and checks
+the filesystem; it needs no id-keyed scratch, and every hook is idempotent by construction. Keying on
+`claimant` as well as `id` keeps the pure-function/stateless property (claimant is already on the
+wire) while disambiguating a drop-and-reclaim by a different actor and naming forge branches by owner.
+**Core never computes this path.** The plugin owns the formula end to end; on `claim.post` it PRINTS
+the path on its stdout (§6) and balls forwards that to the invoker — so "claim prints the path" holds
+with zero core knowledge of the plugin's territory (no privileged plugin, §0/§6). The worktree lives
+in plugin XDG territory, not the project tree.
 
 **Hooks:** `claim.post` materialize (create-if-absent); `unclaim.post`/`drop.post` release
 (remove-if-present); **`close.pre` deliver** (sorts last); **`close.post` teardown** (+ the
@@ -797,13 +856,16 @@ no-op. The whole verb is the §12 converging predicate.
 - **prime ≠ install, but `prime --install` fuses them on demand.** Plain `prime` is auto-safe and runs
   every session: it seeds the local default (§12), syncs what landing already names, and NEVER adopts
   foreign config or activates third-party code. Adopting is the deliberate `install` (§6).
-  **`prime --install`** is the one-command first-contact / re-adopt: it runs the prime→install pair
-  RECURSIVELY down the config chain — install a layer, re-prime to see the layer it points to, install
-  that, … — until a self-contained config (has `tasks_branch`, no further redirect) is reached.
-  Stop-on-revisit (track seen, abort on a dup) bounds it; each install is idempotent, so a mid-chain
-  failure resumes rather than double-applies. The `--install` flag IS the consent — plain prime still
-  cannot activate code, so the auto-safe property holds for the every-session path. Likewise prime
-  never *pushes* config; outbound transfer is `install --to` (§6).
+  **`prime --install <center>`** is the one-command first-contact / re-adopt: prime ensures the local
+  substrate, `install` copies the center's config + plugin wiring into the landing (§6, consent-gated),
+  and a final prime brings the just-adopted `tasks_branch` to readiness. It is a SINGLE hop, not a
+  walk: a center's config is self-contained — it names its own `tasks_branch` (the one config→store
+  indirection, §4), never another config to chase — so there is no chain to recurse. (The older
+  recursive multi-hop form was a config-*trail* artifact, retired with config-shadowing: §4/§12 —
+  config crosses a checkout boundary exactly ONCE, by explicit install.) Each install is idempotent,
+  so a failed adopt resumes rather than double-applies. The `--install` flag IS the consent — plain
+  prime still cannot activate code, so the auto-safe property holds for the every-session path.
+  Likewise prime never *pushes* config; outbound transfer is `install --to` (§6).
 
 **The wire (§6/§7), minus the task-shaped fields.** A sync/prime plugin gets meaning from its
 `binding`, not from a command:
@@ -939,6 +1001,37 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **coherence pass (2026-06-06, bl-7d46 — post-freeze).** An adversarial read of the just-frozen doc
+  (bl-cac0) fixed defects the config/store split and the original drafting left behind:
+  (1) §13 `prime --install` still described the RETIRED config CHAIN ("recursively down the config
+  chain … until no further redirect"). Collapsed to a SINGLE-hop install (prime → install → prime): a
+  center's config is self-contained and config crosses a boundary exactly once (§4/§12).
+  (2) "Landing config is the SOLE authority" (§0/§4) overstated — the effective config is the LOCAL
+  stack landing ⊕ XDG ⊕ CLI (§4 read order); reworded to "no REMOTE is authoritative."
+  (3) §11 PRIVILEGED the delivery plugin: core computed+printed its worktree path, baking the plugin's
+  name + territory layout into core (vs §0/§6 "no privileged plugins; core knows only name+binary").
+  Fixed by de-privileging — the plugin PRINTS its own path on its stdout, which §6 now defines as the
+  plugin's user-facing channel that balls forwards verbatim and parses nothing from; "claim prints the
+  path" is the plugin printing, not core knowing. The derived path may also key on `claimant` (already
+  on the wire — keeps the stateless-recompute property; disambiguates a reclaim by a new actor).
+  (4) §8 "every op is the same shape" was oversold. Reframed to TWO families: task ops (the symmetric
+  sealing shape) vs the rest, which inherit partially — `config`/`install` seal to the landing; `sync`/
+  `prime`/`doctor` author no diff, inherit only the pre→post spine + rollback, and `sync`'s integration
+  is the tracker's ff (a plugin's, not core's).
+  (5) Soft spots made structural where cheap: landing single-owner is now "balls cannot publish it"
+  (only the tracker pushes, only `tasks_branch`; raw `git push` by hand is the only residue, §4);
+  `install`'s folder=wipe blast radius is mitigated by an `N added/M deleted` summary + git-recoverable
+  commit, not a flag (§6); §14 sort-last left as-is (the `NN-` prefix is already the structural lever).
+  (6) §3/§10 blocker model — generalized + de-conflated (the late-subtask "gap" was a mis-frame, not a
+  missing invariant). `on` is now ANY op (claim/close sugared, §3), and **containment is fully separate
+  from blocking**: `--parent` sets the tree pointer ONLY and gates nothing; blocking is always explicit
+  via `--blocks OP` (gate the parent's — or `ID:OP`'s — op) or `--needs ID[:OP]` (gated-by, default
+  claim). `--gates` retires into `--parent X --blocks close`; an epic is pure containment that gates
+  nothing by itself; closing a task with live children is allowed (their `parent:` dangles, display-
+  only). The standard subtask/gate/review patterns are skill-doc hints, never core rules. This was the
+  load-bearing subtraction — every edge is explicit and self-describing, and the deadlock-reciprocal
+  and late-add gaps both dissolve because nothing is auto-minted. Touched §3/§9/§10/§17. bl-7d46 fully
+  resolved.
 - **config/store split (2026-06-05, post-finalization revision — supersedes parts of bl-62bc and
   bl-0601).** The trigger: config-shadowing (§4 values layering down the trail) and `install` were two
   mechanisms for one job — propagating a center's config — and they CONTRADICTED on the threat model.
@@ -1090,9 +1183,12 @@ migration is NOT one script but **base-migrates-core PLUS each-plugin-migrates-i
   expect deferred balls to surface in `bl ready`, which is intended, not a regression).
 - **epic reciprocal edge (a reconstruction, not a rename):** for each LIVE child, add
   `{child, on: claim}` to its parent's `blockers` (§10). Legacy stored only the child→parent pointer
-  and derived the rest from `status`/`closed_children`; greenfield needs the explicit edge or the
-  epic migrates spuriously `ready`. Closed children are skipped (absent file = resolved); a live
-  child whose parent did not migrate has its now-dangling `parent:` nulled.
+  and derived the rest from `status`/`closed_children`. Greenfield `parent` is containment ONLY and
+  implies no edge (§10), so the migrator must mint this claim-blocker explicitly to preserve legacy
+  "epic waits on its children" — without it the epic migrates spuriously `ready`. (This is the one
+  place the migrator re-creates an edge the old implicit model derived; it is `--blocks claim` per
+  child, done in the transform.) Closed children are skipped (absent file = resolved); a live child
+  whose parent did not migrate has its now-dangling `parent:` nulled.
 - **dropped** (no core home): `id` (= filename, §3); `status`/`delivered_in`/`branch`/
   `closed_children` (derived, §3/§11); `repo` (the store knows it, §12); `type` (folded to tag);
   `links` (legacy-unused); `external`/`synced_at` (plugin territory — below).
