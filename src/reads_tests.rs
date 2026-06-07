@@ -82,6 +82,90 @@ fn parse_rejects_bad_input() {
     assert!(parse(Verb::Show, &["--status".into(), "ready".into()]).is_err()); // list-only flag
 }
 
+/// Parse a `bl list` argv from string slices.
+fn list(args: &[&str]) -> io::Result<Flags> {
+    parse(Verb::List, &args.iter().map(ToString::to_string).collect::<Vec<_>>())
+}
+
+#[test]
+fn parse_reads_the_history_reach_flags() {
+    assert_eq!(list(&[]).unwrap().reach, Reach::Live); // default
+    assert_eq!(list(&["--closed"]).unwrap().reach, Reach::Dead);
+    assert_eq!(list(&["--all"]).unwrap().reach, Reach::All);
+}
+
+#[test]
+fn parse_rejects_two_reach_flags() {
+    assert!(list(&["--closed", "--all"]).is_err());
+    assert!(list(&["--all", "--closed"]).is_err());
+    // The reach flags are list-only.
+    assert!(parse(Verb::Show, &["bl-1".into(), "--closed".into()]).is_err());
+}
+
+#[test]
+fn parse_collects_repeatable_tags_and_the_text_needle() {
+    let f = list(&["--tag", "infra", "--tag", "api", "find me"]).unwrap();
+    assert_eq!(f.tags, ["infra", "api"]);
+    assert_eq!(f.target.as_deref(), Some("find me"));
+}
+
+#[test]
+fn parse_reads_the_date_window_with_an_inclusive_until() {
+    let f = list(&["--since", "2026-01-01", "--until", "2026-01-01"]).unwrap();
+    let start = crate::civil::start_of_day("2026-01-01").unwrap();
+    assert_eq!(f.since, Some(start));
+    assert_eq!(f.until, Some(start + 86_399)); // whole day inclusive
+}
+
+#[test]
+fn parse_rejects_bad_dates_and_missing_filter_values() {
+    assert!(list(&["--since", "nope"]).is_err()); // unparseable date
+    assert!(list(&["--until", "2026-13-01"]).is_err()); // month out of range
+    assert!(list(&["--tag"]).is_err()); // missing value
+    assert!(list(&["--since"]).is_err()); // missing value
+    assert!(list(&["--until"]).is_err()); // missing value
+}
+
+#[test]
+fn reach_predicates_split_live_and_dead() {
+    assert!(Reach::Live.live() && !Reach::Live.dead());
+    assert!(!Reach::Dead.live() && Reach::Dead.dead());
+    assert!(Reach::All.live() && Reach::All.dead());
+}
+
+#[test]
+fn retired_reads_the_bl_op_trailer_and_names_a_word() {
+    assert_eq!(Retired::from_op("drop"), Retired::Dropped);
+    assert_eq!(Retired::from_op("close"), Retired::Closed);
+    assert_eq!(Retired::from_op(""), Retired::Closed); // a non-drop op (or none)
+    assert_eq!(Retired::Closed.word(), "closed");
+    assert_eq!(Retired::Dropped.word(), "dropped");
+}
+
+#[test]
+fn the_retired_badge_is_a_word_or_a_dim_glyph() {
+    let plain = Style { plain: true };
+    assert_eq!(plain.retired_badge(Retired::Closed), "closed  ");
+    assert_eq!(plain.retired_badge(Retired::Dropped), "dropped ");
+    let rich = Style { plain: false };
+    assert!(rich.retired_badge(Retired::Closed).contains('\u{2713}'));
+    assert!(rich.retired_badge(Retired::Dropped).contains('\u{2717}'));
+}
+
+#[test]
+fn run_lists_and_shows_dead_balls_from_history() {
+    let tmp = TempDir::new().unwrap();
+    let edge = edge_with(&tmp, &[]);
+    let store = edge.xdg.clone_dir(&edge.invocation_path).store();
+    let gs = test_support::git_store_at(&store);
+    gs.create("bl-dead", &task("Gone", 1), 1).retire("bl-dead", "close", 9);
+
+    // --closed / --all reach the dead set, and show falls through to it.
+    run(&edge, Verb::List, &["--closed".into()]).unwrap();
+    run(&edge, Verb::List, &["--all".into()]).unwrap();
+    run(&edge, Verb::Show, &["bl-dead".into()]).unwrap();
+}
+
 /// An edge whose store is seeded with `tasks`.
 fn edge_with(tmp: &TempDir, tasks: &[(&str, Task)]) -> Edge {
     let xdg = Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy()));

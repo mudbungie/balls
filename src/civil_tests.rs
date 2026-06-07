@@ -39,3 +39,34 @@ fn a_far_future_year_renders_four_digits() {
     // century rule in civil_from_days.
     assert_eq!(iso8601(4_107_542_400), "2100-03-01T00:00:00Z");
 }
+
+#[test]
+fn start_of_day_is_the_exact_inverse_of_iso8601_at_midnight() {
+    // Round-trips the day-start second back from its rendered date.
+    for date in ["1970-01-01", "2024-02-29", "2026-01-01", "2100-03-01"] {
+        let secs = start_of_day(date).unwrap();
+        assert_eq!(secs % 86_400, 0); // a day boundary
+        assert_eq!(&iso8601(secs)[..10], date); // same calendar date
+    }
+}
+
+#[test]
+fn start_of_day_handles_a_pre_epoch_date() {
+    assert_eq!(start_of_day("1969-12-31"), Some(-86_400));
+}
+
+#[test]
+fn start_of_day_rejects_malformed_dates() {
+    for bad in [
+        "2026-01",       // too few fields
+        "2026-01-01-01", // too many fields
+        "2026-13-01",    // month out of range
+        "2026-00-01",    // month zero
+        "2026-01-32",    // day out of range
+        "2026-01-00",    // day zero
+        "not-a-date",    // unparseable
+        "2026-1x-01",    // unparseable month
+    ] {
+        assert!(start_of_day(bad).is_none(), "expected {bad:?} rejected");
+    }
+}
