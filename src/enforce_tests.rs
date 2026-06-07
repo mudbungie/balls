@@ -3,7 +3,7 @@
 //! refuse with [`io::ErrorKind::PermissionDenied`] naming the open blockers.
 
 use super::*;
-use crate::task::Blocker;
+use crate::task::{Blocker, On};
 use std::fs;
 use tempfile::tempdir;
 
@@ -91,4 +91,32 @@ fn the_refusal_names_every_open_blocker() {
     let blockers = vec![claim_blocker("bl-a"), claim_blocker("bl-b")];
     let err = claim(&task(blockers), "bl-1", d.path()).unwrap_err();
     assert_eq!(err.to_string(), "claim: bl-1 blocked by unresolved bl-a, bl-b");
+}
+
+/// A blocker on an op that is neither claim nor close.
+fn op_blocker(id: &str, on: Verb) -> Blocker {
+    Blocker { id: id.into(), on }
+}
+
+#[test]
+fn gate_refuses_the_op_its_blocker_names() {
+    // The generic op-keyed guard (§10/§15): an open on=update edge blocks update.
+    let d = tempdir().unwrap();
+    touch(d.path(), "bl-x");
+    let err = gate(&task(vec![op_blocker("bl-x", Verb::Update)]), Verb::Update, "bl-1", d.path()).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(err.to_string(), "update: bl-1 blocked by unresolved bl-x");
+}
+
+#[test]
+fn gate_ignores_a_blocker_naming_a_different_op() {
+    let d = tempdir().unwrap();
+    touch(d.path(), "bl-dep"); // open, but it gates claim, not drop
+    gate(&task(vec![claim_blocker("bl-dep")]), Verb::Drop, "bl-1", d.path()).unwrap();
+}
+
+#[test]
+fn gate_allows_once_the_blocker_resolves() {
+    let d = tempdir().unwrap(); // bl-x absent ⇒ resolved
+    gate(&task(vec![op_blocker("bl-x", Verb::Drop)]), Verb::Drop, "bl-1", d.path()).unwrap();
 }

@@ -10,9 +10,10 @@
 //! [`crate::plugin`] is the §6 subprocess chain over the §7 [`crate::wire`]. This
 //! is the integration seam: it parses argv into a [`BaseChange`], resolves the §7
 //! binding + the registry's `NN-` plugin sets, INJECTS the clock, and drives the
-//! engine. The §10 front-door flags (`--parent`/`--gates`/`--needs`) write their
-//! `{id,on}` reciprocals through [`Create`]'s already-built authoring; all flag
-//! parsing is core — plugins are hook binaries and never extend the parser (§10).
+//! engine. The §10/§15 front-door flags (`--parent` containment-only, `--blocks
+//! OP`/`--blocks ID:OP`, `--needs B[:OP]`) write their `{id,on}` edges through
+//! [`Create`]'s authoring — `on` is ANY op; all flag parsing is core — plugins
+//! are hook binaries and never extend the parser (§10).
 
 use std::io;
 use std::path::Path;
@@ -83,10 +84,11 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
                 actor,
                 now,
                 title,
-                parent: parent_edge(flags)?,
+                parent: flags.parent.clone(),
                 priority: flags.priority,
                 tags: flags.tags.clone(),
-                blockers: flags.needs.iter().map(|id| Blocker { id: id.clone(), on: On::Claim }).collect(),
+                blockers: needs_blockers(flags)?,
+                blocks: blocks_edges(flags)?,
                 over: flags.over.clone(),
                 body: flags.body.clone(),
                 existing: task_ids(store)?,
@@ -145,16 +147,46 @@ fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags) -> io::Res
     Ok(edits)
 }
 
-/// `create`'s `--parent`/`--gates` reciprocal target: both set the child's
-/// `parent`, differing only in the blocker `on` written back on it — `claim`
-/// (subtask) for `--parent`, `close` (gate) for `--gates`. Mutually exclusive.
-fn parent_edge(flags: &Flags) -> io::Result<Option<(String, On)>> {
-    match (&flags.parent, &flags.gates) {
-        (Some(_), Some(_)) => Err(other("create: --parent and --gates are mutually exclusive")),
-        (Some(p), None) => Ok(Some((p.clone(), On::Claim))),
-        (None, Some(g)) => Ok(Some((g.clone(), On::Close))),
-        (None, None) => Ok(None),
-    }
+/// `--needs B[:OP]` → the new task's own blockers: it can't make op `OP` until
+/// `B` resolves. `OP` defaults to `claim` (a dependency, §10), so a bare `--needs
+/// B` is the common "blocked from starting until B lands".
+fn needs_blockers(flags: &Flags) -> io::Result<Vec<Blocker>> {
+    flags
+        .needs
+        .iter()
+        .map(|spec| match spec.split_once(':') {
+            Some((id, op)) => Ok(Blocker { id: id.to_string(), on: verb_of(op)? }),
+            None => Ok(Blocker { id: spec.clone(), on: On::Claim }),
+        })
+        .collect()
+}
+
+/// `--blocks OP` / `--blocks ID:OP` → reciprocal edges naming THIS new task on a
+/// target's op `OP`: a bare `OP` gates the `--parent` (required — that is the
+/// only target a bare form has), an explicit `ID:OP` gates a non-parent. This is
+/// the §10/§15 front door for the retired `--gates X` (= `--parent X --blocks
+/// close`): containment never mints a blocker, so every gate is spelled here.
+fn blocks_edges(flags: &Flags) -> io::Result<Vec<(String, On)>> {
+    flags
+        .blocks
+        .iter()
+        .map(|spec| {
+            if let Some((id, op)) = spec.split_once(':') {
+                Ok((id.to_string(), verb_of(op)?))
+            } else {
+                let parent = flags.parent.clone().ok_or_else(|| {
+                    other("create: --blocks OP needs --parent; gate a non-parent with --blocks ID:OP")
+                })?;
+                Ok((parent, verb_of(spec)?))
+            }
+        })
+        .collect()
+}
+
+/// Resolve an op token (`claim`/`close`/`update`/…) to its [`Verb`] — `on` is ANY
+/// op (§10/§15), so any known verb is a valid edge target.
+fn verb_of(token: &str) -> io::Result<On> {
+    Verb::parse(token).ok_or_else(|| other(format!("'{token}' is not a known op")))
 }
 
 /// The single positional `verb` expects (a `create` title, else a task id).
@@ -165,10 +197,10 @@ fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
     }
 }
 
-/// `--parent`/`--gates`/`--needs` are `create`'s front-door reciprocals only.
+/// `--parent`/`--blocks`/`--needs` are `create`'s front-door flags only.
 fn forbid_structure(flags: &Flags, verb: Verb) -> io::Result<()> {
-    if flags.parent.is_some() || flags.gates.is_some() || !flags.needs.is_empty() {
-        return Err(other(format!("{}: --parent/--gates/--needs are only for create", verb.token())));
+    if flags.parent.is_some() || !flags.blocks.is_empty() || !flags.needs.is_empty() {
+        return Err(other(format!("{}: --parent/--blocks/--needs are only for create", verb.token())));
     }
     Ok(())
 }
@@ -191,7 +223,7 @@ struct Flags {
     over: Option<String>,
     body: Option<String>,
     parent: Option<String>,
-    gates: Option<String>,
+    blocks: Vec<String>,
     needs: Vec<String>,
     priority: Option<i64>,
     tags: Vec<String>,
@@ -209,7 +241,7 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "-m" | "--message" => f.over = Some(value(args, &mut i, "-m")?),
             "--body" => f.body = Some(value(args, &mut i, "--body")?),
             "--parent" => f.parent = Some(value(args, &mut i, "--parent")?),
-            "--gates" => f.gates = Some(value(args, &mut i, "--gates")?),
+            "--blocks" => f.blocks.push(value(args, &mut i, "--blocks")?),
             "--needs" => f.needs.push(value(args, &mut i, "--needs")?),
             "-p" | "--priority" => {
                 let v = value(args, &mut i, "-p")?;

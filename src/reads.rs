@@ -160,12 +160,10 @@ pub(crate) fn status_word(s: Status) -> &'static str {
     }
 }
 
-/// The blocker-op token for `--json` and tree annotations.
+/// The blocker-op token for `--json` and `show`. `on` is ANY op (§10/§15), so it
+/// is exactly the verb's canonical token.
 pub(crate) fn on_word(on: On) -> &'static str {
-    match on {
-        On::Claim => "claim",
-        On::Close => "close",
-    }
+    on.token()
 }
 
 /// One ball as the **bedrock** JSON record — the single shape every read verb's

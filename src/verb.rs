@@ -5,7 +5,14 @@
 //! read and checkout-lifecycle verbs author no diff, so they have no seal and no
 //! change worktree ([`OpClass::Diffless`]).
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// A balls verb — the user-facing command in `bl <verb>`.
+///
+/// A verb is also the value of a blocker's `on` ([`crate::task::On`], §10/§15):
+/// the op an edge gates IS a verb, so the two are one type. Hence the
+/// token-based serde below — a blocker stores `on = "claim"`, not a numeric
+/// discriminant — keeping the on-disk form stable and human-legible (§3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verb {
     // Deliverable lifecycle (§9): mutate a `tasks/<id>.md` file.
@@ -100,6 +107,23 @@ impl Verb {
     }
 }
 
+/// Serialize as the canonical lower-case token (§3 on-disk form), so a blocker's
+/// `on` reads `"claim"`/`"close"`/`"update"`/… — never an integer.
+impl Serialize for Verb {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.token())
+    }
+}
+
+/// Deserialize from the token, rejecting any string that is not a known verb —
+/// the inverse of [`Verb::token`], reusing [`Verb::parse`].
+impl<'de> Deserialize<'de> for Verb {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let token = String::deserialize(deserializer)?;
+        Verb::parse(&token).ok_or_else(|| serde::de::Error::custom(format!("unknown op '{token}'")))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,6 +138,20 @@ mod tests {
     #[test]
     fn unknown_token_does_not_parse() {
         assert_eq!(Verb::parse("frobnicate"), None);
+    }
+
+    #[test]
+    fn a_verb_serializes_as_its_token_and_round_trips() {
+        let token = toml::Value::try_from(Verb::DepTree).unwrap();
+        assert_eq!(token.as_str(), Some("dep-tree"));
+        let back: Verb = toml::Value::String("close".into()).try_into().unwrap();
+        assert_eq!(back, Verb::Close);
+    }
+
+    #[test]
+    fn deserializing_an_unknown_op_is_an_error() {
+        let result: Result<Verb, _> = toml::Value::String("frob".into()).try_into();
+        assert!(result.unwrap_err().to_string().contains("unknown op 'frob'"));
     }
 
     #[test]
