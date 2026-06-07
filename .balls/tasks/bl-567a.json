@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-567a",
+  "claimed_by": "Tweeting",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T05:57:55.023823612Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:20:10.410932123Z"},
   "tags": [],
   "title": "Converge work/<id> worktree-path derivation onto one helper before claimant-keying",
   "type": "task",
-  "updated_at": "2026-06-07T20:20:10.410937693Z"
+  "updated_at": "2026-06-07T20:48:39.656622620Z"
 }
