@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-f970"],
   "description": "Post-finalization spec revision 2026-06-05 (bl-2e26 §16 + §7 binding consumers). Amends landed bl-d024 ('§16 base doctor', commit ec011ce), bl-0ec3 (delivery doctor hook), bl-f813/bl-3d75 (delivery plugin binding reads).\n\nWHAT (src/doctor.rs + delivery plugin):\n- Base doctor: replace 'operating/ resolves' audit with 'landing exists AND tasks_branch resolves to a valid tasks/ checkout'. Replace 'EffectiveConfig resolves — flag a trail-layer conflict' with 'landing config/balls.toml (+XDG) parses + field-sanity' (no trail layer left to conflict). config_resolution() no longer walks a trail.\n- doctor repair-hints: 'store unresolved -> bl prime'; 'store stale -> bl sync' (was 'trail step stale').\n- Delivery plugin + any binding consumer: read store/landing/tasks_branch from the §7 binding (was 'operating'). worktree_path still keys on binding.invocation_path (unchanged).\n- Delivery change-worktree / squash targets unchanged (it operates on the PROJECT repo, not the balls store).\n\nNote: tracker's own doctor hook (store-remote audit) is in the tracker task bl-cd21.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":314,"source":"balls","state":"open","synced_at":"2026-06-07T04:13:00.637581766+00:00","url":"https://github.com/mudbungie/balls/issues/314"}}},
+  "external": {"github-issues":{}},
   "id": "bl-8c0b",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-07T04:13:00.652752403Z"},
+  "synced_at": {"github-issues":"2026-06-07T06:14:16.395802694Z"},
   "tags": [],
   "title": "Greenfield §16 doctor + delivery binding consumers: audit tasks_branch/landing, drop operating//trail-layer checks",
   "type": "task",
-  "updated_at": "2026-06-07T06:14:16.074259852Z"
+  "updated_at": "2026-06-07T06:14:16.395808185Z"
 }
