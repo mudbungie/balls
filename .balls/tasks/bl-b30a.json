@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Today `make install` installs only `bl` (+ the `balls` symlink + completions) — NOT the shipped sibling plugins (tracker, bl-delivery, gate). So a deployed bl resolves no tracker sibling (Edge::resolve looks beside the bl binary) and `bl prime` founds stealth-only — federation silently never engages. Restructure the Makefile: (1) `make install-core` installs just the bl core binary + balls symlink + completions; (2) `make install-<plugin>` for each shipped plugin — `install-tracker`, `install-delivery`, `install-gate` — each installs that binary beside bl; (3) bare `make install` (no target) installs the whole suite = core + every plugin. Relevant at greenfield cutover (project note: don't make install til cutover). Surfaced by bl-be5f.",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":332,"source":"balls","state":"open","synced_at":"2026-06-07T08:38:56.712464383+00:00","url":"https://github.com/mudbungie/balls/issues/332"}}},
   "id": "bl-b30a",
   "links": [],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-06T23:03:30.785538467Z"},
+  "synced_at": {"github-issues":"2026-06-07T08:38:56.720533747Z"},
   "tags": [],
   "title": "make install: per-component targets + full-suite default",
   "type": "task",
-  "updated_at": "2026-06-07T08:38:56.034483343Z"
+  "updated_at": "2026-06-07T08:38:56.720538816Z"
 }
