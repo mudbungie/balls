@@ -1,6 +1,6 @@
 {
-  "branch": "work/bl-02c3",
-  "claimed_by": "Legato",
+  "branch": null,
+  "claimed_by": null,
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-06T03:13:46.148569382Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "open",
   "synced_at": {"github-issues":"2026-06-06T23:20:59.411284955Z"},
   "tags": [],
   "title": "Tracker adopt-into-empty: fresh-clone materialization (close the 2-hop trail loop)",
   "type": "task",
-  "updated_at": "2026-06-06T23:20:59.411295034Z"
+  "updated_at": "2026-06-07T04:51:35.179009485Z"
 }
