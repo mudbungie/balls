@@ -34,6 +34,9 @@ use crate::taskfile::{read_task, task_ids};
 use crate::verb::Verb;
 use crate::wire::{Command, OpContext};
 
+#[path = "mutate_report.rs"]
+mod report;
+
 /// Run a mutating verb (§9) end to end: parse `args`, author the verb's base
 /// change against the STORE checkout, and seal it onto `tasks_branch` through the
 /// §8 engine + the §6 plugin chain (resolved from the LANDING registry, §2). The
@@ -67,10 +70,10 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let change_dir = clone.change(&change_token());
     let plugins = Subprocess::new(ctx, &log, edge.depth);
     let terminus = Git::at(&store);
-    Engine::new(&terminus, &plugins, &log)
+    let sha = Engine::new(&terminus, &plugins, &log)
         .seal(base.as_ref(), verb, &change_dir, &pre, &post)
-        .map(|_sha| ())
-        .map_err(|e| other(e.to_string()))
+        .map_err(|e| other(e.to_string()))?;
+    report::emit(verb, &store, &sha)
 }
 
 /// Author the verb's [`BaseChange`] from the parsed `flags`, plus the ball's
