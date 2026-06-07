@@ -214,10 +214,18 @@ comments).
   abolished `review`: "in review" was never a functional state, only "claimed, with a close-blocker that core enforces at close" (§9/§10). A stored status field would have ZERO core behavior (no
   transition matrix; `ready()` never reads it), making it indistinguishable from a single-valued tag
   — so it folds away. Non-deriving human intent (`deferred`, `icebox`, `triage`) is an ordinary `tag`
-  (§3), not a status. `bl list`'s status column RENDERS the ladder; nothing writes it. Old balls'
-  6-variant status enum collapses to `claimant` + `blockers` + tags, status computed on read. (A team
-  wanting a stored, ordered pipeline opts in OUTSIDE core: an unknown `state:` key is preserved on
-  writeback per the last bullet, read by their own display plugin — severable, never a core field.)
+  (§3), not a status. `bl list`'s status column RENDERS the ladder; nothing writes it. **Two
+  projections, one source (bl-d074).** The DEFAULT human render (`bl show`/`list`/`ready`) freely
+  paints DERIVED columns — the status ladder, the tree, ISO-8601 dates — none of them stored. `--json`
+  is the orthogonal **bedrock** projection: the lossless mirror of stored frontmatter ONLY, never a
+  derived field, so "show me what's actually there" stays uncontaminated and round-trip-safe. A machine
+  integrator therefore reads bedrock `--json` (`claimant` + `blockers` — already present) and runs the
+  same short ladder core runs; no stored `status` is needed, so a denormalizing default `status` plugin
+  folds away (bl-d074 RESOLVED by subtraction, §15). Old balls' 6-variant status enum collapses to
+  `claimant` + `blockers` + tags, status computed on read. (A team wanting a stored, ordered pipeline —
+  or the gate/PR `in_review` distinction core deliberately folds into "claimed" — opts in OUTSIDE core:
+  an unknown `state:` key is preserved on writeback per the last bullet, read by their own display
+  plugin — severable, never a core field.)
 - **`claimant`** — the OCCUPANCY field and its SOLE source of truth: absent ⇒ unclaimed, present ⇒
   claimed. The one hardcoded guard (§0 — claim refuses an already-claimed ball) reads `claimant`,
   the structured field, so claim-correctness needs no status vocabulary at all. `claim` sets it,
@@ -535,7 +543,10 @@ There is **no `review` verb** — see "close" below.
 
 Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `ready`,
 `dep tree`.** They author no ball-file diff; their whole contribution is what the hook
-chain prints (§7).
+chain prints (§7). `--json` on any read verb is the lossless **bedrock** projection — raw stored
+fields only, no derived value (the round-trippable "what's actually there", §3); the default human
+render is the orthogonal projection that carries the derived columns (the status ladder, the tree,
+ISO-8601 dates).
 
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`** (§13, §6).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
@@ -1056,6 +1067,23 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`status` plugin SUBTRACTED — bedrock vs render projection (2026-06-07, bl-d074 — post-freeze).** The
+  topic proposed a shipped default `status` plugin that persists a 4-value field (`open`/`blocked`/
+  `in_progress`/`in_review`) and keeps it fresh by **cross-task fan-out** (`close.post`/`drop.post`
+  re-sealing every claim-blocker dependent — the system's first write-amplification), to spare external
+  integrators reimplementing core's derived ladder (§3) when they read `--json`/raw files. RESOLVED by
+  SUBTRACTION: the real gap was a *use-case conflation*, not a missing denormalization. `--json` exists
+  to expose **bedrock** — the lossless, round-trippable mirror of stored state ("what's actually
+  there") — so injecting a derived `status` into it defeats its one job. The two needs are two
+  orthogonal PROJECTIONS the verbs already embody: the DEFAULT human render (`bl show`/`list`/`ready`)
+  paints derived columns (the status ladder, tree, ISO dates); `--json` stays bedrock. A machine
+  integrator reads bedrock `--json` (`claimant` + `blockers`, already present) and runs the same ~6-line
+  ladder core runs — so no stored field, no fan-out, no drift, no backfill, no plugin. The only residue
+  (the gate/PR `in_review` 4th value core folds into "claimed", §3, and a *stored ordered pipeline*)
+  stays the §3 opt-in seam — a preserved `state:` key + a team's own display plugin, severable, never
+  default. The denormalization-cache (which the ball itself admitted "a WRONG cache is worse than none")
+  is gone; SSOT (the derived ladder, §3) holds. Touched §3/§9 (named the bedrock-vs-render split
+  explicitly). No code follow-up — the subtraction removes a build (it was gated on bl-20fc/bl-4e14).
 - **plugin schedule is config, not the filesystem (2026-06-07, bl-8540 — post-freeze).** FLIPS the §4
   line "There is likewise no `plugins` config list — the filesystem symlink registry (§6) IS the plugin
   chain" 180°. The trigger: the symlink registry (`config/plugins/<op>/<phase>/NN-<name>` →
