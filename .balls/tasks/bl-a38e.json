@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-77a7"],
   "description": "Follow-up to bl-77a7 (spec burn of §16). Delete the doctor implementation now that the spec retired it. Targets: src/doctor.rs, src/doctor_tests.rs, src/delivery_doctor.rs, src/delivery_doctor_tests.rs, and unwire doctor from src/lib.rs, src/verb.rs, src/registry.rs, src/lifecycle.rs, src/delivery.rs, src/bin/bl-delivery.rs, tests/delivery.rs. Also scrub the SKILL.md command-table row and README/SPEC-clone-layout/SPEC-tracker-state/CHANGELOG mentions. Replace doctor's three load-bearing silent checks with point-of-use errors that name the fix verb: (a) missing bin/<name> for a wired plugin -> the op that needs it errors 'plugin X referenced but bin/X missing — run bl install'; (b) protocol drift -> already rejected at dispatch (§6), confirm message names the fix; (c) blocker cycle -> readiness/blocker walk errors on cycle naming bl update to unlink. Keep 100% coverage + 300-line cap; deleting modules will surface orphan-coverage (see memory) — add narrow tests or simplify now-dead branches.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":327,"source":"balls","state":"open","synced_at":"2026-06-07T06:37:18.603754839+00:00","url":"https://github.com/mudbungie/balls/issues/327"}}},
+  "external": {"github-issues":{}},
   "id": "bl-a38e",
   "links": [],
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-07T06:37:18.610949790Z"},
+  "synced_at": {"github-issues":"2026-06-07T19:52:44.399185433Z"},
   "tags": [],
   "title": "Remove bl doctor code (src/doctor.rs, delivery_doctor, wiring)",
   "type": "chore",
-  "updated_at": "2026-06-07T19:52:43.936636592Z"
+  "updated_at": "2026-06-07T19:52:44.399188749Z"
 }
