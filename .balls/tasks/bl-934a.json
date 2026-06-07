@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-934a",
+  "claimed_by": "Cheesier",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T07:06:26.882021115Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T08:14:13.579672534Z"},
   "tags": [],
   "title": "Greenfield §11: stage derived worktree path into task frontmatter at claim.pre (authoritative, --json-readable)",
   "type": "task",
-  "updated_at": "2026-06-07T08:18:04.736777963Z"
+  "updated_at": "2026-06-07T22:58:55.244106533Z"
 }
