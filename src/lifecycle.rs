@@ -10,7 +10,7 @@
 //!
 //! Mutating ops run the full Author → Pre → Seal → Post → Teardown shape;
 //! diffless ops (reads, sync/prime/doctor) "skip steps 1/3/5" — pre/post run
-//! against `operating/` with no worktree and no seal (§8). One rule governs the
+//! against the store/landing checkout, no worktree and no seal (§8). One rule governs the
 //! unwind: every plugin that ran a phase for THIS op rolls back in reverse,
 //! THEN core un-seals its own tier-1 change — discard the worktree on a
 //! pre-abort, `git reset` the terminus on a post-abort (§14). The committed
@@ -190,33 +190,33 @@ impl<'a> Engine<'a> {
         Ok(sha)
     }
 
-    /// Run a DIFFLESS op (§8 "skip steps 1/3/5"): pre/post against `operating/`,
-    /// no worktree, no seal. Tier 1 is empty, so the unwind is reverse plugin
-    /// rollback only (§13/§14). Unlike the seal path there is no commit to land,
-    /// but the op can still MOVE the operating tip — a `pre` participant (sync
-    /// ff/push) advances `balls/tasks`. So balls reads the tip before `pre` and
-    /// after it and threads those as the §13 `previous_commit`/`commit` facts to
-    /// `post` (and any `post`-phase rollback), metadata-less: a diffless op
-    /// authors no §5 message, so `message` is `None` and the wire omits
-    /// `metadata`. No shipped plugin reads them yet; a sync/post cache-rebuild
-    /// participant will.
+    /// Run a DIFFLESS op (§8 "skip steps 1/3/5"): pre/post against the `checkout`
+    /// (the STORE for sync/prime, §13), no worktree, no seal. Tier 1 is empty, so
+    /// the unwind is reverse plugin rollback only (§13/§14). Unlike the seal path
+    /// there is no commit to land, but the op can still MOVE the terminus tip — a
+    /// `pre` participant (sync ff/push) advances `tasks_branch`. So balls reads
+    /// the tip before `pre` and after it and threads those as the §13
+    /// `previous_commit`/`commit` facts to `post` (and any `post`-phase
+    /// rollback), metadata-less: a diffless op authors no §5 message, so
+    /// `message` is `None` and the wire omits `metadata`. No shipped plugin reads
+    /// them yet; a sync/post cache-rebuild participant will.
     pub fn diffless(
         &self,
         op: Verb,
-        operating: &Path,
+        checkout: &Path,
         pre: &[PluginRef],
         post: &[PluginRef],
     ) -> Result<(), OpError> {
         let mut ran = Vec::new();
         let mut moved = None;
-        let result = self.diffless_inner(op, operating, pre, post, &mut ran, &mut moved);
+        let result = self.diffless_inner(op, checkout, pre, post, &mut ran, &mut moved);
         if result.is_err() {
-            unwind(self.plugins, op, operating, &ran, moved.as_ref());
+            unwind(self.plugins, op, checkout, &ran, moved.as_ref());
         }
         result
     }
 
-    /// The fallible pre→post body of a diffless op. Captures the operating tip
+    /// The fallible pre→post body of a diffless op. Captures the terminus tip
     /// before `pre` and after it (§13), records those facts in `moved` so a
     /// post-abort unwind hands `post`-phase rollbacks the same shape (mirroring
     /// [`Trace::seal`] on the mutating path), and threads them — metadata-less —
@@ -224,17 +224,17 @@ impl<'a> Engine<'a> {
     fn diffless_inner(
         &self,
         op: Verb,
-        operating: &Path,
+        checkout: &Path,
         pre: &[PluginRef],
         post: &[PluginRef],
         ran: &mut Vec<(PluginRef, Phase)>,
         moved: &mut Option<SealRecord>,
     ) -> Result<(), OpError> {
         let previous_commit = self.terminus.head().map_err(OpError::Terminus)?;
-        run_phase(self.plugins, op, Phase::Pre, operating, pre, None, ran)?;
+        run_phase(self.plugins, op, Phase::Pre, checkout, pre, None, ran)?;
         let commit = self.terminus.head().map_err(OpError::Terminus)?;
         let record = moved.insert(SealRecord { previous_commit, commit, message: None });
-        run_phase(self.plugins, op, Phase::Post, operating, post, Some(&record.facts()), ran)
+        run_phase(self.plugins, op, Phase::Post, checkout, post, Some(&record.facts()), ran)
     }
 
     /// §14 unwind: roll every run plugin back in reverse, THEN core un-seals its

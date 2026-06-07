@@ -1,12 +1,12 @@
 //! Tests for §12/§13 `prime`/`sync` orchestration. Chains run tracker-free
-//! (`tracker_bin: None` ⇒ empty registry ⇒ no subprocess), so these exercise
-//! the core logic — bootstrap, the pointer, trail walk, binding, flag parsing —
-//! without a plugin binary; the end-to-end chain is `tests/dispatch.rs`.
+//! (`tracker_bin: None` ⇒ empty registry ⇒ no subprocess), so these exercise the
+//! core logic — bootstrap of both branches, binding, flag parsing — without a
+//! plugin binary; the end-to-end chain is `tests/dispatch.rs`.
 
 use super::*;
 use crate::edge::Edge;
-use crate::git::run as git;
 use crate::layout::Xdg;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 /// An edge rooted in `tmp` with the given (optional) installed tracker.
@@ -20,9 +20,14 @@ fn edge(tmp: &TempDir, tracker: Option<PathBuf>) -> Edge {
     }
 }
 
-/// The operating checkout this edge resolves to.
-fn operating(e: &Edge) -> PathBuf {
-    e.xdg.clone_dir(&e.invocation_path).operating()
+/// The landing checkout this edge resolves to.
+fn landing(e: &Edge) -> PathBuf {
+    e.xdg.clone_dir(&e.invocation_path).landing()
+}
+
+/// The store checkout this edge resolves to.
+fn store(e: &Edge) -> PathBuf {
+    e.xdg.clone_dir(&e.invocation_path).store()
 }
 
 fn argv(a: &[&str]) -> Vec<String> {
@@ -30,57 +35,24 @@ fn argv(a: &[&str]) -> Vec<String> {
 }
 
 #[test]
-fn prime_founds_on_a_miss_then_converges_on_the_hit_path() {
+fn prime_founds_both_branches_on_a_miss_then_converges_on_the_hit_path() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     prime(&e, &argv(&["--as", "me"])).unwrap();
-    assert!(operating(&e).join("config").join("balls.toml").is_file());
-    // Re-prime: the landing already exists → hit path (rebind None), no error.
+    assert!(landing(&e).join("config").join("balls.toml").is_file());
+    assert!(store(&e).join("tasks").is_dir());
+    // Re-prime: both checkouts already exist → hit path (rebind None), no error.
     prime(&e, &[]).unwrap();
 }
 
 #[test]
-fn prime_center_writes_and_commits_the_trail_pointer() {
-    let tmp = TempDir::new().unwrap();
-    let e = edge(&tmp, None);
-    prime(&e, &argv(&["--center", "git@hub:central"])).unwrap();
-    let ptr = operating(&e).join("config/plugins/tracker/remote.toml");
-    assert!(std::fs::read_to_string(&ptr).unwrap().contains("git@hub:central"));
-    // Idempotent: the same center again changes nothing → commit_config no-ops.
-    prime(&e, &argv(&["--center", "git@hub:central"])).unwrap();
-    let log = git(&operating(&e), &["log", "--oneline"], None).unwrap();
-    assert_eq!(log.matches("set trail pointer").count(), 1);
-}
-
-#[test]
-fn prime_stealth_truncates_the_trail_pointer() {
-    let tmp = TempDir::new().unwrap();
-    let e = edge(&tmp, None);
-    prime(&e, &argv(&["--center", "git@hub:central"])).unwrap();
-    prime(&e, &argv(&["--stealth"])).unwrap();
-    assert!(!operating(&e).join("config/plugins/tracker/remote.toml").exists());
-}
-
-#[test]
-fn prime_honours_a_prior_stealth_lock_with_notice_w1() {
+fn prime_auto_discovers_the_origin_remote_for_the_binding() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     prime(&e, &[]).unwrap();
-    // Simulate a prior stealth prime having locked the landing.
-    let bundle = e.xdg.clone_dir(&e.invocation_path);
-    std::fs::write(bundle.root().join("stealth.lock"), "stealth\n").unwrap();
-    // A plain re-prime must not auto-extend: it resolves no remote (W1).
-    prime(&e, &[]).unwrap();
-}
-
-#[test]
-fn prime_auto_discovers_the_origin_remote_when_unlocked() {
-    let tmp = TempDir::new().unwrap();
-    let e = edge(&tmp, None);
-    prime(&e, &[]).unwrap();
-    // Give the landing an origin; an unlocked, center-free prime discovers it.
-    git(&operating(&e), &["remote", "add", "origin", "git@hub:origin"], None).unwrap();
-    prime(&e, &[]).unwrap(); // resolves Some(origin) for the (empty) chain
+    // Give the landing an origin; a re-prime discovers it for the (empty) chain.
+    crate::git::run(&landing(&e), &["remote", "add", "origin", "git@hub:origin"], None).unwrap();
+    prime(&e, &[]).unwrap(); // resolves Some(origin) into the binding
 }
 
 #[test]
@@ -93,7 +65,7 @@ fn prime_rebinds_a_tracker_on_the_hit_path() {
     std::fs::write(&fake, "x").unwrap();
     prime(&edge(&tmp, Some(fake)), &[]).unwrap();
     let e = edge(&tmp, None);
-    assert!(operating(&e).join("config/plugins/bin/tracker").symlink_metadata().is_ok());
+    assert!(landing(&e).join("config/plugins/bin/tracker").symlink_metadata().is_ok());
 }
 
 #[test]
@@ -103,22 +75,21 @@ fn sync_before_prime_is_an_error() {
 }
 
 #[test]
-fn sync_walks_to_the_terminus_and_handles_named_branches() {
+fn sync_targets_the_store_and_treats_landing_as_a_no_op() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     prime(&e, &[]).unwrap();
-    sync(&e, &[]).unwrap(); // no arg: walk to terminus
-    sync(&e, &argv(&["terminus"])).unwrap(); // the terminus alias
-    sync(&e, &argv(&["work/bl-1234", "--as", "me"])).unwrap(); // a named branch
+    sync(&e, &[]).unwrap(); // no arg: sync the store
+    sync(&e, &argv(&["work/bl-1234", "--as", "me"])).unwrap(); // a named target
     sync(&e, &argv(&["landing"])).unwrap(); // the landing is never a target
 }
 
 #[test]
-fn prime_rejects_conflicting_and_unknown_flags() {
+fn prime_rejects_unknown_flags_and_a_missing_value() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
-    assert!(prime(&e, &argv(&["--center", "u", "--stealth"])).is_err());
     assert!(prime(&e, &argv(&["--bogus"])).is_err());
+    assert!(prime(&e, &argv(&["--center", "u"])).is_err()); // retired flag → unknown
     assert!(prime(&e, &argv(&["--as"])).is_err()); // flag with no value
 }
 

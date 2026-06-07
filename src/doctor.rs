@@ -16,7 +16,7 @@
 //!
 //! - stale CHANGE worktrees under `clones/<enc>/changes/<uuid>/` — crash debris
 //!   from an op whose teardown (§8) never completed.
-//! - `operating/` resolves to a real checkout (a dir or a live symlink, §1).
+//! - the `config/` landing resolves to a real checkout (§1/§2).
 //! - the registry's LOCAL `bin/` dangle — a committed `NN-<name>` whose
 //!   machine-local `bin/<name>` is missing (§6, the one artifact only doctor
 //!   can surface).
@@ -24,10 +24,10 @@
 //!   includes balls' current version.
 //! - circular blockers (§10) — a cycle in the `blockers` edges across `tasks/`.
 //!
-//! - the §4 [`EffectiveConfig`] resolves (the config-layering subsystem):
-//!   the layered `config/balls.toml` parses, and the resolved `branch` is usable
-//!   — an empty `branch` has no task-store to root on, so doctor surfaces it
-//!   before an op fails.
+//! - the §4 [`EffectiveConfig`] resolves (the config subsystem): the landing's
+//!   `config/balls.toml` parses, and the resolved `tasks_branch` is usable — an
+//!   empty `tasks_branch` has no store to root on, so doctor surfaces it before
+//!   an op fails.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -68,26 +68,23 @@ pub fn audit(
 ) -> io::Result<Report> {
     let mut findings = Vec::new();
     stale_changes(clone, &mut findings)?;
-    let operating = clone.operating();
-    if operating.is_dir() {
-        registry_drift(&operating, probe, &mut findings)?;
-        circular_blockers(&operating, &mut findings)?;
-        config_resolution(&operating, user_config, &mut findings);
+    let (landing, store) = (clone.landing(), clone.store());
+    if landing.is_dir() {
+        registry_drift(&landing, probe, &mut findings)?;
+        circular_blockers(&store, &mut findings)?;
+        config_resolution(&landing, user_config, &mut findings);
     } else {
-        findings.push(Finding::operating_unresolved(&operating));
+        findings.push(Finding::landing_unresolved(&landing));
     }
     Ok(Report { findings })
 }
 
-/// Resolve the §4 layered config (§12 trail terminus→landing, then the XDG
-/// `user_config`) and check it can drive core: a parse/projection failure, or a
-/// resolved `branch` that would break the task store, is drift a
-/// `config/balls.toml` edit + `bl prime` clears. Reading config is a local act
-/// (§4 — no fetch), so doctor layers it over `operating`'s own trail; today that
-/// is just `operating` (core materializes no remote hop, §12 SEAM).
-fn config_resolution(operating: &Path, user_config: &Path, findings: &mut Vec<Finding>) {
-    let trail = crate::trail::walk(operating.to_path_buf(), &mut |_| None);
-    match EffectiveConfig::resolve(&trail, user_config) {
+/// Resolve the §4 config from the LANDING (then the XDG `user_config`) and check
+/// it can drive core: a parse/projection failure, or a resolved `tasks_branch`
+/// that would break the task store, is drift a `config/balls.toml` edit + `bl
+/// prime` clears. Reading config is a local act (§4 — no fetch, no trail).
+fn config_resolution(landing: &Path, user_config: &Path, findings: &mut Vec<Finding>) {
+    match EffectiveConfig::resolve(landing, user_config) {
         Err(e) => findings.push(Finding::config_unresolved(&e.to_string())),
         Ok(cfg) => {
             if let Some(reason) = config_defect(&cfg) {
@@ -98,13 +95,13 @@ fn config_resolution(operating: &Path, user_config: &Path, findings: &mut Vec<Fi
 }
 
 /// Why a resolved §4 config cannot drive core, or `None` if it is usable. An
-/// empty `branch` has no task-store branch to root on. (The id scheme is fixed,
+/// empty `tasks_branch` has no store branch to root on. (The id scheme is fixed,
 /// not config — [`crate::id::IdScheme::default`] is always valid, so there is
 /// nothing to validate there.)
 fn config_defect(cfg: &EffectiveConfig) -> Option<&'static str> {
-    cfg.branch
+    cfg.tasks_branch
         .is_empty()
-        .then_some("branch is empty — no task-store branch to root on")
+        .then_some("tasks_branch is empty — no store branch to root on")
 }
 
 /// Any leftover `changes/<uuid>/` is crash debris — an op whose teardown (§8)
@@ -219,9 +216,9 @@ fn walk(
 }
 
 impl Finding {
-    fn operating_unresolved(operating: &Path) -> Finding {
+    fn landing_unresolved(landing: &Path) -> Finding {
         Finding {
-            drift: format!("operating checkout does not resolve: {}", operating.display()),
+            drift: format!("landing checkout does not resolve: {}", landing.display()),
             fix: "bl prime (idempotently re-materializes a missing checkout)".into(),
         }
     }

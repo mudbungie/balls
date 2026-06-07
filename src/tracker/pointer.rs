@@ -16,16 +16,16 @@
 //! capability-transfer can never re-home a checkout (§6). Core writes the file
 //! here (the single source of its format) and commits it as config (§12).
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 /// The committed `next:` trail pointer. One optional scalar; an absent key (an
 /// empty file) is a trail-end branch.
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct Pointer {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     next: Option<String>,
 }
 
@@ -44,27 +44,6 @@ pub fn read(operating: &Path) -> io::Result<Option<String>> {
     match fs::read_to_string(path(operating)) {
         Ok(text) => Ok(toml::from_str::<Pointer>(&text).map_err(io::Error::other)?.next),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e),
-    }
-}
-
-/// Set this checkout's `next:` hop to `url` — `bl prime --center`, which extends
-/// the trail (§12). Creates `config/plugins/tracker/` if absent and replaces any
-/// prior pointer (idempotent re-home). Core commits the file separately.
-pub fn write(operating: &Path, url: &str) -> io::Result<()> {
-    let file = path(operating);
-    fs::create_dir_all(file.parent().expect("path has a parent"))?;
-    let text = toml::to_string(&Pointer { next: Some(url.to_string()) }).map_err(io::Error::other)?;
-    fs::write(file, text)
-}
-
-/// Truncate the trail — `bl prime --stealth`, removing the `next:` hop so this
-/// checkout becomes its own terminus (§12). A no-op when already pointer-free,
-/// so it converges; absence is the trail-end the [`read`] side already models.
-pub fn clear(operating: &Path) -> io::Result<()> {
-    match fs::remove_file(path(operating)) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
     }
 }
@@ -112,38 +91,5 @@ mod tests {
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, "next = [not a string]\n").unwrap();
         assert!(read(tmp.path()).is_err());
-    }
-
-    #[test]
-    fn write_then_read_round_trips_the_hop_creating_the_dir() {
-        let tmp = TempDir::new().unwrap();
-        // No config/plugins/tracker/ yet — write creates it.
-        write(tmp.path(), "git@hub:central").unwrap();
-        assert_eq!(read(tmp.path()).unwrap().as_deref(), Some("git@hub:central"));
-    }
-
-    #[test]
-    fn write_replaces_a_prior_pointer() {
-        let tmp = TempDir::new().unwrap();
-        write(tmp.path(), "git@hub:first").unwrap();
-        write(tmp.path(), "git@hub:second").unwrap();
-        assert_eq!(read(tmp.path()).unwrap().as_deref(), Some("git@hub:second"));
-    }
-
-    #[test]
-    fn clear_truncates_to_a_trail_end_and_is_idempotent() {
-        let tmp = TempDir::new().unwrap();
-        write(tmp.path(), "git@hub:central").unwrap();
-        clear(tmp.path()).unwrap();
-        assert_eq!(read(tmp.path()).unwrap(), None);
-        clear(tmp.path()).unwrap(); // already gone — converges, no error
-    }
-
-    #[test]
-    fn clear_propagates_a_non_absence_error() {
-        let tmp = TempDir::new().unwrap();
-        // remote.toml is a directory: remove_file errors, but not NotFound.
-        fs::create_dir_all(path(tmp.path())).unwrap();
-        assert!(clear(tmp.path()).is_err());
     }
 }

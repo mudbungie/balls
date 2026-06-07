@@ -34,8 +34,9 @@ fn ctx() -> OpContext {
         actor: "me@example.com".into(),
         binding: Binding {
             remote: None,
-            branch: "balls".into(),
-            operating: "/op".into(),
+            tasks_branch: "balls/tasks".into(),
+            store: "/store".into(),
+            landing: "/landing".into(),
             invocation_path: "/proj".into(),
         },
         command: Some(Command { op: "close".into(), field_changes: vec![], body_change: None }),
