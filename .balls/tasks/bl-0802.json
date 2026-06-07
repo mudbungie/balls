@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "deferred",
   "synced_at": {"github-issues":"2026-06-07T19:52:43.919986738Z"},
   "tags": [],
   "title": "§17 migration script + dogfood install + cutover (FINALE / validation)",
   "type": "task",
-  "updated_at": "2026-06-07T19:52:43.919991286Z"
+  "updated_at": "2026-06-07T20:08:11.760721592Z"
 }
