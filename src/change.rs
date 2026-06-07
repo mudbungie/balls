@@ -11,9 +11,12 @@
 //! `claim`/`unclaim`/`close`/`drop` are NAMED specializations of `update` (§9):
 //! [`Occupancy`] fixes `claimant` (claim carries two guards — the already-claimed
 //! refusal here, plus the §10 claim-blocker guard via [`crate::enforce`]),
-//! [`Retire`] stages the file DELETION (`close` adds the §10 close-blocker guard;
-//! `drop` is never gated), [`Update`] applies a generic [`FieldEdit`] list. They
-//! stay distinct ops because the op NAME is the §6 hook-dispatch key.
+//! [`Retire`] stages the file DELETION, [`Update`] applies a generic
+//! [`FieldEdit`] list. Each mutating op runs the SAME op-keyed guard
+//! ([`crate::enforce::gate`], §10/§15) for its own verb — `claim`/`close` via
+//! their named [`crate::enforce::claim`]/[`crate::enforce::close`] spellings, the
+//! rest (`unclaim`/`update`/`drop`) directly — so a blocker on ANY op is honored.
+//! They stay distinct ops because the op NAME is the §6 hook-dispatch key.
 //!
 //! The §10 guards run at [`BaseChange::stage`] — before the seal, so a refusal
 //! aborts the op cleanly, and for `close` before any `close.pre` plugin (e.g.
@@ -37,22 +40,24 @@ use crate::verb::Verb;
 /// [`BaseChange::finalize`] can find the single new file even after a
 /// `create/pre` plugin renamed it.
 ///
-/// `parent` carries the §10 front-door semantics of `--parent`/`--gates`: both
-/// set the child's `parent`, differing only in the reciprocal blocker `on` we
-/// add to that parent — `On::Claim` (subtask claim-blocks its epic) for
-/// `--parent`, `On::Close` (gate close-blocks its parent) for `--gates`.
-/// `--needs` is just a claim-blocker on the child itself (`blockers`). The
-/// reciprocal names the minted `id`; a `create/pre` id reassignment is the one
-/// case it would not track (the new file is found at finalize, the edge is not).
+/// The §10/§15 front door splits containment from blocking — NOTHING is
+/// auto-minted: `parent` sets the display-only tree pointer and gates nothing;
+/// `blockers` are the child's own edges (`--needs B[:OP]`, default `claim`); and
+/// `blocks` are reciprocal edges naming the minted `id` on OTHER tasks'
+/// ops (`--blocks OP` gates the parent, `--blocks ID:OP` a non-parent — `--gates`
+/// is just `--parent X --blocks close`). A `create/pre` id reassignment is the one
+/// case `blocks` would not track (the new file is found at finalize, the edge is
+/// not).
 pub struct Create {
     pub id: String,
     pub actor: String,
     pub now: i64,
     pub title: String,
-    pub parent: Option<(String, On)>,
+    pub parent: Option<String>,
     pub priority: Option<i64>,
     pub tags: Vec<String>,
     pub blockers: Vec<Blocker>,
+    pub blocks: Vec<(String, On)>,
     pub over: Option<String>,
     pub body: Option<String>,
     pub existing: Vec<String>,
@@ -64,15 +69,15 @@ impl BaseChange for Create {
             title: self.title.clone(),
             created: self.now,
             updated: self.now,
-            parent: self.parent.as_ref().map(|(id, _)| id.clone()),
+            parent: self.parent.clone(),
             priority: self.priority,
             blockers: self.blockers.clone(),
             tags: self.tags.clone(),
             ..Task::default()
         };
         write_task(dir, &self.id, &task)?;
-        if let Some((parent_id, on)) = &self.parent {
-            add_blocker(dir, parent_id, Blocker { id: self.id.clone(), on: *on }, self.now)?;
+        for (target, on) in &self.blocks {
+            add_blocker(dir, target, Blocker { id: self.id.clone(), on: *on }, self.now)?;
         }
         Ok(())
     }
@@ -134,6 +139,8 @@ impl BaseChange for Occupancy {
                 ));
             }
             enforce::claim(&task, &self.id, dir)?;
+        } else {
+            enforce::gate(&task, Verb::Unclaim, &self.id, dir)?;
         }
         task.claimant.clone_from(&self.claimant);
         task.updated = self.now;
@@ -161,6 +168,7 @@ pub struct Update {
 impl BaseChange for Update {
     fn stage(&self, dir: &Path) -> io::Result<()> {
         let mut task = read_task(dir, &self.id)?;
+        enforce::gate(&task, Verb::Update, &self.id, dir)?;
         for edit in &self.edits {
             edit.apply(&mut task);
         }
@@ -246,8 +254,11 @@ impl Retire {
 
 impl BaseChange for Retire {
     fn stage(&self, dir: &Path) -> io::Result<()> {
+        let task = read_task(dir, &self.id)?;
         if self.verb == Verb::Close {
-            enforce::close(&read_task(dir, &self.id)?, &self.id, dir)?;
+            enforce::close(&task, &self.id, dir)?;
+        } else {
+            enforce::gate(&task, Verb::Drop, &self.id, dir)?;
         }
         fs::remove_file(task_path(dir, &self.id))
     }

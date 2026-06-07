@@ -50,6 +50,16 @@ fn a_child_whose_parent_is_live_is_not_a_root() {
 }
 
 #[test]
+fn a_blocker_on_a_third_op_is_annotated_by_its_op_token() {
+    // `on` is ANY op (§10/§15): claim→needs, close→gate, anything else→its token.
+    let mut root = task("Root", 1);
+    root.blockers = vec![blocker("bl-u", On::Update)];
+    let cat = catalog(&[("bl-root", root)]);
+    let out = render(&cat, &flags(false), &plain());
+    assert_eq!(out, "ready    bl-root  Root [update bl-u]\n");
+}
+
+#[test]
 fn an_unblocked_node_has_no_annotation() {
     let cat = catalog(&[("bl-x", task("X", 1))]);
     let out = render(&cat, &flags(false), &plain());
