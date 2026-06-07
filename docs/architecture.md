@@ -408,7 +408,9 @@ a list property, not an `NN-` filename convention faking one.
 "sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
 "prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
+"claim.pre"    = ["bl-delivery"]              # stage the worktree-path field before the seal
 "claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
+"unclaim.pre"  = ["bl-delivery"]              # clear the path field in lockstep with claimant
 "unclaim.post" = ["bl-delivery", "tracker"]
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
@@ -605,10 +607,13 @@ new `tasks/*.md`; regex-valid; no collision) and commits.
 
 **`claim`** (acquire occupancy; core's guards refuse a ball whose `claimant` is already set, or whose claim-blockers are unresolved — `!ready()`, §10): stage `claimant`, bump `updated` — the ONLY field it writes. There is no status to set:
 "claimed" is the derived view of `claimant` (§3), so claim stores the one occupancy fact in the one
-field. `claim.post`: the delivery plugin materializes the code worktree AND prints its path (§11 — the
-plugin owns the path and prints it on stdout, §6; core forwards, never computes it).
+field (the only field CORE writes). `claim.pre`: the delivery plugin STAGES the worktree path into a
+preserved frontmatter key so the seal captures it and `bl show --json` reads it authoritatively (§11).
+`claim.post`: the delivery plugin materializes the code worktree AND prints the path on stdout — the
+human hint (§11 — the plugin owns the path, core forwards, never computes it).
 
-**`unclaim`** (release occupancy): clear `claimant` (symmetric with claim — the only field touched).
+**`unclaim`** (release occupancy): clear `claimant` (symmetric with claim — the only CORE field
+touched); `unclaim.pre`, the delivery plugin clears its worktree-path key in lockstep (§11).
 `*.post`: the delivery plugin releases the code worktree.
 
 **`update`** (op `update`): the generic field/body edit — retitle, edit the markdown body, add/remove
@@ -750,16 +755,42 @@ branch                                   = work/<key>          # <key> = <id>, o
 the filesystem; it needs no id-keyed scratch, and every hook is idempotent by construction. Keying on
 `claimant` as well as `id` keeps the pure-function/stateless property (claimant is already on the
 wire) while disambiguating a drop-and-reclaim by a different actor and naming forge branches by owner.
-**Core never computes this path.** The plugin owns the formula end to end; on `claim.post` it PRINTS
-the path on its stdout (§6) and balls forwards that to the invoker — so "claim prints the path" holds
-with zero core knowledge of the plugin's territory (no privileged plugin, §0/§6). The worktree lives
-in plugin XDG territory, not the project tree.
 
-**Hooks:** `claim.post` materialize (create-if-absent); `unclaim.post`/`drop.post` release
-(remove-if-present); **`close.pre` deliver** (sorts last); **`close.post` teardown**. balls does not
-guard against tearing a worktree down from inside it — the agent SHOULD `cd` out of the worktree
-before closing so its shell cwd is not deleted underneath it (a recommendation in the skill guide,
-not an enforced precondition).
+**Core never computes this path** — the plugin owns the formula end to end and surfaces the result to
+consumers two ways, neither teaching core the formula:
+- a HUMAN hint — on `claim.post` it PRINTS the path on its stdout (§6), which balls forwards verbatim;
+  "claim prints the path" is the plugin printing, not core knowing (no privileged plugin, §0/§6).
+- an AUTHORITATIVE machine read — on `claim.pre` it STAGES the path into a plugin-namespaced
+  frontmatter key (the reference plugin writes `delivery-worktree`; §3 preserved-key seam), so the
+  seal captures it and `bl show --json` surfaces it deterministically. This is the consumer's ONLY
+  reliable read: stdout is a forward-verbatim human channel interleaved across the whole chain (§6),
+  not machine-parseable, and §7 hands a plugin no return channel but the worktree it edits. The path
+  is derivable BY THE PLUGIN yet NOT by the consumer (core/agents lack both the formula and the
+  plugin's territory layout, §0), so the stored copy is not a derive-don't-store violation from the
+  consumer's view — it is the single deterministic source, written through §7's one sanctioned
+  channel (a plugin contributes by editing frontmatter, never by a return value).
+
+It MUST be staged at `claim.pre`, not `post`: §14 forbids a `post` reactor from mutating the sealed
+ball, and the staging is possible because the id ALREADY exists at claim (unlike create, where the id
+isn't sealed yet, §7) and `claimant` is the field claim itself stages — so `worktree_path(binding, id,
+claimant)` is fully determined before the seal. **The field travels with `claimant`** as its companion:
+written at `claim.pre`, CLEARED at `unclaim.pre`, mirroring core setting/clearing `claimant` (§9) — so
+it is present exactly while the ball is claimed and never names a released worktree. The plugin still
+RECOMPUTES the path for its own materialize/release/rollback and never READS the stored copy, so the
+pure-function/stateless property (above) is untouched; the frontmatter key is purely consumer-facing.
+
+**Consistency across every seal.** The staged path survives only if the claim seal survives, which
+survives only if `claim.post` materializes the worktree — a `claim.post` failure triggers §8 post-abort
+(`git reset` the store back one commit; claimant + field gone), REJECTING the claim. So at every
+COMMITTED state the field is present iff the worktree exists (the same holds across `unclaim`'s seal):
+the ball never carries a path to a nonexistent worktree. The worktree lives in plugin XDG territory,
+not the project tree.
+
+**Hooks:** `claim.pre` stage the path field / `claim.post` materialize (create-if-absent);
+`unclaim.pre` clear the path field / `unclaim.post` + `drop.post` release (remove-if-present);
+**`close.pre` deliver** (sorts last); **`close.post` teardown**. balls does not guard against tearing a
+worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
+cwd is not deleted underneath it (a recommendation in the skill guide, not an enforced precondition).
 
 **Two variants** (only "what's wired into the delivery hooks" differs; both kind-blind and idempotent):
 - DIRECT (default, local-squash): `close.pre` squashes `work/<id>` → integration as one commit
@@ -776,8 +807,18 @@ not an enforced precondition).
 
 **`delivered_in` is a derived query, not a field** — "delivery IS the tag, not a field." The plugin
 answers "where was `<id>` delivered?" by tag-scanning (`git log --grep [bl-id]`) the integration
-branch; no stored hint, no write/null asymmetry, no staleness. (A cross-clone miss is reported
-honestly or resolved by a tracker fetch.)
+branch; no stored hint, no write/null asymmetry, no staleness. **Id-reuse stays unambiguous by
+RECENCY** (the subtlety bl-d7a5 deferred here): a 4-hex id may be reused across incarnations, so
+several `[bl-id]` commits can accumulate on the integration branch — but a reused id only begins after
+the prior incarnation CLOSED, so its delivery necessarily lands LATER; deliveries are monotonic with
+incarnations. `bl show <id>` reconstructs the k-th-most-recent incarnation from `balls/tasks` history
+(§9), and its delivery is the k-th-most-recent `[bl-id]` commit on the integration branch — the SAME
+live-first-else-most-recent walk §9 applies to the ball file. So the cross-incarnation grep ambiguity
+is dissolved WITHOUT a field. Storing `delivered_in` was infeasible anyway: `close` seals the ball-file
+DELETION as one commit (§9), so a `close.pre` frontmatter write never lands in any recoverable
+file-present tree, and the recency walk reads the PRE-close commit, which predates delivery — the
+write would simply be eaten by the deletion. Derived + recency-ordered keeps the no-field / no-staleness
+property AND the disambiguation. (A cross-clone miss is reported honestly or resolved by a tracker fetch.)
 
 **Rollback** (specifics; general rule §14): project-repo commits are tier-2 (`git reset`, not covered
 by the change-worktree/store un-seal). `rollback claim.post` = remove the worktree + delete
@@ -1132,6 +1173,38 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **worktree path is a staged frontmatter field; `delivered_in` stays derived (recency-ordered)
+  (2026-06-07, bl-934a — post-freeze).** A spec attack on §11's consumer interface: the worktree path
+  is consumer-relevant (an agent needs it after `bl claim`), but §7 gives a plugin no return channel
+  and §6 makes plugin stdout a forward-verbatim HUMAN channel interleaved across the whole chain — not
+  reliably machine-parseable. RESOLVED in two halves that look like one pattern but are NOT.
+  (1) **worktree path — STAGE it (a field).** The delivery plugin writes the derived path into a
+  plugin-namespaced preserved frontmatter key (`delivery-worktree`, §3 seam) at **`claim.pre`**, so the
+  seal captures it and `bl show --json` reads it authoritatively. `pre` not `post` (§14 bars a post
+  reactor mutating the sealed ball); possible because the id already exists at claim (unlike create) and
+  `claimant` is the field claim stages, so the path is fully determined pre-seal. NOT a derive-don't-store
+  violation: the path is derivable BY THE PLUGIN but NOT by the consumer (core/agents lack the formula
+  and the plugin's territory layout, §0), so the stored copy is the consumer's single deterministic
+  source — written through §7's one sanctioned channel (a plugin contributes by editing frontmatter).
+  The field TRAVELS WITH `claimant`: staged at `claim.pre`, cleared at `unclaim.pre` (new `*.pre`
+  wirings, §6), mirroring core's claimant set/clear — present iff the ball is claimed, never naming a
+  released worktree. Seal-consistency holds: a `claim.post` materialize failure post-aborts the seal
+  (§8), so field-present ⟺ worktree-exists at every committed state. The plugin still RECOMPUTES the
+  path for its own resource/rollback and never reads the stored copy, so its stateless property is
+  intact (the key is purely consumer-facing). stdout stays the human hint.
+  (2) **`delivered_in` — KEEP it derived (NOT a field).** The note floated making `delivered_in` the
+  sibling field, written at `close.pre`. REJECTED — these are not the same pattern: `claim` keeps the
+  ball file (a `claim.pre` write lands durably), but `close` seals the ball-file DELETION as one commit,
+  so a `close.pre` frontmatter write is eaten by the deletion and never reaches a recoverable file-present
+  tree (the §9 recency walk reads the PRE-close commit, which predates delivery). It is also unnecessary:
+  the id-reuse grep ambiguity bl-d7a5 deferred here dissolves by RECENCY-ORDERING the derived query — a
+  reused id only begins after the prior incarnation closed, so deliveries are monotonic with incarnations,
+  and the k-th-most-recent incarnation maps to the k-th-most-recent `[bl-id]` integration commit (the same
+  live-first-else-most-recent walk §9 uses). Derived + recency-ordered keeps no-field / no-staleness AND
+  the disambiguation; §14's "post never mutates; `delivered_in` is a `git log --grep` query" worked
+  example stays intact. Touched §6 (hooks table: `claim.pre`/`unclaim.pre`), §9 (claim/unclaim prose),
+  §11 (the path-staging + the `delivered_in` recency note). Code follow-up (delivery plugin writes/clears
+  the key on `claim.pre`/`unclaim.pre`; the derived query recency-orders) filed bl-ae51 under bl-72a8.
 - **prime push-failure splits founding-miss vs established-reject (2026-06-07, bl-9857 —
   post-freeze).** §12 read "A push that fails for lack of perms falls back to stealth-local silently."
   That conflated two cases into one silent path. The fallback is defensible ONLY for FOUNDING — the
