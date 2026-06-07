@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-66e7","bl-70f5","bl-f813","bl-4522","bl-be5f","bl-d024","bl-35f7","bl-20fc","bl-6965"],
   "description": "The validation story: one-shot throwaway migration SCRIPT (core field map, blocker reciprocal-edge reconstruction, config map, branch handling) + each plugin's one-time adoption, then run it on THIS repo's balls data, hand off to prime, install greenfield, cut over. Proves the design end-to-end. NOT a verb. Refuses if any task is claimed / balls already exists.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":341,"source":"balls","state":"open","synced_at":"2026-06-07T19:52:43.915585094+00:00","url":"https://github.com/mudbungie/balls/issues/341"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"deferred","number":341,"source":"balls","state":"open","synced_at":"2026-06-07T20:08:12.512055952+00:00","url":"https://github.com/mudbungie/balls/issues/341"}}},
   "id": "bl-0802",
   "links": [],
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "deferred",
-  "synced_at": {"github-issues":"2026-06-07T19:52:43.919986738Z"},
+  "synced_at": {"github-issues":"2026-06-07T20:08:12.524033198Z"},
   "tags": [],
   "title": "§17 migration script + dogfood install + cutover (FINALE / validation)",
   "type": "task",
-  "updated_at": "2026-06-07T20:08:11.760721592Z"
+  "updated_at": "2026-06-07T20:08:12.524037316Z"
 }
