@@ -21,6 +21,7 @@ use std::io;
 use std::path::Path;
 
 use crate::git::Terminus;
+use crate::log::{Level, Log};
 use crate::op::Phase;
 use crate::registry::PluginRef;
 use crate::verb::Verb;
@@ -128,22 +129,24 @@ struct Trace {
     seal: Option<SealRecord>,
 }
 
-/// The §8 engine: a terminus and a plugin chain, the two stable collaborators
-/// every op runs against.
+/// The §8 engine: a terminus, a plugin chain, and the op's [`Log`] sink. It
+/// emits the op-level lifecycle records (begin/seal/abort, §6), interleaved with
+/// the per-plugin `invoke`/envelope records the [`Plugins`] seam writes there.
 pub struct Engine<'a> {
     terminus: &'a dyn Terminus,
     plugins: &'a dyn Plugins,
+    log: &'a Log,
 }
 
 impl<'a> Engine<'a> {
-    /// Build an engine over a terminus and a plugin chain.
-    pub fn new(terminus: &'a dyn Terminus, plugins: &'a dyn Plugins) -> Self {
-        Self { terminus, plugins }
+    /// Build an engine over a terminus, a plugin chain, and the op's log sink.
+    pub fn new(terminus: &'a dyn Terminus, plugins: &'a dyn Plugins, log: &'a Log) -> Self {
+        Self { terminus, plugins, log }
     }
 
     /// Run a MUTATING op (§8 steps 1–6): Author → Pre → Seal → Post → Teardown,
-    /// with §14 rollback on any abort. `pre`/`post` are the committed `NN-`
-    /// plugin sets resolved at op-start. Returns the sealed commit sha.
+    /// with §14 rollback on any abort. `pre`/`post` are the committed `NN-` plugin
+    /// sets resolved at op-start. Logs `begin`/`seal`/`abort` (§6); returns the sha.
     pub fn seal(
         &self,
         base: &dyn BaseChange,
@@ -152,14 +155,17 @@ impl<'a> Engine<'a> {
         pre: &[PluginRef],
         post: &[PluginRef],
     ) -> Result<String, OpError> {
+        self.log.record(Level::Info, "core", None, "begin");
         let mut trace = Trace::default();
         match self.run_inner(base, op, change_dir, pre, post, &mut trace) {
             Ok(sha) => {
                 let _ = self.terminus.close(change_dir); // (5) teardown, best-effort
+                self.log.record(Level::Info, "core", None, &format!("seal {sha}"));
                 Ok(sha)
             }
             Err(e) => {
                 self.rollback(op, change_dir, &trace);
+                self.log.record(Level::Error, "core", None, &format!("abort {e}"));
                 Err(e)
             }
         }
@@ -207,11 +213,16 @@ impl<'a> Engine<'a> {
         pre: &[PluginRef],
         post: &[PluginRef],
     ) -> Result<(), OpError> {
+        self.log.record(Level::Info, "core", None, "begin");
         let mut ran = Vec::new();
         let mut moved = None;
         let result = self.diffless_inner(op, checkout, pre, post, &mut ran, &mut moved);
-        if result.is_err() {
-            unwind(self.plugins, op, checkout, &ran, moved.as_ref());
+        match &result {
+            Ok(()) => self.log.record(Level::Info, "core", None, "done"),
+            Err(e) => {
+                unwind(self.plugins, op, checkout, &ran, moved.as_ref());
+                self.log.record(Level::Error, "core", None, &format!("abort {e}"));
+            }
         }
         result
     }
