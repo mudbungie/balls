@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Adversarial read of the just-frozen docs/architecture.md (bl-cac0) found one hard contradiction + several overstatements. Filed per the freeze discipline (new design ball + a §15 revision entry, NOT a silent edit).\n\nPRIMARY — HARD CONTRADICTION (fix): §13 prime --install (doc lines ~786-788) still describes the RETIRED config CHAIN: \"runs the prime->install pair RECURSIVELY down the config chain — install a layer, re-prime to see the layer it points to, ... until a self-contained config (no further redirect) is reached.\" The 2026-06-05 config/store split killed exactly this everywhere else (§0/§4/§12: \"there is no trail, no terminus, no transitive discovery, no config layering down a chain\"; §15: \"Chains and transitive auto-discovery go\"). A recursive multi-hop install IS the trail renamed. RESOLUTION: prime --install collapses to a SINGLE install (one center, one hop). Update §13 + §15.\n\nSECONDARY — coherence overstatements (decide fix vs document):\n- §11 core COMPUTES+PRINTS the delivery plugin worktree path, baking that plugin name + §1 territory layout into core — contradicts §0 (\"core knows only a plugin name+binary, never its territory\") and §6 (\"no privileged plugins\"). Reframe: the delivery plugin prints its own path on claim.post (it owns the formula) — needs plugin stdout to reach the user (today \"diagnostics only\").\n- §0 \"enforced structurally, not by discipline\" vs ~4 BY-DISCIPLINE load-bearing props: landing single-owner (§4), install folder=wipe vs glob=union blast radius (§6), late-subtask-on-claimed-epic close gap (§10 skill-hint), un-undoable-sorts-LAST (§14 \"recommendation, not enforced\"). Name these as the known soft spots.\n- \"Landing config is the SOLE authority\" (§0/§4) vs §4 layering where XDG config.toml + CLI override the landing (could redirect tasks_branch around the install consent boundary). Precise: \"no REMOTE is authoritative; effective = landing(+)XDG(+)CLI.\"\n- §8 \"every op is the same shape\" undercut by the seal-less sync/prime/doctor carve-out.\n- §8 stale line \"This sequence is a draft destined for the final docs/\" — self-contradictory now; delete.\n\nACCEPTED TRADEOFFS (probably fine — confirm): 3-state ladder folds awaiting-merge into \"claimed\" (detail view still shows the gate child); default implicit founding pushes balls/tasks on first prime (opt-out --stealth); close/drop mechanically identical (distinguished by bl-op + hook wiring).",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":309,"source":"balls","state":"open","synced_at":"2026-06-07T00:21:29.550732597+00:00","url":"https://github.com/mudbungie/balls/issues/309"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":309,"source":"balls","state":"open","synced_at":"2026-06-07T03:55:42.025403024+00:00","url":"https://github.com/mudbungie/balls/issues/309"}}},
   "id": "bl-7d46",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-07T00:21:29.556803488Z"},
+  "synced_at": {"github-issues":"2026-06-07T03:55:42.039187167Z"},
   "tags": [],
   "title": "Coherence pass on frozen docs/architecture.md: retire trail-survival in §13 prime --install + name soft spots",
   "type": "task",
-  "updated_at": "2026-06-07T03:55:41.103581397Z"
+  "updated_at": "2026-06-07T03:55:42.039196064Z"
 }
