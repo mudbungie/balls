@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Cosmetic vocab cleanup surfaced by bl-05f9 (closed no-op). Spec §0 retires the trail/terminus/operating *discovery model* (anchor->trail->step->terminus->operating symlink + next:-chain) — that mechanism is fully GONE. But the §8 git-SEAL seam still NAMES itself with two of the retired words: the git::Terminus trait (src/git.rs: the ref you open a worktree off / seal+integrate onto / reset) and 'operating' (the checkout path/field, e.g. Git{operating}, operating_clone fixtures). These are a legitimate CURRENT concept, NOT residual trail code — but reusing retired words means a future reader greps 'terminus'/'operating' (~80 hits) and mistakes the live seal seam for the dead discovery model (exactly the mis-scope bl-05f9 nearly hit).\n\nSCOPE: rename only — pick non-retired §8 vocab the spec already uses for this seam (seal/integrate/target-branch/store-checkout; e.g. Terminus->Seal or Anvil, operating->checkout/store). Touches src/git.rs, lifecycle.rs, mutate.rs, checkout.rs, delivery*.rs, registry.rs, verb.rs + their test files. No behavior change; tests must pass unchanged in substance. Spec §8 (architecture.md:508) doesn't prescribe a name, so update §8 doc-comments to match.\n\nWHY low priority / deferred: cross-cutting across many files = high conflict risk with concurrent agents on bl-72a8 phases. Land it during a quiet window, NOT mid-fanout. See memory project_terminus_operating_are_seal_vocab.",
-  "external": {"github-issues":{"issue":{"last_synced_body_hash":"ac9ec9dd8c5d1436","last_synced_status":"in_progress","last_synced_title":"Rename §8 git-seal vocab: Terminus trait / operating path off the retired discovery words [bl-2962]","number":360,"source":"balls","state":"open","synced_at":"2026-06-07T23:15:09.404935698+00:00","url":"https://github.com/mudbungie/balls/issues/360"}}},
+  "external": {"github-issues":{"issue":{"last_synced_body_hash":"ac9ec9dd8c5d1436","last_synced_status":"review","last_synced_title":"Rename §8 git-seal vocab: Terminus trait / operating path off the retired discovery words [bl-2962]","number":360,"source":"balls","state":"open","synced_at":"2026-06-07T23:23:15.324754843+00:00","url":"https://github.com/mudbungie/balls/issues/360"}}},
   "id": "bl-2962",
   "links": [],
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-07T23:15:09.423289647Z"},
+  "synced_at": {"github-issues":"2026-06-07T23:23:15.332343155Z"},
   "tags": [],
   "title": "Rename §8 git-seal vocab: Terminus trait / operating path off the retired discovery words",
   "type": "task",
-  "updated_at": "2026-06-07T23:23:14.626305177Z"
+  "updated_at": "2026-06-07T23:23:15.332350048Z"
 }
