@@ -1,0 +1,1 @@
+{"ts":"2026-06-07T23:23:14.626518948Z","author":"Tremulous","text":"Rename §8 seal seam off retired discovery vocab\n\ngit::Terminus->Anvil and the 'operating' checkout->checkout/store, so grepping the retired trail/terminus/operating words no longer surfaces the live §8 git-seal seam. Rename only — tests pass unchanged, 100% coverage."}
