@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-ae51",
+  "claimed_by": "Populate",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T23:12:18.686646161Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T23:12:19.365327941Z"},
   "tags": [],
   "title": "Delivery plugin: stage worktree-path frontmatter key at claim.pre/clear at unclaim.pre; recency-order the delivered_in query (bl-934a impl)",
   "type": "task",
-  "updated_at": "2026-06-07T23:12:19.365334273Z"
+  "updated_at": "2026-06-07T23:19:18.902327211Z"
 }
