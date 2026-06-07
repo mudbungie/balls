@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T06:32:48.899618410Z",
-  "delivered_in": null,
+  "delivered_in": "59c29d1fd2f50cf0d573b5b567f2dc4d3f006370",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-2e9f"],
   "description": "Spec §1 claims the per-clone JSON-lines log stays corruption-free under parallel-agent writes: \"One object per line keeps concurrent appends from parallel agents atomic (sub-PIPE_BUF, O_APPEND).\" That guarantee is conditional and currently unenforced:\n\n- PIPE_BUF is 4096 on Linux, and the atomic-append-on-overflow guarantee is really a *pipe* property; for regular files, atomicity of a single large write() is not portably guaranteed. A record longer than PIPE_BUF can interleave with another agent's record and corrupt the log.\n- The records most likely to overflow are exactly the ones the log exists to capture: §6 envelopes *plugin stderr* line-by-line (\"balls pipes the child's stderr and ENVELOPES each line\"), which is unbounded — a stack trace, a long git error, a diff line.\n\nSo the failure mode (parallel agents + a verbose/failing plugin) is the design's stated use case.\n\nFix options (pick on implementation, in bl-2e9f):\n1. Truncate/escape each enveloped line to < PIPE_BUF before append (keeps the lock-free fast path; lossy on giant lines but logs shouldn't carry them).\n2. Take a short advisory flock around the append (robust for any size; small contention cost).\nA note in the skill/spec that log lines are bounded is warranted either way.\n\nRelates to bl-2e9f (unified per-clone JSON-lines log) — this is a correctness requirement on that work, surfaced in the spec attack (post-freeze). If §1's atomicity sentence stays, it needs the bound; a §15 revision-log entry should record it.",
   "external": {"github-issues":{"issue":{"last_synced_status":"open","number":326,"source":"balls","state":"open","synced_at":"2026-06-07T06:32:49.637468377+00:00","url":"https://github.com/mudbungie/balls/issues/326"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-07T06:32:49.656630291Z"},
   "tags": [],
   "title": "Unified log: bound enveloped line length so concurrent appends stay atomic",
   "type": "task",
-  "updated_at": "2026-06-07T20:49:46.864666614Z"
+  "updated_at": "2026-06-07T20:57:16.741298123Z"
 }
