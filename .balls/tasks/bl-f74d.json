@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Decision (2026-06-06): id_scheme is NOT a config knob. Base balls ships ONE fixed scheme (bl- + 4 hex = IdScheme::default()); ANY customization — prefix/length/alphabet OR strategy (timestamp/seq/uuid) — is a create/pre plugin via the id-reassign seam. Ship less: a repo-level {prefix,length,alphabet} override does not earn its keep when the plugin seam already covers every real case and the default suits everyone else.\n\nbl-4c54 (§4 EffectiveConfig) wired id_scheme as one of two config fields; this removes it. Cut: config.rs EffectiveConfig.id_scheme field + Default + use crate::id::IdScheme + the head-comment mention; config_tests.rs id_scheme resolution/layering tests; doctor.rs the id_scheme drift validation it added (empty alphabet / zero length — now impossible, IdScheme::default() is always valid) + doctor_tests.rs cases + doc; lib.rs §4 doc 'branch/id_scheme' -> 'branch'; docs/architecture.md (frozen spec, bl-cac0) the id_scheme config-field lines (§4 schema ~271, id-gen ~737, migration ~1097) — keep id generation described as the fixed default, customization-via-plugin.\n\nKEEP: src/id.rs IdScheme struct + ::default() + generate (the generator itself, used by mutate create + change_token). Drop its now-orphaned serde derives + toml round-trip test only if nothing else needs them (config was the sole consumer). EffectiveConfig keeps exactly one field (branch). NOTE: a larger config revision is in flight (config-shadowing retired, balls/config+balls/tasks two-branch, bl-f970 et al) — expect config.rs drift; this is a targeted subtraction.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":311,"source":"balls","state":"open","synced_at":"2026-06-07T00:31:39.317061374+00:00","url":"https://github.com/mudbungie/balls/issues/311"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":311,"source":"balls","state":"open","synced_at":"2026-06-07T00:31:43.275931501+00:00","url":"https://github.com/mudbungie/balls/issues/311"}}},
   "id": "bl-f74d",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-07T00:31:39.337743966Z"},
+  "synced_at": {"github-issues":"2026-06-07T00:31:43.281505576Z"},
   "tags": [],
   "title": "Remove the id_scheme config knob — one fixed scheme, custom via plugin",
   "type": "task",
-  "updated_at": "2026-06-07T00:31:42.463077587Z"
+  "updated_at": "2026-06-07T00:31:43.281514142Z"
 }
