@@ -193,15 +193,13 @@ pub struct Wire {
     pub rolling_back: Option<String>,
 }
 
-/// The binding fields the plugin needs: where `bl` was invoked (§7/§11), and —
-/// for `prime` — the terminus checkout whose `tasks/` the re-materialization
-/// scans. `operating` is absent on the minimal per-ball payloads (which never
-/// scan), so it is optional.
+/// The one binding field the plugin needs: where `bl` was invoked (§7/§11) —
+/// the project-repo root the derived worktree paths hang off. The store
+/// checkout `prime` scans is the diffless cwd balls invokes us in (§13), not a
+/// wire field, so it is not carried here.
 #[derive(Debug, Deserialize)]
 pub struct WireBinding {
     pub invocation_path: String,
-    #[serde(default)]
-    pub operating: Option<String>,
 }
 
 /// The one ball field the plugin needs: the title, for the squash subject.

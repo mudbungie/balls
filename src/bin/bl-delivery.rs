@@ -69,19 +69,16 @@ fn run(args: &[String]) -> io::Result<()> {
     delivery::dispatch(op, phase, wire.rolling_back.is_some(), &repo, &spec)
 }
 
-/// `prime.post` re-materialization (§11/§12): for every ball in the terminus
+/// `prime.post` re-materialization (§11/§12): for every ball in the store
 /// checkout still claimed by the actor, run the same `materialize` act a
 /// `claim.post` would, behind the dispatch matrix. The claimed set replaces the
 /// single derived id; each worktree is recomputed from `(invocation, id)`, so a
-/// re-prime whose worktrees already exist is a no-op (create-if-absent).
+/// re-prime whose worktrees already exist is a no-op (create-if-absent). The
+/// store is the diffless cwd balls invokes us in (§13), not a wire field.
 fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> io::Result<()> {
-    let operating = wire
-        .binding
-        .operating
-        .as_deref()
-        .ok_or_else(|| io::Error::other("prime: wire missing binding.operating"))?;
+    let store = env::current_dir()?;
     let rolling_back = wire.rolling_back.is_some();
-    for id in claimed_ids(Path::new(operating), &wire.actor)? {
+    for id in claimed_ids(&store, &wire.actor)? {
         let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
         let branch = delivery::work_branch(&id);
         let spec = Spec { worktree: &worktree, branch: &branch, subject: "", marker: "" };

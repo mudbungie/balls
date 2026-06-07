@@ -52,15 +52,15 @@ fn pre(invocation: &str, title: &str) -> String {
     format!(r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}}}}"#)
 }
 
-/// A `prime` diffless wire (§13): the actor + the binding's invocation and
-/// terminus checkout. No ball state — prime authors none.
-fn prime(actor: &str, invocation: &str, operating: &str) -> String {
-    format!(r#"{{"actor":"{actor}","binding":{{"invocation_path":"{invocation}","operating":"{operating}"}}}}"#)
+/// A `prime` diffless wire (§13): the actor + the binding's invocation. No ball
+/// state — prime authors none; the store it scans is the cwd, not a wire field.
+fn prime(actor: &str, invocation: &str) -> String {
+    format!(r#"{{"actor":"{actor}","binding":{{"invocation_path":"{invocation}"}}}}"#)
 }
 
-/// Write a `tasks/<id>.md` ball with `claimant` into `operating`.
-fn claimed_ball(operating: &Path, id: &str, claimant: &str) {
-    let tasks = operating.join("tasks");
+/// Write a `tasks/<id>.md` ball with `claimant` into the store checkout `store`.
+fn claimed_ball(store: &Path, id: &str, claimant: &str) {
+    let tasks = store.join("tasks");
     fs::create_dir_all(&tasks).unwrap();
     fs::write(
         tasks.join(format!("{id}.md")),
@@ -86,39 +86,24 @@ fn prime_re_materializes_only_the_actors_still_claimed_worktrees() {
     fs::create_dir_all(&home).unwrap();
     let root = project(tmp.path());
     let inv = root.to_str().unwrap();
-    let operating = tmp.path().join("operating");
-    claimed_ball(&operating, "bl-mine", "me");
-    claimed_ball(&operating, "bl-theirs", "you"); // another actor — left alone
+    // balls invokes the plugin with cwd at the store checkout (§13 diffless), so
+    // prime scans the store from the cwd, not a wire field.
+    let store = tmp.path().join("store");
+    claimed_ball(&store, "bl-mine", "me");
+    claimed_ball(&store, "bl-theirs", "you"); // another actor — left alone
 
     let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
     let mine = worktree_path(&xdg, "delivery", inv, "bl-mine");
     let theirs = worktree_path(&xdg, "delivery", inv, "bl-theirs");
 
-    delivery(&root, &home, "prime", "post", &prime("me", inv, operating.to_str().unwrap()))
-        .assert()
-        .success();
+    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success();
 
     assert!(mine.join("seed.txt").exists()); // my claim re-materialized
     assert!(!theirs.exists()); // a different actor's claim is not mine to make
 
     // Idempotent: a second prime over the same set converges to a no-op.
-    delivery(&root, &home, "prime", "post", &prime("me", inv, operating.to_str().unwrap()))
-        .assert()
-        .success();
+    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success();
     assert!(mine.join("seed.txt").exists());
-}
-
-#[test]
-fn prime_without_a_terminus_in_the_wire_is_an_error() {
-    let tmp = TempDir::new().unwrap();
-    let home = tmp.path().join("home");
-    fs::create_dir_all(&home).unwrap();
-    let payload = r#"{"actor":"me","binding":{"invocation_path":"/proj"}}"#;
-    delivery(tmp.path(), &home, "prime", "post", payload)
-        .assert()
-        .failure()
-        .code(1)
-        .stderr(contains("missing binding.operating"));
 }
 
 #[test]
