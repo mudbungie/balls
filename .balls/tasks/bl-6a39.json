@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T05:13:09.847518490Z",
-  "delivered_in": null,
+  "delivered_in": "6a75c583752156c0ccd92d0aedf4b315e9a8bb3e",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Intermittent failure in the full parallel test suite (pre-commit hook), observed 2026-06-06:\n\n  thread 'tracker::prime::tests::the_committed_pointer_overrides_the_wire_remote' panicked at src/tracker/prime.rs:117:9:\n  assertion left == right failed\n    left:  d92ef1b... (got)\n   right:  8c237d5... (expected committed-pointer SHA)\n\nPASSES in isolation (cargo test <name> --test-threads=1) and on commit retry — so it is a parallel-execution race, not a logic bug. Two SHAs diverging points at shared mutable git/temp state or an env race between sibling tests (cf. the known global-env-race pattern: HOME bl-bfa8, PATH bl-ad4b, both fixed by isolating the env/dir). Likely a tracker-prime test writing/reading a pointer in a dir another test mutates concurrently, or relying on process-wide CWD/env.\n\nRepro: run the full suite repeatedly (the pre-commit hook) until it trips. Fix by isolating the test's repo/temp/env (per-test tempdir + no process-global env mutation), as the prior env-race fixes did.\n\nSurfaced while folding the observability topic (bl-b58a, doc-only) — the flake blocked the unrelated commit until retry.",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":319,"source":"balls","state":"open","synced_at":"2026-06-07T20:10:48.148866936+00:00","url":"https://github.com/mudbungie/balls/issues/319"}}},
@@ -13,10 +14,10 @@
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "deferred",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-07T20:14:38.538327701Z"},
   "tags": ["greenfield"],
   "title": "Flaky test under parallel run: tracker::prime::the_committed_pointer_overrides_the_wire_remote",
   "type": "task",
-  "updated_at": "2026-06-07T20:14:38.538329144Z"
+  "updated_at": "2026-06-07T20:16:06.807258121Z"
 }
