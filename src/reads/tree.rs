@@ -6,7 +6,8 @@
 //! Containment is a forest: every ball has at most one `parent`, so the
 //! child-of relation reachable from a root is acyclic — no visited-set guard is
 //! needed. A ball trapped in a `parent` cycle simply has no root and does not
-//! print (a blocker cycle is the doctor's concern, §16, not this view's).
+//! print (a `blockers` cycle is caught where it bites — the readiness walk
+//! that resolves status, §10 — not this view's concern).
 
 use std::fmt::Write;
 
