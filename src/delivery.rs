@@ -39,10 +39,9 @@ use crate::message::Metadata;
 
 /// The protocol self-description (`<bin> protocol`, §6): this plugin speaks
 /// protocol 1 and handles the ops whose hooks it wires into — the four per-ball
-/// lifecycle ops, `prime` for re-materialization, and the `doctor` read op (its
-/// §16 worktree-drift audit, [`crate::delivery_doctor`]). balls reads it at
+/// lifecycle ops and `prime` for re-materialization. balls reads it at
 /// install time, validates the wiring against it, and never persists it.
-pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close","prime","doctor"]}"#;
+pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close","prime"]}"#;
 
 /// The project-repo git acts the delivery hooks need, behind a seam so
 /// [`dispatch`] is testable without a real repo. Each is idempotent — it
@@ -54,7 +53,7 @@ pub trait Repo {
     fn materialize(&self, path: &Path, branch: &str) -> io::Result<()>;
     /// `unclaim/drop.post` + `close.post`: remove the worktree DIRECTORY if
     /// present; KEEP `branch` (re-creatable; deleting it is deferred to
-    /// prime/doctor, §14).
+    /// prime, §14).
     fn release(&self, path: &Path) -> io::Result<()>;
     /// `rollback claim.post` (§14): remove the worktree AND delete `branch` —
     /// the transactional undo of a just-made claim.
@@ -109,8 +108,8 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
 
 /// This binding's worktree territory (§11):
 /// `$XDG_STATE_HOME/balls/plugins/<name>/<pct-enc(invocation_path)>/`. Every
-/// `work/<id>` worktree is an `<id>/` child; [`worktree_path`] joins one id and
-/// the §16 [`audit`] enumerates the children — one formula, two readers.
+/// `work/<id>` worktree is an `<id>/` child; [`worktree_path`] joins one id onto
+/// it.
 #[must_use]
 pub fn binding_territory(xdg: &Xdg, plugin: &str, invocation_path: &str) -> PathBuf {
     xdg.plugin_territory(plugin).join(percent_encode(invocation_path))
@@ -118,8 +117,7 @@ pub fn binding_territory(xdg: &Xdg, plugin: &str, invocation_path: &str) -> Path
 
 /// The derived code-worktree path (§11): the `<id>/` child of this binding's
 /// [`binding_territory`]. balls prints the same path from the same formula — no
-/// return channel. The §16 audit ([`crate::delivery_doctor`]) reads the same
-/// territory back to find drift.
+/// return channel.
 #[must_use]
 pub fn worktree_path(xdg: &Xdg, plugin: &str, invocation_path: &str, id: &str) -> PathBuf {
     binding_territory(xdg, plugin, invocation_path).join(id)

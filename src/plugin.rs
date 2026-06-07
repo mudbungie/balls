@@ -147,7 +147,8 @@ impl Subprocess {
         rolling_back: Option<&str>,
     ) -> io::Result<()> {
         let bin = plugin.bin.as_ref().ok_or_else(|| {
-            io::Error::other(format!("plugin {} referenced but not installed here", plugin.name))
+            let n = &plugin.name;
+            io::Error::other(format!("plugin {n} referenced but bin/{n} missing — run bl install"))
         })?;
         // Parse the §5 trailers into the post wire's `metadata` (the engine
         // handed us the raw message — §5 lives on this side of the seam). A

@@ -176,7 +176,7 @@ fn resolve_id_propagates_a_lister_error() {
 fn protocol_self_description_lists_every_hooked_op() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
-    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime", "doctor"]));
+    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime"]));
 }
 
 #[test]

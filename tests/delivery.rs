@@ -7,9 +7,9 @@ use std::fs;
 use std::path::Path;
 
 use assert_cmd::Command;
-use balls::delivery::{binding_territory, worktree_path};
+use balls::delivery::worktree_path;
 use balls::layout::Xdg;
-use predicates::str::{contains, is_empty};
+use predicates::str::contains;
 use tempfile::TempDir;
 
 /// Run `git <args>` in `cwd`, asserting success.
@@ -76,7 +76,7 @@ fn protocol_self_describes_without_env_or_stdin() {
         .arg("protocol")
         .assert()
         .success()
-        .stdout(contains(r#""ops":["claim","unclaim","drop","close","prime","doctor"]"#));
+        .stdout(contains(r#""ops":["claim","unclaim","drop","close","prime"]"#));
 }
 
 #[test]
@@ -197,34 +197,4 @@ fn a_missing_protocol_env_var_is_reported() {
         .failure()
         .code(1)
         .stderr(contains("BALLS_PLUGIN_NAME is unset"));
-}
-
-#[test]
-fn doctor_pre_reports_missing_and_orphan_worktrees_and_post_is_a_noop() {
-    let tmp = TempDir::new().unwrap();
-    let home = tmp.path().join("home");
-    fs::create_dir_all(&home).unwrap();
-    let inv = "/proj"; // the audit never opens the project repo — any binding works.
-
-    // operating/ holds a ball the actor still CLAIMS but whose code worktree was
-    // never materialized — plus another actor's claim, which is not our drift.
-    let operating = tmp.path().join("operating");
-    claimed_ball(&operating, "bl-held", "me");
-    claimed_ball(&operating, "bl-theirs", "you");
-
-    // a leftover worktree in this binding's territory with NO live claim.
-    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
-    fs::create_dir_all(binding_territory(&xdg, "delivery", inv).join("bl-orphan")).unwrap();
-
-    let wire = r#"{"actor":"me","binding":{"invocation_path":"/proj"}}"#;
-    // pre runs the audit, surfacing both drift classes on stdout.
-    delivery(&operating, &home, "doctor", "pre", wire)
-        .assert()
-        .success()
-        .stdout(contains("claimed ball bl-held has no code worktree"))
-        .stdout(contains("orphan code worktree (no live claim)"))
-        .stdout(contains("bl-orphan"));
-
-    // post runs against the same tree but the audit already ran on pre → silent.
-    delivery(&operating, &home, "doctor", "post", wire).assert().success().stdout(is_empty());
 }

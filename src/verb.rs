@@ -20,7 +20,6 @@ pub enum Verb {
     List,
     Ready,
     DepTree,
-    Doctor,
     // Checkout lifecycle (§9/§13): act on the checkout, not a ball.
     Prime,
     Sync,
@@ -41,7 +40,7 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 14] = [
+    pub const ALL: [Verb; 13] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
@@ -52,7 +51,6 @@ impl Verb {
         Verb::List,
         Verb::Ready,
         Verb::DepTree,
-        Verb::Doctor,
         Verb::Prime,
         Verb::Sync,
         Verb::Install,
@@ -71,7 +69,6 @@ impl Verb {
             Verb::List => "list",
             Verb::Ready => "ready",
             Verb::DepTree => "dep-tree",
-            Verb::Doctor => "doctor",
             Verb::Prime => "prime",
             Verb::Sync => "sync",
             Verb::Install => "install",
@@ -96,7 +93,6 @@ impl Verb {
             | Verb::List
             | Verb::Ready
             | Verb::DepTree
-            | Verb::Doctor
             | Verb::Prime
             | Verb::Sync
             | Verb::Install => OpClass::Diffless,

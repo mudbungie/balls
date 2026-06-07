@@ -71,18 +71,15 @@
 //! `work/<id>` code worktree of the PROJECT repo end to end — materialize on
 //! `claim`, deliver (direct local-squash) + tear down on `close`. [`delivery`]
 //! is the kind-blind, stateless-across-ops policy (the hook→act matrix + the
-//! derived [`delivery::worktree_path`]); [`delivery_repo`] is its real git seam;
-//! [`delivery_doctor`] is its §16 hook — the CODE-worktree drift audit base
-//! cannot see (it owns that territory). It lives in-repo as a default capability
-//! + reference impl, dispatched subprocess-uniform like any third party (§6).
+//! derived [`delivery::worktree_path`]); [`delivery_repo`] is its real git seam.
+//! It lives in-repo as a default capability + reference impl, dispatched
+//! subprocess-uniform like any third party (§6).
 //!
 //! # §4 — config values, read from the landing
 //!
 //! [`config`] is the §4 `EffectiveConfig`: the landing's `config/balls.toml`
 //! overlaid by the XDG user config, with built-in defaults beneath — no trail,
-//! config lives on the landing alone (§12). [`doctor`] is its first consumer —
-//! it validates the resolved `tasks_branch` (a config with no store branch is
-//! drift, §16).
+//! config lives on the landing alone (§12).
 //!
 //! # §1/§2 — the layout substrate
 //!
@@ -91,25 +88,13 @@
 //! dirs, and the `config/plugins/` symlink registry on the landing branch.
 //! Pure path arithmetic plus the registry's filesystem ops — no git, no env
 //! reads (the binary edge supplies those), no bootstrap (that is prime's job).
-//!
-//! # §16 — drift diagnosis
-//!
-//! [`doctor`] is base balls' half of the `doctor` read op: it audits only
-//! core-owned structure (stale change worktrees, an unresolved landing, a
-//! `bin/` dangle, protocol drift, circular blockers, an unresolvable §4
-//! [`config`]) and names the existing verb that fixes each — there is no
-//! `repair` verb. Plugins audit their own §1 territory through the `doctor`
-//! hook dirs, like any diffless op's chain — [`delivery_doctor`] is the
-//! delivery plugin's half (the code-worktree drift).
 
 pub mod change;
 pub mod checkout;
 pub mod civil;
 pub mod config;
 pub mod delivery;
-pub mod delivery_doctor;
 pub mod delivery_repo;
-pub mod doctor;
 pub mod edge;
 pub mod encoding;
 pub mod enforce;
@@ -149,7 +134,7 @@ pub const DEFAULT_TASKS_BRANCH: &str = "balls/tasks";
 /// `sync` (§12/§13) wire to the engine via [`checkout`]; the deliverable verbs
 /// (§9) via [`mutate`]; the read verbs (`show`/`list`/`ready`/`dep-tree`, §9) via
 /// [`reads`] — they author no diff and print the store view. The remaining
-/// diffless verbs (`doctor`/`install`) are unwired, so they report their §8 op
+/// diffless verb (`install`) is unwired, so it reports its §8 op
 /// plan. `edge` carries the host inputs `main` resolved.
 ///
 /// Returns the process exit code: `0` on success, `1` on an op failure (a plugin

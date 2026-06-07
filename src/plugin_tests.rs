@@ -139,13 +139,13 @@ fn a_nonzero_exit_aborts_the_op() {
 }
 
 #[test]
-fn an_unwired_plugin_is_a_clean_referenced_but_not_installed_error() {
+fn a_missing_bin_errors_at_the_op_and_names_bl_install() {
     let e = Env::new();
     let err = e
         .dispatcher(0)
         .run(&pref("ghost", None), Verb::Close, Phase::Pre, &e.at("cwd"), None)
         .unwrap_err();
-    assert!(err.to_string().contains("ghost referenced but not installed"));
+    assert!(err.to_string().contains("ghost referenced but bin/ghost missing — run bl install"));
 }
 
 #[test]
