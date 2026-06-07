@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-7110",
+  "claimed_by": "Lessens",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T07:06:28.678063601Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T08:14:13.923295961Z"},
   "tags": [],
   "title": "Greenfield §6: recursion guard cap -> fail+rollback (not silent plugin-free); drop the re-enable hatch",
   "type": "task",
-  "updated_at": "2026-06-07T08:14:13.923300881Z"
+  "updated_at": "2026-06-07T20:12:37.951519963Z"
 }
