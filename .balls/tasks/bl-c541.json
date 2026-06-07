@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-c541",
+  "claimed_by": "Awhile",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:25:31.091853667Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:25:31.764237936Z"},
   "tags": [],
   "title": "Scrub bl-20fc's incidental doctor refs (dispatch/lib_tests examples + tree comment)",
   "type": "task",
-  "updated_at": "2026-06-07T20:25:31.764245009Z"
+  "updated_at": "2026-06-07T20:25:36.368667062Z"
 }
