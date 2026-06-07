@@ -1,35 +1,31 @@
-//! §4 config VALUES — the layered `EffectiveConfig`, resolved down the trail.
+//! §4 config VALUES — the `EffectiveConfig`, read from the LANDING.
 //!
-//! Config VALUES (`config/balls.toml` scalars/objects/lists) layer DOWN the
-//! §12 trail at READ time, innermost(landing)-wins, no depth cap. This is the
-//! declarative half of the trail asymmetry (§12): config VALUES auto-layer
-//! because they are data, not code — "shadow config, not merge task lists." The
-//! executable plugin chain does NOT layer (that is `bl install`'s consented
-//! job), and `tasks/` does NOT federate (exactly one store, at the terminus).
+//! Config's durable home is the landing (`balls/config`); it is NEVER read from
+//! the store and NEVER layered down a trail (there is no trail — §12). The
+//! EFFECTIVE config is the landing's `config/balls.toml` overlaid by the
+//! per-machine XDG user file, with built-in serde defaults beneath. A center's
+//! config reaches you only by `install` copying it INTO the landing (§6), where
+//! it becomes local — so this read is the sole authority for what runs.
 //!
-//! [`EffectiveConfig::resolve`] is PURE over LOCAL checkouts: the caller hands
-//! in the ordered trail ([`crate::trail::walk`] output, landing-first) and the
-//! XDG user-config path; this reads each `config/balls.toml` and folds them per
-//! §4. Materializing remote hops into the local trail is the tracker's job
-//! (§12 SEAM) — this never fetches, so stealth (trail length 1) and a federated
-//! trail run the identical code.
+//! [`EffectiveConfig::resolve`] is PURE over LOCAL checkouts: the caller hands in
+//! the landing checkout and the XDG user-config path; this reads each
+//! `config/balls.toml` and folds them per §4. It never fetches.
 //!
 //! §4 layers, INNERMOST wins (highest priority first):
 //!   1. CLI flags                                   — a documented seam (below)
 //!   2. `$XDG_CONFIG_HOME/balls/config.toml`        — `user_config`
-//!   3. `config/balls.toml` on this checkout's landing
-//!   4. `config/balls.toml` on each downstream trail step (terminus is outermost)
-//!   5. built-in defaults                           — serde fills any absent field
+//!   3. `config/balls.toml` on the landing
+//!   4. built-in defaults                           — serde fills any absent field
 //!
 //! Merge semantics (§4): scalar/object fields — innermost layer fully replaces
 //! outer (objects are NOT deep-merged). List fields — bare `<field>` = full
 //! replacement; compose with `<field>_prepend` / `<field>_append` / `<field>_ban`.
 //!
-//! The §4 layer-1 CLI override is an unbuilt seam: no flag consumes `branch`
+//! The §4 layer-1 CLI override is an unbuilt seam: no flag consumes `tasks_branch`
 //! today, so wiring an argv layer here would be a consumer-less mechanism. When
 //! a flag needs it, it composes as one more (highest) table.
 
-use crate::STATE_BRANCH;
+use crate::DEFAULT_TASKS_BRANCH;
 use serde::Deserialize;
 use std::fs;
 use std::io;
@@ -42,41 +38,39 @@ use toml::value::{Table, Value};
 /// without core having to know it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct EffectiveConfig {
-    /// The branch every checkout roots its task store + config on (§2/§4),
-    /// default [`STATE_BRANCH`] — the one config-overridable bootstrap fact.
-    #[serde(default = "default_branch")]
-    pub branch: String,
+    /// The STORE branch the `tasks/` checkout rides (§2/§4), default
+    /// [`DEFAULT_TASKS_BRANCH`] — the one config→store indirection (§4). The
+    /// landing branch is path-derived and never named here (you read config FROM
+    /// it, so it cannot name where it lives).
+    #[serde(default = "default_tasks_branch")]
+    pub tasks_branch: String,
 }
 
-fn default_branch() -> String {
-    STATE_BRANCH.to_string()
+fn default_tasks_branch() -> String {
+    DEFAULT_TASKS_BRANCH.to_string()
 }
 
 impl Default for EffectiveConfig {
     fn default() -> EffectiveConfig {
-        EffectiveConfig { branch: default_branch() }
+        EffectiveConfig { tasks_branch: default_tasks_branch() }
     }
 }
 
 impl EffectiveConfig {
-    /// Resolve the §4 layered config. `trail` is the §12 walk output
-    /// (landing-first); `user_config` is the XDG `config.toml` path. Reads every
-    /// `config/balls.toml` and folds them OUTERMOST-first so each higher layer
-    /// wins: trail terminus→landing, then the user config. Built-in defaults are
-    /// the implicit base (serde fills any field no layer set).
+    /// Resolve the §4 config from the LANDING. Reads the landing's
+    /// `config/balls.toml` and the XDG `user_config` (supplied by the edge — no
+    /// env reads here, the bl-bfa8 rule), folding them so the user config
+    /// (layer 2) wins over the landing (layer 3); built-in defaults are the
+    /// implicit base (serde fills any field no layer set). There is no trail —
+    /// config lives on the landing alone (§12).
     ///
     /// An absent layer file contributes nothing; a malformed one is an error
     /// naming the file. The merged table is projected onto the typed fields.
-    pub fn resolve(trail: &[std::path::PathBuf], user_config: &Path) -> io::Result<EffectiveConfig> {
+    pub fn resolve(landing: &Path, user_config: &Path) -> io::Result<EffectiveConfig> {
         let mut merged = Table::new();
-        // Apply the trail terminus→landing (reverse of landing-first) so the
-        // landing — the innermost trail layer — wins (§4/§12).
-        for checkout in trail.iter().rev() {
-            if let Some(layer) = read_layer(&checkout.join("config").join("balls.toml"))? {
-                layer_over(&mut merged, layer);
-            }
+        if let Some(layer) = read_layer(&landing.join("config").join("balls.toml"))? {
+            layer_over(&mut merged, layer);
         }
-        // The XDG user config is layer 2 — above every committed trail layer.
         if let Some(layer) = read_layer(user_config)? {
             layer_over(&mut merged, layer);
         }

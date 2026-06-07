@@ -8,10 +8,11 @@
 //!
 //! # §0 — what balls is
 //!
-//! All state lives on ONE branch of a git repo; persistence is git,
-//! local-first. Base balls is the smallest possible thing — it commits
-//! task-file changes to that branch. Everything that touches the world beyond
-//! it (a remote, the project's code) is a plugin.
+//! State rides TWO branches of a git repo (§2): the `balls/config` landing holds
+//! `config/`, the `tasks_branch` store holds `tasks/`; persistence is git,
+//! local-first. Base balls is the smallest possible thing — it commits config to
+//! the landing and task-file changes to the store. Everything that touches the
+//! world beyond it (a remote, the project's code) is a plugin.
 //!
 //! # §8 — the op lifecycle is the spine
 //!
@@ -31,11 +32,12 @@
 //! # §12/§13 — readiness & synchronization
 //!
 //! [`checkout`] is `bl prime` (idempotent orchestrator: bootstrap-on-miss via
-//! [`substrate`], the trail pointer, then the prime chain) and `bl sync` (the
-//! synchronization primitive: walk the [`trail`] to its terminus, run the sync
-//! chain). Core stays local-only — it walks LOCAL checkouts and commits config;
-//! the [`tracker`] plugin the chain runs is the one component that talks to a
-//! remote (§0). [`edge`] is the host inputs `main` resolves at the boundary.
+//! [`substrate`] — the `balls/config` landing + the `tasks_branch` store — then
+//! the prime chain) and `bl sync` (the synchronization primitive: run the sync
+//! chain against the store). Core stays local-only — it reads config from the
+//! landing and reads/writes tasks on the store; the [`tracker`] plugin the chain
+//! runs is the one component that talks to a remote (§0). [`edge`] is the host
+//! inputs `main` resolves at the boundary.
 //!
 //! # §6/§7 — the plugin contract
 //!
@@ -45,8 +47,8 @@
 //! stderr-to-logs, `protocol` self-describe); [`wire`] is the payload shape.
 //! [`install`] is the §6
 //! `bl install` capability transfer: it copies the committed wiring + config
-//! subtree between two `balls` branches (the plugins object mirrors only
-//! relative-symlink wiring, so `bin/` and the trail pointer never travel),
+//! subtree between two branches (the plugins object mirrors only relative-symlink
+//! wiring, so the machine-local `bin/` never travels),
 //! unions `tasks/` on migration, and resolves + validates a local binary
 //! against its `protocol` self-describe before binding it. [`tracker`] is the
 //! one shipped remote-talker (a separate binary): it reads the §7 wire and does
@@ -74,28 +76,26 @@
 //! cannot see (it owns that territory). It lives in-repo as a default capability
 //! + reference impl, dispatched subprocess-uniform like any third party (§6).
 //!
-//! # §4 — config values, layered down the trail
+//! # §4 — config values, read from the landing
 //!
-//! [`config`] is the §4 `EffectiveConfig`: `config/balls.toml` scalars/objects/
-//! lists layer DOWN the §12 trail at READ time, innermost(landing)-wins, with
-//! the XDG user config above them and built-in defaults beneath. Pure over the
-//! [`trail`] walk output (no fetch) — the declarative half of the trail
-//! asymmetry (§12: values auto-layer because they are data; the plugin chain and
-//! `tasks/` do not). [`doctor`] is its first consumer — it validates the resolved
-//! `branch` (a config with no task-store branch is drift, §16).
+//! [`config`] is the §4 `EffectiveConfig`: the landing's `config/balls.toml`
+//! overlaid by the XDG user config, with built-in defaults beneath — no trail,
+//! config lives on the landing alone (§12). [`doctor`] is its first consumer —
+//! it validates the resolved `tasks_branch` (a config with no store branch is
+//! drift, §16).
 //!
 //! # §1/§2 — the layout substrate
 //!
 //! [`encoding`], [`layout`], and [`registry`] answer *where balls' state lives
 //! and how it is named*: percent-encoded (never hashed) paths under the XDG
-//! dirs, and the `config/plugins/` symlink registry on the `balls` branch.
+//! dirs, and the `config/plugins/` symlink registry on the landing branch.
 //! Pure path arithmetic plus the registry's filesystem ops — no git, no env
 //! reads (the binary edge supplies those), no bootstrap (that is prime's job).
 //!
 //! # §16 — drift diagnosis
 //!
 //! [`doctor`] is base balls' half of the `doctor` read op: it audits only
-//! core-owned structure (stale change worktrees, an unresolved `operating/`, a
+//! core-owned structure (stale change worktrees, an unresolved landing, a
 //! `bin/` dangle, protocol drift, circular blockers, an unresolvable §4
 //! [`config`]) and names the existing verb that fixes each — there is no
 //! `repair` verb. Plugins audit their own §1 territory through the `doctor`
@@ -126,7 +126,6 @@ pub mod substrate;
 pub mod task;
 pub mod taskfile;
 pub mod tracker;
-pub mod trail;
 pub mod verb;
 pub mod wire;
 
@@ -134,9 +133,15 @@ use edge::Edge;
 use op::Op;
 use verb::{OpClass, Verb};
 
-/// The state branch every checkout roots its task store + config on (§2). One
-/// name, compiled in — the bootstrap fact a fresh checkout needs (§12).
-pub const STATE_BRANCH: &str = "balls";
+/// The LANDING branch — path-derived, single-owner, holds `config/` (§2). It is
+/// never named by config (you read config FROM it, so it cannot name where it
+/// lives — §4); the one fixed point a fresh checkout bootstraps against (§12).
+pub const LANDING_BRANCH: &str = "balls/config";
+
+/// The default STORE branch — holds `tasks/` (§2). Unlike the landing this is the
+/// one indirection: `config.tasks_branch` names it and may point elsewhere (§4).
+/// Default-two (a DISTINCT ref) is simplest and fewest code paths (§0/§2).
+pub const DEFAULT_TASKS_BRANCH: &str = "balls/tasks";
 
 /// The §8 dispatch entrypoint: resolve argv to its verb and run it. The
 /// checkout-lifecycle verbs (`prime`/`sync`, §12/§13) wire to the engine via
@@ -208,20 +213,25 @@ mod tests {
     fn create_claim_update_close_round_trip_through_the_engine() {
         let tmp = TempDir::new().unwrap();
         assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
-        // create seals a fresh ball file onto the terminus.
+        // create seals a fresh ball file onto the STORE.
         assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
-        let tasks = operating(&tmp).join("tasks");
+        let tasks = store(&tmp).join("tasks");
         let id = sole_task_id(&tasks);
         assert_eq!(run_in(&tmp, &["claim", &id, "--as", "me"]), 0);
         assert_eq!(run_in(&tmp, &["update", &id, "state=doing", "--as", "me"]), 0);
         assert_eq!(run_in(&tmp, &["close", &id, "--as", "me"]), 0);
-        // close retires the file; the terminus has advanced past it.
+        // close retires the file; the store has advanced past it.
         assert!(!tasks.join(format!("{id}.md")).exists());
     }
 
-    /// The operating landing for `tmp`'s edge.
-    fn operating(tmp: &TempDir) -> std::path::PathBuf {
-        edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).operating()
+    /// The landing checkout for `tmp`'s edge.
+    fn landing(tmp: &TempDir) -> std::path::PathBuf {
+        edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).landing()
+    }
+
+    /// The store checkout for `tmp`'s edge.
+    fn store(tmp: &TempDir) -> std::path::PathBuf {
+        edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).store()
     }
 
     /// The single ball id under `tasks/` (basename minus `.md`).
@@ -248,8 +258,8 @@ mod tests {
     fn prime_founds_a_landing_then_converges_on_re_run() {
         let tmp = TempDir::new().unwrap();
         assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
-        let operating = edge(&tmp).xdg.clone_dir(Path::new(&edge(&tmp).invocation_path)).operating();
-        assert!(operating.join("config").join("balls.toml").is_file());
+        assert!(landing(&tmp).join("config").join("balls.toml").is_file());
+        assert!(store(&tmp).join("tasks").is_dir());
         // Idempotent: a second prime is a no-op-converge, not an error (§12).
         assert_eq!(run_in(&tmp, &["prime"]), 0);
     }
@@ -260,10 +270,10 @@ mod tests {
     }
 
     #[test]
-    fn sync_after_prime_walks_the_trail_to_its_terminus() {
+    fn sync_after_prime_targets_the_store() {
         let tmp = TempDir::new().unwrap();
         assert_eq!(run_in(&tmp, &["prime"]), 0);
-        // Stealth landing == terminus; the empty sync chain converges.
+        // Stealth store; the empty sync chain converges.
         assert_eq!(run_in(&tmp, &["sync"]), 0);
         assert_eq!(run_in(&tmp, &["sync", "landing"]), 0); // landing is never a target
     }
