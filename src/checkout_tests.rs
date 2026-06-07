@@ -87,6 +87,20 @@ fn sync_targets_the_store_and_treats_landing_as_a_no_op() {
 }
 
 #[test]
+fn a_named_sync_branch_overrides_the_config_tasks_branch_in_the_binding() {
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    prime(&e, &[]).unwrap();
+    let (l, s) = (landing(&e), store(&e));
+    // No target ⇒ the config-named store branch; a target ⇒ that branch, which
+    // is the one datum the tracker fetches/ff's (§13 `bl sync <branch>`).
+    let (default_b, _) = bind(&e, &l, &s, None).unwrap();
+    let (named_b, _) = bind(&e, &l, &s, Some("federation/shared".into())).unwrap();
+    assert_eq!(named_b.tasks_branch, "federation/shared");
+    assert_ne!(default_b.tasks_branch, named_b.tasks_branch);
+}
+
+#[test]
 fn prime_rejects_unknown_flags_and_a_missing_value() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
