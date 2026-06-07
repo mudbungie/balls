@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-07T20:01:15.975278880Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Correction to bl-20fc: task_json rendered created/updated through civil::iso8601, breaking the lossless toml->json export (i64 chosen precisely so JSON stays lossless). --json must carry the literal stored i64; ISO-8601 is human display only (show/list). No new flag. Fix task_json + the two timestamp assertions.",
+  "external": {},
+  "id": "bl-ae44",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 2,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Read verbs: --json emits literal unix i64 timestamps, not ISO-8601",
+  "type": "task",
+  "updated_at": "2026-06-07T20:01:15.975278880Z"
+}
