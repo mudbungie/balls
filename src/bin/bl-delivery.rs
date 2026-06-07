@@ -12,7 +12,7 @@
 
 use std::env;
 use std::io::{self, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::exit;
 
 use balls::delivery::{self, Spec, Wire};
@@ -70,13 +70,9 @@ fn run(args: &[String]) -> io::Result<()> {
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
     let subject = delivery::subject(title, &id);
     let marker = delivery::marker(&id);
-    // `$PWD` is the human's shell cwd (balls leaves it inherited); the guard
-    // refuses a close from inside the worktree on it, not on `current_dir`.
-    let pwd = env::var_os("PWD").map(PathBuf::from);
     let spec = Spec {
         worktree: &worktree,
         branch: &branch,
-        cwd: pwd.as_deref(),
         subject: &subject,
         marker: &marker,
     };
@@ -118,7 +114,7 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
     for id in claimed_ids(Path::new(operating), &wire.actor)? {
         let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
         let branch = format!("work/{id}");
-        let spec = Spec { worktree: &worktree, branch: &branch, cwd: None, subject: "", marker: "" };
+        let spec = Spec { worktree: &worktree, branch: &branch, subject: "", marker: "" };
         delivery::dispatch("prime", phase, rolling_back, repo, &spec)?;
     }
     Ok(())
