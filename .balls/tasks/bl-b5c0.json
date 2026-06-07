@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-b5c0",
+  "claimed_by": "Heed",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T04:51:41.165650653Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T04:51:41.868247232Z"},
   "tags": [],
   "title": "Generalize the blocker model: on=any op + containment⊥blocking front-door (§10/§15 impl)",
   "type": "task",
-  "updated_at": "2026-06-07T04:51:41.868258572Z"
+  "updated_at": "2026-06-07T20:10:47.160055868Z"
 }
