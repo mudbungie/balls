@@ -91,6 +91,19 @@ impl EffectiveConfig {
     }
 }
 
+/// The per-machine store remote named in the XDG user config's `remote` key — the
+/// §12 precedence layer between an explicit CLI override and auto-discovered
+/// `origin` (`--remote` > `--center` > XDG > `origin`). The remote is NOT a
+/// landing field: it never travels on `install` (a remote URL is per-machine, not
+/// shared config, §4), so it lives only in this per-machine layer or is discovered
+/// from `origin`. An absent file/key ⇒ `None`; a malformed file ⇒ `None` too — the
+/// same file is read by [`EffectiveConfig::resolve`], which surfaces the parse
+/// error, so this stays quiet rather than double-reporting.
+pub fn xdg_remote(user_config: &Path) -> Option<String> {
+    let table = read_layer(user_config).ok().flatten()?;
+    table.get("remote")?.as_str().map(str::to_string)
+}
+
 /// Read one `config/balls.toml` layer. Absent ⇒ `None` (the layer is empty, the
 /// common un-configured case); malformed ⇒ an error naming the file; any other
 /// read error propagates.
