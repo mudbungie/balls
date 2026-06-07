@@ -9,7 +9,7 @@
 //! the plugin chain has no production impl yet ("no real plugins yet").
 //!
 //! Mutating ops run the full Author → Pre → Seal → Post → Teardown shape;
-//! diffless ops (reads, sync/prime/doctor) "skip steps 1/3/5" — pre/post run
+//! diffless ops (reads, sync/prime) "skip steps 1/3/5" — pre/post run
 //! against the store/landing checkout, no worktree and no seal (§8). One rule governs the
 //! unwind: every plugin that ran a phase for THIS op rolls back in reverse,
 //! THEN core un-seals its own tier-1 change — discard the worktree on a

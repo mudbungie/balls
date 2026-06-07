@@ -1025,21 +1025,6 @@ Designed to be injected into an agent's context at session start.
 
 Manual conflict resolution helper: parses both sides of a conflicted task file, applies the field-wise resolution rules, writes the result. Rarely needed in the new topology — most conflicts merge cleanly under stock git — but available for edge cases.
 
-### bl doctor
-
-Read-only diagnostic for repo/bl state drift. The complaint it answers: an `AGENTS.md` references bl in a repo that was never `bl init`'d, or the store *is* there but has drifted, and today both only surface as an opaque error part-way through a workflow. `doctor` turns that into an up-front, specific message and the command that fixes it.
-
-It changes nothing — `repair` remains the only action verb; doctor only diagnoses and suggests. Exit is always 0; the verdict is the text. Checks:
-
-- discovery fails — surfaces the precise reason (wrong directory, untracked repo, broken state checkout, …), and when no `.balls/` exists at all but a doc references bl, says so explicitly: run `bl init` or scrub the docs;
-- `.balls/config.json` unreadable;
-- `.balls/local/tasks_dir` override pointing at a missing path;
-- the state checkout present but not a valid linked git worktree;
-- stale claim files (no such task, or the task isn't in progress);
-- worktree dirs under `.balls-worktrees/` with no task or claim behind them.
-
-Run it when bl misbehaves, or before trusting an unfamiliar repo. Healthy repos print one line and exit.
-
 ---
 
 ## Config (.balls/config.json)
