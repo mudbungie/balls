@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-07T20:10:47.946611747Z"},
+  "status": "deferred",
+  "synced_at": {"github-issues":"2026-06-07T20:14:38.582247873Z"},
   "tags": [],
   "title": "Generalize the blocker model: on=any op + containment⊥blocking front-door (§10/§15 impl)",
   "type": "task",
-  "updated_at": "2026-06-07T20:10:47.946616596Z"
+  "updated_at": "2026-06-07T20:14:38.582249326Z"
 }
