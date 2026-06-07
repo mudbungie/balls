@@ -7,7 +7,7 @@
 //! stderr — a non-ff merge or a rejected push surfaces verbatim, which is the
 //! contention signal the §13 ff-only contract relies on.
 //!
-//! This is deliberately separate from [`crate::git`] (the §8 terminus seal):
+//! This is deliberately separate from [`crate::git`] (the §8 anvil seal):
 //! that seam never talks to a remote, this one only does. Keeping them apart is
 //! the §0 split — core is local-only, remote-talk is the plugin's alone.
 

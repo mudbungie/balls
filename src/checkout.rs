@@ -117,7 +117,7 @@ fn origin_of(checkout: &Path) -> Option<String> {
 
 /// Run the DIFFLESS chain for `op` (§13): resolve the plugin sets from the
 /// LANDING's `config/plugins.toml` `[hooks]` schedule (§6), then run them with
-/// cwd = the STORE checkout and the terminus bracketing the store-branch HEAD.
+/// cwd = the STORE checkout and the anvil bracketing the store-branch HEAD.
 fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let hooks = Hooks::load(landing)?;
@@ -127,8 +127,8 @@ fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, b
     let ctx = OpContext::diffless(actor.to_string(), binding);
     let log = Log::new(clone.op_log(), level, op, log::wall);
     let plugins = Subprocess::new(ctx, &log, edge.depth);
-    let terminus = git::Git::at(store);
-    Engine::new(&terminus, &plugins, &log)
+    let anvil = git::Git::at(store);
+    Engine::new(&anvil, &plugins, &log)
         .diffless(op, store, &pre, &post)
         .map_err(|e| io::Error::other(e.to_string()))
 }

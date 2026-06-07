@@ -5,7 +5,7 @@
 //! the **landing** (`balls/config`, holding `config/`) as the repo's first
 //! worktree, then the **store** (`tasks_branch`, holding `tasks/`) as a linked
 //! orphan-rooted worktree of the same repo. One repo, two branches, two real
-//! checkouts — no `operating/` symlink, no terminus to resolve (§1). Core knows
+//! checkouts — no symlink indirection, no chain to resolve (§1). Core knows
 //! nothing of remotes here (§0); it only ensures the two checkouts exist and
 //! seeds the landing's `config/` from the app default-config ([`crate::seed`]),
 //! then `prime` runs the configured chain whose `tracker` handler does the remote
