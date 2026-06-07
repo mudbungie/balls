@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-ae44",
+  "claimed_by": "Awhile",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:01:15.975278880Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:01:16.751275263Z"},
   "tags": [],
   "title": "Read verbs: --json emits literal unix i64 timestamps, not ISO-8601",
   "type": "task",
-  "updated_at": "2026-06-07T20:01:16.751281394Z"
+  "updated_at": "2026-06-07T20:01:20.346375738Z"
 }
