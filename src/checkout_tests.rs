@@ -1,7 +1,7 @@
-//! Tests for §12/§13 `prime`/`sync` orchestration. Chains run tracker-free
-//! (`tracker_bin: None` ⇒ empty registry ⇒ no subprocess), so these exercise the
-//! core logic — bootstrap of both branches, binding, flag parsing — without a
-//! plugin binary; the end-to-end chain is `tests/dispatch.rs`.
+//! Tests for §12/§13 `prime`/`sync` orchestration. Chains run plugin-free
+//! (`exe_dir: None` ⇒ every default hook prunes ⇒ no subprocess), so these
+//! exercise the core logic — bootstrap of both branches, the seed, binding, flag
+//! parsing — without a plugin binary; the end-to-end chain is `tests/dispatch.rs`.
 
 use super::*;
 use crate::edge::Edge;
@@ -9,14 +9,14 @@ use crate::layout::Xdg;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-/// An edge rooted in `tmp` with the given (optional) installed tracker.
-fn edge(tmp: &TempDir, tracker: Option<PathBuf>) -> Edge {
+/// An edge rooted in `tmp` with the given (optional) `bl`-sibling dir.
+fn edge(tmp: &TempDir, exe_dir: Option<PathBuf>) -> Edge {
     Edge {
         xdg: Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy())),
         invocation_path: tmp.path().join("proj"),
         default_actor: "tester".into(),
         depth: 0,
-        tracker_bin: tracker,
+        exe_dir,
         color: false,
         log_level: None,
     }
@@ -75,19 +75,6 @@ fn prime_auto_discovers_the_origin_remote_for_the_binding() {
     // Give the landing an origin; a re-prime discovers it for the (empty) chain.
     crate::git::run(&landing(&e), &["remote", "add", "origin", "git@hub:origin"], None).unwrap();
     prime(&e, &[]).unwrap(); // resolves Some(origin) into the binding
-}
-
-#[test]
-fn prime_rebinds_a_tracker_on_the_hit_path() {
-    let tmp = TempDir::new().unwrap();
-    // Found tracker-free, then re-prime with a tracker installed: rebind runs,
-    // but with no committed wiring the chain stays empty (no subprocess).
-    prime(&edge(&tmp, None), &[]).unwrap();
-    let fake = tmp.path().join("tracker");
-    std::fs::write(&fake, "x").unwrap();
-    prime(&edge(&tmp, Some(fake)), &[]).unwrap();
-    let e = edge(&tmp, None);
-    assert!(landing(&e).join("config/plugins/bin/tracker").symlink_metadata().is_ok());
 }
 
 #[test]

@@ -3,10 +3,10 @@
 //! the layer's whole job is filesystem manipulation plus a `protocol` round-trip.
 
 use super::*;
-use std::os::unix::fs::{symlink, PermissionsExt};
+use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
-/// A `from` root, a `to` root, and helpers to populate committed wiring + files.
+/// A `from` root, a `to` root, and helpers to populate committed files.
 struct Roots {
     _tmp: TempDir,
     from: PathBuf,
@@ -23,13 +23,6 @@ impl Roots {
         Self { _tmp: tmp, from, to }
     }
 
-    /// Place a relative symlink `config/plugins/<rel>` → `target` under `root`.
-    fn wire(root: &Path, rel: &str, target: &str) {
-        let link = root.join("config").join("plugins").join(rel);
-        fs::create_dir_all(link.parent().unwrap()).unwrap();
-        symlink(target, link).unwrap();
-    }
-
     /// Write a regular file at `root/<rel>` with `body`, making parents.
     fn file(root: &Path, rel: &str, body: &str) {
         let p = root.join(rel);
@@ -38,9 +31,7 @@ impl Roots {
     }
 }
 
-fn link_target(root: &Path, rel: &str) -> PathBuf {
-    fs::read_link(root.join("config").join("plugins").join(rel)).unwrap()
-}
+const SCHEDULE: &str = "[hooks]\n\"close.pre\" = [\"tracker\"]\n\"claim.post\" = [\"tracker\"]\n";
 
 #[test]
 fn objects_round_trip_and_the_bundle_excludes_tasks() {
@@ -52,70 +43,32 @@ fn objects_round_trip_and_the_bundle_excludes_tasks() {
 }
 
 #[test]
-fn plugins_copies_wiring_and_records_each_op_it_is_wired_into() {
+fn plugins_copies_the_schedule_and_records_each_op_it_is_wired_into() {
     let r = Roots::new();
-    Roots::wire(&r.from, "close/pre/00-tracker", "../../bin/tracker");
-    Roots::wire(&r.from, "claim/pre/00-tracker", "../../bin/tracker");
+    Roots::file(&r.from, "config/plugins.toml", SCHEDULE);
     let refs = transfer(&[Object::Plugins], &r.from, &r.to).unwrap();
 
-    // The committed relative symlink travels verbatim.
-    assert_eq!(link_target(&r.to, "close/pre/00-tracker"), Path::new("../../bin/tracker"));
-    assert_eq!(link_target(&r.to, "claim/pre/00-tracker"), Path::new("../../bin/tracker"));
+    // The committed schedule travels verbatim.
+    assert_eq!(fs::read_to_string(r.to.join("config/plugins.toml")).unwrap(), SCHEDULE);
     // tracker is referenced, wired into both ops.
     assert_eq!(refs["tracker"], BTreeSet::from(["close".to_string(), "claim".to_string()]));
 }
 
 #[test]
-fn the_wiring_only_invariant_excludes_bin_and_plugin_config_files() {
+fn plugins_replaces_an_existing_schedule_innermost_wins() {
     let r = Roots::new();
-    Roots::wire(&r.from, "close/pre/00-tracker", "../../bin/tracker");
-    // The LOCAL absolute bin link and a plugin's committed config (the trail
-    // pointer lives here) must NOT travel.
-    let bin = r.from.join("config/plugins/bin");
-    fs::create_dir_all(&bin).unwrap();
-    symlink("/abs/path/to/tracker", bin.join("tracker")).unwrap();
-    Roots::file(&r.from, "config/plugins/tracker/remote.toml", "next = \"git@x\"\n");
-
+    Roots::file(&r.from, "config/plugins.toml", SCHEDULE);
+    Roots::file(&r.to, "config/plugins.toml", "[hooks]\n\"drop.post\" = [\"old\"]\n");
     transfer(&[Object::Plugins], &r.from, &r.to).unwrap();
-    assert!(!r.to.join("config/plugins/bin").exists(), "bin/ excluded");
-    assert!(!r.to.join("config/plugins/tracker/remote.toml").exists(), "pointer excluded");
+    assert_eq!(fs::read_to_string(r.to.join("config/plugins.toml")).unwrap(), SCHEDULE);
 }
 
 #[test]
-fn an_absolute_symlink_outside_bin_is_skipped() {
-    let r = Roots::new();
-    Roots::wire(&r.from, "close/pre/00-stray", "/somewhere/absolute");
-    let refs = transfer(&[Object::Plugins], &r.from, &r.to).unwrap();
-    assert!(!r.to.join("config/plugins/close/pre/00-stray").exists());
-    assert!(refs.is_empty());
-}
-
-#[test]
-fn a_shallow_or_non_entry_symlink_is_mirrored_but_not_recorded() {
-    let r = Roots::new();
-    Roots::wire(&r.from, "loose", "../../bin/x"); // one component: no op
-    Roots::wire(&r.from, "close/pre/noentry", "../../bin/y"); // filename not NN-
-    let refs = transfer(&[Object::Plugins], &r.from, &r.to).unwrap();
-    assert_eq!(link_target(&r.to, "loose"), Path::new("../../bin/x"));
-    assert_eq!(link_target(&r.to, "close/pre/noentry"), Path::new("../../bin/y"));
-    assert!(refs.is_empty());
-}
-
-#[test]
-fn plugins_replaces_an_existing_entry_innermost_wins() {
-    let r = Roots::new();
-    Roots::wire(&r.from, "close/pre/00-tracker", "../../bin/new");
-    Roots::wire(&r.to, "close/pre/00-tracker", "../../bin/old");
-    transfer(&[Object::Plugins], &r.from, &r.to).unwrap();
-    assert_eq!(link_target(&r.to, "close/pre/00-tracker"), Path::new("../../bin/new"));
-}
-
-#[test]
-fn an_absent_source_wiring_tree_copies_nothing() {
+fn an_absent_source_schedule_copies_nothing() {
     let r = Roots::new();
     let refs = transfer(&[Object::Plugins], &r.from, &r.to).unwrap();
     assert!(refs.is_empty());
-    assert!(!r.to.join("config/plugins").exists());
+    assert!(!r.to.join("config/plugins.toml").exists());
 }
 
 #[test]
@@ -160,12 +113,12 @@ fn an_absent_source_tasks_dir_moves_nothing() {
 }
 
 #[test]
-fn the_default_bundle_transfers_wiring_and_config_together() {
+fn the_default_bundle_transfers_schedule_and_config_together() {
     let r = Roots::new();
-    Roots::wire(&r.from, "close/pre/00-tracker", "../../bin/tracker");
+    Roots::file(&r.from, "config/plugins.toml", SCHEDULE);
     Roots::file(&r.from, "config/balls.toml", "x = 1\n");
     let refs = transfer(&Object::DEFAULT_BUNDLE, &r.from, &r.to).unwrap();
-    assert_eq!(link_target(&r.to, "close/pre/00-tracker"), Path::new("../../bin/tracker"));
+    assert!(r.to.join("config/plugins.toml").exists());
     assert!(r.to.join("config/balls.toml").exists());
     assert!(refs.contains_key("tracker"));
 }

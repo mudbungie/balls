@@ -9,7 +9,7 @@
 //! ([`BaseChange`]), [`crate::lifecycle`] runs the shape with §14 rollback,
 //! [`crate::plugin`] is the §6 subprocess chain over the §7 [`crate::wire`]. This
 //! is the integration seam: it parses argv into a [`BaseChange`], resolves the §7
-//! binding + the registry's `NN-` plugin sets, INJECTS the clock, and drives the
+//! binding + the `[hooks]` plugin sets, INJECTS the clock, and drives the
 //! engine. The §10/§15 front-door flags (`--parent` containment-only, `--blocks
 //! OP`/`--blocks ID:OP`, `--needs B[:OP]`) write their `{id,on}` edges through
 //! [`Create`]'s authoring — `on` is ANY op; all flag parsing is core — plugins
@@ -24,6 +24,7 @@ use crate::checkout;
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::git::Git;
+use crate::hooks::Hooks;
 use crate::id::IdScheme;
 use crate::lifecycle::{BaseChange, Engine};
 use crate::log::{self, Level, Log};
@@ -39,7 +40,8 @@ mod report;
 
 /// Run a mutating verb (§9) end to end: parse `args`, author the verb's base
 /// change against the STORE checkout, and seal it onto `tasks_branch` through the
-/// §8 engine + the §6 plugin chain (resolved from the LANDING registry, §2). The
+/// §8 engine + the §6 plugin chain (resolved from the LANDING `plugins.toml`
+/// `[hooks]` schedule, §2/§6). The
 /// checkout must already be a landing (`bl prime` founds it, §12) — a mutating op
 /// never bootstraps. `verb` is guaranteed mutating by the [`crate::run`] dispatch.
 pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
@@ -64,9 +66,10 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
         after: None,
     };
 
+    let hooks = Hooks::load(&landing)?;
     let reg = Registry::at(&landing);
-    let pre = reg.resolve(verb.token(), "pre")?;
-    let post = reg.resolve(verb.token(), "post")?;
+    let pre = hooks.resolve(&reg, verb.token(), "pre");
+    let post = hooks.resolve(&reg, verb.token(), "post");
     let change_dir = clone.change(&change_token());
     let plugins = Subprocess::new(ctx, &log, edge.depth);
     let terminus = Git::at(&store);

@@ -10,15 +10,13 @@
 //! worktree; the [`crate::lifecycle::Engine`] commits it), so this layer reads
 //! and writes plain dirs and is unit-tested on tempfiles like [`crate::change`].
 //!
-//! **One invariant dissolves two exclusions.** The plugins object copies only the
-//! *relative-symlink wiring* under `config/plugins/` (directories + relative
-//! symlinks; regular files and the `bin/` subtree are skipped). The committed
-//! `<op>/<phase>/NN-<name>` entries are exactly those relative symlinks, so:
-//! - `bin/<name>` (the LOCAL absolute symlinks) never travels — the recipient
-//!   resolves binaries itself ([`resolve_and_bind`]); and
-//! - `config/plugins/tracker/remote.toml` (a regular file holding the trail
-//!   `next:` pointer) never travels — Pointer-exclusion, with no TOML parsing and
-//!   no reach into plugin territory (§0). Pointers are set only by prime (§12).
+//! **The plugins object is the committed `plugins.toml` hook schedule** (§6) — a
+//! plain file copy of `config/plugins.toml`, the COMMITTED `[hooks]` table that
+//! names plugins by NAME (pure text, portable verbatim). The LOCAL
+//! `config/plugins/bin/<name>` symlinks never travel — the recipient resolves
+//! binaries itself ([`resolve_and_bind`]). The names the copied schedule
+//! references ([`crate::hooks::Hooks::referenced`]) are exactly the
+//! [`resolve_and_bind`] worklist a `--to`-local install runs.
 //!
 //! Object semantics (bl-0601): `plugins`/`config` are recommendations — the
 //! incoming copy REPLACES the same paths (innermost wins). `tasks` is the single
@@ -32,8 +30,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::hooks::Hooks;
 use crate::plugin::describe;
-use crate::registry::{parse_entry, replace_symlink, Registry};
+use crate::registry::Registry;
 
 /// What `bl install` copies. `plugins`/`config` replace; `tasks` merges (§6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,8 +65,9 @@ impl Object {
     }
 }
 
-/// Which plugins the copied wiring references, mapped to the op tokens they are
-/// wired into — the [`resolve_and_bind`] worklist a `--to`-local install runs.
+/// Which plugins the copied `[hooks]` schedule references, mapped to the op
+/// tokens they are wired into — the [`resolve_and_bind`] worklist a `--to`-local
+/// install runs.
 pub type Referenced = BTreeMap<String, BTreeSet<String>>;
 
 /// Why an install could not be applied.
@@ -113,7 +113,7 @@ pub fn transfer(objects: &[Object], from: &Path, to: &Path) -> Result<Referenced
     let mut refs = Referenced::new();
     for object in objects {
         match object {
-            Object::Plugins => copy_wiring(from, to, &mut refs)?,
+            Object::Plugins => copy_plugins(from, to, &mut refs)?,
             Object::Config => copy_config(from, to)?,
             Object::Tasks => merge_tasks(from, to)?,
         }
@@ -121,57 +121,24 @@ pub fn transfer(objects: &[Object], from: &Path, to: &Path) -> Result<Referenced
     Ok(refs)
 }
 
-/// `config/plugins/` of one checkout.
-fn plugins_dir(root: &Path) -> PathBuf {
-    root.join("config").join("plugins")
+/// `config/plugins.toml` of one checkout — the committed `[hooks]` schedule.
+fn plugins_toml(root: &Path) -> PathBuf {
+    root.join("config").join("plugins.toml")
 }
 
-/// Copy the relative-symlink wiring under `config/plugins/`, replacing each entry
-/// (innermost wins). An absent source tree means nothing is wired — copy nothing.
-fn copy_wiring(from: &Path, to: &Path, refs: &mut Referenced) -> Result<(), InstallError> {
-    let src = plugins_dir(from);
-    if src.is_dir() {
-        walk(&src, &src, &plugins_dir(to), refs)?;
+/// Copy the committed `config/plugins.toml` hook schedule (innermost wins) and
+/// report the plugins it references (name → ops), the [`resolve_and_bind`]
+/// worklist. An absent source schedule means nothing is wired — copy nothing,
+/// reference nothing.
+fn copy_plugins(from: &Path, to: &Path, refs: &mut Referenced) -> Result<(), InstallError> {
+    let src = plugins_toml(from);
+    if src.is_file() {
+        let dest = plugins_toml(to);
+        fs::create_dir_all(dest.parent().expect("plugins.toml always has a config/ parent"))?;
+        fs::copy(&src, &dest)?;
+        *refs = Hooks::load_from(&src)?.referenced();
     }
     Ok(())
-}
-
-/// Recurse `dir` (relative to wiring root `base`), mirroring relative symlinks
-/// into `dest_root` and skipping the `bin/` subtree and every regular file.
-fn walk(base: &Path, dir: &Path, dest_root: &Path, refs: &mut Referenced) -> Result<(), InstallError> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let rel = path.strip_prefix(base).expect("walk stays under base");
-        let file_type = entry.file_type()?;
-        if file_type.is_symlink() {
-            let target = fs::read_link(&path)?;
-            if target.is_relative() {
-                let dest = dest_root.join(rel);
-                fs::create_dir_all(dest.parent().expect("a wiring entry always has a parent"))?;
-                replace_symlink(&target, &dest)?;
-                record_ref(rel, refs);
-            }
-        } else if file_type.is_dir() && rel != Path::new("bin") {
-            walk(base, &path, dest_root, refs)?;
-        }
-    }
-    Ok(())
-}
-
-/// Record `<op>/<phase>/NN-<name>` as plugin `name` wired into op `op` — the
-/// first path component is the op, the filename the `NN-<name>` entry. A symlink
-/// shallower than `<op>/<entry>`, or a filename that is not an `NN-` entry,
-/// contributes no reference (it is mirrored but not resolved).
-fn record_ref(rel: &Path, refs: &mut Referenced) {
-    let comps: Vec<_> = rel.iter().collect();
-    if comps.len() < 2 {
-        return;
-    }
-    let op = comps[0].to_string_lossy().into_owned();
-    if let Some((_, name)) = parse_entry(&comps[comps.len() - 1].to_string_lossy()) {
-        refs.entry(name).or_default().insert(op);
-    }
 }
 
 /// Replace `config/balls.toml` (innermost wins). An absent source = nothing to

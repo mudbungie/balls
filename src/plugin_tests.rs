@@ -28,7 +28,7 @@ fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
 const RECORDER: &str = "env > env.txt\ncat > stdin.txt\nprintf 'log from %s\\n' \"$BALLS_PLUGIN_NAME\" >&2\n";
 
 fn pref(name: &str, bin: Option<PathBuf>) -> PluginRef {
-    PluginRef { order: 1, name: name.into(), bin }
+    PluginRef { name: name.into(), bin }
 }
 
 fn ctx() -> OpContext {

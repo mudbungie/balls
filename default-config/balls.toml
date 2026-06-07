@@ -1,0 +1,14 @@
+# balls config (§4) — the seeded default a fresh landing starts from.
+#
+# This is the install-default capability policy (§1/§12): `bl prime` copies it
+# into a new landing's `config/balls.toml`. Replace this file (or the whole
+# `$XDG_CONFIG_HOME/balls/default-config/` folder) to ship an org's own default
+# without touching core. Every field has a built-in serde default beneath it, so
+# this file documents the standard values rather than introducing them.
+
+# The STORE branch the `tasks/` checkout rides (§2/§4) — the one config→store
+# indirection. `balls/tasks` is the default-two ref (simplest, fewest paths).
+tasks_branch = "balls/tasks"
+
+# The threshold for the unified op log (§1/§6).
+log_level = "info"

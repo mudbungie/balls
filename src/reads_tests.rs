@@ -174,7 +174,7 @@ fn edge_with(tmp: &TempDir, tasks: &[(&str, Task)]) -> Edge {
         invocation_path: tmp.path().join("proj"),
         default_actor: "t".into(),
         depth: 0,
-        tracker_bin: None,
+        exe_dir: None,
         color: false,
         log_level: None,
     };

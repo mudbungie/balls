@@ -1,0 +1,26 @@
+# The hook schedule (§6) — the seeded default a fresh landing starts from.
+#
+# `[hooks]` is the SINGLE source of truth for plugin wiring: each `<op>.<phase>`
+# key maps to an ordered list of plugin names. Listed = run this plugin in this
+# op-phase; list position = run order (the last name runs last). An absent key or
+# empty list = run nothing. The names are pure text and travel verbatim on `bl
+# install`; the local `config/plugins/bin/<name>` symlink (gitignored) resolves
+# each name to this box's binary.
+#
+# This default wires the two shipped capabilities — `tracker` (remote sync) and
+# `bl-delivery` (the code worktree). `bl prime` PRUNES any entry whose binary is
+# not installed beside `bl`, so a tracker-less or test box never aborts. Replace
+# this file (or the whole `$XDG_CONFIG_HOME/balls/default-config/` folder) to
+# ship an org's own default capability set without touching core (§1/§12).
+
+[hooks]
+"sync.pre"     = ["tracker"]                  # import remote state first
+"prime.pre"    = ["tracker"]
+"prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
+"claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
+"unclaim.post" = ["bl-delivery", "tracker"]
+"close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
+"close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
+"drop.post"    = ["bl-delivery", "tracker"]
+"create.post"  = ["tracker"]
+"update.post"  = ["tracker"]

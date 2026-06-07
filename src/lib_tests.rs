@@ -5,15 +5,16 @@ use super::*;
 use std::path::Path;
 use tempfile::TempDir;
 
-/// An edge rooted in `tmp` with no tracker installed (stealth) — prime founds
-/// substrate and runs an empty chain, so `run` needs no plugin subprocess.
+/// An edge rooted in `tmp` with no plugin binaries installed (stealth) — prime
+/// founds substrate, the seed prunes every default hook, and the chain runs
+/// empty, so `run` needs no plugin subprocess.
 fn edge(tmp: &TempDir) -> Edge {
     Edge {
         xdg: layout::Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy())),
         invocation_path: tmp.path().join("proj"),
         default_actor: "tester".into(),
         depth: 0,
-        tracker_bin: None,
+        exe_dir: None,
         color: false,
         log_level: None,
     }
