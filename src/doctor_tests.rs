@@ -195,24 +195,6 @@ fn an_empty_branch_is_an_unusable_config() {
 }
 
 #[test]
-fn an_empty_id_alphabet_is_an_unusable_config() {
-    let (_t, clone) = fixture();
-    let op = with_operating(&clone);
-    with_config(&op, "id_scheme = { prefix = \"bl-\", length = 4, alphabet = \"\" }\n");
-    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
-    assert!(has(&report, "id_scheme.alphabet is empty"));
-}
-
-#[test]
-fn a_zero_id_length_is_an_unusable_config() {
-    let (_t, clone) = fixture();
-    let op = with_operating(&clone);
-    with_config(&op, "id_scheme = { prefix = \"bl-\", length = 0, alphabet = \"ab\" }\n");
-    let report = audit(&clone, &no_user_config(), &speaks_current).unwrap();
-    assert!(has(&report, "id_scheme.length is zero"));
-}
-
-#[test]
 fn a_valid_custom_config_is_clean() {
     let (_t, clone) = fixture();
     let op = with_operating(&clone);

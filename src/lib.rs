@@ -82,7 +82,7 @@
 //! [`trail`] walk output (no fetch) — the declarative half of the trail
 //! asymmetry (§12: values auto-layer because they are data; the plugin chain and
 //! `tasks/` do not). [`doctor`] is its first consumer — it validates the resolved
-//! `branch`/`id_scheme` (a config that would break id generation is drift, §16).
+//! `branch` (a config with no task-store branch is drift, §16).
 //!
 //! # §1/§2 — the layout substrate
 //!

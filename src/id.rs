@@ -7,12 +7,13 @@
 //! field), so the only constraint core puts on it is **string-safety**, not a
 //! fixed charset: it must be a safe path token on any filesystem.
 
-use serde::{Deserialize, Serialize};
-
 /// How `create` mints a fresh id: a `prefix` followed by `length` characters
-/// drawn from `alphabet`. The default is today's scheme — `bl-` + four lower
-/// hex digits. Lowercase sidesteps case-insensitive-FS collisions.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// drawn from `alphabet`. FIXED, not config — the default (`bl-` + four lower
+/// hex digits) is the one scheme base balls ships; a team wanting any other
+/// (different prefix/length/alphabet, or a non-random strategy) supplies a
+/// `create/pre` plugin via the id-reassign seam. Lowercase sidesteps
+/// case-insensitive-FS collisions.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdScheme {
     pub prefix: String,
     pub length: usize,
@@ -133,14 +134,6 @@ mod tests {
         assert!(id["bl-".len()..]
             .chars()
             .all(|c| scheme.alphabet.contains(c)));
-    }
-
-    #[test]
-    fn id_scheme_round_trips_through_toml() {
-        let scheme = IdScheme::default();
-        let text = toml::to_string(&scheme).unwrap();
-        let back: IdScheme = toml::from_str(&text).unwrap();
-        assert_eq!(scheme, back);
     }
 
     #[test]

@@ -33,7 +33,6 @@ fn with_no_layers_it_resolves_to_the_built_in_defaults() {
     let cfg = EffectiveConfig::resolve(&trail, &bare(&tmp, "absent.toml")).unwrap();
     assert_eq!(cfg, EffectiveConfig::default());
     assert_eq!(cfg.branch, STATE_BRANCH);
-    assert_eq!(cfg.id_scheme, IdScheme::default());
 }
 
 #[test]
@@ -56,28 +55,6 @@ fn the_user_config_overrides_the_landing() {
     fs::write(&user, "branch = \"user\"\n").unwrap();
     let cfg = EffectiveConfig::resolve(&trail, &user).unwrap();
     assert_eq!(cfg.branch, "user");
-}
-
-#[test]
-fn an_object_field_replaces_wholesale_innermost_wins() {
-    let tmp = TempDir::new().unwrap();
-    let trail = [
-        checkout(
-            &tmp,
-            "landing",
-            "id_scheme = { prefix = \"x-\", length = 2, alphabet = \"ab\" }\n",
-        ),
-        checkout(
-            &tmp,
-            "terminus",
-            "id_scheme = { prefix = \"t-\", length = 9, alphabet = \"z\" }\n",
-        ),
-    ];
-    let cfg = EffectiveConfig::resolve(&trail, &bare(&tmp, "absent.toml")).unwrap();
-    assert_eq!(
-        cfg.id_scheme,
-        IdScheme { prefix: "x-".into(), length: 2, alphabet: "ab".into() }
-    );
 }
 
 #[test]

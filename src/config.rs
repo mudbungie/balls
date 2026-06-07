@@ -25,11 +25,10 @@
 //! outer (objects are NOT deep-merged). List fields — bare `<field>` = full
 //! replacement; compose with `<field>_prepend` / `<field>_append` / `<field>_ban`.
 //!
-//! The §4 layer-1 CLI override is an unbuilt seam: no flag consumes `branch`/
-//! `id_scheme` today, so wiring an argv layer here would be a consumer-less
-//! mechanism. When a flag needs it, it composes as one more (highest) table.
+//! The §4 layer-1 CLI override is an unbuilt seam: no flag consumes `branch`
+//! today, so wiring an argv layer here would be a consumer-less mechanism. When
+//! a flag needs it, it composes as one more (highest) table.
 
-use crate::id::IdScheme;
 use crate::STATE_BRANCH;
 use serde::Deserialize;
 use std::fs;
@@ -47,9 +46,6 @@ pub struct EffectiveConfig {
     /// default [`STATE_BRANCH`] — the one config-overridable bootstrap fact.
     #[serde(default = "default_branch")]
     pub branch: String,
-    /// How `create` mints fresh ids (§ id generation), default [`IdScheme`].
-    #[serde(default)]
-    pub id_scheme: IdScheme,
 }
 
 fn default_branch() -> String {
@@ -58,10 +54,7 @@ fn default_branch() -> String {
 
 impl Default for EffectiveConfig {
     fn default() -> EffectiveConfig {
-        EffectiveConfig {
-            branch: default_branch(),
-            id_scheme: IdScheme::default(),
-        }
+        EffectiveConfig { branch: default_branch() }
     }
 }
 
