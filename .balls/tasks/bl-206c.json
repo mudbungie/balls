@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:57:23.929344378Z",
-  "delivered_in": null,
+  "delivered_in": "7b051912563c9650ada4f5288068b153da2f2021",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Spec landed in docs/architecture.md §2/§9/§ id-generation (bl-d7a5, commit 7ec94d4). Implement changes #2/#3 of that fold (shared recency-reconstruction machinery):\n\n#3 `bl show <id>` (src/reads/show.rs): on a LIVE miss (tasks/<id>.md absent), walk balls/tasks history newest->oldest and reconstruct from the most recent commit whose tree still holds tasks/<id>.md, STOP at first hit. Render the dead ball with retirement derived from the deletion commit's bl-op: trailer (§5, close vs drop).\n\n#2 `bl list` (src/reads/list.rs): keep defaulting to the live/open set; add --closed (dead only) / --all (live+dead), reconstructing dead balls from history the same most-recent-down way; add date/range, --tag, and text filters that COMPOSE (AND) over the possibly-history-served set. Date filters read stored created/updated (deletion-commit date for dead balls).\n\nUNIFYING DISCIPLINE — recency resolution (§ id generation): every id->content lookup is one walk (live first, else most-recent-in-history, stop at first hit). This is the single helper #2 and #3 share; factor it once. Collision stays checked against LIVE files only (no prevent-reuse history scan — already spec'd). Unblocks bl-934a's discipline assumption. Independent of bl-6d9b (the ready->--status verb subtraction).",
   "external": {"github-issues":{"issue":{"last_synced_body_hash":"59766a02cdfd76e9","last_synced_status":"in_progress","last_synced_title":"§9 impl: git-log-as-content reads — `show` history fallthrough + `list --closed/--all` + filters [bl-206c]","number":354,"source":"balls","state":"open","synced_at":"2026-06-07T22:54:00.523735623+00:00","url":"https://github.com/mudbungie/balls/issues/354"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-07T22:54:00.547303876Z"},
   "tags": [],
   "title": "§9 impl: git-log-as-content reads — `show` history fallthrough + `list --closed/--all` + filters",
   "type": "task",
-  "updated_at": "2026-06-07T22:54:00.547309457Z"
+  "updated_at": "2026-06-07T23:14:05.672806746Z"
 }
