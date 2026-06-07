@@ -8,6 +8,7 @@ use super::git::git;
 use super::payload::Binding;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The state branch name every fixture uses (§2 names it `balls`).
 pub const BRANCH: &str = "balls";
@@ -37,9 +38,13 @@ pub fn tip(repo: &Path, rev: &str) -> String {
 }
 
 /// An empty bare remote on the `balls` branch — the bootstrap-on-miss case
-/// (the branch does not exist on it yet).
+/// (the branch does not exist on it yet). The name is uniquely numbered so a
+/// test that builds two remotes (e.g. a wire and a pointer hop) gets two
+/// distinct repos, never one path aliased — the invariant that keeps the
+/// committed-pointer test from collapsing into a single shared remote.
 pub fn empty_remote(tmp: &Path) -> PathBuf {
-    let remote = tmp.join("remote.git");
+    static N: AtomicU64 = AtomicU64::new(0);
+    let remote = tmp.join(format!("remote-{}.git", N.fetch_add(1, Ordering::Relaxed)));
     run(tmp, &["init", "--bare", "-q", "-b", BRANCH, &remote.to_string_lossy()]);
     remote
 }
