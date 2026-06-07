@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-6d9b",
+  "claimed_by": "Torpedoes",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:57:13.476620509Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:58:24.215908943Z"},
   "tags": [],
   "title": "§9 impl: remove the `ready` verb, add `bl list --status ready|blocked|claimed`",
   "type": "task",
-  "updated_at": "2026-06-07T20:58:24.215911338Z"
+  "updated_at": "2026-06-07T20:58:24.228699047Z"
 }
