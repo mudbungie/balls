@@ -139,6 +139,16 @@ fn worktree_path_is_the_derived_xdg_formula() {
 }
 
 #[test]
+fn work_branch_is_the_branch_half_of_the_worktree_pair() {
+    let xdg = Xdg::with(Path::new("/home/me"), None, Some("/st"));
+    // The branch and path derive from the same `<id>` key through the one pair
+    // of helpers — the convergence §11 claimant-keying will edit in one place.
+    assert_eq!(work_branch("bl-f813"), "work/bl-f813");
+    let p = worktree_path(&xdg, "delivery", "/home/me/dev/proj", "bl-f813");
+    assert_eq!(work_branch("bl-f813"), format!("work/{}", p.file_name().unwrap().to_str().unwrap()));
+}
+
+#[test]
 fn subject_and_marker_carry_the_delivery_tag() {
     assert_eq!(subject("Refactor foo", "bl-f813"), "Refactor foo [bl-f813]");
     assert_eq!(marker("bl-f813"), "[bl-f813]");

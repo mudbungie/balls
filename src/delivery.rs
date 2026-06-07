@@ -117,10 +117,21 @@ pub fn binding_territory(xdg: &Xdg, plugin: &str, invocation_path: &str) -> Path
 
 /// The derived code-worktree path (§11): the `<id>/` child of this binding's
 /// [`binding_territory`]. balls prints the same path from the same formula — no
-/// return channel.
+/// return channel. Pairs with [`work_branch`] — both derive from the same `<id>`
+/// key, so §11 claimant-keying (`<key> = <id>` or `<id>-<claimant>`) is a single
+/// edit across the pair, not a hunt for every `work/<id>` literal.
 #[must_use]
 pub fn worktree_path(xdg: &Xdg, plugin: &str, invocation_path: &str, id: &str) -> PathBuf {
     binding_territory(xdg, plugin, invocation_path).join(id)
+}
+
+/// The `work/<id>` branch this binding's worktree sits on (§11) — the BRANCH
+/// half of the `(worktree_path, branch)` pair. Every site that derives one must
+/// derive the other through these two helpers so they cannot drift; see
+/// [`worktree_path`].
+#[must_use]
+pub fn work_branch(id: &str) -> String {
+    format!("work/{id}")
 }
 
 /// The delivery commit subject: `<title> [<id>]`. The `[<id>]` tag is delivery

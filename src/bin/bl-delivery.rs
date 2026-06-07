@@ -56,7 +56,7 @@ fn run(args: &[String]) -> io::Result<()> {
     let id = delivery::resolve_id(wire.metadata.as_ref(), || changed_task_paths(&cwd))?;
 
     let worktree = delivery::worktree_path(&xdg, &plugin, invocation, &id);
-    let branch = format!("work/{id}");
+    let branch = delivery::work_branch(&id);
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
     let subject = delivery::subject(title, &id);
     let marker = delivery::marker(&id);
@@ -83,7 +83,7 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
     let rolling_back = wire.rolling_back.is_some();
     for id in claimed_ids(Path::new(operating), &wire.actor)? {
         let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
-        let branch = format!("work/{id}");
+        let branch = delivery::work_branch(&id);
         let spec = Spec { worktree: &worktree, branch: &branch, subject: "", marker: "" };
         delivery::dispatch("prime", phase, rolling_back, repo, &spec)?;
     }
