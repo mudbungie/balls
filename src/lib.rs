@@ -104,6 +104,7 @@
 
 pub mod change;
 pub mod checkout;
+pub mod civil;
 pub mod config;
 pub mod delivery;
 pub mod delivery_doctor;
@@ -121,6 +122,7 @@ pub mod message;
 pub mod mutate;
 pub mod op;
 pub mod plugin;
+pub mod reads;
 pub mod registry;
 pub mod substrate;
 pub mod task;
@@ -143,12 +145,12 @@ pub const LANDING_BRANCH: &str = "balls/config";
 /// Default-two (a DISTINCT ref) is simplest and fewest code paths (§0/§2).
 pub const DEFAULT_TASKS_BRANCH: &str = "balls/tasks";
 
-/// The §8 dispatch entrypoint: resolve argv to its verb and run it. The
-/// checkout-lifecycle verbs (`prime`/`sync`, §12/§13) wire to the engine via
-/// [`checkout`]; the deliverable verbs (`create`/`claim`/`unclaim`/`update`/
-/// `close`/`drop`, §9) wire via [`mutate`]; the read verbs are not yet, so they
-/// report their §8 op plan (the skeleton dispatch). `edge` carries the host
-/// inputs `main` resolved.
+/// The §8 dispatch entrypoint: resolve argv to its verb and run it. `prime`/
+/// `sync` (§12/§13) wire to the engine via [`checkout`]; the deliverable verbs
+/// (§9) via [`mutate`]; the read verbs (`show`/`list`/`ready`/`dep-tree`, §9) via
+/// [`reads`] — they author no diff and print the store view. The remaining
+/// diffless verbs (`doctor`/`install`) are unwired, so they report their §8 op
+/// plan. `edge` carries the host inputs `main` resolved.
 ///
 /// Returns the process exit code: `0` on success, `1` on an op failure (a plugin
 /// aborted, a bad flag), `2` for an unknown or missing verb (usage convention).
@@ -160,6 +162,7 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
     let result = match verb {
         Verb::Prime => checkout::prime(edge, &args[1..]),
         Verb::Sync => checkout::sync(edge, &args[1..]),
+        Verb::Show | Verb::List | Verb::Ready | Verb::DepTree => reads::run(edge, verb, &args[1..]),
         v if v.class() == OpClass::Mutating => mutate::run(edge, v, &args[1..]),
         other => {
             println!("{}", Op::new(other).plan());
@@ -176,110 +179,5 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::Path;
-    use tempfile::TempDir;
-
-    /// An edge rooted in `tmp` with no tracker installed (stealth) — prime founds
-    /// substrate and runs an empty chain, so `run` needs no plugin subprocess.
-    fn edge(tmp: &TempDir) -> Edge {
-        Edge {
-            xdg: layout::Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy())),
-            invocation_path: tmp.path().join("proj"),
-            default_actor: "tester".into(),
-            depth: 0,
-            tracker_bin: None,
-        }
-    }
-
-    fn run_in(tmp: &TempDir, args: &[&str]) -> i32 {
-        run(&edge(tmp), &args.iter().map(ToString::to_string).collect::<Vec<_>>())
-    }
-
-    #[test]
-    fn a_skeleton_verb_reports_its_op_plan() {
-        // A read verb is still unwired, so it prints its §8 op plan and exits 0.
-        assert_eq!(run_in(&TempDir::new().unwrap(), &["list"]), 0);
-    }
-
-    #[test]
-    fn a_mutating_verb_before_prime_is_an_error() {
-        // No landing yet — a deliverable op never bootstraps, it reports the miss.
-        assert_eq!(run_in(&TempDir::new().unwrap(), &["create", "A task"]), 1);
-    }
-
-    #[test]
-    fn create_claim_update_close_round_trip_through_the_engine() {
-        let tmp = TempDir::new().unwrap();
-        assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
-        // create seals a fresh ball file onto the STORE.
-        assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
-        let tasks = store(&tmp).join("tasks");
-        let id = sole_task_id(&tasks);
-        assert_eq!(run_in(&tmp, &["claim", &id, "--as", "me"]), 0);
-        assert_eq!(run_in(&tmp, &["update", &id, "state=doing", "--as", "me"]), 0);
-        assert_eq!(run_in(&tmp, &["close", &id, "--as", "me"]), 0);
-        // close retires the file; the store has advanced past it.
-        assert!(!tasks.join(format!("{id}.md")).exists());
-    }
-
-    /// The landing checkout for `tmp`'s edge.
-    fn landing(tmp: &TempDir) -> std::path::PathBuf {
-        edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).landing()
-    }
-
-    /// The store checkout for `tmp`'s edge.
-    fn store(tmp: &TempDir) -> std::path::PathBuf {
-        edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).store()
-    }
-
-    /// The single ball id under `tasks/` (basename minus `.md`).
-    fn sole_task_id(tasks: &Path) -> String {
-        let mut ids: Vec<String> = std::fs::read_dir(tasks)
-            .unwrap()
-            .filter_map(|e| e.unwrap().file_name().to_string_lossy().strip_suffix(".md").map(str::to_string))
-            .collect();
-        assert_eq!(ids.len(), 1, "expected exactly one ball");
-        ids.pop().unwrap()
-    }
-
-    #[test]
-    fn run_rejects_an_unknown_verb() {
-        assert_eq!(run_in(&TempDir::new().unwrap(), &["frobnicate"]), 2);
-    }
-
-    #[test]
-    fn run_rejects_missing_verb() {
-        assert_eq!(run_in(&TempDir::new().unwrap(), &[]), 2);
-    }
-
-    #[test]
-    fn prime_founds_a_landing_then_converges_on_re_run() {
-        let tmp = TempDir::new().unwrap();
-        assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
-        assert!(landing(&tmp).join("config").join("balls.toml").is_file());
-        assert!(store(&tmp).join("tasks").is_dir());
-        // Idempotent: a second prime is a no-op-converge, not an error (§12).
-        assert_eq!(run_in(&tmp, &["prime"]), 0);
-    }
-
-    #[test]
-    fn sync_before_prime_is_an_error() {
-        assert_eq!(run_in(&TempDir::new().unwrap(), &["sync"]), 1);
-    }
-
-    #[test]
-    fn sync_after_prime_targets_the_store() {
-        let tmp = TempDir::new().unwrap();
-        assert_eq!(run_in(&tmp, &["prime"]), 0);
-        // Stealth store; the empty sync chain converges.
-        assert_eq!(run_in(&tmp, &["sync"]), 0);
-        assert_eq!(run_in(&tmp, &["sync", "landing"]), 0); // landing is never a target
-    }
-
-    #[test]
-    fn a_bad_flag_is_an_op_error() {
-        assert_eq!(run_in(&TempDir::new().unwrap(), &["prime", "--center"]), 1);
-    }
-}
+#[path = "lib_tests.rs"]
+mod tests;

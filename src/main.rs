@@ -5,6 +5,7 @@
 //! running this built binary (see `tests/dispatch.rs`).
 
 use std::env;
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -20,6 +21,8 @@ fn main() {
         env::var("USER").ok(),
         env::var("BALLS_PLUGIN_DEPTH").ok(),
         env::current_exe().ok(),
+        env::var("NO_COLOR").ok(),
+        std::io::stdout().is_terminal(),
     );
     exit(balls::run(&edge, &args));
 }
