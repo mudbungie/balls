@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Spec landed in docs/architecture.md §9/§10 (bl-d7a5, commit 7ec94d4). Implement change #1 of that fold: REMOVE the `ready` read verb (src/verb.rs enum + dispatch in src/reads.rs) and replace it with a `--status ready|blocked|claimed` filter on `bl list` (space-separated value, not a bespoke --ready boolean). --status filters the derived 3-state ladder src/reads/list.rs already computes (ready/blocked/claimed, §3). `bl list --status ready` == old `bl ready`: live + unclaimed + every claim-blocker resolved (§10), ordered by priority asc (absent last) then created asc. Make that ordering UNIFORM for every `bl list` invocation (the one ordering input drives all listings — ready's order was never special); list.rs::order_key already holds it. COORDINATION: bl-3b1a also edits src/verb.rs / verb-result rendering (+ a '--json shape: shared renderer vs per-class' decision); sequence after it or rebase to avoid a verb.rs clash. Independent of the history-reconstruction ball (change #2/#3).",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_body_hash":"7beae7b01c10f31d","last_synced_status":"in_progress","last_synced_title":"§9 impl: remove the `ready` verb, add `bl list --status ready|blocked|claimed` [bl-6d9b]","number":357,"source":"balls","state":"open","synced_at":"2026-06-07T20:58:24.881884273+00:00","url":"https://github.com/mudbungie/balls/issues/357"}}},
   "id": "bl-6d9b",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-07T20:58:24.215908943Z"},
+  "synced_at": {"github-issues":"2026-06-07T20:58:24.903853749Z"},
   "tags": [],
   "title": "§9 impl: remove the `ready` verb, add `bl list --status ready|blocked|claimed`",
   "type": "task",
-  "updated_at": "2026-06-07T20:58:24.228699047Z"
+  "updated_at": "2026-06-07T20:58:24.903858528Z"
 }
