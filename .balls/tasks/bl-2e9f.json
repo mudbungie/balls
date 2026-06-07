@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Implements the bl-b58a observability resolution folded into docs/architecture.md (§1/§4/§6/§14/§15).\n\nReplace the per-op-phase stderr-capture (bl-5d56's invented clones/<enc>/logs/<name>/<op>-<phase>.log) with ONE unified per-clone log:\n\n- clones/<pct-enc-local-path>/log — JSON-lines, one object per line {ts,lvl,src,op,phase,msg}; src in {core,<plugin>}. Local, gitignored, never committed (consistent with binding.toml).\n- Core EMITS lifecycle lines (claim/invoke/seal/close/abort). On a non-zero plugin exit core emits an error line (op/phase/plugin/exit) so failure locus survives any threshold.\n- Plugin stays DUMB: writes raw stderr; balls pipes child stderr and envelopes each line as JSON with src=<plugin>+op/phase, lvl=info. So plugin.rs::open_log changes from .stderr(file) fd-redirect to piping ChildStderr + a relay loop. Handle a non-newline-terminated trailing blob (read-to-EOF as one line).\n- log_level config: serde-default scalar (default \"info\"), §4 read order CLI flag -> XDG config.toml -> landing config/balls.toml -> serde fallback. Single threshold gates BOTH file persistence and terminal. --log-level CLI flag is layer 1. Default mapping: mutating-op lifecycle at info, read-op narration (list/show/ready) at debug so default-info keeps them out; plugin stderr at info.\n- DELETE dead layout::log() + its test/doc-comment (logs/<name>/plugin.log, no live callers).\n- Metrics: NO core surface — a query over this log (every op/phase/plugin event timestamped) or a *.post plugin to its own territory.\n\nConcurrency: one JSON object per line, O_APPEND atomic for sub-PIPE_BUF writes (several agents run in parallel).\n\n100% coverage + 300-line cap apply. Resolves the code half of bl-b58a (design half folds into docs/architecture.md under bl-b58a itself).",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":350,"source":"balls","state":"open","synced_at":"2026-06-07T20:19:22.698884795+00:00","url":"https://github.com/mudbungie/balls/issues/350"}}},
   "id": "bl-2e9f",
   "links": [{"link_type":"relates_to","target":"bl-b58a"}],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-07T20:19:21.907327987Z"},
+  "synced_at": {"github-issues":"2026-06-07T20:19:22.710149662Z"},
   "tags": ["greenfield"],
   "title": "Greenfield observability: unified per-clone JSON-lines log (clones/<enc>/log)",
   "type": "task",
-  "updated_at": "2026-06-07T20:19:21.925981074Z"
+  "updated_at": "2026-06-07T20:19:22.710154742Z"
 }
