@@ -97,18 +97,25 @@ fn create_seals_a_ball_and_runs_the_mutating_post_chain() {
     // A real deliverable op: author → seal → the tracker's mutating post (which
     // no-ops on a stealth binding). Its success proves the whole engine→
     // subprocess→tracker path runs for a mutating verb, not just prime/sync.
-    bl_primed(&project, &home, &state)
+    // §9: create prints the minted id ALONE to stdout so `id=$(bl create …)` is
+    // a clean capture — nothing else rides the machine channel.
+    let out = bl_primed(&project, &home, &state)
         .args(["create", "A real task", "--as", "me"])
         .assert()
         .success();
+    let printed = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    let printed = printed.trim();
 
-    // The ball file landed on the STORE terminus.
+    // The ball file landed on the STORE terminus...
     let tasks = balls::layout::Xdg::with(Path::new("/unused"), None, Some(&state.to_string_lossy()))
         .clone_dir(&project)
         .store()
         .join("tasks");
-    let count = std::fs::read_dir(&tasks).unwrap().filter(|e| e.as_ref().unwrap().path().extension().is_some()).count();
-    assert_eq!(count, 1, "create sealed exactly one ball file");
+    let balls: Vec<_> = std::fs::read_dir(&tasks).unwrap().map(|e| e.unwrap().path()).filter(|p| p.extension().is_some()).collect();
+    assert_eq!(balls.len(), 1, "create sealed exactly one ball file");
+    // ...and stdout is exactly that ball's id (the bl-id trailer of the seal).
+    let on_disk = balls[0].file_stem().unwrap().to_string_lossy();
+    assert_eq!(printed, on_disk, "create stdout is the minted id, alone");
 }
 
 #[test]
