@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "deferred",
+  "status": "open",
   "synced_at": {"github-issues":"2026-06-07T00:07:59.353115724Z"},
   "tags": ["greenfield"],
   "title": "Topic: standardize observability interfaces — logs and metrics",
   "type": "task",
-  "updated_at": "2026-06-07T00:07:59.353117748Z"
+  "updated_at": "2026-06-07T05:09:39.975854565Z"
 }
