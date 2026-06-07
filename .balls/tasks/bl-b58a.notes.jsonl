@@ -1,3 +1,0 @@
-{"ts":"2026-06-07T00:07:59.353471063Z","author":"github-issues","text":"GH issue #279 no longer found in repo (on_external_delete=deferred)"}
-{"ts":"2026-06-07T05:09:39.976137756Z","author":"Upland","text":"Reactivating to fold the resolved observability design into docs/architecture.md; code half tracked as bl-2e9f."}
-{"ts":"2026-06-07T05:13:21.073881693Z","author":"Upland","text":"Fold the observability resolution into docs/architecture.md (§1/§4/§6/§14/§15)"}
