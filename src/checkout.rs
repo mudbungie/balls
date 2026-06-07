@@ -24,10 +24,12 @@
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::git;
+use crate::hooks::Hooks;
 use crate::lifecycle::Engine;
 use crate::log::{self, Level, Log};
 use crate::plugin::Subprocess;
 use crate::registry::Registry;
+use crate::seed;
 use crate::substrate;
 use crate::verb::Verb;
 use crate::wire::{Binding, OpContext};
@@ -48,9 +50,9 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let (landing, store) = (clone.landing(), clone.store());
 
     if is_landing(&landing) {
-        rebind_tracker(&landing, edge)?;
+        seed::rebind(&landing, edge.exe_dir.as_deref())?;
     } else {
-        substrate::found(&landing, &store, edge.tracker_bin.as_deref())?;
+        substrate::found(&landing, &store, &edge.xdg, edge.exe_dir.as_deref())?;
     }
     let (binding, level) = bind(edge, &landing, &store, opts.remote, None)?;
     run_chain(edge, &landing, &store, Verb::Prime, &opts.actor, binding.clone(), level)?;
@@ -113,14 +115,15 @@ fn origin_of(checkout: &Path) -> Option<String> {
     }
 }
 
-/// Run the DIFFLESS chain for `op` (§13): resolve the `NN-` plugin sets from the
-/// LANDING registry (the chain lives on `config/plugins`, §2), then run them with
+/// Run the DIFFLESS chain for `op` (§13): resolve the plugin sets from the
+/// LANDING's `config/plugins.toml` `[hooks]` schedule (§6), then run them with
 /// cwd = the STORE checkout and the terminus bracketing the store-branch HEAD.
 fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
+    let hooks = Hooks::load(landing)?;
     let reg = Registry::at(landing);
-    let pre = reg.resolve(op.token(), "pre")?;
-    let post = reg.resolve(op.token(), "post")?;
+    let pre = hooks.resolve(&reg, op.token(), "pre");
+    let post = hooks.resolve(&reg, op.token(), "post");
     let ctx = OpContext::diffless(actor.to_string(), binding);
     let log = Log::new(clone.op_log(), level, op, log::wall);
     let plugins = Subprocess::new(ctx, &log, edge.depth);
@@ -134,15 +137,6 @@ fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, b
 /// folder (§12) in its working tree.
 fn is_landing(landing: &Path) -> bool {
     landing.join("config").is_dir()
-}
-
-/// Re-bind the local `bin/tracker` (idempotent) on an established checkout, so a
-/// new session re-derives the machine-local link the committed wiring points at.
-fn rebind_tracker(landing: &Path, edge: &Edge) -> io::Result<()> {
-    if let Some(bin) = &edge.tracker_bin {
-        Registry::at(landing).bind("tracker", bin)?;
-    }
-    Ok(())
 }
 
 /// Build the §7 binding for an op over the two checkouts (§7). Shared with

@@ -5,7 +5,8 @@
 //! library does no env reads (the bl-bfa8 rule: parallel tests vary the layout
 //! without racing a shared `std::env`). [`crate::run`] takes an `&Edge`; the
 //! `bl` binary builds it from `HOME`/`$XDG_*`, the current dir, `$USER`, the
-//! recursion depth, and the shipped `tracker` sibling binary.
+//! recursion depth, and the directory `bl` itself lives in (where the shipped
+//! sibling plugins are found).
 
 use crate::layout::Xdg;
 use std::path::PathBuf;
@@ -13,9 +14,10 @@ use std::path::PathBuf;
 /// The host inputs for one `bl` invocation. `invocation_path` is where `bl` was
 /// run (the §7 `binding.invocation_path`); `default_actor` is the identity an op
 /// uses unless `--as` overrides it; `depth` is `$BALLS_PLUGIN_DEPTH` (`0` at the
-/// top level, the §6 recursion guard); `tracker_bin` is the shipped default
-/// remote-talker if it is installed beside `bl` (`None` ⇒ a tracker-free,
-/// stealth-only box — prime founds substrate but wires no remote, §12). `color`
+/// top level, the §6 recursion guard); `exe_dir` is the directory holding `bl`,
+/// where the shipped sibling plugins (`tracker`, `bl-delivery`) live so the seed
+/// can bind them (`None` ⇒ exe path unknown — every default plugin prunes and the
+/// box runs stealth/plugin-free, §12). `color`
 /// is the resolved rich-output signal the read verbs honour (§9): stdout is a
 /// tty AND `NO_COLOR` is unset — a tty/env fact, so it is decided here at the
 /// edge (the bl-bfa8 rule), never in the render layer. `log_level` is the §4
@@ -28,7 +30,7 @@ pub struct Edge {
     pub invocation_path: PathBuf,
     pub default_actor: String,
     pub depth: u32,
-    pub tracker_bin: Option<PathBuf>,
+    pub exe_dir: Option<PathBuf>,
     pub color: bool,
     pub log_level: Option<String>,
 }
@@ -59,25 +61,16 @@ impl Edge {
             invocation_path,
             default_actor: user.unwrap_or_else(|| "unknown".into()),
             depth: depth.and_then(|d| d.parse().ok()).unwrap_or(0),
-            tracker_bin: sibling(current_exe.as_deref(), "tracker"),
+            exe_dir: current_exe.and_then(|e| e.parent().map(std::path::Path::to_path_buf)),
             color: stdout_tty && no_color.is_none(),
             log_level: None,
         }
     }
 }
 
-/// The path to a `name`d binary beside `current_exe`, if it exists — how the
-/// shipped default plugins (the `tracker`) are found next to `bl` (§6/§12). An
-/// absent exe or missing sibling ⇒ `None` (a stealth-only box).
-fn sibling(current_exe: Option<&std::path::Path>, name: &str) -> Option<PathBuf> {
-    let path = current_exe?.parent()?.join(name);
-    path.exists().then_some(path)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use tempfile::TempDir;
 
     fn resolve(user: Option<&str>, depth: Option<&str>, exe: Option<PathBuf>) -> Edge {
@@ -124,23 +117,18 @@ mod tests {
     }
 
     #[test]
-    fn the_tracker_sibling_is_found_only_when_it_exists() {
+    fn the_exe_dir_is_the_parent_of_the_running_binary() {
         let tmp = TempDir::new().unwrap();
         let bl = tmp.path().join("bl");
-        std::fs::write(&bl, "x").unwrap();
-        // No tracker beside it yet.
-        assert_eq!(resolve(None, None, Some(bl.clone())).tracker_bin, None);
-        // Now the sibling exists.
-        let tracker = tmp.path().join("tracker");
-        std::fs::write(&tracker, "x").unwrap();
-        assert_eq!(resolve(None, None, Some(bl)).tracker_bin, Some(tracker));
+        // exe_dir is where the shipped siblings (tracker/bl-delivery) live.
+        assert_eq!(resolve(None, None, Some(bl)).exe_dir.as_deref(), Some(tmp.path()));
     }
 
     #[test]
-    fn an_absent_exe_yields_no_tracker() {
-        assert_eq!(resolve(None, None, None).tracker_bin, None);
-        // A root path has no parent — also no sibling.
-        assert_eq!(sibling(Some(Path::new("/")), "tracker"), None);
+    fn an_absent_exe_yields_no_exe_dir() {
+        assert_eq!(resolve(None, None, None).exe_dir, None);
+        // A root path has no parent — also no exe dir.
+        assert_eq!(resolve(None, None, Some(PathBuf::from("/"))).exe_dir, None);
     }
 
     #[test]
