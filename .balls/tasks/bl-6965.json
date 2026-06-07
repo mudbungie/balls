@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Author the 'center' concept as a living spec section in docs/architecture.md (design = living document). A 'center' is the shared hub a federation of landings points at: it carries the shared store branch (balls/tasks) that many landings sync, and is the target/source for capability publishing via bl install (--to <center> publishes a recommendation = dangling bin/; --from <center> adopts, §6). Define: what a center is and how it differs from a landing; store-branch sharing across landings (§12 store pointer); install publish/adopt against a center; and how §16 migration cutover targets a center (the coordinated, non-force-rewrite push of the shared store). Deliverable is the spec section edited like code, not a growing task body. Spun out of bl-1280's reframe: the migration workflow + center are core machinery delivered FIRST; bl-1280 (forge/issues port) is the downstream demo.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":334,"source":"balls","state":"open","synced_at":"2026-06-07T19:23:00.711075229+00:00","url":"https://github.com/mudbungie/balls/issues/334"}}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"review","number":334,"source":"balls","state":"open","synced_at":"2026-06-07T19:24:15.858275682+00:00","url":"https://github.com/mudbungie/balls/issues/334"}}},
   "id": "bl-6965",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-07T19:23:00.724632152Z"},
+  "synced_at": {"github-issues":"2026-06-07T19:24:15.868652323Z"},
   "tags": ["greenfield","design"],
   "title": "Center spec: shared hub for federation, capability publishing + migration cutover (new §)",
   "type": "task",
-  "updated_at": "2026-06-07T19:24:15.049268725Z"
+  "updated_at": "2026-06-07T19:24:15.868657082Z"
 }
