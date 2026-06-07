@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T04:51:41.165650653Z",
-  "delivered_in": null,
+  "delivered_in": "6c6a2c9c06cc0e4c30d8d18139632b047c02e2b0",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": [],
   "description": "Implement the frozen architecture.md §10/§15 blocker-model revision (landed as design by bl-cac0 + the bl-7d46 coherence pass) that moved past the current code. NOT a config concern — orthogonal to the bl-4c54/bl-f74d config-primacy overhaul. Three coupled parts, one ball because each is meaningless without the others:\n\n1. on = ANY op. Today src/task.rs has 'enum On { Claim, Close }'. Spec §10: 'Core stores the schema AND enforces every blocker (the .pre of the named on op rejects while unresolved).' §15: 'on is now ANY op (claim/close sugared).' Widen On to carry any verb.\n\n2. Generalize enforcement (extends bl-295e, do not revert it). src/enforce.rs currently has two hardcoded entry points enforce::claim/enforce::close, called from change.rs Occupancy::stage / Retire::stage. The frozen model wants a single op-keyed guard: 'for op O, reject (PermissionDenied) if any unresolved blocker has on==O', evaluated at BaseChange::stage before the seal. claim/close keep their named ready()/closeable() predicate SPELLINGS (§10: 'claim refuses an unresolved claim-blocker (ready() false); close refuses an unresolved close-blocker (closeable() false)'). enforce::blocked() is already generic over (verb, on), so this is additive. bl-295e is explicitly ratified by the spec ('Enforcement is CORE', citing the bl-70f5 revision) — nothing to undo, only widen.\n\n3. Containment ⊥ blocking front-door (change.rs::Create + src/mutate.rs). Spec §10: '--parent E -> child parent: E (CONTAINMENT only — gates nothing)'. Today Create/mutate auto-mint an On::Claim reciprocal on --parent (the 'load-bearing subtraction' the spec calls out: old --parent conflated lives-under with gates). Required: --parent gates nothing; add '--blocks OP' (E.blockers += {child, OP}; OP required, no default-gated transition; --blocks ID:OP gates a non-parent) and '--needs B[:OP]' (self.blockers += {B, OP}, default OP=claim); retire '--gates X' (= --parent X --blocks close). 'epic' stays emergent containment that gates nothing by itself.\n\nAcceptance: a blocker with a third 'on' is enforced by core; --parent alone creates no blocker; --blocks/--needs spell explicit edges; --gates removed; ready()/closeable() unchanged; 100% coverage; all files <=299 lines. See docs/architecture.md §10 (lines ~541-622) and §15 open-topics bullet. No open ball owns this (bl-b465 open-topics epic is closed/archived; bl-bdeb/bl-35f7 are dispatch wiring).",
   "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":317,"source":"balls","state":"open","synced_at":"2026-06-07T20:10:47.931964699+00:00","url":"https://github.com/mudbungie/balls/issues/317"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-07T20:14:38.582247873Z"},
   "tags": [],
   "title": "Generalize the blocker model: on=any op + containment⊥blocking front-door (§10/§15 impl)",
   "type": "task",
-  "updated_at": "2026-06-07T20:26:24.917917439Z"
+  "updated_at": "2026-06-07T20:30:11.193317489Z"
 }
