@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8328",
+  "claimed_by": "Saltpeter",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:56:22.019639836Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:56:22.697752823Z"},
   "tags": [],
   "title": "prime drives sync for currency: checkout::prime must invoke sync after the prime chain (§12/§13 gap A)",
   "type": "task",
-  "updated_at": "2026-06-07T20:56:22.697760969Z"
+  "updated_at": "2026-06-07T22:55:06.991355019Z"
 }
