@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Spec §6 today: at BALLS_PLUGIN_DEPTH cap, 'nested ops run PLUGIN-FREE (suppressed, not refused)' and 'a plugin may deliberately re-enable plugins on a nested call.'\n\nWhat the guard actually catches is almost always a BUG: self-retrigger — a plugin wired on op X whose handler shells 'bl X' again (e.g. a sync.post plugin running 'bl sync'), climbing depth to the cap. The legit shell-back (forge claim.post doing 'bl create' for the gate child) goes 1 deep and never re-triggers its own op, so it never nears the cap. Mutual plugin1<->plugin2 is the exotic case; self-retrigger is the common one.\n\nSo 'run plugin-free at the cap, silently' is the worst option: it converts a runaway into quiet wrong-behavior — the offending plugin gets no signal and the op silently runs without the plugins it expected.\n\nResolution:\n- Cap-hit -> ABORT + rollback (§8/§14 reverse-order) with a diagnostic naming the op/plugin chain, so the loop surfaces instead of hiding.\n- DROP 'a plugin may deliberately re-enable plugins on a nested call' — it lets a runaway defeat its own backstop.\n- Add a one-line spec note discouraging a plugin from re-triggering its own op (the §0 'plugins don't depend on each other's presence' already covers the mutual half).\n\nLegit deep-but-bounded chains are unaffected (they never hit the cap). Thin edge; the change is mostly a disposition flip (suppress -> fail) plus deleting the hatch. Touches §6, §15 (revision-log entry).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":331,"source":"balls","state":"open","synced_at":"2026-06-07T07:06:29.476091052+00:00","url":"https://github.com/mudbungie/balls/issues/331"}}},
   "id": "bl-7110",
   "links": [],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T07:06:29.503369948Z"},
   "tags": [],
   "title": "Greenfield §6: recursion guard cap -> fail+rollback (not silent plugin-free); drop the re-enable hatch",
   "type": "task",
-  "updated_at": "2026-06-07T07:06:28.678063601Z"
+  "updated_at": "2026-06-07T07:06:29.503374917Z"
 }
