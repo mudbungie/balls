@@ -24,8 +24,8 @@ fn run_in(tmp: &TempDir, args: &[&str]) -> i32 {
 
 #[test]
 fn a_skeleton_verb_reports_its_op_plan() {
-    // doctor is still unwired, so it prints its §8 op plan and exits 0.
-    assert_eq!(run_in(&TempDir::new().unwrap(), &["doctor"]), 0);
+    // install is still unwired, so it prints its §8 op plan and exits 0.
+    assert_eq!(run_in(&TempDir::new().unwrap(), &["install"]), 0);
 }
 
 #[test]
