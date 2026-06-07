@@ -3,12 +3,9 @@
 //! A thin process edge over [`balls::delivery`]: it answers `protocol` for the
 //! §6 self-describe, otherwise gathers the §7 wire (stdin), the §6 env
 //! (`BALLS_PLUGIN_NAME` + XDG), and argv (`<op> <phase>`), resolves the derived
-//! worktree, and runs the hook. The `doctor` read op is the one branch off the
-//! per-id path — it enumerates rather than acting on one resource (§16), so it
-//! routes to [`balls::delivery::audit`] before the id is resolved. All policy
-//! lives in the library (the [`balls::delivery::dispatch`] matrix + the audit +
-//! [`balls::delivery_repo::Project`] git seam); `main` only adapts the boundary,
-//! the way `bl` does.
+//! worktree, and runs the hook. All policy lives in the library (the
+//! [`balls::delivery::dispatch`] matrix + the [`balls::delivery_repo::Project`]
+//! git seam); `main` only adapts the boundary, the way `bl` does.
 
 use std::env;
 use std::io::{self, Read};
@@ -16,7 +13,6 @@ use std::path::Path;
 use std::process::exit;
 
 use balls::delivery::{self, Spec, Wire};
-use balls::delivery_doctor;
 use balls::delivery_repo::{changed_task_paths, claimed_ids, Project};
 use balls::layout::Xdg;
 
@@ -48,12 +44,6 @@ fn run(args: &[String]) -> io::Result<()> {
     let xdg = Xdg::with(Path::new(&home), env::var("XDG_CONFIG_HOME").ok().as_deref(), env::var("XDG_STATE_HOME").ok().as_deref());
 
     let invocation = &wire.binding.invocation_path;
-    // `doctor` enumerates rather than acting on one resource and never opens the
-    // project repo, so it branches off before `repo` is even built (§16).
-    if op == "doctor" {
-        return doctor(phase, &wire, &xdg, &plugin);
-    }
-
     let repo = Project::at(Path::new(invocation));
 
     // `prime` carries no single ball (§13 diffless) — it re-materializes one
@@ -77,26 +67,6 @@ fn run(args: &[String]) -> io::Result<()> {
         marker: &marker,
     };
     delivery::dispatch(op, phase, wire.rolling_back.is_some(), &repo, &spec)
-}
-
-/// The §16 doctor read hook: partition the actor's still-claimed balls (under
-/// `operating/` — the diffless cwd balls invokes us in) against the worktrees
-/// materialized in this binding's territory, and print the drift. No return
-/// channel (§7). The actor scope mirrors `prime`'s — only this actor's claims
-/// materialize a worktree here, so only they can drift. The diffless op runs us
-/// on `pre` THEN `post` against one unchanged tree, so the audit runs once — on
-/// `pre`; `post` is a no-op, like any unwired hook.
-fn doctor(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str) -> io::Result<()> {
-    if phase != "pre" {
-        return Ok(());
-    }
-    let operating = env::current_dir()?;
-    let invocation = &wire.binding.invocation_path;
-    let claimed = claimed_ids(&operating, &wire.actor)?.into_iter().collect();
-    let materialized = delivery_doctor::materialized_ids(&delivery::binding_territory(xdg, plugin, invocation))?;
-    let path_of = |id: &str| delivery::worktree_path(xdg, plugin, invocation, id).display().to_string();
-    print!("{}", delivery_doctor::render(&delivery_doctor::audit(&claimed, &materialized, &path_of)));
-    Ok(())
 }
 
 /// `prime.post` re-materialization (§11/§12): for every ball in the terminus
