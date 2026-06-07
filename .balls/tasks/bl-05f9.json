@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": ["bl-02c3","bl-cd21"],
   "description": "Safety net for the bl-02c3 sweep request — bl-02c3 is in-flight and a note may not be heeded, so this guarantees the right outcome.\n\nAfter bl-02c3 lands, verify the tracker / fresh-clone materialization code matches the post-split model (bl-2e26 §12/§13):\n- NO trail-walk / transitive next:-chain remains (bl-9329 removes the walk).\n- The tracker syncs tasks_branch <-> its remote (ff-only/union); remote resolution = pointer > autodiscovered origin (bl-cd21).\n- Fresh-clone materialization adopts the store the LANDING names (seeded default or installed), not a discovered terminus.\nIf residual trail code landed, remove it here. Close as a no-op if bl-02c3 already swept clean.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":305,"source":"balls","state":"open","synced_at":"2026-06-06T23:21:00.123421950+00:00","url":"https://github.com/mudbungie/balls/issues/305"}}},
+  "external": {"github-issues":{}},
   "id": "bl-05f9",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
-  "synced_at": {"github-issues":"2026-06-06T23:21:00.136243234Z"},
+  "synced_at": {"github-issues":"2026-06-07T04:51:42.439579860Z"},
   "tags": [],
   "title": "Verify bl-02c3 landed aligned to the store-remote model (no residual trail-walk)",
   "type": "task",
-  "updated_at": "2026-06-07T04:51:42.017837134Z"
+  "updated_at": "2026-06-07T04:51:42.439585169Z"
 }
