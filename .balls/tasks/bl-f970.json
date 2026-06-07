@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Post-finalization spec revision 2026-06-05 (bl-2e26 §0/§1/§2/§7/§8 + §15 'config/store split'). Config and tasks now ride SEPARATE branches; this is the foundational correction the other branch-split tasks build on.\n\nWHY: config-shadowing + the trail/terminus/operating model are retired (see §15). Splitting config off the store makes the transport asymmetry STRUCTURAL (config = single-owner/install-replace; store = shared/sync-merge) and dissolves the trail/terminus/operating apparatus.\n\nWHAT (amends landed bl-e755 §1/§2 layout, bl-5c65 skeleton, bl-be5f substrate/binding, bl-4450 engine seal — assume those landed; correct them):\n- Substrate: LANDING = path-derived 'balls/config' (holds config/); STORE = the branch named by config.tasks_branch (default 'balls/tasks', holds tasks/). 'config/' and 'tasks/' are top-level folders ALWAYS on either branch.\n- Reuse-safe: one-vs-two branches is just whether the two refs coincide — NO branching on it in code; never block on branch names (§2).\n- Retire operating/: §1 clone dir is now config/ + tasks/ checkouts (two real checkouts; store checkout tracks tracker/<remote>/ when remote-backed). No symlink, no terminus resolution.\n- Binding (§7) carries { remote, tasks_branch, store, landing, invocation_path } (was {remote, branch, operating, invocation_path}).\n- Lifecycle (§8): task ops (create/claim/unclaim/update/close/drop) make the CHANGE worktree off the STORE and seal onto tasks_branch; config ops (config/install) off the LANDING and seal onto balls/config. Read ops cwd = relevant checkout.\n\nBlocks: the §4 config, §6 install, §12/§13 prime+sync, tracker, and §16 doctor corrections.",
-  "external": {"github-issues":{"issue":{"last_synced_status":"in_progress","number":320,"source":"balls","state":"open","synced_at":"2026-06-07T08:24:12.122561804+00:00","url":"https://github.com/mudbungie/balls/issues/320"}}},
+  "external": {"github-issues":{}},
   "id": "bl-f970",
   "links": [],
   "parent": "bl-72a8",
   "priority": 1,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "in_progress",
-  "synced_at": {"github-issues":"2026-06-07T08:24:12.132162648Z"},
+  "synced_at": {"github-issues":"2026-06-07T08:28:48.952260906Z"},
   "tags": [],
   "title": "Greenfield: two-branch substrate (balls/config + balls/tasks) + lifecycle seal targets; retire operating/",
   "type": "task",
-  "updated_at": "2026-06-07T08:28:48.524057726Z"
+  "updated_at": "2026-06-07T08:28:48.952266887Z"
 }
