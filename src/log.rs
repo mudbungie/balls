@@ -11,8 +11,11 @@
 //! The log is LOCAL runtime state — gitignored, never committed (like
 //! `binding.toml`), no rotation/retention (stale-but-harmless like an orphan
 //! worktree; the [`Level`] threshold limits volume instead). One object per line
-//! keeps concurrent appends from parallel agents atomic for sub-`PIPE_BUF`
-//! writes (`O_APPEND`); bounding a giant enveloped line is bl-e6a0.
+//! keeps concurrent appends from parallel agents atomic: every line is held at or
+//! below [`LINE_MAX`] (`PIPE_BUF`) bytes so a single `O_APPEND` write never
+//! interleaves with another agent's. The only unbounded field is the enveloped
+//! plugin-stderr `msg` (a stack trace, a long git error, a diff line); it is
+//! truncated with a [`TRUNC_MARKER`] so the whole record fits (§1, bl-e6a0).
 //!
 //! A single threshold ([`Log::record`]) gates BOTH file persistence and the
 //! terminal echo: a record below it is emitted nowhere. The threshold is the §4
@@ -28,6 +31,16 @@ use serde::Serialize;
 
 use crate::op::Phase;
 use crate::verb::Verb;
+
+/// The atomic-append bound: a single `write()` of at most this many bytes to a
+/// regular file is not interleaved with a concurrent append (POSIX `PIPE_BUF`,
+/// 4096 on Linux). Holding every log line at or below it is what makes the §1
+/// lock-free `O_APPEND` claim true under parallel agents.
+const LINE_MAX: usize = 4096;
+
+/// Appended to a `msg` truncated to honour [`LINE_MAX`] — marks the line lossy so
+/// a reader knows the plugin stderr (or core message) was longer.
+const TRUNC_MARKER: &str = "…[truncated]";
 
 /// The §4 severity ladder. Ordered `Debug < Info < Error` so a record is emitted
 /// iff its level is `>=` the configured threshold. Core lifecycle records and
@@ -106,20 +119,54 @@ impl Log {
         if lvl < self.threshold {
             return;
         }
-        let record = Record {
-            ts: (self.now)(),
-            lvl: lvl.token(),
-            src,
-            op: self.op.token(),
-            phase: phase.map(Phase::token),
-            msg,
-        };
-        let mut line = serde_json::to_string(&record).expect("a flat record serializes");
-        line.push('\n');
+        let line = self.line(lvl, src, phase, msg);
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&self.path) {
             let _ = file.write_all(line.as_bytes());
         }
         eprint!("{line}");
+    }
+
+    /// Serialize one record to its JSON line (newline-terminated), bounding the
+    /// whole line to [`LINE_MAX`] so the `O_APPEND` write stays atomic (§1). The
+    /// common path serializes once and returns; an oversized line (a long
+    /// enveloped plugin-stderr `msg`) re-serializes with `msg` truncated on a
+    /// `char` boundary plus a [`TRUNC_MARKER`], shrinking until it fits. Measuring
+    /// the real serialized length each step accounts for JSON escaping without
+    /// reimplementing serde's escape table (the single source of that truth).
+    fn line(&self, lvl: Level, src: &str, phase: Option<Phase>, msg: &str) -> String {
+        let ts = (self.now)();
+        let mk = |m: &str| {
+            let record = Record {
+                ts,
+                lvl: lvl.token(),
+                src,
+                op: self.op.token(),
+                phase: phase.map(Phase::token),
+                msg: m,
+            };
+            let mut line = serde_json::to_string(&record).expect("a flat record serializes");
+            line.push('\n');
+            line
+        };
+        let full = mk(msg);
+        if full.len() <= LINE_MAX {
+            return full;
+        }
+        // Oversized — a long enveloped plugin-stderr line. Shrink `msg` (the only
+        // unbounded field) until the whole line fits, stepping down by the real
+        // overflow and re-serializing each step so JSON escaping and `char`
+        // boundaries are honoured without reimplementing serde's escape table.
+        let mut keep = msg.len();
+        loop {
+            while keep > 0 && !msg.is_char_boundary(keep) {
+                keep -= 1;
+            }
+            let line = mk(&format!("{}{TRUNC_MARKER}", &msg[..keep]));
+            if line.len() <= LINE_MAX || keep == 0 {
+                return line;
+            }
+            keep = keep.saturating_sub(line.len() - LINE_MAX);
+        }
     }
 }
 
