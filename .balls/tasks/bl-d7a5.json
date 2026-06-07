@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "deferred",
   "synced_at": {"github-issues":"2026-06-07T08:14:13.208422902Z"},
   "tags": [],
   "title": "Topic: treat git log as content — recency-resolved id lookup; ready->list --ready; list history filters; show fallthrough",
   "type": "task",
-  "updated_at": "2026-06-07T08:14:13.208428062Z"
+  "updated_at": "2026-06-07T20:08:12.542641962Z"
 }
