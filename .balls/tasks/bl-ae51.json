@@ -1,0 +1,21 @@
+{
+  "branch": null,
+  "claimed_by": null,
+  "closed_at": null,
+  "closed_children": [],
+  "created_at": "2026-06-07T23:12:18.686646161Z",
+  "delivered_in": null,
+  "depends_on": [],
+  "description": "Code half of bl-934a (§11/§6/§9 spec, commit forthcoming).\n\n(1) Worktree-path field. The bl-delivery plugin gains claim.pre + unclaim.pre hooks:\n - claim.pre: compute worktree_path(binding, id, claimant) and write it into the staged\n   frontmatter under the plugin-namespaced preserved key 'delivery-worktree' (§3 seam),\n   so the seal captures it and 'bl show --json' surfaces it authoritatively.\n - unclaim.pre: clear that key, in lockstep with core clearing claimant.\n The field travels with claimant (present iff claimed); the plugin still RECOMPUTES the\n path for its own materialize/release/rollback and never READS the stored copy (stateless\n property preserved — the key is purely consumer-facing). claim.post still materializes +\n prints the path on stdout (the human hint) unchanged. Wire claim.pre/unclaim.pre =\n [bl-delivery] into the seed plugins.toml [hooks] table.\n\n(2) delivered_in recency-ordering. The derived 'git log --grep [bl-id]' integration-branch\n query (src/delivery.rs) must recency-order results: the k-th-most-recent dead incarnation\n (from balls/tasks history, §9) maps to the k-th-most-recent [bl-id] integration commit\n (deliveries are monotonic with incarnations — a reused id only begins after the prior one\n closed). Resolves the id-reuse cross-incarnation ambiguity bl-d7a5 deferred, WITHOUT a\n stored field. (NB: full benefit needs the §9 dead-ball recency walk in 'bl show', the\n pending bl-206c.)\n\nSpec: docs/architecture.md §11 (path-staging para + delivered_in recency note), §6 (hooks\ntable), §9 (claim/unclaim prose), §15 entry under bl-934a. 100% coverage + 300-line gates apply.",
+  "external": {},
+  "id": "bl-ae51",
+  "links": [],
+  "parent": "bl-72a8",
+  "priority": 3,
+  "repo": "git@github.com:mudbungie/balls.git",
+  "status": "open",
+  "tags": [],
+  "title": "Delivery plugin: stage worktree-path frontmatter key at claim.pre/clear at unclaim.pre; recency-order the delivered_in query (bl-934a impl)",
+  "type": "task",
+  "updated_at": "2026-06-07T23:12:18.686646161Z"
+}
