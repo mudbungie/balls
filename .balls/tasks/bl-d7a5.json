@@ -7,16 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Original design intent was heavier *implicit* use of the git log; the implementation drifted toward treating closed tasks as gone. Amendment: lean back in — treat the log as real, searchable content, always scanned MOST-RECENT-DOWN. Three concrete changes plus one unifying discipline:\n\n1. Remove 'bl ready' entirely; replace with 'bl list --ready'. One listing verb, composable filters, fewer verbs (subtraction). --ready filters to the ready() predicate (live + unclaimed + claim-blockers resolved, §10) and carries ready's ordering (priority asc, absent last, then created asc). prime's returned ready-set shape is unaffected (data, not verb).\n2. 'bl list' keeps defaulting to open (as today) but gains filters for reaching old/dead tasks: --closed / --all and date/range (and tag/text) filters, served from history. Closed tasks are not gone — they are older content.\n3. 'bl show <id>' falls through to history on a live miss: live tasks/<id>.md first, else walk history newest->oldest and reconstruct the first hit.\n\nUNIFYING DISCIPLINE — recency resolution. Every id->content lookup is: live file first, else most-recent-in-history, stop at first hit. This DISSOLVES the id-reuse-vs-history concern (was going to be a 'scan history to prevent reuse' ball — now unwanted): at most one incarnation is ever live (the filesystem guarantees it), and a reused id unambiguously means 'the current incarnation, or the most recent dead one.' The which-version problem is solved by construction; the 4-hex space stays fine; no widened ids, no extra collision check. Prevent-reuse was the wrong lever; recency-order resolution is the right one.\n\nSUBTLETY to nail (not a blocker): delivered_in (§11, 'git log --grep [bl-id]') must bound its walk at the CURRENT incarnation's creation commit (most-recent --diff-filter=A of tasks/<id>.md) so a reused-but-undelivered id can't match a prior incarnation's delivery commit. Same most-recent-down rule applied to the grep.\n\nTouches §2 (history-as-archive), §9 (read verbs), § id-generation (resolution discipline), §15 (revision-log entry). Design topic: attack before folding — keep open until it holds.",
-  "external": {"github-issues":{}},
+  "external": {"github-issues":{"issue":{"last_synced_status":"deferred","number":345,"source":"balls","state":"open","synced_at":"2026-06-07T20:08:13.202877563+00:00","url":"https://github.com/mudbungie/balls/issues/345"}}},
   "id": "bl-d7a5",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "deferred",
-  "synced_at": {"github-issues":"2026-06-07T08:14:13.208422902Z"},
+  "synced_at": {"github-issues":"2026-06-07T20:08:13.206268238Z"},
   "tags": [],
   "title": "Topic: treat git log as content — recency-resolved id lookup; ready->list --ready; list history filters; show fallthrough",
   "type": "task",
-  "updated_at": "2026-06-07T20:08:12.542641962Z"
+  "updated_at": "2026-06-07T20:08:13.206274370Z"
 }
