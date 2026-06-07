@@ -17,7 +17,9 @@
 "sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
 "prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
+"claim.pre"    = ["bl-delivery"]              # stage the worktree-path field before the seal (§11)
 "claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
+"unclaim.pre"  = ["bl-delivery"]              # clear the worktree-path field in lockstep (§11)
 "unclaim.post" = ["bl-delivery", "tracker"]
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
