@@ -155,7 +155,10 @@ balls/tasks    (the STORE — named by config.tasks_branch, shared, sync-transpo
   fixed point (the landing) plus the single pointer (to the store).
 
 No archive directory. Closed/dropped balls **delete** their `tasks/<id>.md`; history lives in
-`git log` (`git log --diff-filter=D -- tasks/<id>.md`; `bl show <id>` reconstructs from history).
+`git log` (`git log --diff-filter=D -- tasks/<id>.md`). The log is real, searchable CONTENT, always
+read most-recent-down: `bl show <id>` reconstructs a dead ball from history (§9), and `bl list
+--closed/--all` reaches the dead set the same way. Closed tasks are older content, not tombstones —
+the recency-resolution discipline (§ id generation) makes every id→content lookup one walk.
 
 ## §3 Task schema (one node type)
 
@@ -215,7 +218,7 @@ comments).
   transition matrix; `ready()` never reads it), making it indistinguishable from a single-valued tag
   — so it folds away. Non-deriving human intent (`deferred`, `icebox`, `triage`) is an ordinary `tag`
   (§3), not a status. `bl list`'s status column RENDERS the ladder; nothing writes it. **Two
-  projections, one source (bl-d074).** The DEFAULT human render (`bl show`/`list`/`ready`) freely
+  projections, one source (bl-d074).** The DEFAULT human render (`bl show`/`list`) freely
   paints DERIVED columns — the status ladder, the tree, ISO-8601 dates — none of them stored. `--json`
   is the orthogonal **bedrock** projection: the lossless mirror of stored frontmatter ONLY, never a
   derived field, so "show me what's actually there" stays uncontaminated and round-trip-safe. A machine
@@ -233,7 +236,7 @@ comments).
 - **`parent`** — containment/tree pointer only; scanned for display (`bl show` tree), never for
   enforcement. Arbitrary depth.
 - **`priority`** (optional int) — the one ordering input. Unlike `status` (folded because `ready()`
-  never reads it), priority has genuine core behavior: `bl ready` ORDERS the ready set by it, and no
+  never reads it), priority has genuine core behavior: `bl list` ORDERS the ready set by it, and no
   other field can derive an order — so it does NOT pass the "zero core behavior ⇒ fold" test and
   stays a core field. Lower = higher priority; **absent sorts LAST** (a no-priority ball is lower
   than any priority). Ordering is display-only — never part of the `ready()` predicate (§10).
@@ -303,7 +306,7 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   entry and NOT a "run-time default" carve-out: the seed is for capability *sets* (the plugin chain),
   the layer-4 serde fallback is exactly "for a field no layer set." Read order is the normal §4 stack,
   so `--log-level` (layer 1) overrides for one run. Default mapping: core narrates mutating-op
-  lifecycle at `info` and read-op narration (`show`/`list`/`ready`) at `debug`, so default-`info`
+  lifecycle at `info` and read-op narration (`show`/`list`) at `debug`, so default-`info`
   keeps read chatter out of the log; plugin-enveloped stderr is `info`.
 
 The id scheme is deliberately NOT a config field — it is fixed (§ id generation): a team wanting a
@@ -555,12 +558,31 @@ The canonical task-op sequence (verb-agnostic):
 Deliverable lifecycle verbs: **`create` (`bl new`), `claim`, `unclaim`, `update`, `close`, `drop`.**
 There is **no `review` verb** — see "close" below.
 
-Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `ready`,
-`dep tree`.** They author no ball-file diff; their whole contribution is what the hook
-chain prints (§7). `--json` on any read verb is the lossless **bedrock** projection — raw stored
-fields only, no derived value (the round-trippable "what's actually there", §3); the default human
-render is the orthogonal projection that carries the derived columns (the status ladder, the tree,
-ISO-8601 dates).
+Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep tree`.**
+(There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10.) They
+author no ball-file diff; their whole contribution is what the hook chain prints (§7). `--json` on any
+read verb is the lossless **bedrock** projection — raw stored fields only, no derived value (the
+round-trippable "what's actually there", §3); the default human render is the orthogonal projection
+that carries the derived columns (the status ladder, the tree, ISO-8601 dates).
+
+**`list`** is the SINGLE listing verb (the old `ready` folded in — fewer verbs, composable filters).
+It defaults to the live/open set (current `tasks/*.md`) and orders by `priority` ascending (absent
+last), then `created` ascending — the one ordering input (§3) drives every listing, so ready's
+ordering was never special. Filters COMPOSE (AND):
+- `--status ready|blocked|claimed` — the derived 3-state ladder (§3) as a predicate filter (a
+  space-separated value, not a bespoke boolean). `bl list --status ready` IS the old `bl ready`:
+  live + unclaimed + every claim-blocker resolved (§10), in the ordering above.
+- `--closed` / `--all` — reach DEAD balls. Closed/dropped balls are not gone, they are older content
+  (§2): they are reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down.
+  `--closed` = dead only; `--all` = live + dead.
+- date/range, `--tag`, and text filters — applied uniformly to the (possibly history-served) set;
+  date filters read the stored `created`/`updated` (and, for a dead ball, its deletion-commit date).
+
+**`show <id>`** resolves by RECENCY (the unifying discipline, § id generation): live `tasks/<id>.md`
+first; on a miss it walks `balls/tasks` history newest→oldest and reconstructs from the most recent
+commit whose tree still holds `tasks/<id>.md`, stopping at the FIRST hit (a dead ball renders with its
+retirement derived from the deletion's `bl-op:` trailer, §5). Closed tasks are searchable content, not
+tombstones — the same most-recent-down walk that `list --closed/--all` uses.
 
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`** (§13, §6).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
@@ -638,8 +660,9 @@ late-add gaps. Now every edge is explicit and says exactly what it gates.
 
 **ready(A)** = A is live (file exists — not closed/dropped) + unclaimed + every CLAIM-blocker
 resolved. ready(A) true is exactly the **ready** display state (§3); claimed and blocked are the
-other two. `bl ready` ORDERS the ready set by `priority` ascending (lower = higher; absent last),
-then `created` ascending — ordering is display-only, never part of the predicate (§3). (A gate child is a live child that does NOT affect readiness — it's a close-blocker, so it
+other two. `bl list` orders the ready set — and every listing — by `priority` ascending (lower =
+higher; absent last), then `created` ascending; ordering is display-only, never part of the predicate
+(§3). The old `bl ready` is now `bl list --status ready` (§9). (A gate child is a live child that does NOT affect readiness — it's a close-blocker, so it
 never shows as a status either.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker is closed OR dropped.
 
 **Deadlock avoidance is now structural-by-default.** Because no edge is ever auto-minted (containment
@@ -884,9 +907,18 @@ non-random strategy (timestamp/sequential/uuid) — is a `create/pre` plugin via
 reassign seam, so "custom generation" and "plugin-assigned id" are one seam. **Validation is
 string-safety**, not an arbitrary charset: `^[A-Za-z0-9][A-Za-z0-9_-]*$` (no `/`, no `.`, no
 whitespace/metacharacters, no leading `-`). The default alphabet is lowercase to sidestep
-case-insensitive-FS collisions. **Collision:** auto-gen → retry (bounded); plugin-assigned → abort
-(an explicit choice is authoritative). id is IMMUTABLE after create; reassignment is a create-only
-capability, so during claim/close it rides the wire with no skew.
+case-insensitive-FS collisions. **Collision** is checked against LIVE files only: auto-gen → retry
+(bounded); plugin-assigned → abort (an explicit choice is authoritative). A regenerated id that matches
+a DEAD (closed/dropped) incarnation is LEGAL — no history scan to prevent reuse. id is IMMUTABLE after
+create; reassignment is a create-only capability, so during claim/close it rides the wire with no skew.
+
+**Recency resolution (the unifying discipline).** Every id→content lookup is the same walk: live
+`tasks/<id>.md` first, else the most-recent-in-history incarnation, stop at the first hit (§2, §9 —
+`show` fallthrough, `list --closed/--all`). This DISSOLVES the id-reuse-vs-history concern: at most one
+incarnation is ever live (the filesystem guarantees it), so a reused id unambiguously means "the
+current incarnation, or — if none is live — the most recent dead one." The which-version problem is
+solved by construction; the 4-hex space stays fine, no widened ids, no extra collision check.
+Prevent-reuse was the wrong lever; recency-order resolution is the right one.
 
 ## §13 bl sync & bl prime
 
@@ -1082,6 +1114,23 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **git log as content — recency-resolved id lookup; `ready`→`list --status ready`; `list` history
+  filters; `show` fallthrough (2026-06-07, bl-d7a5 — post-freeze).** The build had drifted toward
+  treating closed tasks as gone; the design intent was heavier *implicit* use of the log. Three changes
+  under one discipline. (1) `bl ready` REMOVED — folded into `bl list --status ready`: one listing verb,
+  composable filters, fewer verbs (subtraction). `--status {ready|blocked|claimed}` filters the derived
+  3-state ladder (§3) the render already paints (a space-separated value, not a bespoke `--ready`
+  boolean); `bl list` orders every listing by `priority` then `created`, so ready's ordering was never
+  special. (2) `bl list` keeps defaulting to open but gains `--closed/--all` + date/`--tag`/text filters
+  served from history — dead balls are older content, not gone. (3) `bl show <id>` falls through to
+  history on a live miss, reconstructing the most recent incarnation. UNIFYING DISCIPLINE — **recency
+  resolution**: every id→content lookup is live-file-first, else most-recent-in-history, stop at first
+  hit. This DISSOLVES the id-reuse-vs-history concern (the planned "scan history to prevent reuse" ball
+  is unwanted — at most one incarnation is live, so a reused id is unambiguous by construction); the
+  4-hex space stays. The `delivered_in` cross-incarnation grep subtlety was struck as a conflation —
+  it greps the DELIVERY log, an extension's concern, moved to bl-934a. Touched §2, §3, §4, §9, §10,
+  § id generation. Code follow-ups (remove the `ready` verb, add `--status`/`--closed`/`--all` +
+  history reconstruction in `show`/`list`) filed under bl-72a8.
 - **recursion guard → general invocation-tree cap, fail+rollback (2026-06-07, bl-7110 — post-freeze).**
   §6 read: at the `BALLS_PLUGIN_DEPTH` cap "nested ops run PLUGIN-FREE (suppressed, not refused)" and "a
   plugin may deliberately re-enable plugins on a nested call." Two defects. (1) What the guard catches is
@@ -1109,7 +1158,7 @@ RESOLVED (folded into the body, no longer open):
   SUBTRACTION: the real gap was a *use-case conflation*, not a missing denormalization. `--json` exists
   to expose **bedrock** — the lossless, round-trippable mirror of stored state ("what's actually
   there") — so injecting a derived `status` into it defeats its one job. The two needs are two
-  orthogonal PROJECTIONS the verbs already embody: the DEFAULT human render (`bl show`/`list`/`ready`)
+  orthogonal PROJECTIONS the verbs already embody: the DEFAULT human render (`bl show`/`list`)
   paints derived columns (the status ladder, tree, ISO dates); `--json` stays bedrock. A machine
   integrator reads bedrock `--json` (`claimant` + `blockers`, already present) and runs the same ~6-line
   ladder core runs — so no stored field, no fan-out, no drift, no backfill, no plugin. The only residue
@@ -1288,7 +1337,7 @@ migration is NOT one script but **base-migrates-core PLUS each-plugin-migrates-i
   `priority`, `tags`; `description`→ the markdown body.
 - `depends_on: [id]` → `blockers: [{id, on: claim}]`.
 - `type: epic` → `tags += epic`; `status: deferred` → `tags += deferred` (§3 — both are tags;
-  expect deferred balls to surface in `bl ready`, which is intended, not a regression).
+  expect deferred balls to surface in `bl list --status ready`, which is intended, not a regression).
 - **epic reciprocal edge (a reconstruction, not a rename):** for each LIVE child, add
   `{child, on: claim}` to its parent's `blockers` (§10). Legacy stored only the child→parent pointer
   and derived the rest from `status`/`closed_children`. Greenfield `parent` is containment ONLY and
