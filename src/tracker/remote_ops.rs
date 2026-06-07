@@ -24,9 +24,13 @@ pub fn sync(b: &Binding) -> io::Result<()> {
     Ok(())
 }
 
-/// §12 `*/post`: publish the just-sealed balls branch to the remote. A rejected
-/// push means the remote moved under us — the non-zero exit aborts the op so it
-/// re-runs against a current clone (the pull → mutate → push contract).
+/// §12 `*/post`: publish the just-sealed balls branch to the remote — always to
+/// an ESTABLISHED store (founding is `prime`'s alone, §12). A rejected push
+/// (non-ff, perms revoked mid-life, a server-hook reject) means the mutation did
+/// NOT land while the caller believes it is federated, so the non-zero exit
+/// ABORTS the op (the pull → mutate → push contract) — it is NEVER silently
+/// degraded to stealth, which would be split-brain (contrast `prime`'s
+/// founding-miss fallback, where nothing existed to land on).
 pub fn push(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
