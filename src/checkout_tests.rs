@@ -94,8 +94,8 @@ fn a_named_sync_branch_overrides_the_config_tasks_branch_in_the_binding() {
     let (l, s) = (landing(&e), store(&e));
     // No target ⇒ the config-named store branch; a target ⇒ that branch, which
     // is the one datum the tracker fetches/ff's (§13 `bl sync <branch>`).
-    let (default_b, _) = bind(&e, &l, &s, None).unwrap();
-    let (named_b, _) = bind(&e, &l, &s, Some("federation/shared".into())).unwrap();
+    let (default_b, _) = bind(&e, &l, &s, None, None).unwrap();
+    let (named_b, _) = bind(&e, &l, &s, None, Some("federation/shared".into())).unwrap();
     assert_eq!(named_b.tasks_branch, "federation/shared");
     assert_ne!(default_b.tasks_branch, named_b.tasks_branch);
 }
@@ -105,8 +105,42 @@ fn prime_rejects_unknown_flags_and_a_missing_value() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     assert!(prime(&e, &argv(&["--bogus"])).is_err());
-    assert!(prime(&e, &argv(&["--center", "u"])).is_err()); // retired flag → unknown
     assert!(prime(&e, &argv(&["--as"])).is_err()); // flag with no value
+    assert!(prime(&e, &argv(&["--remote"])).is_err()); // override flag with no value
+    assert!(prime(&e, &argv(&["--center"])).is_err());
+}
+
+#[test]
+fn prime_accepts_the_remote_override_flags() {
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    // --remote and --center both name the store remote; the empty (tracker-free)
+    // chain ignores it, so this just proves they parse and resolve into the binding.
+    prime(&e, &argv(&["--remote", "git@hub:r"])).unwrap();
+    prime(&e, &argv(&["--center", "git@hub:c", "--remote", "git@hub:r"])).unwrap();
+}
+
+#[test]
+fn resolve_remote_prefers_cli_then_xdg_then_origin() {
+    let tmp = TempDir::new().unwrap();
+    let landing = tmp.path().join("landing");
+    std::fs::create_dir(&landing).unwrap();
+    crate::git::run(&landing, &["init", "-q"], None).unwrap();
+    crate::git::run(&landing, &["remote", "add", "origin", "git@hub:origin"], None).unwrap();
+    let xdg = tmp.path().join("config.toml");
+    std::fs::write(&xdg, "remote = \"git@hub:xdg\"\n").unwrap();
+
+    // CLI override beats everything.
+    assert_eq!(resolve_remote(Some("git@hub:cli".into()), &landing, &xdg).as_deref(), Some("git@hub:cli"));
+    // No CLI → XDG beats origin.
+    assert_eq!(resolve_remote(None, &landing, &xdg).as_deref(), Some("git@hub:xdg"));
+    // No CLI, no XDG file → fall through to origin.
+    let none = tmp.path().join("absent.toml");
+    assert_eq!(resolve_remote(None, &landing, &none).as_deref(), Some("git@hub:origin"));
+    // No CLI, no XDG, no origin → stealth (None).
+    let bare = tmp.path().join("not-a-repo");
+    std::fs::create_dir(&bare).unwrap();
+    assert_eq!(resolve_remote(None, &bare, &none), None);
 }
 
 #[test]

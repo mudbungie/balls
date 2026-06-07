@@ -48,6 +48,36 @@ pub fn empty_remote(tmp: &Path) -> PathBuf {
     remote
 }
 
+/// An empty bare remote whose `pre-receive` hook always fails — any push is
+/// rejected, while `ls-remote` still reports the (absent) branch. Models a box
+/// with no write access: prime founds-on-miss, the push is denied, and §12 says
+/// fall back to stealth-local silently.
+pub fn unpushable_remote(tmp: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let remote = empty_remote(tmp);
+    let hook = remote.join("hooks").join("pre-receive");
+    fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    remote
+}
+
+/// A bare remote carrying a `balls/config` landing branch whose `config/balls.toml`
+/// names `store_branch` as its `tasks_branch` — the input for the §12
+/// seeded-default-mismatch warning. Carries no `balls/tasks` store branch.
+pub fn remote_with_config(tmp: &Path, store_branch: &str) -> PathBuf {
+    let remote = empty_remote(tmp);
+    let seed = tmp.join(format!("{}-cfgseed", remote.file_name().unwrap().to_string_lossy()));
+    run(tmp, &["clone", "-q", &remote.to_string_lossy(), &seed.to_string_lossy()]);
+    identify(&seed);
+    run(&seed, &["checkout", "-q", "--orphan", crate::LANDING_BRANCH]);
+    fs::create_dir_all(seed.join("config")).unwrap();
+    fs::write(seed.join("config/balls.toml"), format!("tasks_branch = \"{store_branch}\"\n")).unwrap();
+    run(&seed, &["add", "-A"]);
+    run(&seed, &["commit", "-q", "-m", "config"]);
+    run(&seed, &["push", "-q", "origin", crate::LANDING_BRANCH]);
+    remote
+}
+
 /// A bare remote already carrying one commit on the `balls` branch — the
 /// established case (adopt / sync / push).
 pub fn remote_with_branch(tmp: &Path) -> PathBuf {
@@ -102,4 +132,10 @@ pub fn binding(remote: Option<&Path>, store: &Path) -> Binding {
         store: store.to_string_lossy().into_owned(),
         invocation_path: store.to_string_lossy().into_owned(),
     }
+}
+
+/// A [`Binding`] whose `tasks_branch` is the SEEDED DEFAULT (`balls/tasks`) — the
+/// precondition for the §12 store-elsewhere warning; otherwise like [`binding`].
+pub fn default_binding(remote: Option<&Path>, store: &Path) -> Binding {
+    Binding { tasks_branch: crate::DEFAULT_TASKS_BRANCH.to_string(), ..binding(remote, store) }
 }
