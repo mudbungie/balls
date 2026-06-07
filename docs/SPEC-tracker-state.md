@@ -195,8 +195,7 @@ These must remain valid for the life of the design. A change that breaks them is
 
 1. **Naming of `.balls/state-repo`.** It is accurate (a checkout of the tracker) but "state-repo" predates the "tracker" term. Reconsidered names — `.balls/tracker`, `.balls/state` — risk confusing the local checkout with the remote tracker. Left as `state-repo` pending a naming pass.
 2. **`require_remote_*` as project-settable.** §7 keeps them repo-owned. A federation may want to *mandate* synced closes rather than hope each repo opts in. Adding a project-level default (repo may tighten, not loosen) is additive and does not affect these invariants — defer to its own ball.
-3. **`bl doctor` drift checks.** `doctor` should detect a `.balls/state-repo` whose `origin` has drifted from `config.json`'s `state_url`, and a `project.json` symlink that does not resolve. Additive; specify in the doctor ball.
-4. **Tracker-branch history growth.** A long-lived multi-repo tracker accumulates state-branch history. No GC is specified; flag if checkout size becomes a problem.
+3. **Tracker-branch history growth.** A long-lived multi-repo tracker accumulates state-branch history. No GC is specified; flag if checkout size becomes a problem.
 
 ## 16. Conformance tests
 
