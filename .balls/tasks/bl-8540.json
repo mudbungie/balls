@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-8540",
+  "claimed_by": "Unlearn",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T19:32:58.258269334Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T19:32:58.953898307Z"},
   "tags": [],
   "title": "Spec §2/§4/§6: plugins.toml hook-list replaces the filesystem symlink registry",
   "type": "task",
-  "updated_at": "2026-06-07T19:32:58.953903607Z"
+  "updated_at": "2026-06-07T19:33:13.425426824Z"
 }
