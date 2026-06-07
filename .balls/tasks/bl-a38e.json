@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-a38e",
+  "claimed_by": "Shampoo",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T06:01:47.623625398Z",
@@ -13,10 +13,10 @@
   "parent": null,
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T19:52:44.399185433Z"},
   "tags": [],
   "title": "Remove bl doctor code (src/doctor.rs, delivery_doctor, wiring)",
   "type": "chore",
-  "updated_at": "2026-06-07T19:52:44.399188749Z"
+  "updated_at": "2026-06-07T20:10:43.350688476Z"
 }
