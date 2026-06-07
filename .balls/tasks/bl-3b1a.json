@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "bl create currently prints NOTHING on success — mutate::run seals and returns Ok(()), and lib::run() exits 0 silently. The skill/contract says 'bl create Prints the new task id to stdout', and callers want id=$(bl create ...); today the minted id is generated inside change::Create (mutate.rs base_change via IdScheme::generate) and never surfaced — only recoverable post-seal from the bl-id trailer or by diffing tasks/. bl-35f7 (main c6b9569) wired execution but deliberately scoped OUT output rendering.\n\nScope: after a successful seal, emit the result. For create, the new id to stdout (the one machine-relevant fact, scriptable). For the other mutating verbs (claim/unclaim/update/close/drop) a terse human confirmation suffices. The id is the POST-SEAL bl-id trailer (handles a create/pre id reassignment correctly): Engine::seal returns the sealed commit sha; parse the id from its message (message::parse -> bl-id), NOT the pre-seal IdScheme output. Keep stdout the SOLE machine channel — id alone on create so $(...) capture is clean; human confirmations to stderr or suppressible. A --json shape can fold in here or defer to the read-verb rendering ball bl-20fc (decide: shared renderer vs per-class).\n\nWhy it matters: without this, create is unusable in a script and gives a human no feedback. It is the missing half of dispatch — execution works, but the result is invisible. (Recreated from archived bl-9fc7, which was auto-deferred by the github-issues plugin after its GH issue vanished — a plugin-side bug, not a design hold.)",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":349,"source":"balls","state":"open","synced_at":"2026-06-07T20:13:28.955760677+00:00","url":"https://github.com/mudbungie/balls/issues/349"}}},
   "id": "bl-3b1a",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T20:13:28.958013230Z"},
   "tags": [],
   "title": "§9 create emits the minted id to stdout (+ verb result lines)",
   "type": "task",
-  "updated_at": "2026-06-07T20:13:27.934670993Z"
+  "updated_at": "2026-06-07T20:13:28.958017799Z"
 }
