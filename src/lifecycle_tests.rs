@@ -14,6 +14,15 @@ fn journal() -> Journal {
     Rc::new(RefCell::new(Vec::new()))
 }
 
+/// A throwaway log sink for the engine harness: an unwritable path (records are
+/// best-effort, so the open fails harmlessly) at the `Error` threshold so the
+/// info-level begin/seal records stay quiet — the call sites still execute, and
+/// `log_tests` covers the record internals. The engine's logging is tested as
+/// behaviour here only through it not perturbing the journaled op sequence.
+fn test_log() -> crate::log::Log {
+    crate::log::Log::new(Path::new("/nonexistent-balls-test/log").into(), crate::log::Level::Error, Verb::Close, || 0)
+}
+
 fn ioerr(what: &str) -> io::Error {
     io::Error::other(what.to_string())
 }
@@ -133,7 +142,7 @@ fn run_seal(
     let base = FakeBase { j: jrn.clone(), fail_stage, fail_finalize };
     let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
     let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
-    let result = Engine::new(&term, &plugins).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
+    let result = Engine::new(&term, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
     let log = jrn.borrow().clone();
     (result, log)
 }
@@ -224,7 +233,7 @@ fn the_seal_commits_the_finalized_5_message() {
     let jrn = journal();
     let term = FakeTerminus::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn, None);
-    Engine::new(&term, &plugins).seal(&MsgBase, Verb::Create, Path::new("/c"), &[], &[]).unwrap();
+    Engine::new(&term, &plugins, &test_log()).seal(&MsgBase, Verb::Create, Path::new("/c"), &[], &[]).unwrap();
     assert!(term.sealed_msg.borrow().as_deref().unwrap().contains("bl-id: bl-1234"));
 }
 
@@ -237,7 +246,7 @@ fn post_sees_the_sealed_commit_while_pre_sees_none() {
     let base = FakeBase { j: jrn, fail_stage: false, fail_finalize: false };
     let pre = [plugin("a")];
     let post = [plugin("b")];
-    Engine::new(&term, &plugins)
+    Engine::new(&term, &plugins, &test_log())
         .seal(&base, Verb::Close, Path::new("/c"), &pre, &post)
         .unwrap();
     assert_eq!(
@@ -256,7 +265,7 @@ fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
     let base = FakeBase { j: jrn, fail_stage: false, fail_finalize: false };
     let pre = [plugin("a")];
     let post = [plugin("c"), plugin("d")];
-    let _ = Engine::new(&term, &plugins).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
+    let _ = Engine::new(&term, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
     let seen = plugins.seen.borrow().clone();
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:c").unwrap().1, Some("C1".into()));
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, None);

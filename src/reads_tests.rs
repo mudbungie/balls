@@ -83,6 +83,7 @@ fn edge_with(tmp: &TempDir, tasks: &[(&str, Task)]) -> Edge {
         depth: 0,
         tracker_bin: None,
         color: false,
+        log_level: None,
     };
     let store = edge.xdg.clone_dir(&edge.invocation_path).store();
     for (id, t) in tasks {

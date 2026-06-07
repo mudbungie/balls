@@ -44,15 +44,26 @@ pub struct EffectiveConfig {
     /// it, so it cannot name where it lives).
     #[serde(default = "default_tasks_branch")]
     pub tasks_branch: String,
+
+    /// The §4 threshold for the unified op log (§1/§6), default `"info"` — a plain
+    /// serde-default scalar like `tasks_branch`. A run-time `--log-level` is the
+    /// layer-1 CLI override (it reads as [`crate::log::Level`]); this is the
+    /// persistent layers-2/3 value beneath it.
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
 }
 
 fn default_tasks_branch() -> String {
     DEFAULT_TASKS_BRANCH.to_string()
 }
 
+fn default_log_level() -> String {
+    "info".to_string()
+}
+
 impl Default for EffectiveConfig {
     fn default() -> EffectiveConfig {
-        EffectiveConfig { tasks_branch: default_tasks_branch() }
+        EffectiveConfig { tasks_branch: default_tasks_branch(), log_level: default_log_level() }
     }
 }
 

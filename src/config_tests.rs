@@ -44,6 +44,18 @@ fn the_landing_value_is_read() {
 }
 
 #[test]
+fn log_level_defaults_to_info_and_reads_from_a_layer() {
+    let tmp = TempDir::new().unwrap();
+    // Absent ⇒ the serde-default scalar.
+    let cfg = EffectiveConfig::resolve(&bare(&tmp, "none"), &bare(&tmp, "absent.toml")).unwrap();
+    assert_eq!(cfg.log_level, "info");
+    // Set on the landing ⇒ that value, like any §4 field.
+    let land = landing(&tmp, "noisy", "log_level = \"debug\"\n");
+    let cfg = EffectiveConfig::resolve(&land, &bare(&tmp, "absent.toml")).unwrap();
+    assert_eq!(cfg.log_level, "debug");
+}
+
+#[test]
 fn the_user_config_overrides_the_landing() {
     let tmp = TempDir::new().unwrap();
     let land = landing(&tmp, "landing", "tasks_branch = \"land\"\n");

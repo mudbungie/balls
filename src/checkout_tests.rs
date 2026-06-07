@@ -18,6 +18,7 @@ fn edge(tmp: &TempDir, tracker: Option<PathBuf>) -> Edge {
         depth: 0,
         tracker_bin: tracker,
         color: false,
+        log_level: None,
     }
 }
 

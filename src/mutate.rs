@@ -26,6 +26,7 @@ use crate::edge::Edge;
 use crate::git::Git;
 use crate::id::IdScheme;
 use crate::lifecycle::{BaseChange, Engine};
+use crate::log::{self, Level, Log};
 use crate::plugin::Subprocess;
 use crate::registry::Registry;
 use crate::task::{Blocker, On, Task};
@@ -48,6 +49,8 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
 
     let (base, before) = base_change(verb, &store, &flags, now())?;
     let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
+    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
+    let log = Log::new(clone.op_log(), level, verb, log::wall);
     let remote = checkout::origin_of(&landing);
     let binding = checkout::binding(&landing, &store, &edge.invocation_path, remote, cfg.tasks_branch);
     let ctx = OpContext {
@@ -62,9 +65,9 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let pre = reg.resolve(verb.token(), "pre")?;
     let post = reg.resolve(verb.token(), "post")?;
     let change_dir = clone.change(&change_token());
-    let plugins = Subprocess::new(ctx, &clone.root().join("logs"), edge.depth);
+    let plugins = Subprocess::new(ctx, &log, edge.depth);
     let terminus = Git::at(&store);
-    Engine::new(&terminus, &plugins)
+    Engine::new(&terminus, &plugins, &log)
         .seal(base.as_ref(), verb, &change_dir, &pre, &post)
         .map(|_sha| ())
         .map_err(|e| other(e.to_string()))

@@ -11,7 +11,7 @@
 //!     config/                                 #   the LANDING — balls/config checkout (§2)
 //!     tasks/                                  #   the STORE — tasks_branch checkout (§2)
 //!     changes/<uuid>/                         #   in-flight CHANGE worktrees (§8)
-//!     logs/<name>/plugin.log                  #   per-plugin diagnostics
+//!     log                                     #   the unified op log (JSON-lines, §6)
 //! ```
 //!
 //! No env reads here: the binary edge resolves `HOME` and the XDG variables
@@ -130,10 +130,12 @@ impl CloneDir {
         self.root.join("changes").join(uuid)
     }
 
-    /// `logs/<name>/plugin.log` — a plugin's captured stderr (suggested; §1).
+    /// `log` — the unified per-clone op log (§1/§6): JSON-lines, balls-owned, the
+    /// single sink for core lifecycle records and enveloped plugin stderr. Local
+    /// runtime state, gitignored, never committed (like [`Self::binding`]).
     #[must_use]
-    pub fn log(&self, plugin: &str) -> PathBuf {
-        self.root.join("logs").join(plugin).join("plugin.log")
+    pub fn op_log(&self) -> PathBuf {
+        self.root.join("log")
     }
 }
 
@@ -187,6 +189,6 @@ mod tests {
         assert_eq!(c.landing(), root.join("config"));
         assert_eq!(c.store(), root.join("tasks"));
         assert_eq!(c.change("abc-123"), root.join("changes/abc-123"));
-        assert_eq!(c.log("tracker"), root.join("logs/tracker/plugin.log"));
+        assert_eq!(c.op_log(), root.join("log"));
     }
 }

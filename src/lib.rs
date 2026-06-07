@@ -103,6 +103,7 @@ pub mod id;
 pub mod install;
 pub mod layout;
 pub mod lifecycle;
+pub mod log;
 pub mod message;
 pub mod mutate;
 pub mod op;
@@ -139,16 +140,29 @@ pub const DEFAULT_TASKS_BRANCH: &str = "balls/tasks";
 ///
 /// Returns the process exit code: `0` on success, `1` on an op failure (a plugin
 /// aborted, a bad flag), `2` for an unknown or missing verb (usage convention).
+///
+/// `--log-level LEVEL` is the §4 layer-1 CLI override (the only global flag): it
+/// is stripped here from anywhere in argv and stamped onto the [`Edge`] the op
+/// reads, so the per-verb parsers never see it. A trailing `--log-level` with no
+/// value is a usage error (exit 2).
 pub fn run(edge: &Edge, args: &[String]) -> i32 {
-    let Some(verb) = args.first().map(String::as_str).and_then(Verb::parse) else {
+    let (log_level, rest) = match strip_log_level(args) {
+        Ok(split) => split,
+        Err(e) => {
+            eprintln!("bl: {e}");
+            return 2;
+        }
+    };
+    let edge = &Edge { log_level, ..edge.clone() };
+    let Some(verb) = rest.first().map(String::as_str).and_then(Verb::parse) else {
         eprintln!("usage: bl <verb>");
         return 2;
     };
     let result = match verb {
-        Verb::Prime => checkout::prime(edge, &args[1..]),
-        Verb::Sync => checkout::sync(edge, &args[1..]),
-        Verb::Show | Verb::List | Verb::Ready | Verb::DepTree => reads::run(edge, verb, &args[1..]),
-        v if v.class() == OpClass::Mutating => mutate::run(edge, v, &args[1..]),
+        Verb::Prime => checkout::prime(edge, &rest[1..]),
+        Verb::Sync => checkout::sync(edge, &rest[1..]),
+        Verb::Show | Verb::List | Verb::Ready | Verb::DepTree => reads::run(edge, verb, &rest[1..]),
+        v if v.class() == OpClass::Mutating => mutate::run(edge, v, &rest[1..]),
         other => {
             println!("{}", Op::new(other).plan());
             Ok(())
@@ -161,6 +175,25 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             1
         }
     }
+}
+
+/// Pull the global `--log-level LEVEL` flag out of argv (from any position),
+/// returning the requested level and argv with the flag removed. A `--log-level`
+/// with no following value is a usage error.
+fn strip_log_level(args: &[String]) -> Result<(Option<String>, Vec<String>), String> {
+    let mut level = None;
+    let mut rest = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--log-level" {
+            i += 1;
+            level = Some(args.get(i).ok_or("--log-level needs a value")?.clone());
+        } else {
+            rest.push(args[i].clone());
+        }
+        i += 1;
+    }
+    Ok((level, rest))
 }
 
 #[cfg(test)]

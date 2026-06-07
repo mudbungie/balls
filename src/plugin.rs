@@ -3,15 +3,20 @@
 //! A plugin is a single binary, invoked identically whether it is one of the
 //! shipped capabilities or a third party: there is no in-process path and no
 //! privileged plugin. balls spawns `<bin> <op> <phase>` with the §7 payload on
-//! stdin and the §6 env set, captures stderr to `logs/<name>/`, and reads
-//! NOTHING back — a plugin contributes by editing the change worktree, never by
-//! printing values (§7, no return channel). A non-zero exit aborts the op; the
+//! stdin and the §6 env set, and reads NOTHING back — a plugin contributes by
+//! editing the change worktree, never by printing values (§7, no return
+//! channel). The plugin stays DUMB about diagnostics too: it writes raw stderr
+//! and is told nothing about where it lands (no `BALLS_LOG_DIR` — a new env is a
+//! §0 smell); balls pipes the child's stderr and ENVELOPES each line as a record
+//! into the unified op log (`src=<name>`, `lvl=info`). A non-zero exit aborts the
+//! op — core emits an `error` record naming the locus first — and the
 //! [`crate::lifecycle`] engine then rolls the prior plugins back in reverse.
 //!
 //! [`Subprocess`] is the production [`Plugins`] seam. It is built once per op
 //! with the op-constant [`OpContext`] (the §7 wire data the verb layer authored),
-//! the checkout's `logs/` root, and the recursion `depth` balls is running at.
-//! The engine hands it the per-phase post-seal [`Sealed`] facts.
+//! the op's [`Log`] sink (it logs each `invoke` and envelopes plugin stderr), and
+//! the recursion `depth` balls is running at. The engine hands it the per-phase
+//! post-seal [`Sealed`] facts.
 //!
 //! **Recursion guard (§6).** A plugin may shell back to `bl`; every nested call
 //! bumps `BALLS_PLUGIN_DEPTH`. Once balls is itself running at [`DEPTH_CAP`] it
@@ -19,14 +24,14 @@
 //! cascade without bound. A plugin that wants nested plugins re-enables them on
 //! its own nested call.
 
-use std::fs;
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::io::{self, BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use serde::Deserialize;
 
 use crate::lifecycle::{Plugins, Sealed};
+use crate::log::{Level, Log};
 use crate::message::{self, PROTOCOL};
 use crate::op::Phase;
 use crate::registry::PluginRef;
@@ -114,20 +119,22 @@ pub fn describe(bin: &Path) -> io::Result<Protocol> {
 }
 
 /// The production [`Plugins`] seam: spawns each plugin as a subprocess with the
-/// §7 wire on stdin (§6).
-pub struct Subprocess {
+/// §7 wire on stdin (§6). Borrows the op's [`Log`] for the run's lifetime — it
+/// shares the one per-clone sink with core's own lifecycle records.
+pub struct Subprocess<'a> {
     ctx: OpContext,
-    logs: PathBuf,
+    log: &'a Log,
     depth: u32,
 }
 
-impl Subprocess {
-    /// Build the dispatcher for one op: the §7 op-constant `ctx`, the checkout's
-    /// `logs` root, and the recursion `depth` balls is running at (read from
-    /// `BALLS_PLUGIN_DEPTH` by the binary edge; `0` at the top level).
+impl<'a> Subprocess<'a> {
+    /// Build the dispatcher for one op: the §7 op-constant `ctx`, the op's `log`
+    /// sink (shared with core's lifecycle records), and the recursion `depth`
+    /// balls is running at (read from `BALLS_PLUGIN_DEPTH` by the binary edge; `0`
+    /// at the top level).
     #[must_use]
-    pub fn new(ctx: OpContext, logs: &Path, depth: u32) -> Self {
-        Self { ctx, logs: logs.to_path_buf(), depth }
+    pub fn new(ctx: OpContext, log: &'a Log, depth: u32) -> Self {
+        Self { ctx, log, depth }
     }
 
     /// At the cap, the whole op runs plugin-free (§6) — `run`/`rollback` no-op.
@@ -168,9 +175,11 @@ impl Subprocess {
         self.spawn(bin, &plugin.name, op, phase, dir, &json)
     }
 
-    /// Spawn `<bin> <op> <phase>`: cwd `dir`, §6 env, `payload` on stdin, stderr
-    /// to `logs/<name>/`, stdout discarded (no return channel, §7). A non-zero
-    /// exit is an [`io::Error`].
+    /// Spawn `<bin> <op> <phase>`: cwd `dir`, §6 env, `payload` on stdin, stdout
+    /// discarded (no return channel, §7), stderr PIPED and enveloped into the
+    /// unified log line-by-line (`src=<name>`, `lvl=info`). Core logs an `invoke`
+    /// record first. A non-zero exit yields an `error` record (the failure locus,
+    /// surviving any threshold — §6) and an [`io::Error`] that aborts the op.
     fn spawn(
         &self,
         bin: &Path,
@@ -180,6 +189,7 @@ impl Subprocess {
         dir: &Path,
         payload: &str,
     ) -> io::Result<()> {
+        self.log.record(Level::Info, "core", Some(phase), &format!("invoke {name}"));
         let depth = (self.depth + 1).to_string();
         let mut child = retry_busy(|| {
             Command::new(bin)
@@ -191,30 +201,32 @@ impl Subprocess {
                 .env("BALLS_PLUGIN_DEPTH", &depth)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::null())
-                .stderr(self.open_log(name, op, phase)?)
+                .stderr(Stdio::piped())
                 .spawn()
         })?;
         child.stdin.take().expect("stdin was configured as a pipe").write_all(payload.as_bytes())?;
+        self.relay(name, phase, child.stderr.take().expect("stderr was configured as a pipe"));
         let status = child.wait()?;
         if status.success() {
             Ok(())
         } else {
+            self.log.record(Level::Error, "core", Some(phase), &format!("plugin {name} aborted the op ({status})"));
             Err(io::Error::other(format!("plugin {name} aborted the op ({status})")))
         }
     }
 
-    /// Open the append-mode `logs/<name>/<op>-<phase>.log` sink for stderr (§6).
-    fn open_log(&self, name: &str, op: Verb, phase: Phase) -> io::Result<fs::File> {
-        let dir = self.logs.join(name);
-        fs::create_dir_all(&dir)?;
-        fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(dir.join(format!("{}-{}.log", op.token(), phase.token())))
+    /// Envelope a plugin's piped stderr into the unified log, one record per line
+    /// (`src=<name>`, `lvl=info`). The final non-newline-terminated blob, if any,
+    /// is read to EOF as one line ([`BufRead::lines`] yields it). A read error
+    /// just ends the relay — logging is best-effort and must not abort the op.
+    fn relay(&self, name: &str, phase: Phase, stderr: std::process::ChildStderr) {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            self.log.record(Level::Info, name, Some(phase), &line);
+        }
     }
 }
 
-impl Plugins for Subprocess {
+impl Plugins for Subprocess<'_> {
     fn run(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path, sealed: Option<&Sealed>) -> io::Result<()> {
         if self.suppressed() {
             return Ok(());
