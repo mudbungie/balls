@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-2962",
+  "claimed_by": "Tremulous",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T22:59:16.816214304Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T22:59:17.518186069Z"},
   "tags": [],
   "title": "Rename §8 git-seal vocab: Terminus trait / operating path off the retired discovery words",
   "type": "task",
-  "updated_at": "2026-06-07T22:59:17.518194445Z"
+  "updated_at": "2026-06-07T23:15:08.657628691Z"
 }
