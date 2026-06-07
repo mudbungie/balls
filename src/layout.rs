@@ -52,6 +52,15 @@ impl Xdg {
         self.config_home.join("balls").join("config.toml")
     }
 
+    /// `$XDG_CONFIG_HOME/balls/default-config/` — the seed source `bl prime`
+    /// copies into a fresh landing (§1/§12). Present = an org/user override;
+    /// absent = the embedded default is written here on first prime
+    /// ([`crate::seed`]).
+    #[must_use]
+    pub fn default_config(&self) -> PathBuf {
+        self.config_home.join("balls").join("default-config")
+    }
+
     /// `$XDG_STATE_HOME/balls/` — the single state root for every clone and
     /// plugin on this host.
     #[must_use]
