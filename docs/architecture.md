@@ -55,13 +55,13 @@ open close-blocker (`!closeable()`, §10), all reading structured fields. balls 
 PRIMITIVES (occupancy + blockers), not a workflow; users, agents, and plugins compose them into
 whatever process they want — "review before close," sign-offs, build gates are emergent (a gate
 child plus a tag), never core rules. Destination semantics, not source.
-- **Plugins are a sequence of binaries.** Invoked blocking, in order, run-parts style, per op-phase.
-  Non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol.
+- **Plugins are a sequence of binaries.** Invoked blocking, in the order the hook list gives, per
+  op-phase. Non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol.
 - **Core knows two things about a plugin:** its name and its binary path. It never reads a plugin's
   config. Plugins coordinate only through core schema (task fields), never by sniffing each other.
 - **LOCAL config is the sole authority — never a remote.** Core decides what runs and where it syncs
-  from local config only: the landing's `config/balls.toml` (`tasks_branch` + the plugin registry,
-  §4), with the per-machine XDG layer and CLI flags as local-trusted overrides (§4 read order). The
+  from local config only: the landing's `config/balls.toml` (`tasks_branch`) + `config/plugins.toml`
+  (the hook list, §4), with the per-machine XDG layer and CLI flags as local-trusted overrides (§4 read order). The
   landing is the durable, committed home of that authority; XDG and flags are your own machine, not a
   remote input. It changes only by user command (`install`, §6, or a direct landing/XDG edit) — never
   by automatic discovery. **All config is treated as potential RCE** and crosses into a landing only by
@@ -132,8 +132,8 @@ State rides TWO branches, each one job, each its own transport discipline (§0/�
 ```
 balls/config   (the LANDING — path-derived, single-owner, install-transport)
   config/balls.toml                      # balls config (§4), incl. tasks_branch
+  config/plugins.toml                    # the hook schedule (§4/§6): [hooks] <op>.<phase> = ordered name list
   config/plugins/<name>/...              # each plugin's config; balls never reads it
-  config/plugins/<op>/<phase>/NN-<name>  # the plugin registry: relative symlinks (§6)
   config/plugins/bin/<name>              # local, gitignored: absolute symlink to this box's binary
 
 balls/tasks    (the STORE — named by config.tasks_branch, shared, sync-transport)
@@ -270,8 +270,9 @@ silently redirect where you write — config is not as inert as "data, not code"
 
 **Merge semantics:** scalar/object fields — innermost layer fully replaces outer. List fields —
 bare `<field>` = full replacement; compose with `<field>_prepend` / `<field>_append` / `<field>_ban`.
-The run-parts `config/plugins/<op>/<phase>/` dirs are landing-local, populated by `bl install` (§6) —
-never inherited. Empty dir = run nothing.
+The `[hooks]` lists in `config/plugins.toml` (§6) ARE list fields, layered the same way — a landing's
+schedule composes with an XDG `_prepend`/`_append`/`_ban`, and `bl install` copies the file like any
+other config (never inherited down a trail — there is none, §12). An absent/empty hook list = run nothing.
 
 **The landing is single-owner — and balls cannot publish it.** Config's transport is a path-copy
 mirror (§6 install), which has NO cross-writer merge, so two writers to one config branch clobber.
@@ -305,8 +306,10 @@ list, no per-op state-target knob.** There is no `state` field for them to confi
 is derived from `claimant`/`blockers`/file-existence, and human intent is a `tag`. The whole cluster
 was rejected as the §0 "new field is a smell": claim writes no status, so there is no target to seed
 or override; a team wanting an ordered pipeline opts in outside core (an unknown `state:` key + a
-display plugin, §3). There is likewise **no `plugins` config list** — the filesystem symlink registry
-(§6) IS the plugin chain.
+display plugin, §3). The plugin chain, by contrast, **IS a config list** — `config/plugins.toml`'s
+`[hooks]` table (§6), layered like every other field (§4). The filesystem holds only the local,
+gitignored `bin/<name>` binary symlinks; the *schedule* — which plugin runs in which op-phase, in what
+order — is config, not a directory tree (a list is sortable; a directory needs `NN-` prefixes to fake it).
 
 ## §5 Commit-message protocol
 
@@ -374,31 +377,50 @@ plugin <name> <op> <phase>` is the canonical dispatch and balls dogfoods it.
 **Metrics are a query, not core state.** balls stores and emits no metrics: the unified `log` (§1) is
 the event stream — every op/phase/plugin record is timestamped — and the §5 commit trailers are the
 durable history. Counters/timing compose over those by `jq`/parse, or a `*.post` plugin observes the
-lifecycle and writes to its own territory. There is no metric seam to add: the registry + this
+lifecycle and writes to its own territory. There is no metric seam to add: the hook list + this
 dispatch + the §7 payload IS the subscription, and a plugin times an op by stamping its own clock
 across the `pre`/`post` it already runs. No core storage, ever.
 
-**The registry is the filesystem.** Symlinks under `config/plugins/<op>/<phase>/` on the landing
-(§2) are the single source of truth for wiring: symlink present = run this plugin in this
-op-phase; numeric prefix `NN-` = run order. Two-level stitch for portability:
-- COMMITTED (travels with the branch): `<op>/<phase>/NN-<name>` is a RELATIVE symlink → `../bin/<name>`.
-  Relative + internal to the checkout, so it is valid in both stealth and federation regardless of
-  where the checkout physically sits.
+**The hook list is config.** `config/plugins.toml`'s `[hooks]` table on the landing (§2) is the single
+source of truth for wiring: a `<op>.<phase>` key maps to an ORDERED LIST of plugin names — listed = run
+this plugin in this op-phase; **list position = run order** (the last name runs last). An absent key or
+empty list = run nothing (the general path with no entries, not a special case). It is layered + merged
+exactly like the rest of config (§4) — a center's schedule composes with an XDG `_prepend`/`_append`/
+`_ban` and travels by `bl install` — so there is NO parallel filesystem-registry mechanism; ordering is
+a list property, not an `NN-` filename convention faking one.
+
+```toml
+[hooks]
+"sync.pre"     = ["tracker"]                  # import remote state first
+"prime.pre"    = ["tracker"]
+"prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
+"claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
+"unclaim.post" = ["bl-delivery", "tracker"]
+"close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
+"close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
+"drop.post"    = ["bl-delivery", "tracker"]
+"create.post"  = ["tracker"]
+"update.post"  = ["tracker"]
+```
+
+Schedule (committed text) and binary (local symlink) split cleanly:
+- COMMITTED (travels with the branch / `bl install`): the `[hooks]` list names plugins by NAME — pure
+  text, portable verbatim, valid in stealth and federation regardless of where the checkout sits.
 - LOCAL (never committed, gitignored): `config/plugins/bin/<name>` is an ABSOLUTE symlink → this
-  machine's binary. A dangling `bin/<name>` = a clean "plugin referenced but not installed here"
-  error.
+  machine's binary. Installing a plugin drops this symlink; dispatch resolves a hooked NAME to it. A
+  dangling/absent `bin/<name>` = a clean "plugin referenced but not installed here" error.
 
 **`bl install` — copy a committed path between branches.** `bl install <path> --from <ref> --to <ref>`
 makes `<ref-to>/<path>` byte-identical to `<ref-from>/<path>`, touching NOTHING outside `<path>`,
 committed atomically to `--to`. Defaults: `--to` the landing, `--from` the configured upstream; **bare
-`bl install` (no path) = `config/` EXCLUDING `tasks/`** (the recommended bundle — config + plugin
-wiring, never the store). `<ref>` is any synced repo/branch. There is **no object enum and no
+`bl install` (no path) = `config/` EXCLUDING `tasks/`** (the recommended bundle — `balls.toml` +
+`plugins.toml` + plugin config, never the store). `<ref>` is any synced repo/branch. There is **no object enum and no
 merge-vs-replace logic** — install is path-copy, and the path's *shape* decides the semantics:
 
 - **Folder path = MIRROR (deletions propagate).** `bl install tasks` makes the destination's `tasks/`
   identical to the source's — entries the source lacks are REMOVED (wipe-and-replace, rsync-`--delete`,
-  NOT `cp` semantics). `install config` / `install plugins` / `install plugins/tracker` each replace
-  exactly that subtree. This is how a close/drop (a file deletion) PROPAGATES through `install tasks` —
+  NOT `cp` semantics). `install config` / `install plugins.toml` / `install plugins/<name>` each
+  replace exactly that subtree or file. This is how a close/drop (a file deletion) PROPAGATES through `install tasks` —
   the resurrection problem is dissolved by addressing, no tombstone mechanism needed.
 - **File / glob path = UNION (additive, source-wins on overlap).** `bl install tasks/*` copies each
   source file in and leaves the destination's other files alone; `bl install tasks/bl-1234.md` ports
@@ -428,10 +450,10 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
 - **Recursion guard:** `BALLS_PLUGIN_DEPTH` (built-in cap). At the cap, nested ops run PLUGIN-FREE
   (suppressed, not refused) — a plugin can always shell back to `bl` without cascading chains. A
   plugin may deliberately re-enable plugins on a nested call.
-- **Snapshot:** an op reads the committed `<op>/<phase>/` set at op-start and uses that frozen set;
+- **Snapshot:** an op reads the effective `[hooks]` schedule at op-start and uses that frozen set;
   an install landing mid-op affects only the next op.
-- **Reads are not special-cased.** Every op (incl. `show`/`list`) has hook dirs; reads stay
-  plugin-free in PRACTICE only because nothing is linked into them by default.
+- **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key; reads stay
+  plugin-free in PRACTICE only because nothing is listed for them by default.
 
 ## §7 Plugin wire payloads
 
@@ -439,7 +461,7 @@ Plugins get meaning directly on the wire — content + intent, not hashes to rev
 **There is no return channel:** a plugin contributes by EDITING THE CHANGE WORKTREE (the ball file,
 frontmatter, a `git mv`), never by printing values for balls to merge. stdout is diagnostics. Two
 plugins writing the same field is two filesystem writes — last writer wins, where "last" is the
-run-parts `NN-` order; balls neither arbitrates nor tracks ownership.
+hook-list order; balls neither arbitrates nor tracks ownership.
 
 **pre payload (stdin):** `protocol`, `op`/`phase`, `plugin_name`, `actor`, `binding`
 (`{ remote, tasks_branch, store, landing, invocation_path }` — `store`/`landing` are the two checkout
@@ -474,7 +496,7 @@ the five verbs — they differ only in which fields the base change stages.
   task-shaped wire fields (`current_state`, `field_changes`). Symmetric in skeleton, different in
   target and mechanics.
 - **`sync` / `prime`** (§13) author NO diff at all, so there is no change worktree and
-  no core seal. They inherit only what generalizes — the `pre`→`post` hook spine in `NN-` order,
+  no core seal. They inherit only what generalizes — the `pre`→`post` hook spine in hook-list order,
   reverse-order rollback, and the §7 wire minus its task fields — and do their own work where the seal
   would be: `sync`'s integration is the tracker's fetch+ff, owned by a PLUGIN not core (remote-talk is
   plugin-exclusive, §0/§13); `prime` orchestrates syncs + substrate.
@@ -488,14 +510,14 @@ The canonical task-op sequence (verb-agnostic):
    default-generated id; claim stages `claimant`). balls goes first; plugins extend/override.
    (For `prime`'s bootstrap-on-miss it makes the landing repo instead — the substrate-creation phase;
    `prime` is a normal op, not a dispatch exception.)
-2. **pre modifiers run in `NN-` order** — the §7 wire (current state + intent). They edit the shared
+2. **pre modifiers run in hook-list order** — the §7 wire (current state + intent). They edit the shared
    worktree (rename the ball file to reassign an id, edit frontmatter) or REJECT. They see each
    other's cumulative FILE state, never each other's commits (§7) — there are no intermediate commits.
 3. **balls SEALS — commit + integrate, atomically** — validate, commit the worktree with the §5
    trailer (re-reading the tree to learn the final id/state), and integrate it onto its target branch
    (the STORE for task ops, the landing for `config`/`install`) as ONE act. *This is the pre/post
    boundary; after it the record is durably on that branch.*
-4. **post reactors run in `NN-` order** — the §7 wire with the sealed `bl-id`/state. They act on the
+4. **post reactors run in hook-list order** — the §7 wire with the sealed `bl-id`/state. They act on the
    landed record (tracker pushes the store; the delivery plugin acts on the project repo) but DO NOT edit
    the ball — anything that had to live on the ball was written in pre; post-only values are DERIVED,
    never written back (§11 `delivered_in`). The outermost irreversible effect (the push) sorts LAST.
@@ -528,7 +550,7 @@ and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p
 blocker; no status field is written, §3). A `create/pre`
 plugin may reject or *reassign*
 the id by `git mv`-ing the single staged `tasks/*.md` (it discovers the current name by reading
-that file, never hardcoding — so reassigns compose under `NN-` order). balls validates (exactly one
+that file, never hardcoding — so reassigns compose under hook-list order). balls validates (exactly one
 new `tasks/*.md`; regex-valid; no collision) and commits.
 
 **`claim`** (acquire occupancy; core's guards refuse a ball whose `claimant` is already set, or whose claim-blockers are unresolved — `!ready()`, §10): stage `claimant`, bump `updated` — the ONLY field it writes. There is no status to set:
@@ -799,8 +821,8 @@ down the trail" is RETIRED: there is no trail, and a center's config reaches you
 install-only/consented; now config VALUES are too — one uniform rule, *nothing crosses a checkout
 boundary except by `install` (config) or `sync` (the store)*, replacing the old asymmetry where
 values silently shadowed but executables didn't. A center is the source of truth for the RECOMMENDED
-config + plugin set; the committed relative symlink travels on install, the local `bin/<name>` never
-does, so a center can never make your box run a binary you didn't opt into.
+config + plugin set; the committed `plugins.toml` schedule travels on install, the local `bin/<name>`
+never does, so a center can never make your box run a binary you didn't opt into.
 
 **Sync is two-tier (bl-62bc revised; verb mechanics → §13).**
 - **The store** (`tasks_branch`) syncs **every op, default ON** — you push mutations (claim/close) to
@@ -842,8 +864,8 @@ capability, so during claim/close it rides the wire with no skew.
 
 ## §13 bl sync & bl prime
 
-`sync` and `prime` are ordinary ops (§8) — each with `sync/pre|post` and `prime/pre|post` run-parts
-dirs, every linked plugin invoked in `NN-` order, failure → reverse-order rollback. They author NO
+`sync` and `prime` are ordinary ops (§8) — each with `sync.pre|post` and `prime.pre|post` hook keys,
+every listed plugin invoked in list order, failure → reverse-order rollback. They author NO
 ball-file diff, so there is **no change worktree** — plugins run with cwd = the store checkout
 (`tasks/`) and act on the filesystem there (§7), never through a return channel. Core commits nothing
 of its own; the only state that moves is remote-authored commits a plugin imports, or external/derived
@@ -1008,7 +1030,7 @@ reactor ever needs a return channel. This is why two hooks suffice and post stay
   prior op that already SUCCEEDED, so a rolled-back op leaves prior-op scratch intact for a retry.
 
 **Un-undoable side-effects sort LAST.** A plugin with a tier-3 (or otherwise irreversible) side-effect
-takes the highest `NN-` prefix in its phase, so nothing runs after it — making its rollback the RARE
+is placed LAST in its phase's hook list, so nothing runs after it — making its rollback the RARE
 path (rollback fires only when a LATER plugin fails). A CONTRACT RECOMMENDATION, not enforced (core
 reads no plugin semantics, §0). In a close the only irreversible action is the tracker's final push,
 so it sorts last; delivery `close.post` teardown removes the worktree DIRECTORY (re-creatable from the
@@ -1034,6 +1056,35 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **plugin schedule is config, not the filesystem (2026-06-07, bl-8540 — post-freeze).** FLIPS the §4
+  line "There is likewise no `plugins` config list — the filesystem symlink registry (§6) IS the plugin
+  chain" 180°. The trigger: the symlink registry (`config/plugins/<op>/<phase>/NN-<name>` →
+  `../bin/<name>`) was a SECOND config mechanism running parallel to §4's `balls.toml` layering, and it
+  had reinvented an ordered list badly — run order encoded as a `NN-` string-prefix on filenames, the
+  sysvinit/`/etc/rc.d` tic. But §4 ALREADY has ordered lists with merge directives (`compose_list` /
+  `_prepend`/`_append`/`_ban`, built + tested in `config.rs`). RESOLUTION by SUBTRACTION:
+  (1) the HOOK SCHEDULE moves into a committed, §4-layered `config/plugins.toml` — a `[hooks]` table
+  mapping `<op>.<phase>` → an ORDERED LIST of plugin names; **list position = run order** (the last
+  name runs last, so the §8/§14 "irreversible push sorts LAST" is just "tracker is last in the list").
+  An absent/empty list = run nothing. It layers + merges exactly like every other config field, so a
+  center's schedule composes with an XDG `_prepend`/`_append`/`_ban` and travels by `bl install` — ONE
+  layering mechanism, not two.
+  (2) the BIN folder is UNCHANGED — `config/plugins/bin/<name>` machine-local gitignored symlinks;
+  install drops a symlink, dispatch resolves a hooked NAME to it, a dangling `bin/<name>` is the same
+  clean "referenced but not installed here" error. Schedule (committed text) and binary (local symlink)
+  now split on file-vs-symlink instead of two symlink levels.
+  (3) `install`'s plugin-wiring-mirror collapses — `install plugins.toml` is an ordinary config copy;
+  no symlink-tree walk, no `Object::Plugins` special path beyond binding+protocol-validating the named
+  binaries. WHAT WE LOSE (accepted): sparse mid-phase insertion. `NN-` was a sparse integer keyspace
+  (slot in at `70` between `50` and `90`); a positional list with `_prepend`/`_append` only lands at an
+  END of a phase — mid-insertion needs a full-list replacement. The one HARD constraint (tracker's push
+  LAST) holds because `_prepend` covers "run before the push." No load-bearing principle breaks: §0
+  "core knows a plugin's name + binary, never its config" holds (the schedule is CORE's config, not the
+  plugin's); §6 "sequence of binaries, run-parts" becomes "sequence of binaries, list-ordered" — same
+  semantics. Touched §0/§2/§4/§6/§8/§9/§12/§13/§14/§16. Implementation: registry→config conversion in
+  `registry.rs`/`install.rs`/`config.rs`/`substrate.rs`/`mutate.rs`/`checkout.rs` + delivery wiring,
+  and bl-4e14's seed collapses to a plain-text `plugins.toml` (`include_str!`, no `build.rs`/symlink
+  embedding). Tracked under bl-72a8.
 - **observability — logs & metrics (2026-06-06, bl-b58a — post-freeze).** A topic raised AFTER the
   freeze (so the "None open" above had missed it): the doc carried three divergent log conventions —
   §1 `logs/<name>/plugin.log` "suggested; plugins do as they please", §6 "stderr captured to
@@ -1148,7 +1199,7 @@ RESOLVED (folded into the body, no longer open):
 
 Legacy balls (pre-greenfield): task JSON on the `balls/tasks` orphan branch, plugin state inline in
 the core JSON, a pile of config knobs, `[bl-xxxx]` tags on `main`. Greenfield: §2 markdown `tasks/`
-on `balls/tasks` + config on `balls/config`, §1 XDG, §6 run-parts plugins. Migration is a **one-shot,
+on `balls/tasks` + config on `balls/config`, §1 XDG, §6 hook-list plugins. Migration is a **one-shot,
 throwaway transform SCRIPT — not a verb.** A `bl migrate` would be the §0 "new verb is a smell" for a
 job that runs once over a handful of known repos (`init`→`prime`, `review`→`close`, `repair`→verbs,
 `remaster` all retired the same way). The script does ONLY the irreducible format transform;
@@ -1192,8 +1243,8 @@ config); the remote becomes the tracker's; `tasks_branch` defaults to
 `balls/tasks` (§4). Gone entirely — `version`, `worktree_dir` (path derived, §11), `protected_main`
 (nothing-on-main is structural, §0), `auto_fetch_on_ready` (sync-every-op default, §13),
 `stale_threshold_seconds` (→ the tracker's own §1 territory, not core). The legacy
-`plugins: { name: {enabled, config_file} }` map → the §6 filesystem registry: committed
-`config/plugins/<op>/<phase>/NN-<name>` → `../bin/<name>` (ops/phases read from `<name> protocol`),
+`plugins: { name: {enabled, config_file} }` map → the §6 hook list: `config/plugins.toml` `[hooks]`
+entries naming each enabled plugin in the op-phases it handles (op/phase read from `<name> protocol`),
 local gitignored `bin/<name>`, and each `config_file`'s content → `config/plugins/<name>/`.
 
 **Plugin state (the per-plugin half).** Legacy plugin state lived inline in core
