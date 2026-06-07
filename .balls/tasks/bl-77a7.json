@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Doctor fails the test: given an agent with the bl skill doc and a doctor-covered scenario, its existence does not meaningfully raise fix-success. 5/8 checks fail loud already (git/op surfaces them); the 3 silent ones (bin/<name> dangle, protocol drift, blocker cycle) belong at point-of-use as errors naming the fix verb, not in a separate scanning verb an agent must know to run. Doctor's checklist covers KNOWN drift; the weird edge cases agents actually get stuck on are unenumerated, so it helps least where help is most needed. Remove §16 entirely, renumber §17 migration->§16, and scrub all doctor cross-refs (§1 log, §8 op-family reframe, §9 read verbs, §10 cycle, §11 teardown, §12/§14 reframes, §15 changelog refs). No-repair-verb principle already holds without a doctor section.",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":323,"source":"balls","state":"open","synced_at":"2026-06-07T06:01:30.253906202+00:00","url":"https://github.com/mudbungie/balls/issues/323"}}},
   "id": "bl-77a7",
   "links": [],
   "parent": null,
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T06:01:30.264116173Z"},
   "tags": [],
   "title": "Burn §16 bl doctor out of docs/architecture.md",
   "type": "chore",
-  "updated_at": "2026-06-07T06:01:27.916557585Z"
+  "updated_at": "2026-06-07T06:01:30.264127044Z"
 }
