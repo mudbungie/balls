@@ -7,15 +7,16 @@
   "delivered_in": null,
   "depends_on": [],
   "description": "Problem (spec attack): the worktree path is consumer-relevant (agents need it after 'bl claim') but §7 has no return channel and §6 makes plugin stdout a forward-verbatim human channel interleaved across the whole chain — not reliably machine-parseable.\n\nFix: delivery stages the derived path = worktree_path(binding, id) into the task frontmatter at CLAIM.PRE (not post — §14 'post never mutates the ball'; the id already exists at claim, unlike create, so pre can compute it). Then it falls out of 'bl show --json' authoritatively. stdout stays the human hint.\n\nNot a derive-don't-store violation: the path is derivable BY THE PLUGIN but NOT by the consumer (core/agent lack the formula), so storing it is not redundant from the consumer's view — it's the only deterministic read. That dissolves the §11 'keep it derived/stateless' objection for the consumer-facing copy.\n\nConsistency across the seal (confirmed, no extra work): if claim.post fails to materialize the worktree, §8 post-abort reverts the seal (git reset store back one commit, claimant cleared) -> the claim is REJECTED. The staged path only survives if the seal survives, which only survives if claim.post succeeds -> the task never carries a path to a nonexistent worktree. Field and worktree existence are consistent at every committed state.\n\nTouches §11, §15 (revision-log entry).",
-  "external": {},
+  "external": {"github-issues":{"issue":{"last_synced_status":"open","number":329,"source":"balls","state":"open","synced_at":"2026-06-07T07:06:27.723272692+00:00","url":"https://github.com/mudbungie/balls/issues/329"}}},
   "id": "bl-934a",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "open",
+  "synced_at": {"github-issues":"2026-06-07T07:06:27.729537587Z"},
   "tags": [],
   "title": "Greenfield §11: stage derived worktree path into task frontmatter at claim.pre (authoritative, --json-readable)",
   "type": "task",
-  "updated_at": "2026-06-07T07:06:26.882021115Z"
+  "updated_at": "2026-06-07T07:06:27.729544190Z"
 }
