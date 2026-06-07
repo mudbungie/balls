@@ -3,10 +3,13 @@
 //! "skip steps 1/3/5"): no change worktree, no seal — the configured plugin
 //! chain runs against the STORE checkout directly ([`crate::lifecycle::Engine`]).
 //!
-//! - **`prime`** is the idempotent orchestrator (§12): bootstrap BOTH branches on
-//!   a miss ([`crate::substrate`] — the `balls/config` landing + the `tasks_branch`
-//!   store), then run the `prime` chain whose `tracker` handler adopts/founds/
-//!   stealth-locks the remote. Re-running converges.
+//! - **`prime`** is the idempotent orchestrator of syncs (§12/§13): bootstrap
+//!   BOTH branches on a miss ([`crate::substrate`] — the `balls/config` landing +
+//!   the `tasks_branch` store), run the `prime` chain whose `tracker` handler
+//!   adopts/founds/stealth-locks the remote, THEN drive `sync` against the store
+//!   so an established checkout is brought current. It gets currency by invoking
+//!   the sync primitive, never a reimplemented fetch (the single-codepath
+//!   invariant). Re-running converges.
 //! - **`sync`** is the synchronization primitive (§13): run the `sync` chain
 //!   against the store (the tracker's `sync/pre` does the fetch + ff-only). With
 //!   no arg it syncs the config `tasks_branch`; `bl sync <branch>` PULLS that
@@ -31,8 +34,14 @@ use crate::wire::{Binding, OpContext};
 use std::io;
 use std::path::Path;
 
-/// `bl prime [--as ID]` — bring this checkout to readiness (§12). Bootstrap-on-
-/// miss founds both branches; then the `prime` chain runs against the store.
+/// `bl prime [--as ID]` — bring this checkout to readiness (§12/§13). Bootstrap-
+/// on-miss founds both branches; the `prime` chain (adopt/found) runs against the
+/// store; THEN prime drives `sync` so an established checkout is brought current.
+/// Prime's binding already names the config `tasks_branch` with the resolved
+/// remote — exactly what a no-arg `sync` binds — so the SAME binding serves both:
+/// prime calls the `sync` primitive, never a reimplemented fetch. Idempotent: a
+/// just-founded remote's sync fetch is a no-op; in stealth the tracker `sync/pre`
+/// no-ops.
 pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_prime(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -44,7 +53,8 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
         substrate::found(&landing, &store, edge.tracker_bin.as_deref())?;
     }
     let (binding, level) = bind(edge, &landing, &store, opts.remote, None)?;
-    run_chain(edge, &landing, &store, Verb::Prime, &opts.actor, binding, level)
+    run_chain(edge, &landing, &store, Verb::Prime, &opts.actor, binding.clone(), level)?;
+    run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
 /// `bl sync [BRANCH] [--as ID]` — make state consistent (§13): run the `sync`
