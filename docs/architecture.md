@@ -1208,11 +1208,12 @@ accepted floor of migrate-clean-or-delink, not a failure.
 **Branch & history.** Greenfield uses TWO branches — `balls/config` (landing) + `balls/tasks` (store);
 legacy used `balls/tasks` for the JSON store, so the store branch NAME collides. The script writes a
 fresh orphan `balls/config` (seed config incl. `tasks_branch`) and migrates the legacy JSON into a
-fresh greenfield `tasks/` on `balls/tasks`. **The published `origin/balls/tasks` is shared and MUST
-NOT be force-rewritten** (history is shared across clones): the legacy JSON history stays as the
-archive (a local pointer, if wanted, is `git branch balls-archive origin/balls/tasks` before the local
-ref is rewritten), and cutting the shared store over is a coordinated push, not a force-rewrite — a
-migration-runbook concern (bl-0802), not a core-format one. `main`'s legacy `[bl-xxxx]` commit-subject
+fresh greenfield `tasks/` on `balls/tasks`. Cutting a shared `origin/balls/tasks` over is a one-time,
+human-coordinated migration: `bl install` writes the greenfield store and its per-op store sync (§12,
+on by default) pushes it — no separate push step. The push may force-rewrite the shared ref; that is
+intrinsic to a format change, not a thing core guards (git is the recovery net, §6 — `git branch
+balls-archive origin/balls/tasks` first if you want the legacy history kept locally). The cutover
+runbook is bl-0802, not a core-format concern. `main`'s legacy `[bl-xxxx]` commit-subject
 tags stay untouched: forward-compatible with §11's delivery tag, so the `delivered_in` query (§11)
 works over old history for free.
 
