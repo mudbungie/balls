@@ -107,3 +107,58 @@ fn level_tokens_round_trip_and_order() {
 fn the_wall_clock_reads_a_recent_unix_time() {
     assert!(wall() >= 1_700_000_000); // well after 2023-11
 }
+
+#[test]
+fn a_short_line_is_not_truncated() {
+    let tmp = TempDir::new().unwrap();
+    let (log, path) = log_at(&tmp, Level::Info);
+    log.record(Level::Info, "core", None, "a normal message");
+    let recs = lines(&path);
+    assert_eq!(recs[0]["msg"], "a normal message");
+    assert!(std::fs::read(&path).unwrap().len() <= LINE_MAX);
+}
+
+#[test]
+fn an_oversized_msg_is_truncated_to_a_marked_line_under_pipe_buf() {
+    let tmp = TempDir::new().unwrap();
+    let (log, path) = log_at(&tmp, Level::Info);
+    let huge = "x".repeat(10_000); // a long enveloped plugin-stderr line
+    log.record(Level::Info, "tracker", Some(Phase::Post), &huge);
+    // The whole line (incl. newline) stays atomic-appendable.
+    assert!(std::fs::read(&path).unwrap().len() <= LINE_MAX);
+    // Still one valid JSON object, envelope intact, msg marked lossy.
+    let recs = lines(&path);
+    assert_eq!(recs.len(), 1);
+    assert_eq!(recs[0]["src"], "tracker");
+    assert_eq!(recs[0]["phase"], "post");
+    let msg = recs[0]["msg"].as_str().unwrap();
+    assert!(msg.ends_with(TRUNC_MARKER));
+    assert!(msg.starts_with('x'));
+}
+
+#[test]
+fn a_heavily_escaped_oversized_msg_still_fits_pipe_buf() {
+    let tmp = TempDir::new().unwrap();
+    let (log, path) = log_at(&tmp, Level::Info);
+    // Every byte serializes to `\u00XX` (6×) — the worst-case escaping expansion;
+    // measuring the real serialized length is what keeps the line bounded.
+    let nasty = "\u{1}".repeat(10_000);
+    log.record(Level::Info, "core", None, &nasty);
+    assert!(std::fs::read(&path).unwrap().len() <= LINE_MAX);
+    let recs = lines(&path); // parses ⇒ valid JSON despite truncation
+    assert!(recs[0]["msg"].as_str().unwrap().ends_with(TRUNC_MARKER));
+}
+
+#[test]
+fn truncation_lands_on_a_char_boundary_keeping_valid_utf8() {
+    let tmp = TempDir::new().unwrap();
+    let (log, path) = log_at(&tmp, Level::Info);
+    // 3-byte chars: the shrink target falls mid-char, so the backoff must walk
+    // back to a boundary or the JSON string corrupts.
+    let wide = "€".repeat(4_000);
+    log.record(Level::Info, "core", None, &wide);
+    assert!(std::fs::read(&path).unwrap().len() <= LINE_MAX);
+    let recs = lines(&path); // from_str would error on invalid UTF-8/JSON
+    let msg = recs[0]["msg"].as_str().unwrap();
+    assert!(msg.strip_suffix(TRUNC_MARKER).unwrap().chars().all(|c| c == '€'));
+}
