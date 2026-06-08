@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-0802",
+  "claimed_by": "Mythology",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-05T08:28:24.165640560Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 4,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-07T20:08:12.524033198Z"},
   "tags": [],
   "title": "§17 migration script + dogfood install + cutover (FINALE / validation)",
   "type": "task",
-  "updated_at": "2026-06-07T20:39:48.412395971Z"
+  "updated_at": "2026-06-08T04:06:03.935981947Z"
 }
