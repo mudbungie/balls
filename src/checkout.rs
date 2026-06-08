@@ -21,6 +21,7 @@
 //! `tracker` plugin the chain runs. The §7 binding it builds is the ONE
 //! construction point ([`binding`]) shared with [`crate::mutate`].
 
+use crate::adopt;
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::git;
@@ -36,14 +37,25 @@ use crate::wire::{Binding, OpContext};
 use std::io;
 use std::path::Path;
 
-/// `bl prime [--as ID]` — bring this checkout to readiness (§12/§13). Bootstrap-
-/// on-miss founds both branches; the `prime` chain (adopt/found) runs against the
-/// store; THEN prime drives `sync` so an established checkout is brought current.
-/// Prime's binding already names the config `tasks_branch` with the resolved
-/// remote — exactly what a no-arg `sync` binds — so the SAME binding serves both:
-/// prime calls the `sync` primitive, never a reimplemented fetch. Idempotent: a
-/// just-founded remote's sync fetch is a no-op; in stealth the tracker `sync/pre`
-/// no-ops.
+/// `bl prime [--as ID] [--install CENTER]` — bring this checkout to readiness
+/// (§12/§13). Bootstrap-on-miss founds both branches; the `prime` chain
+/// (adopt/found) runs against the store; THEN prime drives `sync` so an
+/// established checkout is brought current. Prime's binding already names the
+/// config `tasks_branch` with the resolved remote — exactly what a no-arg `sync`
+/// binds — so the SAME binding serves both: prime calls the `sync` primitive,
+/// never a reimplemented fetch. Idempotent: a just-founded remote's sync fetch is
+/// a no-op; in stealth the tracker `sync/pre` no-ops.
+///
+/// `--install CENTER` fuses prime + install + prime on demand (§13): after the
+/// substrate exists, [`adopt`] copies the center's committed `config/` into the
+/// landing (the consent-gated §6 install — the `--install` flag IS the consent),
+/// THEN this same call's prime+sync chains bring the just-adopted `tasks_branch`
+/// to readiness. It is a SINGLE hop, not a walk: a center's config names its own
+/// `tasks_branch` (the one config→store indirection, §4), never another config to
+/// chase. The center also seeds the store remote (top of the [`resolve_remote`]
+/// precedence) unless an explicit `--remote` overrides it. Plain prime (no
+/// `--install`) never adopts foreign config nor activates code — the auto-safe
+/// every-session path holds.
 pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_prime(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -54,7 +66,11 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     } else {
         substrate::found(&landing, &store, &edge.xdg, edge.exe_dir.as_deref())?;
     }
-    let (binding, level) = bind(edge, &landing, &store, opts.remote, None)?;
+    if let Some(center) = &opts.install {
+        adopt::adopt(edge, &landing, center)?;
+    }
+    let remote = opts.remote.or(opts.install);
+    let (binding, level) = bind(edge, &landing, &store, remote, None)?;
     run_chain(edge, &landing, &store, Verb::Prime, &opts.actor, binding.clone(), level)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
@@ -158,20 +174,25 @@ struct SyncOpts {
     branch: Option<String>,
 }
 
-/// Parsed `bl prime` flags: the resolved actor plus the optional store-remote
-/// override that seeds the top of the [`resolve_remote`] precedence (§12).
+/// Parsed `bl prime` flags: the resolved actor, the optional store-remote
+/// override that seeds the top of the [`resolve_remote`] precedence (§12), and the
+/// optional `--install CENTER` that triggers config adoption (§13). `install`
+/// also seeds the remote when `remote` is unset (the center is where the adopted
+/// `tasks_branch` lives), resolved in [`prime`].
 struct PrimeOpts {
     actor: String,
     remote: Option<String>,
+    install: Option<String>,
 }
 
-/// Parse `bl prime [--as ID] [--remote URL] [--center URL]`. `--remote` and
-/// `--center` both name the store remote (the federation framing differs, the
-/// effect is one URL); `--remote` wins if both are given, whatever the order
-/// (`get_or_insert` lets a later `--center` fill an empty slot but never overwrite
-/// a `--remote`, which always assigns). An unknown flag or positional is an error.
+/// Parse `bl prime [--as ID] [--remote URL] [--center URL] [--install CENTER]`.
+/// `--remote` and `--center` both name the store remote (the federation framing
+/// differs, the effect is one URL); `--remote` wins if both are given, whatever
+/// the order (`get_or_insert` lets a later `--center` fill an empty slot but never
+/// overwrite a `--remote`, which always assigns). `--install` names the center to
+/// adopt config from (§13). An unknown flag or positional is an error.
 fn parse_prime(args: &[String], default_actor: &str) -> io::Result<PrimeOpts> {
-    let mut o = PrimeOpts { actor: default_actor.to_string(), remote: None };
+    let mut o = PrimeOpts { actor: default_actor.to_string(), remote: None, install: None };
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -181,6 +202,7 @@ fn parse_prime(args: &[String], default_actor: &str) -> io::Result<PrimeOpts> {
                 let center = value(args, &mut i, "--center")?;
                 o.remote.get_or_insert(center);
             }
+            "--install" => o.install = Some(value(args, &mut i, "--install")?),
             other => return Err(io::Error::other(format!("prime: unexpected argument '{other}'"))),
         }
         i += 1;
