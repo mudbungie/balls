@@ -61,13 +61,18 @@ fn show_omits_absent_optional_fields_blockers_children_and_body() {
 }
 
 #[test]
-fn show_json_adds_children_and_body_to_the_task_object() {
+fn show_json_is_the_bedrock_record_no_derived_children_body_or_status() {
     let cat = catalog(&[("bl-1", rich_task()), ("bl-kid", child_of("bl-1"))]);
     let out = render(&cat, &flags(true, "bl-1"), &plain()).unwrap();
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    // Stored frontmatter round-trips; the i64 timestamp is literal.
     assert_eq!(v["id"], "bl-1");
-    assert_eq!(v["children"][0], "bl-kid");
-    assert_eq!(v["body"], "Some body text.");
+    assert_eq!(v["parent"], "bl-root");
+    assert!(v["created"].is_i64());
+    // Derived/non-frontmatter fields are absent — the human render owns them.
+    for derived in ["children", "body", "status"] {
+        assert!(v.get(derived).is_none(), "bedrock must omit {derived}");
+    }
 }
 
 #[test]

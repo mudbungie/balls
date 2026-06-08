@@ -130,10 +130,11 @@ fn the_read_verbs_render_a_created_ball_end_to_end() {
         .stdout(contains("ready").and(contains("Render me")).and(contains("p1")));
     bl_primed(&project, &home, &state).arg("ready").assert().success().stdout(contains("Render me"));
 
-    // `list --json` is a valid one-element array whose timestamp is ISO-8601.
+    // `list --json` is a valid one-element array whose timestamp is the literal
+    // stored i64 (the lossless export, §3) — never an ISO string.
     let out = bl_primed(&project, &home, &state).args(["list", "--json"]).assert().success();
     let json = String::from_utf8(out.get_output().stdout.clone()).unwrap();
     let v: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(v[0]["title"], "Render me");
-    assert!(v[0]["created"].as_str().unwrap().ends_with('Z'));
+    assert!(v[0]["created"].is_i64());
 }
