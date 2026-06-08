@@ -27,9 +27,14 @@ use crate::task::{On, Status, Task};
 use crate::taskfile;
 use crate::verb::Verb;
 
+mod filter;
+mod flags;
+mod history;
 mod list;
 mod show;
 mod tree;
+
+pub(crate) use flags::parse;
 
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -80,15 +85,85 @@ impl Catalog {
 }
 
 /// Parsed read-verb flags: the two output toggles shared by every read, plus
-/// `list`'s optional §3 status filter.
+/// `list`'s optional §3 status filter and the compose-AND history filters (§9).
+#[derive(Default)]
 pub(crate) struct Flags {
     pub json: bool,
     pub plain: bool,
     /// `bl list --status ready|blocked|claimed` — the derived ladder (§3) as a
-    /// predicate. `None` ⇒ no filter (every live ball). Only `list` accepts it.
+    /// predicate. `None` ⇒ no filter (every live ball). Only `list` accepts it;
+    /// it filters the LIVE rung alone (dead balls left no ladder behind).
     pub status: Option<Status>,
-    /// The lone positional (a ball id for `show`; an optional root for others).
+    /// `bl list --closed|--all` — how far into history a listing reaches (§9).
+    /// `Live` (default) is the current `tasks/`; `Dead`/`All` reconstruct dead
+    /// balls most-recent-down. `list`-only.
+    pub reach: Reach,
+    /// `bl list --tag T` (repeatable): every named tag must be present (AND).
+    pub tags: Vec<String>,
+    /// `bl list --since DATE`: lower date bound (a day's `00:00:00Z`, §9).
+    pub since: Option<i64>,
+    /// `bl list --until DATE`: upper date bound, inclusive of the whole day.
+    pub until: Option<i64>,
+    /// The lone positional: a ball id for `show`, the text-search needle for
+    /// `list` (substring over title+body, §9), unused by `dep-tree`.
     pub target: Option<String>,
+}
+
+/// How far a `bl list` reaches into the `balls/tasks` history (§9). Dead
+/// (closed/dropped) balls are not gone, they are older content (§2) — recovered
+/// most-recent-down by the recency walk ([`history`]).
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub(crate) enum Reach {
+    /// Only the live/open set — the current `tasks/*.md` (the default).
+    #[default]
+    Live,
+    /// Only the dead set, reconstructed from history (`--closed`).
+    Dead,
+    /// Live and dead together (`--all`).
+    All,
+}
+
+impl Reach {
+    /// Does this reach include the live set?
+    pub(crate) fn live(self) -> bool {
+        matches!(self, Reach::Live | Reach::All)
+    }
+
+    /// Does this reach include the dead (history-served) set?
+    pub(crate) fn dead(self) -> bool {
+        matches!(self, Reach::Dead | Reach::All)
+    }
+}
+
+/// How a dead ball was retired, derived from its deletion commit's `bl-op:`
+/// trailer (§5 — `close` vs `drop`). The one fact history reconstruction adds
+/// that the reconstructed frontmatter cannot carry (the file is gone, §2).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Retired {
+    Closed,
+    Dropped,
+}
+
+impl Retired {
+    /// Read the retirement from a deletion commit's `bl-op` value: `drop` is a
+    /// [`Retired::Dropped`], every other op (a `close`, the dominant case) reads
+    /// as [`Retired::Closed`] — a balls deletion is only ever one of the two (§5).
+    pub(crate) fn from_op(op: &str) -> Retired {
+        if op == Verb::Drop.token() {
+            Retired::Dropped
+        } else {
+            Retired::Closed
+        }
+    }
+
+    /// The stable status word for the retirement — the dead counterpart of
+    /// [`status_word`], shown on the human render's badge and `status` line.
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Retired::Closed => "closed",
+            Retired::Dropped => "dropped",
+        }
+    }
 }
 
 /// The §8 diffless dispatch for the read verbs: load the store catalog, then
@@ -100,59 +175,18 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let cat = Catalog::load(&store)?;
     let style = Style { plain: flags.plain || !edge.color };
     let out = match verb {
-        Verb::Show => show::render(&cat, &flags, &style)?,
-        Verb::List => list::render_list(&cat, &flags, &style),
+        Verb::Show => show::dispatch(&store, &cat, &flags, &style)?,
+        Verb::List => {
+            // The dead set is reconstructed from history only when the reach
+            // calls for it — the live-only default never touches git (§9).
+            let dead = if flags.reach.dead() { history::dead_balls(&store, &cat)? } else { Vec::new() };
+            list::render_list(&cat, &dead, &flags, &style)
+        }
         Verb::DepTree => tree::render(&cat, &flags, &style),
         other => return Err(io::Error::other(format!("{}: not a read verb", other.token()))),
     };
     print!("{out}");
     Ok(())
-}
-
-/// Parse `[--json] [--plain] [--status STATUS] [TARGET]`. `--status` is a
-/// `list`-only filter taking a space-separated value (§9); for any other verb it
-/// falls through as an unexpected flag. `show` requires its `TARGET` id; every
-/// read rejects an unknown flag and accepts at most one positional.
-fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
-    let mut f = Flags { json: false, plain: false, status: None, target: None };
-    let mut args = args.iter();
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--json" => f.json = true,
-            "--plain" => f.plain = true,
-            "--status" if verb == Verb::List => {
-                let value = args
-                    .next()
-                    .ok_or_else(|| io::Error::other("list: --status needs ready|blocked|claimed"))?;
-                f.status = Some(parse_status(value)?);
-            }
-            flag if flag.starts_with("--") => {
-                return Err(io::Error::other(format!("{}: unexpected flag '{flag}'", verb.token())));
-            }
-            _ => {
-                if f.target.replace(arg.clone()).is_some() {
-                    return Err(io::Error::other(format!("{}: at most one argument", verb.token())));
-                }
-            }
-        }
-    }
-    if verb == Verb::Show && f.target.is_none() {
-        return Err(io::Error::other("show: needs a ball id"));
-    }
-    Ok(f)
-}
-
-/// Parse a `--status` value into its §3 ladder rung — the inverse of
-/// [`status_word`], so the filter token matches the rendered badge word.
-fn parse_status(value: &str) -> io::Result<Status> {
-    match value {
-        "ready" => Ok(Status::Ready),
-        "blocked" => Ok(Status::Blocked),
-        "claimed" => Ok(Status::Claimed),
-        other => Err(io::Error::other(format!(
-            "list: unknown --status '{other}' (want ready|blocked|claimed)"
-        ))),
-    }
 }
 
 /// The human-output style: glyphs + ANSI colour, or stable glyph-free ASCII.
@@ -173,6 +207,20 @@ impl Style {
             Status::Blocked => ('\u{2298}', 33), // ⊘ yellow
         };
         format!("\u{1b}[{colour}m{glyph}\u{1b}[0m")
+    }
+
+    /// The badge for a dead (history-served) ball: a dim glyph in rich mode (a
+    /// `✓` for a close, a `✗` for a drop), the padded retirement word in plain
+    /// mode — the dead counterpart of [`Self::badge`] (§9).
+    pub(crate) fn retired_badge(&self, r: Retired) -> String {
+        if self.plain {
+            return format!("{:<8}", r.word());
+        }
+        let glyph = match r {
+            Retired::Closed => '\u{2713}',  // ✓
+            Retired::Dropped => '\u{2717}', // ✗
+        };
+        format!("\u{1b}[90m{glyph}\u{1b}[0m") // dim grey — retired, not live
     }
 }
 
