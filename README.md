@@ -4,7 +4,7 @@
 
 The CLI is `bl`. State rides two git branches and nothing touches `main` — that property is structural, not a convention. The system is designed for a single developer running many agents, multiple developers each running many agents, and anything in between. It works offline. It degrades gracefully: strip every plugin and balls is a pure local task list.
 
-> **Two sibling documents go deeper.** `SKILL.md` (`bl skill`) is the operational guide for an agent driving `bl`. `docs/architecture.md` is the frozen design reference (§0–§16) — the authority for every claim in this README. This file is the introduction.
+> **Companion documents go deeper.** `SKILL.md` (`bl skill`) is the operational guide for an agent driving `bl`. `docs/architecture.md` is the frozen design reference (§0–§16) — the authority for every claim in this README. `docs/release-notes-greenfield.md` narrates the greenfield (0.x) model and what changed from legacy; `docs/demonstration.md` is a captured end-to-end proof run against the shipped binary. This file is the introduction.
 
 ### Default workflow
 
@@ -102,15 +102,15 @@ The human-facing output of `list`/`show`/`dep-tree` paints derived columns — t
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL] [--json]` | Sync + show ready/claimed. **Founds the substrate on first run** (no separate `init`). Run at session start. |
+| `bl prime [--as ID] [--remote URL] [--install URL]` | Sync + show ready/claimed. **Founds the substrate on first run** (no separate `init`). Run at session start. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [--status ready\|blocked\|claimed] [--closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `--closed`/`--all` reconstruct archived tasks from history. |
 | `bl show <id> [--json] [--verbose]` | Task detail. A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [--as ID]` | File a task (alias `bl new`). Prints the new id. |
-| `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. Prints the worktree path. |
+| `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. (Find the worktree with `git worktree list` — the `work/<id>` line.) |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
-| `bl update <id> [--body B] [-p N] [-t TAG] [--parent ID] [--needs ...] [--blocks ...] [key=value]` | Edit fields. A bare `key=value` sets a preserved extra field. |
+| `bl update <id> [--body B] [-p N] [-t TAG] [key=value]` | Edit fields: title/body, priority, add tags. A bare `key=value` sets a preserved extra field. (Relational edges `--parent`/`--needs`/`--blocks` are **create-only**.) |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl install [PATH] [--from REF] [--to REF]` | Copy a committed config path between branches (adopt/publish plugin config). Bare = `config/` minus `tasks/`. |
@@ -199,7 +199,7 @@ Two plugins ship by default and are wired by the seed config:
 - **tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
 - **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim, squash-deliver + tear down on close. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
 
-A plugin contributes by **editing the change worktree** (the task file), never by a return value; its stdout is forwarded to you verbatim (that is how "claim prints the worktree path" works — the plugin prints, core forwards), its stderr is enveloped into the per-clone op log. A non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol. See `docs/architecture.md` §6–§8 for the full contract.
+A plugin contributes by **editing the change worktree** (the task file), never by a return value — its stdout is discarded (there is no return channel, §7). Its stderr is enveloped line-by-line into the per-clone op log. A non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol. (One consequence: `bl claim` does not echo the worktree path — the delivery plugin materializes the checkout but its output goes nowhere, so you find it with `git worktree list`.) See `docs/architecture.md` §6–§8 for the full contract.
 
 ### Delivery: direct vs. forge
 
@@ -226,7 +226,7 @@ Because state lives in XDG and the two branches are path-derived per checkout, m
 ## Removing or abandoning tasks
 
 - A task you decided against (dupe, stale): `bl drop <id>` if you hold it, else `bl close <id>` to archive without delivering code.
-- `update` only **adds** (`-t`/`--needs`/`--blocks`) or **sets** (`--body`/`-p`/`--parent`/`key=value`) — there is no remove flag. To clear a field, edit the store's `tasks/<id>.md`, commit on the store branch, and push (or let the next op's tracker push it).
+- `update` only **adds** (`-t`) or **sets** (`--body`/`-p`/`key=value`) — there is no remove flag, and relational edges (`--parent`/`--needs`/`--blocks`) are create-only. To clear a field or re-wire an edge, edit the store's `tasks/<id>.md`, commit on the store branch, and push (or let the next op's tracker push it).
 
 ---
 
