@@ -161,7 +161,7 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
     let result = match verb {
         Verb::Prime => checkout::prime(edge, &rest[1..]),
         Verb::Sync => checkout::sync(edge, &rest[1..]),
-        Verb::Show | Verb::List | Verb::Ready | Verb::DepTree => reads::run(edge, verb, &rest[1..]),
+        Verb::Show | Verb::List | Verb::DepTree => reads::run(edge, verb, &rest[1..]),
         v if v.class() == OpClass::Mutating => mutate::run(edge, v, &rest[1..]),
         other => {
             println!("{}", Op::new(other).plan());

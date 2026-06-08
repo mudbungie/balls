@@ -1,13 +1,18 @@
-//! Tests for `bl list` / `bl ready` rendering and the §10 ready ordering.
+//! Tests for `bl list` rendering, the §10 ordering, and the `--status` filter.
 
 use super::*;
 use crate::reads::test_support::{catalog, task};
-use crate::task::Task;
 use crate::reads::{Flags, Style};
+use crate::task::{Status, Task};
 
-/// Plain (glyph-free) flags, optionally JSON.
+/// Plain (glyph-free) flags, optionally JSON; no status filter.
 fn flags(json: bool) -> Flags {
-    Flags { json, plain: true, target: None }
+    Flags { json, plain: true, status: None, target: None }
+}
+
+/// Plain flags narrowed to one §3 status rung.
+fn flags_status(status: Status) -> Flags {
+    Flags { json: false, plain: true, status: Some(status), target: None }
 }
 
 fn plain() -> Style {
@@ -41,33 +46,43 @@ fn list_json_is_an_array_of_objects() {
 }
 
 #[test]
-fn ready_orders_by_priority_then_created_then_id() {
+fn list_orders_every_invocation_by_priority_then_created_then_id() {
     // bl-d has no priority (sorts LAST); bl-a/bl-b share priority 1, broken by
-    // created; bl-c is priority 2.
+    // created; bl-c is priority 2. Ordering is uniform — no filter needed.
     let cat = catalog(&[
         ("bl-d", task("NoPrio", 5)),
         ("bl-c", prioritised("P2", 1, 2)),
         ("bl-b", prioritised("P1-late", 9, 1)),
         ("bl-a", prioritised("P1-early", 1, 1)),
     ]);
-    let out = render_ready(&cat, &flags(false), &plain());
+    let out = render_list(&cat, &flags(false), &plain());
     let order: Vec<&str> = out.lines().map(|l| l.split_whitespace().nth(1).unwrap()).collect();
     assert_eq!(order, ["bl-a", "bl-b", "bl-c", "bl-d"]);
 }
 
 #[test]
-fn ready_omits_blocked_and_claimed_balls() {
+fn status_ready_filter_omits_blocked_and_claimed_balls() {
     let mut held = task("Held", 1);
     held.claimant = Some("me".into());
     let cat = catalog(&[("bl-ready", task("R", 1)), ("bl-held", held)]);
-    let out = render_ready(&cat, &flags(false), &plain());
+    let out = render_list(&cat, &flags_status(Status::Ready), &plain());
     assert_eq!(out, "ready    bl-ready  R\n");
 }
 
 #[test]
-fn ready_json_emits_the_ordered_array() {
+fn status_claimed_filter_keeps_only_claimed_balls() {
+    let mut held = task("Held", 1);
+    held.claimant = Some("me".into());
+    let cat = catalog(&[("bl-ready", task("R", 1)), ("bl-held", held)]);
+    let out = render_list(&cat, &flags_status(Status::Claimed), &plain());
+    assert_eq!(out, "claimed  bl-held  Held  @me\n");
+}
+
+#[test]
+fn status_ready_json_emits_the_ordered_array() {
     let cat = catalog(&[("bl-2", prioritised("Second", 1, 2)), ("bl-1", prioritised("First", 1, 1))]);
-    let out = render_ready(&cat, &flags(true), &plain());
+    let f = Flags { json: true, plain: true, status: Some(Status::Ready), target: None };
+    let out = render_list(&cat, &f, &plain());
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v[0]["id"], "bl-1");
     assert_eq!(v[1]["id"], "bl-2");
