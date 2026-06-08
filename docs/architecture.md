@@ -649,9 +649,10 @@ does NOT block the gate child, so the gate is freely claimable. The gate-check r
 parent's pre-delivery WORK BRANCH (which exists once the parent is claimed), so nothing needs the
 parent formally "done" — no `review` window is resurrected. "Do the gate after the parent's work" is a
 skill habit, deliberately UNENFORCED. A cycle is now only reachable by explicitly authoring both
-edges; it is still not gated by code (links are mutable — unlink to fix); a cycle is caught where it
-bites — the blocker walk that resolves readiness errors on revisiting a node and names the
-`bl update` to unlink an edge.
+edges; it is still not gated by code (links are mutable — unlink to fix). Readiness is immediate-only
+(a blocker resolves when its file is gone, not transitively), so a cycle never drives a recursive
+walk: it simply manifests as mutual permanent-block, and `claim` refuses naming the unresolved
+blocker, which `bl update` then unlinks.
 
 **Enforcement is CORE.** Core stores the schema (`parent`, `blockers`, `tags`) AND enforces every
 blocker (the `.pre` of the named `on` op rejects while unresolved), joining the one occupancy guard
@@ -1166,8 +1167,10 @@ RESOLVED (folded into the body, no longer open):
   unparseable config, missing claimed-ball worktree, stale store) fail LOUD already — git or the next
   op surfaces them, and an agent's reflex is `git status`/`ls`, not a tool-specific scan verb. The 3
   SILENT checks move to POINT-OF-USE errors that name the fix verb: protocol drift is already rejected
-  at dispatch (§6); a missing local `bin/<name>` fails at the op that needs the plugin ("referenced but
-  not installed — `bl install`"); a blocker cycle errors in the readiness walk that hits it (§10). A
+  at install (§6, the binary's `protocol` self-describe is validated before binding); a missing local
+  `bin/<name>` fails at the op that needs the plugin ("bin/<name> missing — run `bl install`"); a
+  blocker cycle is inert — readiness is immediate-only, so it never drives a recursive walk, just a
+  mutual permanent-block that `claim` refuses by naming the blocker, `bl update` unlinks (§10). A
   fixed checklist enumerates only KNOWN drift, so doctor helped least on the weird unenumerated cases
   agents actually get stuck on — and an agent only reaches for it once already debugging, when it is
   already exploring git+files. The no-repair-verb principle (every fix is an existing idempotent verb —
