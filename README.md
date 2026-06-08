@@ -80,7 +80,7 @@ State lives on **two branches** of your repo, each with one job and its own tran
 
 ### State lives outside the repo (XDG)
 
-balls does not keep its checkouts in your project tree. Per invocation path, the landing and store live under `$XDG_STATE_HOME/balls/clones/<percent-encoded-path>/` as `config/` and `tasks/`. Code worktrees live in the delivery plugin's territory under `$XDG_STATE_HOME/balls/plugins/`. You rarely touch these directly — the verbs read and write them — but that is where `git log`/`git show` of task history lives.
+balls does not keep its checkouts in your project tree. Per invocation path, the landing and store live under `$XDG_STATE_HOME/balls/clones/<percent-encoded-path>/` as `config/` and `tasks/`. Code worktrees live in the delivery plugin's territory at `$XDG_STATE_HOME/balls/plugins/<delivery>/<project-path>/<id>/` — the project path is **mirrored** there, not percent-encoded, so the build dir carries no `%` (which would break `cargo`/`rust-lld` linking; the clones/tracker dirs hold only git data, so they keep percent-encoding). You rarely touch these directly — the verbs read and write them — but that is where `git log`/`git show` of task history lives.
 
 ### Status is derived, never stored
 
