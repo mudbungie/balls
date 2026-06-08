@@ -14,15 +14,18 @@ use std::io::{self, Read};
 /// §7 binding — where the op is happening, from the tracker's seat. `remote` is
 /// absent in a stealth (no-remote) repo, which is the tracker's whole branch
 /// point: no remote ⇒ nothing to talk to. `store` is the STORE checkout it
-/// fetches/pushes `tasks_branch` against (§2); `invocation_path` locates this
-/// checkout's clone bundle (§1) for the stealth lock. (The wire also carries
-/// `landing`, which the tracker ignores — serde drops it.)
+/// fetches/pushes `tasks_branch` against (§2); `landing` is the `balls/config`
+/// checkout the `install/pre` config fetch targets (§6/§13 — every other handler
+/// ignores it, so it defaults empty); `invocation_path` locates this checkout's
+/// clone bundle (§1) for the stealth lock.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Binding {
     #[serde(default)]
     pub remote: Option<String>,
     pub tasks_branch: String,
     pub store: String,
+    #[serde(default)]
+    pub landing: String,
     pub invocation_path: String,
 }
 
@@ -61,16 +64,19 @@ mod tests {
         assert_eq!(b.remote.as_deref(), Some("git@h:r"));
         assert_eq!(b.tasks_branch, "balls/tasks");
         assert_eq!(b.store, "/store");
+        assert_eq!(b.landing, "/landing");
         assert_eq!(b.invocation_path, "/proj");
     }
 
     #[test]
-    fn an_absent_remote_is_the_stealth_binding() {
+    fn an_absent_remote_or_landing_is_the_stealth_binding() {
+        // A stealth payload omits both remote and landing — each defaults.
         let b = read(
             r#"{"binding":{"tasks_branch":"balls/tasks","store":"/store","invocation_path":"/p"}}"#,
         )
         .unwrap();
         assert_eq!(b.remote, None);
+        assert_eq!(b.landing, "");
     }
 
     #[test]

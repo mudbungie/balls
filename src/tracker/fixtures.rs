@@ -130,6 +130,7 @@ pub fn binding(remote: Option<&Path>, store: &Path) -> Binding {
         remote: remote.map(|r| r.to_string_lossy().into_owned()),
         tasks_branch: BRANCH.to_string(),
         store: store.to_string_lossy().into_owned(),
+        landing: String::new(),
         invocation_path: store.to_string_lossy().into_owned(),
     }
 }
