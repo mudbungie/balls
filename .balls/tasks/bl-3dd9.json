@@ -8,16 +8,16 @@
   "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-f970","bl-30e2","bl-4e14"],
   "description": "Post-finalization spec revision 2026-06-05 (bl-2e26 §6 'bl install' block). Amends landed bl-66e7 ('bl install — committed-subtree transfer', commit 03fe1ed) — assume it landed; this corrects it.\n\nWHY: install is now the SOLE consent-gated config transport (no shadowing). It must be destructive-of-the-named-class but never able to eat a co-resident store.\n\nWHAT (src/install.rs):\n- Scope is a PATH under config/ (was a flat {plugins,config,tasks} enum): 'bl install plugins' wipes ALL plugin wiring + copies source's; 'bl install plugins/tracker' wipes just that subtree; 'bl install config' replaces config/balls.toml. Naming a parent replaces everything under it; a child replaces only that child. Delete-then-copy of exactly the named class — never merge.\n- THE INVARIANT: install builds its commit on top of --to's CURRENT tip, swapping only <scope>; it NEVER rebuilds the tip from the source's whole tree and NEVER resets the ref. This keeps siblings (esp. a co-resident tasks/ when tasks_branch points at the same branch, §2) untouched — a whole-tree replace / ref reset is FORBIDDEN, not just discouraged.\n- 'tasks' is the one MERGE scope and a DIFFERENT branch (not config): union-merge two store branches (same-id = conflict), the one-time store-RELOCATE primitive. (copy_wiring currently adds symlinks without pruning stale ones — must become wipe-scope-then-copy.)\n- RETIRE: the 'terminus' pointer-name default and the 'next:' pointer-exclusion clause (no trail). Default --to landing, --from the configured upstream/any ref.\n- Keep: committed-subtree-only (never bin/), local binary resolution + protocol validation.",
-  "external": {"github-issues":{"issue":{"last_synced_body_hash":"e38ce0047ebca7f5","last_synced_status":"in_progress","last_synced_title":"Greenfield §6: install becomes scope-addressed destructive-replace (subtree-only-rewrite invariant); tasks=merge exception [bl-3dd9]","number":339,"source":"balls","state":"open","synced_at":"2026-06-08T00:22:09.360317817+00:00","url":"https://github.com/mudbungie/balls/issues/339"}}},
+  "external": {"github-issues":{"issue":{"last_synced_body_hash":"e38ce0047ebca7f5","last_synced_status":"review","last_synced_title":"Greenfield §6: install becomes scope-addressed destructive-replace (subtree-only-rewrite invariant); tasks=merge exception [bl-3dd9]","number":339,"source":"balls","state":"open","synced_at":"2026-06-08T00:27:26.318685459+00:00","url":"https://github.com/mudbungie/balls/issues/339"}}},
   "id": "bl-3dd9",
   "links": [],
   "parent": "bl-72a8",
   "priority": 2,
   "repo": "git@github.com:mudbungie/balls.git",
   "status": "review",
-  "synced_at": {"github-issues":"2026-06-08T00:22:09.374028807Z"},
+  "synced_at": {"github-issues":"2026-06-08T00:27:26.324836806Z"},
   "tags": [],
   "title": "Greenfield §6: install becomes scope-addressed destructive-replace (subtree-only-rewrite invariant); tasks=merge exception",
   "type": "task",
-  "updated_at": "2026-06-08T00:27:25.240207727Z"
+  "updated_at": "2026-06-08T00:27:26.324849290Z"
 }
