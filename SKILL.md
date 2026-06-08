@@ -36,8 +36,11 @@ the landing and store live under
 `$XDG_STATE_HOME/balls/clones/<percent-encoded-path>/` as `config/` (the landing)
 and `tasks/` (the store). You rarely touch these directly — the verbs read and
 write them for you — but that is where `git log`/`git show` of task history
-lives, and `work/<id>` code worktrees live in the delivery plugin's scratch area
-beside them.
+lives. Your `work/<id>` code worktree lives in the delivery plugin's territory,
+`$XDG_STATE_HOME/balls/plugins/<delivery>/<project-path>/<id>/` — the project
+path **mirrored** (not percent-encoded) so it carries no `%`, which would break
+`cargo`/`rust-lld` linking in that build dir. Find it with `bl show <id> --json`
+(the `delivery-worktree` field) or `git worktree list`.
 
 ## Session start
 
