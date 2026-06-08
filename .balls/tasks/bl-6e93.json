@@ -5,18 +5,38 @@
   "closed_children": [],
   "created_at": "2026-06-07T20:31:59.646818352Z",
   "delivered_in": null,
-  "depends_on": ["bl-3dd9","bl-cd21"],
+  "depends_on": [
+    "bl-3dd9",
+    "bl-cd21"
+  ],
   "description": "Spec bl-2e26 §13 ('prime != install, but prime --install fuses them on demand'). REDO of the first cut (commit 88e585e, bl-6e93), which VIOLATED the §0 structural invariant \"the tracker plugin is the only thing that talks to a remote\": that cut had CORE run `git fetch <center>` directly in src/adopt.rs (and had to weaken the git::run doc comment to excuse it). REVERT it.\n\nCORRECT DESIGN: core handles transfers between LOCAL checkouts ONLY; the tracker — the sole remote-talker — performs the actual remote fetch, wired as an install HOOK. Sequence for `bl prime --install <center>`:\n(1) ensure local substrate (existing prime path);\n(2) run an install chain whose `install.pre` tracker hook FETCHES the center's balls/config branch into a local ref, leaving it at FETCH_HEAD (a git-standard ref — no invented core<->plugin convention/coupling);\n(3) CORE materializes that LOCAL ref (worktree --detach FETCH_HEAD) and path-copies config/ -> landing (install lib, folder=mirror), then SEALS (commit) onto the landing;\n(4) a final prime+sync brings the just-adopted tasks_branch to readiness.\n\nWHY this works now without solving the whole install run-wiring: the ADOPT direction's seal target is ALWAYS the local landing — unambiguous — so this needs only minimal install-as-hooked-op wiring, NOT the publish-direction seal-target resolution (that stays bl-66e7). Publish (`install --to <center>`, tracker push as install.post) is OUT OF SCOPE here.\n\nINVARIANT RESTORED: no `git fetch` / remote call anywhere in core; strip the tracker and prime --install simply cannot reach a remote (it degrades, never violates). SINGLE hop, not a walk: a center's config names its own tasks_branch (§4), never another config to chase. Each install idempotent -> a failed adopt RESUMES. Plain prime stays auto-safe (the --install flag IS the consent).\n\nTOUCHES: core (revert the core fetch in src/adopt.rs; run the install.pre chain + seal-to-landing), the tracker (add an install-op handler that fetches the --from config branch — it already does `git fetch remote balls/config` in store_elsewhere, so a few lines), seed config/plugins.toml (`install.pre = [\"tracker\"]`).\n\nDEPS: bl-3dd9 (install path-copy lib — reused for the LOCAL copy), bl-cd21 (--remote>--center>XDG>origin resolution + the <center> remote). Supersedes the flawed core-fetch cut.",
-  "external": {"github-issues":{"issue":{"last_synced_body_hash":"2f7bddc481a609f4","last_synced_status":"closed","last_synced_title":"Greenfield §13: bl prime --install <center> — fuse prime+install+prime; the remote fetch is the tracker's (install hook), core copies local->local [bl-6e93]","number":362,"source":"balls","state":"closed","synced_at":"2026-06-08T04:10:15.401127318+00:00","url":"https://github.com/mudbungie/balls/issues/362"}}},
+  "external": {
+    "github-issues": {
+      "issue": {
+        "last_synced_body_hash": "2f7bddc481a609f4",
+        "last_synced_status": "open",
+        "last_synced_title": "Greenfield §13: bl prime --install <center> — fuse prime+install+prime; the remote fetch is the tracker's (install hook), core copies local->local [bl-6e93]",
+        "number": 362,
+        "source": "balls",
+        "state": "open",
+        "synced_at": "2026-06-08T04:10:15.401127318+00:00",
+        "url": "https://github.com/mudbungie/balls/issues/362"
+      }
+    }
+  },
   "id": "bl-6e93",
   "links": [],
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "closed",
-  "synced_at": {"github-issues":"2026-06-08T04:10:15.421933803Z"},
-  "tags": ["greenfield"],
+  "status": "open",
+  "synced_at": {
+    "github-issues": "2026-06-08T04:10:15.421933803Z"
+  },
+  "tags": [
+    "greenfield"
+  ],
   "title": "Greenfield §13: bl prime --install <center> — fuse prime+install+prime; the remote fetch is the tracker's (install hook), core copies local->local",
   "type": "task",
-  "updated_at": "2026-06-08T04:10:15.421935887Z"
+  "updated_at": "2026-06-08T04:15:00.000000000Z"
 }
