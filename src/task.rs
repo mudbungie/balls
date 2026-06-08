@@ -48,22 +48,21 @@ pub struct Task {
     pub body: String,
 }
 
-/// A blocker edge: this task can't make transition `on` until task `id`
-/// resolves (is closed or dropped). The two sugar-supported uses are a
-/// dependency (`on = "claim"`) and a gate (`on = "close"`).
+/// A blocker edge: this task can't make op `on` until task `id` resolves (is
+/// closed or dropped). `on` is ANY op (§10/§15); `claim` (a dependency) and
+/// `close` (a gate) are the two cases with create-time sugar, but the edge gates
+/// exactly the op it names — no more, no less.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Blocker {
     pub id: String,
     pub on: On,
 }
 
-/// Which of the blocked task's own transitions an edge gates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum On {
-    Claim,
-    Close,
-}
+/// Which of the blocked task's own ops an edge gates — ANY op (§10/§15). The op
+/// an edge names is precisely the op a guard refuses, so `On` IS a [`Verb`]:
+/// one type, one source of truth, no claim/close special case. `claim`/`close`
+/// are merely the two ops with front-door sugar.
+pub type On = crate::verb::Verb;
 
 /// The derived status (§3 ladder) — computed on read, never stored. Exactly
 /// three live states; closed/dropped are not states (the file is gone).
