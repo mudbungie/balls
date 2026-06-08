@@ -94,7 +94,7 @@ fn stealth_lock(b: &Binding, env: &Env) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::tracker::fixtures::{
-        binding, default_binding, empty_remote, env, local_unpushed, operating_clone,
+        binding, default_binding, empty_remote, env, local_unpushed, store_clone,
         remote_with_branch, remote_with_config, tip, unpushable_remote, BRANCH,
     };
     use tempfile::TempDir;
@@ -117,22 +117,22 @@ mod tests {
     fn an_absent_remote_branch_is_founded() {
         let tmp = TempDir::new().unwrap();
         let remote = empty_remote(tmp.path());
-        let operating = local_unpushed(tmp.path());
+        let store = local_unpushed(tmp.path());
         let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
 
-        prime(&binding(Some(&remote), &operating), &env).unwrap();
-        assert_eq!(tip(&remote, BRANCH), tip(&operating, "HEAD"));
+        prime(&binding(Some(&remote), &store), &env).unwrap();
+        assert_eq!(tip(&remote, BRANCH), tip(&store, "HEAD"));
     }
 
     #[test]
     fn an_established_remote_is_adopted_not_re_pushed() {
         let tmp = TempDir::new().unwrap();
         let remote = remote_with_branch(tmp.path());
-        let operating = operating_clone(tmp.path(), &remote);
+        let store = store_clone(tmp.path(), &remote);
         let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
         let before = tip(&remote, BRANCH);
 
-        prime(&binding(Some(&remote), &operating), &env).unwrap();
+        prime(&binding(Some(&remote), &store), &env).unwrap();
         assert_eq!(tip(&remote, BRANCH), before); // no push happened
     }
 
@@ -140,9 +140,9 @@ mod tests {
     fn a_rejected_push_falls_back_to_stealth_local() {
         let tmp = TempDir::new().unwrap();
         let remote = unpushable_remote(tmp.path());
-        let operating = local_unpushed(tmp.path());
+        let store = local_unpushed(tmp.path());
         let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-        let b = binding(Some(&remote), &operating);
+        let b = binding(Some(&remote), &store);
 
         prime(&b, &env).unwrap(); // push denied → silent stealth fallback, not an error
         let lock = env.xdg.clone_dir(Path::new(&b.invocation_path)).root().join("stealth.lock");
