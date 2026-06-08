@@ -14,8 +14,9 @@ fn ctx() -> OpContext {
         actor: "me@example.com".into(),
         binding: Binding {
             remote: Some("origin".into()),
-            branch: "balls".into(),
-            operating: "/op".into(),
+            tasks_branch: "balls/tasks".into(),
+            store: "/store".into(),
+            landing: "/landing".into(),
             invocation_path: "/proj".into(),
         },
         command: Some(Command {
@@ -116,7 +117,7 @@ fn a_diffless_op_omits_command_and_both_states() {
     let c = OpContext::diffless("me@example.com".into(), binding);
     let v = json(&c.wire("tracker", "sync", "pre", None, None));
     assert_eq!(v["op"], "sync");
-    assert_eq!(v["binding"]["branch"], "balls");
+    assert_eq!(v["binding"]["tasks_branch"], "balls/tasks");
     // §13: a sync/prime plugin gets meaning from its binding, not a command.
     for absent in ["command", "current_state", "previous_state"] {
         assert!(v.get(absent).is_none(), "diffless wire must omit {absent}");
@@ -129,5 +130,5 @@ fn a_stealth_binding_omits_the_remote() {
     c.binding.remote = None;
     let v = json(&c.wire("tracker", "sync", "pre", None, None));
     assert!(v["binding"].get("remote").is_none());
-    assert_eq!(v["binding"]["branch"], "balls");
+    assert_eq!(v["binding"]["tasks_branch"], "balls/tasks");
 }

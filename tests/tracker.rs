@@ -45,8 +45,9 @@ fn a_deliverable_verbs_post_pushes_the_sealed_branch() {
     git(&op, &["commit", "-q", "-m", "land"]);
 
     let payload = format!(
-        r#"{{"binding":{{"remote":"{}","branch":"balls","operating":"{}","invocation_path":"{}"}}}}"#,
+        r#"{{"binding":{{"remote":"{}","tasks_branch":"balls","store":"{}","landing":"{}","invocation_path":"{}"}}}}"#,
         remote.display(),
+        op.display(),
         op.display(),
         op.display()
     );

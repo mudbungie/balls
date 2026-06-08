@@ -80,8 +80,8 @@ fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
     bl_primed(&project, &home, &state).arg("prime").assert().success();
     assert!(stealth_lock(&state, &project).is_file());
 
-    // Idempotent: a second prime converges to a no-op, and `sync` walks the
-    // (length-1) trail and runs the tracker's sync/pre against the terminus.
+    // Idempotent: a second prime converges to a no-op, and `sync` runs the
+    // tracker's sync/pre against the store.
     bl_primed(&project, &home, &state).arg("prime").assert().success();
     bl_primed(&project, &home, &state).arg("sync").assert().success();
 }
@@ -101,10 +101,10 @@ fn create_seals_a_ball_and_runs_the_mutating_post_chain() {
         .assert()
         .success();
 
-    // The ball file landed on the operating terminus.
+    // The ball file landed on the STORE terminus.
     let tasks = balls::layout::Xdg::with(Path::new("/unused"), None, Some(&state.to_string_lossy()))
         .clone_dir(&project)
-        .operating()
+        .store()
         .join("tasks");
     let count = std::fs::read_dir(&tasks).unwrap().filter(|e| e.as_ref().unwrap().path().extension().is_some()).count();
     assert_eq!(count, 1, "create sealed exactly one ball file");

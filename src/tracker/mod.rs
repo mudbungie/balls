@@ -111,7 +111,7 @@ mod tests {
 
     /// A stealth binding (no remote) — every handler no-ops without git.
     fn stealth() -> String {
-        r#"{"binding":{"branch":"balls","operating":"/nope","invocation_path":"/p"}}"#.to_string()
+        r#"{"binding":{"tasks_branch":"balls/tasks","store":"/nope","invocation_path":"/p"}}"#.to_string()
     }
 
     fn invoke(op: &str, phase: &str, payload: &str, env: &Env) -> i32 {

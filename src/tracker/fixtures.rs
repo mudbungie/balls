@@ -96,14 +96,14 @@ pub fn env(home: &Path, state: &Path) -> super::Env {
     }
 }
 
-/// A [`Binding`] over `operating`, with `remote` present (tracked) or absent
-/// (stealth). `invocation_path` doubles as `operating` — the tests that care
+/// A [`Binding`] over the `store` checkout, with `remote` present (tracked) or
+/// absent (stealth). `invocation_path` doubles as `store` — the tests that care
 /// about it set it explicitly.
-pub fn binding(remote: Option<&Path>, operating: &Path) -> Binding {
+pub fn binding(remote: Option<&Path>, store: &Path) -> Binding {
     Binding {
         remote: remote.map(|r| r.to_string_lossy().into_owned()),
-        branch: BRANCH.to_string(),
-        operating: operating.to_string_lossy().into_owned(),
-        invocation_path: operating.to_string_lossy().into_owned(),
+        tasks_branch: BRANCH.to_string(),
+        store: store.to_string_lossy().into_owned(),
+        invocation_path: store.to_string_lossy().into_owned(),
     }
 }

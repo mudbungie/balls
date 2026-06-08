@@ -18,8 +18,8 @@ pub fn sync(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
-    let operating = Path::new(&b.operating);
-    git(operating, &["fetch", remote, &b.branch])?;
+    let operating = Path::new(&b.store);
+    git(operating, &["fetch", remote, &b.tasks_branch])?;
     git(operating, &["merge", "--ff-only", "FETCH_HEAD"])?;
     Ok(())
 }
@@ -31,7 +31,7 @@ pub fn push(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
-    git(Path::new(&b.operating), &["push", remote, &b.branch])?;
+    git(Path::new(&b.store), &["push", remote, &b.tasks_branch])?;
     Ok(())
 }
 
