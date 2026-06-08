@@ -6,12 +6,14 @@
 //! subprocess-uniform (`<bin> <op> <phase>`, §6) with the §7 wire on stdin and
 //! no return channel — in-repo only as a default capability + reference impl.
 //!
-//! Its whole job is three git acts on the state branch:
+//! Its whole job is git acts on the state branch:
 //! - [`remote_ops::sync`] — `sync/pre`: fetch + fast-forward-only import; a
 //!   non-ff is the contention signal (§13).
 //! - [`remote_ops::push`] — `*/post`: publish the sealed balls branch (§12).
-//! - [`prime::prime`] — `prime/pre`: resolve the upstream, adopt-or-found,
-//!   or write the stealth self-lock when there is no remote (§12).
+//! - [`prime::prime`] — `prime/pre`: settle the store name, clone an established
+//!   remote branch into a local ref, or write the stealth self-lock (§12).
+//! - [`prime::prime_post`] — `prime/post`: settle content — fetch-ff an
+//!   established remote then push, or found an absent branch by pushing (§12).
 //!
 //! The wire's [`Binding`] is everything it needs — `remote` + `tasks_branch`
 //! name the store upstream DIRECTLY, with no trail to walk (§12). Each handler
@@ -80,18 +82,22 @@ fn protocol(out: &mut impl Write) -> io::Result<()> {
     out.write_all(b"\n")
 }
 
-/// Route one `<op> <phase>` to its handler. The tracker acts in four slots —
-/// `sync/pre`, `prime/pre`, `install/pre` (the §13 config fetch), and any
+/// Route one `<op> <phase>` to its handler. The tracker acts in five slots —
+/// `sync/pre`, `prime/pre` (settle name + clone-in), `prime/post` (settle content
+/// — fetch-ff + push, bl-0a23), `install/pre` (the §13 config fetch), and any
 /// deliverable verb's `post` (the push) — and no-ops everywhere else (reads, the
-/// other phases). `sync`/`prime`/`install` are matched out before the catch-all
-/// `post` so their own `post` never triggers a push: in particular `install`
-/// adopts config INTO the local landing (a fetch), and must NEVER push the
-/// landing back out (publishing is a separate direction, §6/§13).
+/// other phases). `prime/post` is matched out explicitly BEFORE the
+/// `sync`/`prime`/`install` catch-all so it reaches its own content handler; that
+/// catch-all then keeps `sync`/`install` from triggering the generic `post` push:
+/// in particular `install` adopts config INTO the local landing (a fetch), and
+/// must NEVER push the landing back out (publishing is a separate direction,
+/// §6/§13).
 fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result<()> {
     let binding = payload::read_binding(input)?;
     match (op, phase) {
         ("sync", "pre") => remote_ops::sync(&binding),
         ("prime", "pre") => prime::prime(&binding, env),
+        ("prime", "post") => prime::prime_post(&binding, env),
         ("install", "pre") => remote_ops::fetch_config(&binding),
         ("sync" | "prime" | "install", _) => Ok(()),
         (_, "post") => remote_ops::push(&binding),

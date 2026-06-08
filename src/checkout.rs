@@ -3,13 +3,16 @@
 //! "skip steps 1/3/5"): no change worktree, no seal — the configured plugin
 //! chain runs against the STORE checkout directly ([`crate::lifecycle::Engine`]).
 //!
-//! - **`prime`** is the idempotent orchestrator of syncs (§12/§13): bootstrap
-//!   BOTH branches on a miss ([`crate::substrate`] — the `balls/config` landing +
-//!   the `tasks_branch` store), run the `prime` chain whose `tracker` handler
-//!   adopts/founds/stealth-locks the remote, THEN drive `sync` against the store
-//!   so an established checkout is brought current. It gets currency by invoking
-//!   the sync primitive, never a reimplemented fetch (the single-codepath
-//!   invariant). Re-running converges.
+//! - **`prime`** is the idempotent orchestrator of syncs (§12/§13): found the
+//!   `balls/config` LANDING on a miss ([`crate::substrate`]), then run the
+//!   CORE-OWNED FIXPOINT ([`converge`]) that loops `prime/pre` (the tracker
+//!   clones an established remote store in) and [`crate::substrate::materialize`]
+//!   until the configured `tasks_branch` settles — laying the store down LAZILY,
+//!   no eager orphan to diverge (bl-0a23) — then runs `prime/post` (the tracker's
+//!   fetch-ff + push), THEN drives `sync` against the store so an established
+//!   checkout is brought current. Currency comes from invoking the sync primitive,
+//!   never a reimplemented fetch (the single-codepath invariant). Re-running
+//!   converges.
 //! - **`sync`** is the synchronization primitive (§13): run the `sync` chain
 //!   against the store (the tracker's `sync/pre` does the fetch + ff-only). With
 //!   no arg it syncs the config `tasks_branch`; `bl sync <branch>` PULLS that
@@ -38,9 +41,9 @@ use std::io;
 use std::path::Path;
 
 /// `bl prime [--as ID] [--install CENTER]` — bring this checkout to readiness
-/// (§12/§13). Bootstrap-on-miss founds both branches; the `prime` chain
-/// (adopt/found) runs against the store; THEN prime drives `sync` so an
-/// established checkout is brought current. Prime's binding already names the
+/// (§12/§13). Bootstrap-on-miss founds the LANDING; the [`converge`] fixpoint
+/// materializes the store and runs the `prime` chain; THEN prime drives `sync` so
+/// an established checkout is brought current. Prime's binding already names the
 /// config `tasks_branch` with the resolved remote — exactly what a no-arg `sync`
 /// binds — so the SAME binding serves both: prime calls the `sync` primitive,
 /// never a reimplemented fetch. Idempotent: a just-founded remote's sync fetch is
@@ -64,15 +67,47 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     if is_landing(&landing) {
         seed::rebind(&landing, edge.exe_dir.as_deref())?;
     } else {
-        substrate::found(&landing, &store, &edge.xdg, edge.exe_dir.as_deref())?;
+        substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref())?;
     }
     if let Some(center) = &opts.install {
         adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
     }
     let remote = opts.remote.or(opts.install);
     let (binding, level) = bind(edge, &landing, &store, remote, None)?;
-    run_chain(edge, &landing, &store, Verb::Prime, &opts.actor, binding.clone(), level)?;
+    converge(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
+}
+
+/// Run `prime`'s §12 fixpoint (bl-0a23): each pass runs the `prime/pre` chain
+/// (the tracker clones an established remote branch in, or no-ops) then core
+/// [`substrate::materialize`]s the store for the freshly-read `tasks_branch`; the
+/// loop converges when that name stops moving. THEN the `prime/post` chain (the
+/// tracker's fetch-ff + publish) runs against the now-materialized store. `pre`
+/// runs with cwd = the LANDING (the store is not laid down until materialize, so
+/// it cannot be the cwd on a first prime); `post` with cwd = the store. The `step`
+/// closure is core's between-phase work — materialize, then report whether the
+/// dial held — so the loop is core's, never driven by a plugin's return (§7).
+fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
+    let clone = edge.xdg.clone_dir(&edge.invocation_path);
+    let hooks = Hooks::load(landing)?;
+    let reg = Registry::at(landing);
+    let pre = hooks.resolve(&reg, Verb::Prime.token(), "pre");
+    let post = hooks.resolve(&reg, Verb::Prime.token(), "post");
+    let user_config = edge.xdg.user_config();
+    let mut last = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
+    let mut step = || -> io::Result<bool> {
+        let name = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
+        substrate::materialize(landing, store, &name)?;
+        let converged = name == last;
+        last = name;
+        Ok(converged)
+    };
+    let log = Log::new(clone.op_log(), level, Verb::Prime, log::wall);
+    let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth);
+    let anvil = git::Git::at(store);
+    Engine::new(&anvil, &plugins, &log)
+        .fixpoint(Verb::Prime, landing, store, &pre, &post, &mut step)
+        .map_err(|e| io::Error::other(e.to_string()))
 }
 
 /// `bl sync [BRANCH] [--as ID]` — make state consistent (§13): run the `sync`

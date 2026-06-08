@@ -275,9 +275,11 @@ fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
 fn op_error_renders_each_variant_and_is_an_error() {
     let author = OpError::Author(ioerr("x"));
     let anvil = OpError::Anvil(ioerr("y"));
+    let substrate = OpError::Substrate(ioerr("m"));
     let plugin = OpError::Plugin { name: "p".into(), source: ioerr("z") };
     assert!(author.to_string().contains("authoring the base change failed"));
     assert!(anvil.to_string().contains("sealing onto the anvil failed"));
+    assert!(substrate.to_string().contains("materializing the store failed"));
     assert!(plugin.to_string().contains("plugin p aborted the op"));
     assert!(format!("{author:?}").contains("Author"));
     let _: &dyn std::error::Error = &plugin;
