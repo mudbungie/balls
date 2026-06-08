@@ -85,14 +85,6 @@ pub fn local_unpushed(tmp: &Path) -> PathBuf {
     op
 }
 
-/// Commit a `next:` trail pointer into `operating`'s tracker config (§12), the
-/// committed `config/plugins/tracker/remote.toml`.
-pub fn set_pointer(operating: &Path, next: &str) {
-    let dir = operating.join("config").join("plugins").join("tracker");
-    fs::create_dir_all(&dir).unwrap();
-    fs::write(dir.join("remote.toml"), format!("next = \"{next}\"\n")).unwrap();
-}
-
 /// An [`Env`](super::Env) whose XDG state root is under `state` (so a test's
 /// clone bundle and stealth lock land in its tempdir, not the real `$HOME`).
 pub fn env(home: &Path, state: &Path) -> super::Env {
