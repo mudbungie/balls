@@ -55,8 +55,10 @@ impl Git {
 /// non-zero exit becomes an [`io::Error`] carrying git's stderr — the one
 /// git-invocation site. Shared between the §8 anvil seal ([`Git`]) and the
 /// §12/§13 checkout-lifecycle ops ([`crate::substrate`]): both author LOCAL git
-/// only — never a remote, which is the tracker's alone (§0) — so they run the
-/// same plumbing.
+/// only — STORE remote talk (sync/push) is the tracker's alone (§0). The ONE
+/// core exception is [`crate::adopt`]'s config install-transport: a `fetch` that
+/// READS a center's config to copy in (§0 — "config crosses into a landing only
+/// by the explicit copy `install` performs"), never a push, never the store.
 pub(crate) fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(cwd).args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
