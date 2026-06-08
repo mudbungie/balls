@@ -19,15 +19,17 @@ explicitly. The default is solo: the agent that claims also closes.
 
 ## The worktree is the unit of work
 
-`bl` tracks the code change a task delivers, not just the task. **`bl claim`
-prints a path** — a git worktree on a `work/<id>` branch off `main`. While you
-hold the claim, **all edits go in that worktree**, never on `main` directly.
-Editing `main` outside the worktree bypasses the lifecycle: `bl close`'s delivery
-squash captures the worktree's diff, so a stray `main` edit is invisible to it —
-the task closes cleanly while leaving your change behind, undelivered.
+`bl` tracks the code change a task delivers, not just the task. `bl claim`
+materializes a git worktree on a `work/<id>` branch off `main`. While you hold
+the claim, **all edits go in that worktree**, never on `main` directly. Editing
+`main` outside the worktree bypasses the lifecycle: `bl close`'s delivery squash
+captures the worktree's diff, so a stray `main` edit is invisible to it — the
+task closes cleanly while leaving your change behind, undelivered.
 
-Find your worktree path again any time with `bl show <id> --json` (the
-`delivery-worktree` field) or `git worktree list`.
+`bl claim` does not print the worktree path — find it with `git worktree list`
+(the `work/<id>` line). (The path is also recorded in the task's stored
+`delivery-worktree` frontmatter key, but `bl show --json` emits only canonical
+fields, so it is not surfaced there.)
 
 ## State lives outside the repo (XDG)
 
@@ -47,7 +49,7 @@ path **mirrored** (not percent-encoded) so it carries no `%`, which would break
 Run `bl prime` at the start of every session:
 
 ```
-bl prime --as YOUR_IDENTITY --json
+bl prime --as YOUR_IDENTITY
 ```
 
 `prime` is idempotent: on first run it **founds** the local substrate (there is
@@ -73,7 +75,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL] [--json]` | Sync + show ready/claimed. Founds the substrate on first run. Run at session start. |
+| `bl prime [--as ID] [--remote URL] [--install URL]` | Sync + show ready/claimed. Founds the substrate on first run. Run at session start. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [--status ready\|blocked\|claimed] [--closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `--closed`/`--all` reconstruct archived tasks from history. |
 | `bl show <id> [--json] [--verbose]` | Task detail. A closed id still resolves (reconstructed from history). |
@@ -81,7 +83,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [--as ID]` | File a task. Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
-| `bl update <id> [--body B] [-p N] [-t TAG] [--parent ID] [--needs ...] [--blocks ...] [key=value]` | Edit fields. A bare `key=value` sets a preserved extra field. |
+| `bl update <id> [--body B] [-p N] [-t TAG] [key=value]` | Edit fields: title/body, priority, add tags. A bare `key=value` sets a preserved extra field. (Relational edges `--parent`/`--needs`/`--blocks` are **create-only**.) |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl skill` | Print this guide. |
@@ -90,6 +92,12 @@ Have the harness pick a name at session start and pass it as `--as` /
 > glyphs and color on a tty. Always prefer `--json` for parsing — it is the
 > **bedrock** projection (raw stored frontmatter, literal integer timestamps, no
 > derived fields), the supported machine contract.
+>
+> **Output streams:** `create` is the only verb that prints to **stdout** — the
+> minted id, alone, so `id=$(bl create "…")` captures it clean. Every other
+> mutating verb (`claim`/`unclaim`/`update`/`close`/`drop`) prints a terse
+> confirmation to **stderr**; stdout stays empty. The op log (JSON lines) is on
+> stderr too — redirect `2>/dev/null` for clean read-verb output.
 
 ## Status is derived, never stored
 
