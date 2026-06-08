@@ -46,11 +46,11 @@
 //! never print state back. [`plugin`] is the dispatch (env, recursion guard,
 //! stderr-to-logs, `protocol` self-describe); [`wire`] is the payload shape.
 //! [`install`] is the §6
-//! `bl install` capability transfer: it copies the committed wiring + config
-//! subtree between two branches (the plugins object mirrors only relative-symlink
-//! wiring, so the machine-local `bin/` never travels),
-//! unions `tasks/` on migration, and resolves + validates a local binary
-//! against its `protocol` self-describe before binding it. [`tracker`] is the
+//! `bl install` capability transfer: a pure path-copy of a committed path between
+//! two branches whose SHAPE decides the semantics (folder = mirror with deletions
+//! propagating, file/glob = additive union), never touching siblings or the
+//! gitignored `bin/`, then resolving + validating a local binary against its
+//! `protocol` self-describe before binding it. [`tracker`] is the
 //! one shipped remote-talker (a separate binary): it reads the §7 wire and does
 //! the §12/§13 git acts — sync (fetch + ff-only), push on post, and prime
 //! (adopt/found/stealth-lock) — and nothing local touches a remote without it.

@@ -1,28 +1,37 @@
-//! §6 `bl install` — capability transfer between two `balls` branches.
+//! §6 `bl install` — copy a committed path between two `balls` branches.
 //!
-//! One symmetric verb copies a COMMITTED branch subtree from a `--from` ref to a
-//! `--to` ref (default `anvil → landing`). Adopting (`anvil → landing`) and
-//! publishing (`landing → center`, or seeding `well-configured → unconfigured`)
-//! are the same verb, direction reversed. This module is the git-free heart: it
-//! transfers the subtree between two materialized checkout roots and validates a
-//! local binding. The git ref-materialization and the atomic seal onto `--to`
-//! are the engine's job at run-wiring (the transfer stages into the `--to`
-//! worktree; the [`crate::lifecycle::Engine`] commits it), so this layer reads
-//! and writes plain dirs and is unit-tested on tempfiles like [`crate::change`].
+//! Pure path-copy: `bl install <path> --from <ref> --to <ref>` makes
+//! `<to>/<path>` mirror `<from>/<path>`, touching NOTHING outside `<path>`.
+//! Adopting (`anvil → landing`) and publishing (`landing → center`) are the same
+//! verb, direction reversed. This is the git-free heart: it copies between two
+//! materialized checkout roots. The git ref-materialization and the atomic seal
+//! onto `--to` are the engine's job at run-wiring (this layer stages into the
+//! `--to` worktree; the [`crate::lifecycle::Engine`] commits it on top of `--to`'s
+//! CURRENT tip, swapping only `<path>` — never a whole-tree replace, never a ref
+//! reset). So this layer reads and writes plain dirs and is unit-tested on
+//! tempfiles like [`crate::change`].
 //!
-//! **The plugins object is the committed `plugins.toml` hook schedule** (§6) — a
-//! plain file copy of `config/plugins.toml`, the COMMITTED `[hooks]` table that
-//! names plugins by NAME (pure text, portable verbatim). The LOCAL
-//! `config/plugins/bin/<name>` symlinks never travel — the recipient resolves
-//! binaries itself ([`resolve_and_bind`]). The names the copied schedule
-//! references ([`crate::hooks::Hooks::referenced`]) are exactly the
-//! [`resolve_and_bind`] worklist a `--to`-local install runs.
+//! The path's SHAPE decides the semantics (§6) — there is NO object enum and no
+//! merge-vs-replace logic:
 //!
-//! Object semantics (bl-0601): `plugins`/`config` are recommendations — the
-//! incoming copy REPLACES the same paths (innermost wins). `tasks` is the single
-//! store relocating, so it is a UNION of the two sides' `tasks/<id>.md` sets; a
-//! same-`id` is a real conflict ([`InstallError::Conflict`]), never a silent
-//! clobber. Non-destructive to `--from`: this layer only ever reads the source.
+//! - **Folder path = MIRROR.** The destination becomes byte-identical to the
+//!   source; entries the source lacks are DELETED (rsync `--delete`, NOT `cp`).
+//!   This is how a close/drop (a file deletion) PROPAGATES through `install tasks`
+//!   — the resurrection problem dissolves by addressing, no tombstone needed.
+//! - **File / glob path = UNION.** Each source file is copied in, source wins on
+//!   overlap, the destination's other files are untouched. No conflict detection;
+//!   `install tasks/*` unions, `install tasks/bl-1234.md` ports one — git is the
+//!   recovery net.
+//!
+//! Siblings are never touched: install only ever writes under `<path>`, so
+//! `install config` can never eat a co-resident `tasks/` (§2) — forbidden, not
+//! merely discouraged. More-specific paths are less destructive.
+//!
+//! `bin/` never travels: `config/plugins/bin/<name>` is gitignored local state
+//! (§2), [`BIN`]-excluded from every copy and never removed by a mirror — the
+//! recipient resolves its own binaries. After a copy lands on the local landing,
+//! [`referenced`] reads the resulting schedule for the [`resolve_and_bind`]
+//! worklist.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -34,48 +43,39 @@ use crate::hooks::Hooks;
 use crate::plugin::describe;
 use crate::registry::Registry;
 
-/// What `bl install` copies. `plugins`/`config` replace; `tasks` merges (§6).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Object {
-    Plugins,
-    Config,
-    Tasks,
-}
+/// `config/plugins/bin` — local, gitignored binary symlinks (§2). install never
+/// copies it (committed-tree-only) and a mirror never deletes it; the recipient
+/// resolves its own binaries ([`resolve_and_bind`]).
+const BIN: &str = "config/plugins/bin";
 
-impl Object {
-    /// Every object, the source the parser and tests draw on.
-    pub const ALL: [Object; 3] = [Object::Plugins, Object::Config, Object::Tasks];
+/// The recommended bundle when `<path>` is omitted: all of `config/`, never the
+/// store (§6). `tasks/` is a top-level SIBLING of `config/` (§2), so mirroring
+/// `config` excludes it for free — no special case.
+pub const DEFAULT_PATH: &str = "config";
 
-    /// The recommended bundle when `<object>` is omitted: the capability wiring,
-    /// NOT `tasks` (the migration object, requested explicitly — §6).
-    pub const DEFAULT_BUNDLE: [Object; 2] = [Object::Plugins, Object::Config];
-
-    /// The canonical token — the inverse of [`Object::parse`].
-    pub fn token(self) -> &'static str {
-        match self {
-            Object::Plugins => "plugins",
-            Object::Config => "config",
-            Object::Tasks => "tasks",
-        }
-    }
-
-    /// Resolve a token to its object, or `None` if unrecognized.
-    pub fn parse(token: &str) -> Option<Object> {
-        Object::ALL.into_iter().find(|o| o.token() == token)
-    }
-}
-
-/// Which plugins the copied `[hooks]` schedule references, mapped to the op
-/// tokens they are wired into — the [`resolve_and_bind`] worklist a `--to`-local
-/// install runs.
+/// Which plugins the landing's schedule references, mapped to the op tokens they
+/// are wired into — the [`resolve_and_bind`] worklist a `--to`-local install runs.
 pub type Referenced = BTreeMap<String, BTreeSet<String>>;
 
-/// Why an install could not be applied.
+/// What a path-copy changed. install PRINTS this on stdout so the blast radius is
+/// visible before you trust it (§6); the commit is the undo, `git diff` the review.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Summary {
+    /// Source files copied into the destination (new or overwritten).
+    pub added: usize,
+    /// Destination files a mirror removed (always 0 for a union).
+    pub deleted: usize,
+}
+
+impl fmt::Display for Summary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} added / {} deleted", self.added, self.deleted)
+    }
+}
+
+/// Why an install could not link a plugin.
 #[derive(Debug)]
 pub enum InstallError {
-    /// `install tasks` hit the same `id` on both sides — a real collision, never
-    /// a silent clobber (near-impossible under random-hex ids, § id generation).
-    Conflict { id: String },
     /// The resolved binary does not declare an op it is wired into, or does not
     /// speak balls' protocol version — install refuses to link it (§6).
     Unsupported { name: String, reason: String },
@@ -86,9 +86,6 @@ pub enum InstallError {
 impl fmt::Display for InstallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InstallError::Conflict { id } => {
-                write!(f, "install tasks: {id} exists on both sides — refusing to clobber")
-            }
             InstallError::Unsupported { name, reason } => {
                 write!(f, "install: refusing to link {name}: {reason}")
             }
@@ -105,83 +102,137 @@ impl From<io::Error> for InstallError {
     }
 }
 
-/// Transfer each `object` from the `from` checkout root into the `to` checkout
-/// root, returning the plugins the copied wiring references (op tokens included)
-/// so a `--to`-local install can [`resolve_and_bind`] them. Only `plugins`
-/// contributes references; `config`/`tasks` contribute none.
-pub fn transfer(objects: &[Object], from: &Path, to: &Path) -> Result<Referenced, InstallError> {
-    let mut refs = Referenced::new();
-    for object in objects {
-        match object {
-            Object::Plugins => copy_plugins(from, to, &mut refs)?,
-            Object::Config => copy_config(from, to)?,
-            Object::Tasks => merge_tasks(from, to)?,
+/// Copy `path` (relative to the checkout root) from `from` into `to`. The path's
+/// SHAPE decides: a directory MIRRORS (deletions propagate), a file or `*`-glob
+/// UNIONS (additive, source-wins). `bin/` is never touched. Returns the change
+/// [`Summary`]. Non-destructive to `from`: this layer only ever reads the source.
+pub fn install(path: &str, from: &Path, to: &Path) -> io::Result<Summary> {
+    if path.contains('*') {
+        return union_glob(path, from, to);
+    }
+    let src = from.join(path);
+    let dst = to.join(path);
+    if src.is_dir() || (!src.exists() && dst.is_dir()) {
+        mirror(&src, &dst, &from.join(BIN), &to.join(BIN))
+    } else {
+        union_file(&src, &dst)
+    }
+}
+
+/// Make `dst` byte-identical to `src` (rsync `--delete`): remove every `dst` file
+/// the `src` lacks, then copy every `src` file in. The gitignored `bin/` subtree
+/// under either root is never walked, so it is neither copied nor deleted.
+fn mirror(src: &Path, dst: &Path, src_bin: &Path, dst_bin: &Path) -> io::Result<Summary> {
+    let mut deleted = 0;
+    for file in walk(dst, dst_bin)? {
+        let rel = file.strip_prefix(dst).expect("walk yields dst-rooted paths");
+        if !src.join(rel).is_file() {
+            fs::remove_file(&file)?;
+            deleted += 1;
         }
     }
-    Ok(refs)
+    let mut added = 0;
+    for file in walk(src, src_bin)? {
+        let rel = file.strip_prefix(src).expect("walk yields src-rooted paths");
+        copy_file(&file, &dst.join(rel))?;
+        added += 1;
+    }
+    Ok(Summary { added, deleted })
 }
 
-/// `config/plugins.toml` of one checkout — the committed `[hooks]` schedule.
-fn plugins_toml(root: &Path) -> PathBuf {
-    root.join("config").join("plugins.toml")
-}
-
-/// Copy the committed `config/plugins.toml` hook schedule (innermost wins) and
-/// report the plugins it references (name → ops), the [`resolve_and_bind`]
-/// worklist. An absent source schedule means nothing is wired — copy nothing,
-/// reference nothing.
-fn copy_plugins(from: &Path, to: &Path, refs: &mut Referenced) -> Result<(), InstallError> {
-    let src = plugins_toml(from);
+/// Union one source file into the destination, overwriting on overlap. An absent
+/// source file copies nothing — there is nothing to port.
+fn union_file(src: &Path, dst: &Path) -> io::Result<Summary> {
     if src.is_file() {
-        let dest = plugins_toml(to);
-        fs::create_dir_all(dest.parent().expect("plugins.toml always has a config/ parent"))?;
-        fs::copy(&src, &dest)?;
-        *refs = Hooks::load_from(&src)?.referenced();
+        copy_file(src, dst)?;
+        return Ok(Summary { added: 1, deleted: 0 });
     }
-    Ok(())
+    Ok(Summary::default())
 }
 
-/// Replace `config/balls.toml` (innermost wins). An absent source = nothing to
-/// recommend; copy nothing.
-fn copy_config(from: &Path, to: &Path) -> Result<(), InstallError> {
-    let src = from.join("config").join("balls.toml");
-    if src.is_file() {
-        let dest = to.join("config").join("balls.toml");
-        fs::create_dir_all(dest.parent().expect("balls.toml always has a config/ parent"))?;
-        fs::copy(&src, &dest)?;
-    }
-    Ok(())
-}
-
-/// Union-merge `tasks/<id>.md`: copy every source ball the destination lacks; a
-/// ball present on both sides is a [`InstallError::Conflict`]. Non-destructive to
-/// the source. An absent source `tasks/` means nothing to move.
-fn merge_tasks(from: &Path, to: &Path) -> Result<(), InstallError> {
-    let src = from.join("tasks");
-    if !src.is_dir() {
-        return Ok(());
-    }
-    let dest_dir = to.join("tasks");
-    for entry in fs::read_dir(&src)? {
-        let entry = entry?;
-        let name = entry.file_name();
-        if let Some(id) = name.to_string_lossy().strip_suffix(".md") {
-            let dest = dest_dir.join(&name);
-            if dest.exists() {
-                return Err(InstallError::Conflict { id: id.to_string() });
+/// Union every source file in `<dir>` whose name matches the trailing `*`-glob
+/// into the destination's `<dir>`, source-wins on overlap. Directories (incl.
+/// `bin/`) never match — a glob copies files, additively.
+fn union_glob(path: &str, from: &Path, to: &Path) -> io::Result<Summary> {
+    let (dir, pattern) = path.rsplit_once('/').unwrap_or(("", path));
+    let src_dir = from.join(dir);
+    let dst_dir = to.join(dir);
+    let mut added = 0;
+    if src_dir.is_dir() {
+        for entry in fs::read_dir(&src_dir)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            if entry.file_type()?.is_file() && matches(pattern, &name.to_string_lossy()) {
+                copy_file(&entry.path(), &dst_dir.join(&name))?;
+                added += 1;
             }
-            fs::create_dir_all(&dest_dir)?;
-            fs::copy(entry.path(), dest)?;
+        }
+    }
+    Ok(Summary { added, deleted: 0 })
+}
+
+/// Every regular file under `root` (recursive), skipping the `skip` subtree.
+fn walk(root: &Path, skip: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    if root.is_dir() {
+        walk_into(root, skip, &mut out)?;
+    }
+    Ok(out)
+}
+
+fn walk_into(dir: &Path, skip: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path == *skip {
+            continue;
+        }
+        if entry.file_type()?.is_dir() {
+            walk_into(&path, skip, out)?;
+        } else {
+            out.push(path);
         }
     }
     Ok(())
+}
+
+/// Copy `src` to `dst`, making parents — the one write primitive both shapes use.
+fn copy_file(src: &Path, dst: &Path) -> io::Result<()> {
+    fs::create_dir_all(dst.parent().expect("a copy target always has a parent"))?;
+    fs::copy(src, dst)?;
+    Ok(())
+}
+
+/// Minimal `*`-glob: `*` matches any (possibly empty) run of characters; every
+/// other character is literal (no `?`/`[]`). Multiple `*` compose.
+fn matches(pattern: &str, name: &str) -> bool {
+    match pattern.split_once('*') {
+        None => pattern == name,
+        Some((prefix, rest)) => {
+            let Some(after) = name.strip_prefix(prefix) else {
+                return false;
+            };
+            (0..=after.len()).any(|i| after.is_char_boundary(i) && matches(rest, &after[i..]))
+        }
+    }
+}
+
+/// The bind worklist after an install: which plugins the landing's resulting
+/// `config/plugins.toml` schedule references (name → ops), each a
+/// [`resolve_and_bind`] target. An absent schedule references nothing.
+pub fn referenced(landing: &Path) -> io::Result<Referenced> {
+    let toml = landing.join("config").join("plugins.toml");
+    if toml.is_file() {
+        return Ok(Hooks::load_from(&toml)?.referenced());
+    }
+    Ok(Referenced::new())
 }
 
 /// Resolve `name` to the local `candidate` binary and bind it (§6 two-level
-/// stitch). Refuses unless the binary's `<bin> protocol` self-description
-/// declares every `op` the wiring uses it for and speaks `protocol`. The binary
-/// edge supplies `candidate` (a PATH lookup or an explicit `--bin name=path`),
-/// keeping this layer env-free.
+/// stitch). Refuses unless the binary's `<bin> protocol` self-description declares
+/// every `op` the wiring uses it for and speaks `protocol`. The binary edge
+/// supplies `candidate` (a PATH lookup or an explicit `--bin name=path`), keeping
+/// this layer env-free.
 pub fn resolve_and_bind(
     registry: &Registry,
     name: &str,
