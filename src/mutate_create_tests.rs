@@ -93,6 +93,16 @@ fn create_rejects_an_unknown_op_token() {
 }
 
 #[test]
+fn create_rejects_no_needs() {
+    // --no-needs drops an existing edge — a fresh ball has none, so it is update-only.
+    let mut f = flags();
+    f.positionals = vec!["t".into()];
+    f.no_needs = vec!["bl-x".into()];
+    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("only for update"));
+}
+
+#[test]
 fn create_requires_exactly_one_positional() {
     let dir = tempdir().unwrap();
     assert!(base_change(Verb::Create, dir.path(), &flags(), 0).is_err()); // zero

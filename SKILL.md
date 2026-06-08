@@ -83,7 +83,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [--as ID]` | File a task. Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
-| `bl update <id> [--body B] [-p N] [-t TAG] [key=value]` | Edit fields: title/body, priority, add tags. A bare `key=value` sets a preserved extra field. (Relational edges `--parent`/`--needs`/`--blocks` are **create-only**.) |
+| `bl update <id> [--body B] [-p N] [-t TAG] [--needs ID[:OP]] [--no-needs ID] [key=value]` | Edit fields: title/body, priority, add tags, set preserved `key=value`. Edit this task's own blockers: `--needs` adds, `--no-needs` unlinks (the §10 in-band fix). `--parent` and reciprocal `--blocks` stay **create-only**. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl skill` | Print this guide. |
@@ -157,7 +157,10 @@ Then:
 
 - A task you decided against (dupe, stale): `bl drop <id>` if you hold it, else
   `bl close <id>` to archive without delivering code.
-- `update` only **adds** (`-t`/`--needs`/`--blocks`) or **sets**
-  (`--body`/`-p`/`--parent`/`key=value`) — there is no remove flag. To clear a
-  field, edit the store's `tasks/<id>.md`, commit on the store branch, and push
-  (or let the next op's tracker push it).
+- `update` **adds** (`-t`/`--needs`) or **sets** (`--body`/`-p`/`key=value`); its
+  one remove flag is `--no-needs`, which unlinks one of this task's own blocker
+  edges (the §10 in-band fix for a mis-wired or cyclic blocker). `--parent`
+  (containment) and reciprocal `--blocks` (an edge on another task) stay
+  create-only, as does clearing a scalar or dropping a tag — for those, edit the
+  store's `tasks/<id>.md`, commit on the store branch, and push (or let the next
+  op's tracker push it).

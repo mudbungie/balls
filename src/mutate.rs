@@ -19,7 +19,7 @@ use std::io;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
+use crate::change::{Create, Occupancy, Retire, Update};
 use crate::checkout;
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
@@ -30,11 +30,13 @@ use crate::lifecycle::{BaseChange, Engine};
 use crate::log::{self, Level, Log};
 use crate::plugin::Subprocess;
 use crate::registry::Registry;
-use crate::task::{Blocker, On, Task};
+use crate::task::Task;
 use crate::taskfile::{read_task, task_ids};
 use crate::verb::Verb;
 use crate::wire::{Command, OpContext};
 
+#[path = "mutate_build.rs"]
+mod build;
 #[path = "mutate_report.rs"]
 mod report;
 
@@ -87,6 +89,9 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
     let actor = flags.actor.clone();
     match verb {
         Verb::Create => {
+            if !flags.no_needs.is_empty() {
+                return Err(other("create: --no-needs is only for update — a new task has no edge to drop"));
+            }
             let title = one_positional(flags, "create")?;
             let base = Create {
                 id: IdScheme::default().generate(),
@@ -96,8 +101,8 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
                 parent: flags.parent.clone(),
                 priority: flags.priority,
                 tags: flags.tags.clone(),
-                blockers: needs_blockers(flags)?,
-                blocks: blocks_edges(flags)?,
+                blockers: build::needs_blockers(flags)?,
+                blocks: build::blocks_edges(flags)?,
                 over: flags.over.clone(),
                 body: flags.body.clone(),
                 existing: task_ids(store)?,
@@ -105,7 +110,7 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
             Ok((Box::new(base), None))
         }
         Verb::Claim | Verb::Unclaim => {
-            forbid_shaping(flags, verb)?;
+            build::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
@@ -113,15 +118,15 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
             Ok((Box::new(base), Some(before)))
         }
         Verb::Update => {
-            forbid_structure(flags, verb)?;
+            build::forbid_foreign_edges(flags, verb)?;
             let mut positionals = flags.positionals.iter();
             let id = positionals.next().ok_or_else(|| other("update: needs a task id"))?.clone();
             let before = read_task(store, &id)?;
-            let base = Update { id, actor, now, edits: edits(positionals, flags)?, over: flags.over.clone(), body: flags.body.clone() };
+            let base = Update { id, actor, now, edits: build::edits(positionals, flags)?, over: flags.over.clone(), body: flags.body.clone() };
             Ok((Box::new(base), Some(before)))
         }
         Verb::Close | Verb::Drop => {
-            forbid_shaping(flags, verb)?;
+            build::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
             let base = Retire { verb, id, title: before.title.clone(), actor, over: flags.over.clone(), body: flags.body.clone() };
@@ -140,64 +145,6 @@ fn command(verb: Verb, flags: &Flags) -> Command {
     Command { op: verb.token().to_string(), field_changes: Vec::new(), body_change: flags.body.clone() }
 }
 
-/// Build the §9 `update` [`FieldEdit`] list: each trailing `key=value` positional
-/// reaches a preserved `extra` field (§3, the team-field seam), `-p`/`-t` re-set
-/// priority and add tags. `--body`/`-m` ride the commit message, not the ball.
-fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags) -> io::Result<Vec<FieldEdit>> {
-    let mut edits = Vec::new();
-    for kv in extras {
-        let (k, v) = kv.split_once('=').ok_or_else(|| other(format!("update: '{kv}' is not key=value")))?;
-        edits.push(FieldEdit::SetExtra(k.to_string(), toml::Value::String(v.to_string())));
-    }
-    if let Some(p) = flags.priority {
-        edits.push(FieldEdit::Priority(Some(p)));
-    }
-    edits.extend(flags.tags.iter().map(|t| FieldEdit::AddTag(t.clone())));
-    Ok(edits)
-}
-
-/// `--needs B[:OP]` → the new task's own blockers: it can't make op `OP` until
-/// `B` resolves. `OP` defaults to `claim` (a dependency, §10), so a bare `--needs
-/// B` is the common "blocked from starting until B lands".
-fn needs_blockers(flags: &Flags) -> io::Result<Vec<Blocker>> {
-    flags
-        .needs
-        .iter()
-        .map(|spec| match spec.split_once(':') {
-            Some((id, op)) => Ok(Blocker { id: id.to_string(), on: verb_of(op)? }),
-            None => Ok(Blocker { id: spec.clone(), on: On::Claim }),
-        })
-        .collect()
-}
-
-/// `--blocks OP` / `--blocks ID:OP` → reciprocal edges naming THIS new task on a
-/// target's op `OP`: a bare `OP` gates the `--parent` (required — that is the
-/// only target a bare form has), an explicit `ID:OP` gates a non-parent. This is
-/// the §10/§15 front door for the retired `--gates X` (= `--parent X --blocks
-/// close`): containment never mints a blocker, so every gate is spelled here.
-fn blocks_edges(flags: &Flags) -> io::Result<Vec<(String, On)>> {
-    flags
-        .blocks
-        .iter()
-        .map(|spec| {
-            if let Some((id, op)) = spec.split_once(':') {
-                Ok((id.to_string(), verb_of(op)?))
-            } else {
-                let parent = flags.parent.clone().ok_or_else(|| {
-                    other("create: --blocks OP needs --parent; gate a non-parent with --blocks ID:OP")
-                })?;
-                Ok((parent, verb_of(spec)?))
-            }
-        })
-        .collect()
-}
-
-/// Resolve an op token (`claim`/`close`/`update`/…) to its [`Verb`] — `on` is ANY
-/// op (§10/§15), so any known verb is a valid edge target.
-fn verb_of(token: &str) -> io::Result<On> {
-    Verb::parse(token).ok_or_else(|| other(format!("'{token}' is not a known op")))
-}
-
 /// The single positional `verb` expects (a `create` title, else a task id).
 fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
     match flags.positionals.as_slice() {
@@ -206,26 +153,11 @@ fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
     }
 }
 
-/// `--parent`/`--blocks`/`--needs` are `create`'s front-door flags only.
-fn forbid_structure(flags: &Flags, verb: Verb) -> io::Result<()> {
-    if flags.parent.is_some() || !flags.blocks.is_empty() || !flags.needs.is_empty() {
-        return Err(other(format!("{}: --parent/--blocks/--needs are only for create", verb.token())));
-    }
-    Ok(())
-}
-
-/// The occupancy/retire verbs shape no fields: reject structure plus `-p`/`-t`.
-fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
-    forbid_structure(flags, verb)?;
-    if flags.priority.is_some() || !flags.tags.is_empty() {
-        return Err(other(format!("{}: -p/-t are only for create/update", verb.token())));
-    }
-    Ok(())
-}
-
 /// The parsed front-door flags + positionals, verb-agnostic. The per-verb
 /// `base_change` validates which it accepts; `over`/`body` are the §5 message's
-/// subject override and body, shared by every verb.
+/// subject override and body, shared by every verb. `needs`/`no_needs` add/drop
+/// the task's own blocker edges (create or update, §10); `blocks`/`parent` are
+/// create-only.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Flags {
     actor: String,
@@ -234,6 +166,7 @@ struct Flags {
     parent: Option<String>,
     blocks: Vec<String>,
     needs: Vec<String>,
+    no_needs: Vec<String>,
     priority: Option<i64>,
     tags: Vec<String>,
     positionals: Vec<String>,
@@ -252,6 +185,7 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "--parent" => f.parent = Some(value(args, &mut i, "--parent")?),
             "--blocks" => f.blocks.push(value(args, &mut i, "--blocks")?),
             "--needs" => f.needs.push(value(args, &mut i, "--needs")?),
+            "--no-needs" => f.no_needs.push(value(args, &mut i, "--no-needs")?),
             "-p" | "--priority" => {
                 let v = value(args, &mut i, "-p")?;
                 f.priority = Some(v.parse().map_err(|_| other(format!("-p: '{v}' is not an integer")))?);

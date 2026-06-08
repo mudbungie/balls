@@ -204,3 +204,39 @@ fn prime_install_adopts_a_centers_config_via_the_tracker_fetch() {
     let cfg = std::fs::read_to_string(landing.join("config/balls.toml")).unwrap();
     assert!(cfg.contains("CENTER-MARKER"), "adopted the center's config file: {cfg}");
 }
+
+/// The id `bl create` printed alone to stdout (§9).
+fn created_id(out: assert_cmd::assert::Assert) -> String {
+    String::from_utf8(out.get_output().stdout.clone()).unwrap().trim().to_string()
+}
+
+#[test]
+fn update_unlinks_a_blocker_so_a_wedged_claim_succeeds() {
+    // §10 in-band recovery: a task blocked from claim by an unresolved edge is
+    // freed by `bl update --no-needs`, no store-file surgery — the case that
+    // keeps the no-cycle-detector deletion (bl-a38e) honest.
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    // A real project on `main` so the delivery plugin can fork the `work/<id>` worktree at claim.
+    git(&project, &["init", "-q", "-b", "main"]);
+    git(&project, &["config", "user.name", "test"]);
+    git(&project, &["config", "user.email", "test@example.com"]);
+    std::fs::write(project.join("seed.txt"), "x").unwrap();
+    git(&project, &["add", "-A"]);
+    git(&project, &["commit", "-qm", "seed"]);
+    bl_primed(&project, &home, &state).arg("prime").assert().success();
+
+    // B can't be claimed until A resolves (default `--needs` op = claim, §10).
+    let a = created_id(bl_primed(&project, &home, &state).args(["create", "Blocker A", "--as", "me"]).assert().success());
+    let b = created_id(
+        bl_primed(&project, &home, &state).args(["create", "Blocked B", "--needs", &a, "--as", "me"]).assert().success(),
+    );
+
+    // The wedge: claim refuses, naming the unresolved blocker.
+    bl_primed(&project, &home, &state).args(["claim", &b, "--as", "me"]).assert().failure().stderr(contains(a.clone()));
+
+    // Unlink the edge in-band — then the very same claim goes through.
+    bl_primed(&project, &home, &state).args(["update", &b, "--no-needs", &a, "--as", "me"]).assert().success();
+    bl_primed(&project, &home, &state).args(["claim", &b, "--as", "me"]).assert().success();
+}

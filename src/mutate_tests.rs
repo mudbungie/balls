@@ -4,6 +4,8 @@
 //! covered end to end by the `lib`/`dispatch` integration tests.
 
 use super::*;
+use crate::task::{Blocker, On};
+use crate::taskfile::write_task;
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
@@ -36,7 +38,7 @@ fn parse_collects_every_flag_and_positional() {
     let f = parse(
         &strs(&[
             "the-id", "k=v", "--as", "ann", "-m", "subj", "--body", "para", "--parent", "bl-p",
-            "--blocks", "bl-g:close", "--needs", "bl-n", "-p", "3", "-t", "x",
+            "--blocks", "bl-g:close", "--needs", "bl-n", "--no-needs", "bl-rm", "-p", "3", "-t", "x",
         ]),
         "default",
     )
@@ -47,6 +49,7 @@ fn parse_collects_every_flag_and_positional() {
     assert_eq!(f.parent.as_deref(), Some("bl-p"));
     assert_eq!(f.blocks, ["bl-g:close"]);
     assert_eq!(f.needs, ["bl-n"]);
+    assert_eq!(f.no_needs, ["bl-rm"]);
     assert_eq!(f.priority, Some(3));
     assert_eq!(f.tags, ["x"]);
     assert_eq!(f.positionals, ["the-id", "k=v"]);
@@ -152,12 +155,48 @@ fn update_rejects_a_non_key_value_positional() {
 }
 
 #[test]
-fn update_rejects_structural_flags() {
+fn update_rejects_create_only_edges() {
+    // --parent (containment) and --blocks (a reciprocal edge on ANOTHER task) are
+    // create-only; update edits only THIS task's own blockers.
+    for mut f in [
+        {
+            let mut f = flags();
+            f.parent = Some("bl-2".into());
+            f
+        },
+        {
+            let mut f = flags();
+            f.blocks = vec!["bl-2:close".into()];
+            f
+        },
+    ] {
+        f.positionals = vec!["bl-1".into()];
+        let err = base_change(Verb::Update, tempdir().unwrap().path(), &f, 0).err().unwrap();
+        assert!(err.to_string().contains("create-only"));
+    }
+}
+
+#[test]
+fn update_adds_and_drops_its_own_blockers() {
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    // bl-1 already carries a claim-blocker on bl-old we will unlink (the §10 in-band fix).
+    let before = Task {
+        title: "A".into(),
+        blockers: vec![Blocker { id: "bl-old".into(), on: On::Claim }],
+        ..Task::default()
+    };
+    write_task(dir, "bl-1", &before).unwrap();
     let mut f = flags();
     f.positionals = vec!["bl-1".into()];
-    f.needs = vec!["bl-2".into()];
-    let err = base_change(Verb::Update, tempdir().unwrap().path(), &f, 0).err().unwrap();
-    assert!(err.to_string().contains("only for create"));
+    f.needs = vec!["bl-new:close".into()]; // add a post-hoc gate
+    f.no_needs = vec!["bl-old".into(), "bl-z:claim".into()]; // unlink: bare id + tolerant id:op form
+    let (base, _) = base_change(Verb::Update, dir, &f, 3).unwrap();
+    base.stage(dir).unwrap();
+    let t = read_task(dir, "bl-1").unwrap();
+    // bl-old dropped, bl-new added; the bl-z drop is a harmless no-op.
+    assert_eq!(t.blockers, vec![Blocker { id: "bl-new".into(), on: On::Close }]);
+    assert_eq!(t.updated, 3);
 }
 
 #[test]
