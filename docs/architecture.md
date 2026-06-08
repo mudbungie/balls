@@ -625,7 +625,7 @@ touched); `unclaim.pre`, the delivery plugin clears its worktree-path key in loc
 `*.post`: the delivery plugin releases the code worktree.
 
 **`update`** (op `update`): the generic field/body edit — retitle, edit the markdown body, add/remove
-`tags`, reparent, edit `blockers`. (No status to set — that field doesn't exist, §3; a team's opt-in
+`tags`, and add or unlink its own `blockers` (`--needs`/`--no-needs`, the §10 in-band edge edit). Reparenting and reciprocal `--blocks` edges stay create-only. (No status to set — that field doesn't exist, §3; a team's opt-in
 `state:` key, being an unknown preserved field, rides through `update` like any other.) balls stages
 the edit; `update.pre` may reject/adjust; seal; `update.post` reactors propagate (the tracker pushes;
 an external-mirror plugin reflects the new title). claim / unclaim / close / drop are NAMED
