@@ -37,21 +37,26 @@ fn strs(args: &[&str]) -> Vec<String> {
 fn parse_collects_every_flag_and_positional() {
     let f = parse(
         &strs(&[
-            "the-id", "k=v", "--as", "ann", "-m", "subj", "--body", "para", "--parent", "bl-p",
-            "--blocks", "bl-g:close", "--needs", "bl-n", "--no-needs", "bl-rm", "-p", "3", "-t", "x",
+            "the-id", "k=v", "--as", "ann", "-m", "note", "--body", "para", "--title", "New",
+            "--parent", "bl-p", "--no-parent", "--blocks", "bl-g:close", "--needs", "bl-n",
+            "--no-needs", "bl-rm", "-p", "3", "--no-priority", "-t", "x", "--no-tag", "y",
         ]),
         "default",
     )
     .unwrap();
     assert_eq!(f.actor, "ann");
-    assert_eq!(f.over.as_deref(), Some("subj"));
+    assert_eq!(f.message.as_deref(), Some("note"));
     assert_eq!(f.body.as_deref(), Some("para"));
+    assert_eq!(f.title.as_deref(), Some("New"));
     assert_eq!(f.parent.as_deref(), Some("bl-p"));
+    assert!(f.no_parent);
     assert_eq!(f.blocks, ["bl-g:close"]);
     assert_eq!(f.needs, ["bl-n"]);
     assert_eq!(f.no_needs, ["bl-rm"]);
     assert_eq!(f.priority, Some(3));
+    assert!(f.no_priority);
     assert_eq!(f.tags, ["x"]);
+    assert_eq!(f.no_tags, ["y"]);
     assert_eq!(f.positionals, ["the-id", "k=v"]);
     // The default actor applies when --as is absent.
     assert_eq!(parse(&[], "default").unwrap().actor, "default");
@@ -117,86 +122,25 @@ fn an_occupancy_verb_rejects_shaping_flags() {
     let mut shaping = id();
     shaping.priority = Some(1);
     assert!(base_change(Verb::Close, d.path(), &shaping, 0).is_err());
+    // --no-tag is the last predicate in the chain — setting only it forces the
+    // whole guard to evaluate, and it still bounces (no field edits on retire).
+    let mut last = id();
+    last.no_tags = vec!["x".into()];
+    let err = base_change(Verb::Drop, d.path(), &last, 0).err().unwrap();
+    assert!(err.to_string().contains("no field edits"));
+    // -m (commit narration) and --as are the only flags an occupancy verb takes.
+    let mut narrated = id();
+    narrated.message = Some("note".into());
+    assert!(base_change(Verb::Claim, d.path(), &narrated, 0).is_ok());
 }
 
 #[test]
-fn update_builds_extras_priority_and_tags() {
-    let d = tempdir().unwrap();
-    let dir = d.path();
-    write(dir, "bl-1", TASK);
+fn create_rejects_title_flag_and_uses_the_positional() {
     let mut f = flags();
-    f.positionals = vec!["bl-1".into(), "state=doing".into()];
-    f.priority = Some(5);
-    f.tags = vec!["urgent".into()];
-    let (base, before) = base_change(Verb::Update, dir, &f, 9).unwrap();
-    assert_eq!(before.unwrap().title, "A task");
-    base.stage(dir).unwrap();
-    let t = read_task(dir, "bl-1").unwrap();
-    assert_eq!(t.extra.get("state").and_then(toml::Value::as_str), Some("doing"));
-    assert_eq!(t.priority, Some(5));
-    assert_eq!(t.tags, ["urgent"]);
-    assert_eq!(t.updated, 9);
-}
-
-#[test]
-fn update_requires_a_task_id() {
-    let err = base_change(Verb::Update, tempdir().unwrap().path(), &flags(), 0).err().unwrap();
-    assert!(err.to_string().contains("needs a task id"));
-}
-
-#[test]
-fn update_rejects_a_non_key_value_positional() {
-    let d = tempdir().unwrap();
-    write(d.path(), "bl-1", TASK);
-    let mut f = flags();
-    f.positionals = vec!["bl-1".into(), "notpair".into()];
-    let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
-    assert!(err.to_string().contains("not key=value"));
-}
-
-#[test]
-fn update_rejects_create_only_edges() {
-    // --parent (containment) and --blocks (a reciprocal edge on ANOTHER task) are
-    // create-only; update edits only THIS task's own blockers.
-    for mut f in [
-        {
-            let mut f = flags();
-            f.parent = Some("bl-2".into());
-            f
-        },
-        {
-            let mut f = flags();
-            f.blocks = vec!["bl-2:close".into()];
-            f
-        },
-    ] {
-        f.positionals = vec!["bl-1".into()];
-        let err = base_change(Verb::Update, tempdir().unwrap().path(), &f, 0).err().unwrap();
-        assert!(err.to_string().contains("create-only"));
-    }
-}
-
-#[test]
-fn update_adds_and_drops_its_own_blockers() {
-    let d = tempdir().unwrap();
-    let dir = d.path();
-    // bl-1 already carries a claim-blocker on bl-old we will unlink (the §10 in-band fix).
-    let before = Task {
-        title: "A".into(),
-        blockers: vec![Blocker { id: "bl-old".into(), on: On::Claim }],
-        ..Task::default()
-    };
-    write_task(dir, "bl-1", &before).unwrap();
-    let mut f = flags();
-    f.positionals = vec!["bl-1".into()];
-    f.needs = vec!["bl-new:close".into()]; // add a post-hoc gate
-    f.no_needs = vec!["bl-old".into(), "bl-z:claim".into()]; // unlink: bare id + tolerant id:op form
-    let (base, _) = base_change(Verb::Update, dir, &f, 3).unwrap();
-    base.stage(dir).unwrap();
-    let t = read_task(dir, "bl-1").unwrap();
-    // bl-old dropped, bl-new added; the bl-z drop is a harmless no-op.
-    assert_eq!(t.blockers, vec![Blocker { id: "bl-new".into(), on: On::Close }]);
-    assert_eq!(t.updated, 3);
+    f.positionals = vec!["the title".into()];
+    f.title = Some("via flag".into());
+    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("positional argument, not --title"));
 }
 
 #[test]
@@ -248,3 +192,7 @@ fn change_tokens_are_hex_and_distinct() {
 // The `create` front-door tests share this module's flags/write/new_id fixtures.
 #[path = "mutate_create_tests.rs"]
 mod create;
+
+// The `update` front-door tests share this module's flags/write/TASK fixtures.
+#[path = "mutate_update_tests.rs"]
+mod update;

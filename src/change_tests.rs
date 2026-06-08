@@ -67,8 +67,7 @@ fn update_applies_every_field_edit_and_bumps_updated() {
         id: "bl-1".into(),
         actor: "me".into(),
         now: 99,
-        over: None,
-        body: None,
+        message: None,
         edits: vec![
             FieldEdit::Title("Renamed".into()),
             FieldEdit::Body("new body\n".into()),
@@ -117,8 +116,7 @@ fn update_is_refused_while_an_on_update_blocker_is_open() {
         id: "bl-1".into(),
         actor: "me".into(),
         now: 9,
-        over: None,
-        body: None,
+        message: None,
         edits: vec![FieldEdit::Title("Renamed".into())],
     };
     let err = u.stage(dir).unwrap_err();
@@ -135,8 +133,7 @@ fn update_clears_optional_fields_with_none() {
         id: "bl-1".into(),
         actor: "me".into(),
         now: 99,
-        over: None,
-        body: None,
+        message: None,
         edits: vec![FieldEdit::Parent(None), FieldEdit::Priority(None)],
     };
     u.stage(dir).unwrap();
@@ -154,8 +151,7 @@ fn update_finalizes_with_the_retitled_subject() {
         id: "bl-1".into(),
         actor: "me".into(),
         now: 99,
-        over: None,
-        body: None,
+        message: None,
         edits: vec![FieldEdit::Title("Renamed".into())],
     };
     u.stage(dir).unwrap();
@@ -197,16 +193,16 @@ fn retire_errors_when_the_ball_is_absent() {
 }
 
 #[test]
-fn an_override_subject_and_body_flow_into_the_message() {
+fn the_m_message_flows_into_the_commit_body_under_the_title_subject() {
+    // The subject is ALWAYS the ball title (no override); `-m` is the free body.
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1", TASK);
     let mut o = Occupancy::claim("bl-1".into(), "me".into(), 0);
-    o.over = Some("Custom subject".into());
-    o.body = Some("Extra paragraph.".into());
+    o.message = Some("Extra paragraph.".into());
     o.stage(dir).unwrap();
     let msg = o.finalize(dir).unwrap();
-    assert!(msg.starts_with("Custom subject"));
+    assert!(msg.starts_with("A task"));
     assert!(msg.contains("Extra paragraph."));
 }
 

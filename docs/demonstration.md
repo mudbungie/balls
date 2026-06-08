@@ -49,9 +49,11 @@ $ echo "$FORM"
 bl-9419
 ```
 
-The form carries a *create-time* blocker on the backend. `--parent` and reciprocal
-`--blocks` edges are create-only, but a task's own blockers can be edited later with
-`bl update --needs`/`--no-needs` (the §10 in-band unlink for a mis-wired or cyclic edge).
+The form carries a *create-time* blocker on the backend. Only the reciprocal
+`--blocks` edge (naming this task on another) is create-only; every other field —
+title, body, parent, priority, tags, extras, and a task's own blockers — is
+overwriteable later with `bl update` (e.g. `--needs`/`--no-needs`, the §10 in-band
+unlink for a mis-wired or cyclic edge).
 
 ## 3. Status is derived, never stored — `bl list`
 

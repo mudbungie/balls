@@ -341,9 +341,9 @@ parsed via `git interpret-trailers --parse` — no hand-rolled parser; coexists 
 `Co-Authored-By:`):
 
 ```
-<subject — defaults to the ball's title; -m overrides>
+<subject — always the ball's title (no override)>
 
-<free-form body, optional>
+<free-form body, optional — the `-m` narration>
 
 bl-protocol: 1
 bl-op: close
@@ -351,8 +351,9 @@ bl-id: bl-1234
 bl-actor: orionriver@gmail.com
 ```
 
-- Tokens are lower-kebab (`[a-z0-9-]`, git's trailer grammar). The subject is the ball title so
-  `git log` readers never see balls-flavored subjects.
+- Tokens are lower-kebab (`[a-z0-9-]`, git's trailer grammar). The subject is ALWAYS the ball title
+  (there is no override) so `git log` readers never see balls-flavored subjects; the optional `-m`
+  text is the free body (narration), and `--body` is the ball's own markdown body, NOT a commit note.
 - **Namespacing:** every key is namespaced by owner. `bl-` is RESERVED to core (plugins may not
   emit `bl-*`); plugins prefix with their own name (`jira-id`, `github-url`).
 - balls always writes `bl-protocol`, `bl-op`, `bl-actor`; `bl-id` on every per-task op
@@ -624,8 +625,15 @@ human hint (§11 — the plugin owns the path, core forwards, never computes it)
 touched); `unclaim.pre`, the delivery plugin clears its worktree-path key in lockstep (§11).
 `*.post`: the delivery plugin releases the code worktree.
 
-**`update`** (op `update`): the generic field/body edit — retitle, edit the markdown body, add/remove
-`tags`, and add or unlink its own `blockers` (`--needs`/`--no-needs`, the §10 in-band edge edit). Reparenting and reciprocal `--blocks` edges stay create-only. (No status to set — that field doesn't exist, §3; a team's opt-in
+**`update`** (op `update`): the generic field/body edit — it overwrites EVERY ball field, so there is
+no create-only split. Retitle (`--title`), rewrite the markdown body (`--body`), set or clear the
+`parent` (`--parent`/`--no-parent`) and `priority` (`-p`/`--no-priority`) scalars, add or drop a
+`tag` (`-t`/`--no-tag`), set or remove a preserved extra (`key=value`/`key=`), and add or unlink its
+own `blockers` (`--needs`/`--no-needs`, the §10 in-band edge edit). The lone create-only flag is the
+reciprocal `--blocks` (an edge naming this task on ANOTHER), since that is not this task's own field.
+A blocker that really blocks must be removable in-band — no store-file surgery — and the same holds
+for a stale parent, a wrong title, or a leftover scalar. (No status to set — that field doesn't
+exist, §3; a team's opt-in
 `state:` key, being an unknown preserved field, rides through `update` like any other.) balls stages
 the edit; `update.pre` may reject/adjust; seal; `update.post` reactors propagate (the tracker pushes;
 an external-mirror plugin reflects the new title). claim / unclaim / close / drop are NAMED

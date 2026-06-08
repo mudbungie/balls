@@ -36,15 +36,8 @@ pub const PROTOCOL: u32 = 1;
 /// is the `metadata` balls forwards to plugins on the post wire (§7).
 pub type Metadata = BTreeMap<String, Vec<String>>;
 
-/// Resolve the §5 subject: the `-m` override when given, else the ball `title`.
-/// "Subject defaults to the ball's title" so `git log` readers never see
-/// balls-flavored subjects.
-#[must_use]
-pub fn subject(over: Option<&str>, title: &str) -> String {
-    over.unwrap_or(title).to_string()
-}
-
-/// A commit balls is about to seal: a resolved [`subject`], an optional body,
+/// A commit balls is about to seal: a `subject` (always the ball title — there
+/// is no override, §5), an optional body (the `-m` narration),
 /// and the op/actor/id that fix its core trailers. `id` is `Some` for a
 /// per-task op (`create`/`claim`/`unclaim`/`update`/`close`/`drop`) and `None`
 /// for a checkout-scoped op (`prime`/`sync`/`install`) that names no single
@@ -126,12 +119,6 @@ fn run_git(args: &[&str], stdin: &str) -> io::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn subject_prefers_the_override_then_falls_back_to_the_title() {
-        assert_eq!(subject(Some("explicit"), "the title"), "explicit");
-        assert_eq!(subject(None, "the title"), "the title");
-    }
 
     fn task_msg() -> Message {
         Message {
