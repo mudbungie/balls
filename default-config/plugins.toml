@@ -16,6 +16,7 @@
 [hooks]
 "sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
+"install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
 "prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
 "claim.pre"    = ["bl-delivery"]              # stage the worktree-path field before the seal (§11)
 "claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
