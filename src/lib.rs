@@ -85,9 +85,11 @@
 //!
 //! [`encoding`], [`layout`], and [`registry`] answer *where balls' state lives
 //! and how it is named*: percent-encoded (never hashed) paths under the XDG
-//! dirs, and the `config/plugins/` symlink registry on the landing branch.
-//! Pure path arithmetic plus the registry's filesystem ops — no git, no env
-//! reads (the binary edge supplies those), no bootstrap (that is prime's job).
+//! dirs, and the local `config/plugins/bin/<name>` binary binding (gitignored
+//! absolute symlinks) that resolves the committed `config/plugins.toml` [hooks]
+//! schedule to this machine. Pure path arithmetic plus the registry's
+//! filesystem ops — no git, no env reads (the binary edge supplies those), no
+//! bootstrap (that is prime's job).
 
 pub mod adopt;
 pub mod change;
