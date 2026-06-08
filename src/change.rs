@@ -30,7 +30,7 @@ use std::path::Path;
 use crate::enforce;
 use crate::id;
 use crate::lifecycle::BaseChange;
-use crate::message::{self, Message};
+use crate::message::Message;
 use crate::task::{Blocker, On, Task};
 use crate::taskfile::{add_blocker, invalid, read_task, task_ids, task_path, write_task};
 use crate::verb::Verb;
@@ -58,8 +58,10 @@ pub struct Create {
     pub tags: Vec<String>,
     pub blockers: Vec<Blocker>,
     pub blocks: Vec<(String, On)>,
-    pub over: Option<String>,
+    /// The `--body` markdown body (§3) — the ball's content, NOT a commit note.
     pub body: Option<String>,
+    /// The `-m` free commit-message narration (§5); the subject is the title.
+    pub message: Option<String>,
     pub existing: Vec<String>,
 }
 
@@ -73,6 +75,7 @@ impl BaseChange for Create {
             priority: self.priority,
             blockers: self.blockers.clone(),
             tags: self.tags.clone(),
+            body: self.body.clone().unwrap_or_default(),
             ..Task::default()
         };
         write_task(dir, &self.id, &task)?;
@@ -99,7 +102,7 @@ impl BaseChange for Create {
             return Err(invalid(format!("create: invalid task id '{id}'")));
         }
         let title = read_task(dir, &id)?.title;
-        commit_message(Verb::Create, &self.actor, &id, self.over.as_deref(), &title, self.body.as_deref())
+        commit_message(Verb::Create, &self.actor, &id, &title, self.message.as_deref())
     }
 }
 
@@ -112,19 +115,19 @@ pub struct Occupancy {
     pub claimant: Option<String>,
     pub actor: String,
     pub now: i64,
-    pub over: Option<String>,
-    pub body: Option<String>,
+    /// The `-m` free commit-message narration (§5); occupancy edits no ball field.
+    pub message: Option<String>,
 }
 
 impl Occupancy {
     /// `claim`: take occupancy as `actor` (guarded against an existing claim).
     pub fn claim(id: String, actor: String, now: i64) -> Self {
-        Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, over: None, body: None }
+        Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, message: None }
     }
 
     /// `unclaim`: release occupancy (clear `claimant`).
     pub fn unclaim(id: String, actor: String, now: i64) -> Self {
-        Self { verb: Verb::Unclaim, id, claimant: None, actor, now, over: None, body: None }
+        Self { verb: Verb::Unclaim, id, claimant: None, actor, now, message: None }
     }
 }
 
@@ -149,20 +152,23 @@ impl BaseChange for Occupancy {
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {
         let title = read_task(dir, &self.id)?.title;
-        commit_message(self.verb, &self.actor, &self.id, self.over.as_deref(), &title, self.body.as_deref())
+        commit_message(self.verb, &self.actor, &self.id, &title, self.message.as_deref())
     }
 }
 
 /// `update` (§9): the generic field/body edit. Applies an ordered [`FieldEdit`]
 /// list and bumps `updated`; an unknown `state:`-style key rides through as a
-/// [`FieldEdit::SetExtra`] like any other preserved field (§3).
+/// [`FieldEdit::SetExtra`] like any other preserved field (§3). EVERY field is
+/// overwriteable here — title, body, parent, priority, tags, extras, blockers —
+/// so there is no create-only split; the ball-body edit rides `edits`
+/// ([`FieldEdit::Body`]) while `message` is the `-m` commit narration (§5).
 pub struct Update {
     pub id: String,
     pub actor: String,
     pub now: i64,
     pub edits: Vec<FieldEdit>,
-    pub over: Option<String>,
-    pub body: Option<String>,
+    /// The `-m` free commit-message narration (§5); the subject is the title.
+    pub message: Option<String>,
 }
 
 impl BaseChange for Update {
@@ -178,7 +184,7 @@ impl BaseChange for Update {
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {
         let title = read_task(dir, &self.id)?.title;
-        commit_message(Verb::Update, &self.actor, &self.id, self.over.as_deref(), &title, self.body.as_deref())
+        commit_message(Verb::Update, &self.actor, &self.id, &title, self.message.as_deref())
     }
 }
 
@@ -236,19 +242,19 @@ pub struct Retire {
     pub id: String,
     pub title: String,
     pub actor: String,
-    pub over: Option<String>,
-    pub body: Option<String>,
+    /// The `-m` free commit-message narration (§5); retire edits no ball field.
+    pub message: Option<String>,
 }
 
 impl Retire {
     /// `close`: retire a delivered ball.
     pub fn close(id: String, title: String, actor: String) -> Self {
-        Self { verb: Verb::Close, id, title, actor, over: None, body: None }
+        Self { verb: Verb::Close, id, title, actor, message: None }
     }
 
     /// `drop`: abandon a ball.
     pub fn drop(id: String, title: String, actor: String) -> Self {
-        Self { verb: Verb::Drop, id, title, actor, over: None, body: None }
+        Self { verb: Verb::Drop, id, title, actor, message: None }
     }
 }
 
@@ -264,25 +270,21 @@ impl BaseChange for Retire {
     }
 
     fn finalize(&self, _dir: &Path) -> io::Result<String> {
-        commit_message(self.verb, &self.actor, &self.id, self.over.as_deref(), &self.title, self.body.as_deref())
+        commit_message(self.verb, &self.actor, &self.id, &self.title, self.message.as_deref())
     }
 }
 
-/// Build and render the §5 message: subject is the `-m` override else `title`.
-fn commit_message(
-    verb: Verb,
-    actor: &str,
-    id: &str,
-    over: Option<&str>,
-    title: &str,
-    body: Option<&str>,
-) -> io::Result<String> {
+/// Build and render the §5 message: the subject is ALWAYS the ball `title` (the
+/// op rides the `bl-op` trailer, not a flavored subject), and `message` is the
+/// optional `-m` free body. There is no subject override — the title IS the
+/// subject, so `git log` reads naturally and the body is pure narration.
+fn commit_message(verb: Verb, actor: &str, id: &str, title: &str, message: Option<&str>) -> io::Result<String> {
     Message {
         verb,
         actor: actor.to_string(),
         id: Some(id.to_string()),
-        subject: message::subject(over, title),
-        body: body.map(str::to_string),
+        subject: title.to_string(),
+        body: message.map(str::to_string),
     }
     .render()
 }

@@ -89,9 +89,7 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
     let actor = flags.actor.clone();
     match verb {
         Verb::Create => {
-            if !flags.no_needs.is_empty() {
-                return Err(other("create: --no-needs is only for update — a new task has no edge to drop"));
-            }
+            build::forbid_removals_on_create(flags)?;
             let title = one_positional(flags, "create")?;
             let base = Create {
                 id: IdScheme::default().generate(),
@@ -103,8 +101,8 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
                 tags: flags.tags.clone(),
                 blockers: build::needs_blockers(flags)?,
                 blocks: build::blocks_edges(flags)?,
-                over: flags.over.clone(),
                 body: flags.body.clone(),
+                message: flags.message.clone(),
                 existing: task_ids(store)?,
             };
             Ok((Box::new(base), None))
@@ -114,22 +112,24 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
-            let base = Occupancy { verb, id, claimant, actor, now, over: flags.over.clone(), body: flags.body.clone() };
+            let base = Occupancy { verb, id, claimant, actor, now, message: flags.message.clone() };
             Ok((Box::new(base), Some(before)))
         }
         Verb::Update => {
-            build::forbid_foreign_edges(flags, verb)?;
+            build::forbid_foreign_blocks(flags, verb)?;
+            build::forbid_contradictions(flags)?;
             let mut positionals = flags.positionals.iter();
             let id = positionals.next().ok_or_else(|| other("update: needs a task id"))?.clone();
             let before = read_task(store, &id)?;
-            let base = Update { id, actor, now, edits: build::edits(positionals, flags)?, over: flags.over.clone(), body: flags.body.clone() };
+            let edits = build::edits(positionals, flags)?;
+            let base = Update { id, actor, now, edits, message: flags.message.clone() };
             Ok((Box::new(base), Some(before)))
         }
         Verb::Close | Verb::Drop => {
             build::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
-            let base = Retire { verb, id, title: before.title.clone(), actor, over: flags.over.clone(), body: flags.body.clone() };
+            let base = Retire { verb, id, title: before.title.clone(), actor, message: flags.message.clone() };
             Ok((Box::new(base), Some(before)))
         }
         // The diffless verbs never reach run()'s mutating branch; reject defensively.
@@ -137,10 +137,12 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
     }
 }
 
-/// The §7 `command` — the op plus its body intent. Field-level changes are NOT
-/// duplicated here (single source of truth): a plugin reads them from the change
-/// worktree / the `before`/`after` states, not a second diff description. Its
-/// presence (vs the diffless `None`) marks this as a ball-mutating op (§7).
+/// The §7 `command` — the op plus its body intent. `body_change` is the new
+/// markdown ball body (`--body`) when the op rewrites it (§7). Field-level
+/// changes are NOT duplicated here (single source of truth): a plugin reads them
+/// from the change worktree / the `before`/`after` states, not a second diff
+/// description. Its presence (vs the diffless `None`) marks this a ball-mutating
+/// op (§7).
 fn command(verb: Verb, flags: &Flags) -> Command {
     Command { op: verb.token().to_string(), field_changes: Vec::new(), body_change: flags.body.clone() }
 }
@@ -154,21 +156,28 @@ fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
 }
 
 /// The parsed front-door flags + positionals, verb-agnostic. The per-verb
-/// `base_change` validates which it accepts; `over`/`body` are the §5 message's
-/// subject override and body, shared by every verb. `needs`/`no_needs` add/drop
-/// the task's own blocker edges (create or update, §10); `blocks`/`parent` are
-/// create-only.
+/// `base_change` validates which it accepts. `message` is the `-m` §5 commit
+/// narration (every verb); `body` is the `--body` ball markdown body
+/// (create/update). EVERY ball field is overwriteable on `update` — there is no
+/// create-only split: `title`/`parent`/`priority`/`tags`/extras set, and the
+/// `--no-*` family clears (`no_parent`/`no_priority` clear the scalar,
+/// `no_tags`/`no_needs` drop a member, a `key=` empty extra removes it). Only
+/// `blocks` (a reciprocal edge on ANOTHER task) stays create-only.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Flags {
     actor: String,
-    over: Option<String>,
+    message: Option<String>,
     body: Option<String>,
+    title: Option<String>,
     parent: Option<String>,
+    no_parent: bool,
     blocks: Vec<String>,
     needs: Vec<String>,
     no_needs: Vec<String>,
     priority: Option<i64>,
+    no_priority: bool,
     tags: Vec<String>,
+    no_tags: Vec<String>,
     positionals: Vec<String>,
 }
 
@@ -180,9 +189,11 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
     while i < args.len() {
         match args[i].as_str() {
             "--as" => f.actor = value(args, &mut i, "--as")?,
-            "-m" | "--message" => f.over = Some(value(args, &mut i, "-m")?),
+            "-m" | "--message" => f.message = Some(value(args, &mut i, "-m")?),
             "--body" => f.body = Some(value(args, &mut i, "--body")?),
+            "--title" => f.title = Some(value(args, &mut i, "--title")?),
             "--parent" => f.parent = Some(value(args, &mut i, "--parent")?),
+            "--no-parent" => f.no_parent = true,
             "--blocks" => f.blocks.push(value(args, &mut i, "--blocks")?),
             "--needs" => f.needs.push(value(args, &mut i, "--needs")?),
             "--no-needs" => f.no_needs.push(value(args, &mut i, "--no-needs")?),
@@ -190,7 +201,9 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
                 let v = value(args, &mut i, "-p")?;
                 f.priority = Some(v.parse().map_err(|_| other(format!("-p: '{v}' is not an integer")))?);
             }
+            "--no-priority" => f.no_priority = true,
             "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
+            "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
             flag if flag.starts_with('-') => return Err(other(format!("unexpected flag '{flag}'"))),
             _ => f.positionals.push(args[i].clone()),
         }
