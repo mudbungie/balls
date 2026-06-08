@@ -51,12 +51,17 @@ from the hook schedule — re-add via `bl install` once bl-1280 ships them.
 │                             # needs NO migration — the seed already IS the     │
 │                             # migrated config (every legacy knob dissolved).   │
 │  3. STORE=$(ls -d "${XDG_STATE_HOME:-$HOME/.local/state}"/balls/clones/*/tasks)│
+│     LANDING="${STORE%/tasks}/config"                                           │
 │     python3 scripts/migrate-legacy.py --into "$STORE"                          │
 │     git -C "$STORE" add -A && git -C "$STORE" commit -m "balls: migrate tasks" │
-│  4. git branch balls-archive origin/balls/tasks      # keep the legacy history │
-│     git -C "${STORE%/tasks}/config" push --force origin balls/tasks            │
-│     git -C "${STORE%/tasks}/config" push        origin balls/config           │
-│  5. bl prime --as ID --remote git@github.com:mudbungie/balls.git ; bl list     │
+│  4. URL=$(git -C <project-repo> remote get-url origin)   # the github url      │
+│     git -C <project-repo> branch balls-archive origin/balls/tasks  # keep it   │
+│     # The landing is a FRESH `git init` with NO `origin` remote, so push by    │
+│     # URL (not `push origin`); add origin once for auto-sync afterward.        │
+│     git -C "$LANDING" push --force "$URL" balls/tasks                          │
+│     git -C "$LANDING" push         "$URL" balls/config                         │
+│     git -C "$LANDING" remote add origin "$URL"   # so future ops auto-federate │
+│  5. bl prime --as ID ; bl list                                                 │
 │                                                                               │
 │ Multi-machine caveat: a SECOND machine / invocation path priming fresh founds  │
 │ an unrelated orphan store, so the ff-only sync refuses ("unrelated histories").│

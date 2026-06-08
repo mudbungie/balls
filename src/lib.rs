@@ -134,12 +134,20 @@ pub const LANDING_BRANCH: &str = "balls/config";
 /// Default-two (a DISTINCT ref) is simplest and fewest code paths (§0/§2).
 pub const DEFAULT_TASKS_BRANCH: &str = "balls/tasks";
 
+/// The agent skill guide, embedded so `bl skill` works from a bare `cargo
+/// install` (no repo checkout to read it from). `skill` is help OUTPUT, not an
+/// op — it authors no diff, has no lifecycle, and is never a blocker target — so
+/// it is dispatched directly in [`run`] and deliberately kept OUT of the [`Verb`]
+/// enum (which doubles as a blocker's `on`, §10).
+const SKILL: &str = include_str!("../SKILL.md");
+
 /// The §8 dispatch entrypoint: resolve argv to its verb and run it. `prime`/
 /// `sync` (§12/§13) wire to the engine via [`checkout`]; the deliverable verbs
-/// (§9) via [`mutate`]; the read verbs (`show`/`list`/`ready`/`dep-tree`, §9) via
+/// (§9) via [`mutate`]; the read verbs (`show`/`list`/`dep-tree`, §9) via
 /// [`reads`] — they author no diff and print the store view. The remaining
-/// diffless verb (`install`) is unwired, so it reports its §8 op
-/// plan. `edge` carries the host inputs `main` resolved.
+/// diffless verb (`install`) is unwired, so it reports its §8 op plan; `skill`
+/// prints the embedded agent guide. `edge` carries the host inputs `main`
+/// resolved.
 ///
 /// Returns the process exit code: `0` on success, `1` on an op failure (a plugin
 /// aborted, a bad flag), `2` for an unknown or missing verb (usage convention).
@@ -156,6 +164,10 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             return 2;
         }
     };
+    if rest.first().map(String::as_str) == Some("skill") {
+        print!("{SKILL}");
+        return 0;
+    }
     let edge = &Edge { log_level, ..edge.clone() };
     let Some(verb) = rest.first().map(String::as_str).and_then(Verb::parse) else {
         eprintln!("usage: bl <verb>");
