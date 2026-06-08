@@ -1,15 +1,17 @@
-//! Tests for §12 bootstrap-on-miss on throwaway repos — `found` makes BOTH
-//! branches of the two-branch substrate (the `balls/config` landing + the
-//! `balls/tasks` store) and seeds the landing's config from the app
-//! default-config (§1/§12), with and without the shipped plugin binaries.
+//! Tests for §12 bootstrap-on-miss on throwaway repos: [`found_landing`] lays the
+//! `balls/config` landing eagerly (seeding its config from the app default-config,
+//! §1/§12, with and without the shipped plugin binaries), and [`materialize`] lays
+//! the store LAZILY — checking out an existing branch ref (a clone-in) or founding
+//! a fresh orphan only when none exists, idempotently (bl-0a23).
 
 use super::*;
 use crate::git::run as git;
 use crate::hooks::Hooks;
 use crate::layout::Xdg;
+use crate::DEFAULT_TASKS_BRANCH;
 use tempfile::TempDir;
 
-/// The two checkout paths under a fresh tempdir (neither need pre-exist — `found`
+/// The two checkout paths under a fresh tempdir (neither need pre-exist — founding
 /// creates the landing repo and adds the store as a linked worktree).
 fn paths(tmp: &TempDir) -> (std::path::PathBuf, std::path::PathBuf) {
     (tmp.path().join("config"), tmp.path().join("tasks"))
@@ -32,10 +34,10 @@ fn exe_dir(tmp: &TempDir, names: &[&str]) -> std::path::PathBuf {
 }
 
 #[test]
-fn found_makes_both_branches_with_seeded_config_and_store() {
+fn found_landing_makes_the_config_branch_with_seeded_config_and_no_store() {
     let tmp = TempDir::new().unwrap();
     let (landing, store) = paths(&tmp);
-    found(&landing, &store, &xdg(&tmp), None).unwrap();
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
 
     // The landing is the balls/config branch with a seeded config/.
     assert_eq!(git(&landing, &["rev-parse", "--abbrev-ref", "HEAD"], None).unwrap().trim(), LANDING_BRANCH);
@@ -45,19 +47,56 @@ fn found_makes_both_branches_with_seeded_config_and_store() {
     let log = git(&landing, &["log", "--oneline"], None).unwrap();
     assert_eq!(log.lines().count(), 1);
     assert!(log.contains("balls: found"));
-
-    // The store is the balls/tasks branch — a SEPARATE orphan root (no shared
-    // history) with a tracked tasks/ folder.
-    assert_eq!(git(&store, &["rev-parse", "--abbrev-ref", "HEAD"], None).unwrap().trim(), DEFAULT_TASKS_BRANCH);
-    assert!(store.join("tasks").join(".gitkeep").is_file());
-    assert_eq!(git(&store, &["log", "--oneline"], None).unwrap().lines().count(), 1);
+    // The STORE is NOT founded eagerly — that is materialize's lazy job (bl-0a23).
+    assert!(!store.exists());
+    assert!(git(&landing, &["show-ref", "--verify", "--quiet", &format!("refs/heads/{DEFAULT_TASKS_BRANCH}")], None).is_err());
 }
 
 #[test]
-fn found_without_any_plugin_binary_seeds_an_empty_schedule() {
+fn materialize_founds_an_orphan_store_when_the_branch_is_absent() {
     let tmp = TempDir::new().unwrap();
     let (landing, store) = paths(&tmp);
-    found(&landing, &store, &xdg(&tmp), None).unwrap();
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
+    materialize(&landing, &store, DEFAULT_TASKS_BRANCH).unwrap();
+
+    // The store is the balls/tasks branch — a SEPARATE orphan root (no shared
+    // history with the landing) with a tracked tasks/ folder.
+    assert_eq!(git(&store, &["rev-parse", "--abbrev-ref", "HEAD"], None).unwrap().trim(), DEFAULT_TASKS_BRANCH);
+    assert!(store.join("tasks").join(".gitkeep").is_file());
+    assert_eq!(git(&store, &["log", "--oneline"], None).unwrap().lines().count(), 1);
+    // Orphan: no merge-base with the landing's config branch.
+    assert!(git(&landing, &["merge-base", LANDING_BRANCH, DEFAULT_TASKS_BRANCH], None).is_err());
+}
+
+#[test]
+fn materialize_checks_out_an_existing_branch_instead_of_founding() {
+    let tmp = TempDir::new().unwrap();
+    let (landing, store) = paths(&tmp);
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
+    // A branch ref already here — what the prime/pre tracker's clone-in leaves
+    // (§12). materialize must CHECK IT OUT, not found a divergent fresh orphan.
+    let head = git(&landing, &["rev-parse", "HEAD"], None).unwrap().trim().to_string();
+    git(&landing, &["branch", DEFAULT_TASKS_BRANCH, &head], None).unwrap();
+    materialize(&landing, &store, DEFAULT_TASKS_BRANCH).unwrap();
+    assert_eq!(git(&store, &["rev-parse", "HEAD"], None).unwrap().trim(), head);
+}
+
+#[test]
+fn materialize_is_idempotent_once_the_store_exists() {
+    let tmp = TempDir::new().unwrap();
+    let (landing, store) = paths(&tmp);
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
+    materialize(&landing, &store, DEFAULT_TASKS_BRANCH).unwrap();
+    let before = git(&store, &["rev-parse", "HEAD"], None).unwrap();
+    materialize(&landing, &store, DEFAULT_TASKS_BRANCH).unwrap(); // a re-prime → no-op
+    assert_eq!(git(&store, &["rev-parse", "HEAD"], None).unwrap(), before);
+}
+
+#[test]
+fn found_landing_without_any_plugin_binary_seeds_an_empty_schedule() {
+    let tmp = TempDir::new().unwrap();
+    let (landing, _store) = paths(&tmp);
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
     // The schedule file exists but every default entry pruned (no binaries here).
     let hooks = Hooks::load(&landing).unwrap();
     assert!(hooks.names("prime", "pre").is_empty());
@@ -65,11 +104,11 @@ fn found_without_any_plugin_binary_seeds_an_empty_schedule() {
 }
 
 #[test]
-fn found_with_the_shipped_binaries_keeps_and_binds_them_on_the_landing() {
+fn found_landing_with_the_shipped_binaries_keeps_and_binds_them() {
     let tmp = TempDir::new().unwrap();
-    let (landing, store) = paths(&tmp);
+    let (landing, _store) = paths(&tmp);
     let exe = exe_dir(&tmp, &["tracker", "bl-delivery"]);
-    found(&landing, &store, &xdg(&tmp), Some(&exe)).unwrap();
+    found_landing(&landing, &xdg(&tmp), Some(&exe)).unwrap();
 
     // The committed schedule keeps both shipped plugins (§6).
     let hooks = Hooks::load(&landing).unwrap();

@@ -172,7 +172,10 @@ fn center(dir: &Path) -> PathBuf {
     std::fs::write(seed.join("config/balls.toml"), "tasks_branch = \"balls/tasks\"\n# CENTER-MARKER\n").unwrap();
     std::fs::write(
         seed.join("config/plugins.toml"),
-        "[hooks]\n\"sync.pre\" = [\"tracker\"]\n\"prime.pre\" = [\"tracker\"]\n\"install.pre\" = [\"tracker\"]\n",
+        // prime.post wires the tracker's content-settle (founding push on a first
+        // prime, then fetch-ff + publish) — without it a fresh clone never founds
+        // the remote store (bl-0a23).
+        "[hooks]\n\"sync.pre\" = [\"tracker\"]\n\"prime.pre\" = [\"tracker\"]\n\"prime.post\" = [\"tracker\"]\n\"install.pre\" = [\"tracker\"]\n",
     )
     .unwrap();
     git(&seed, &["add", "-A"]);

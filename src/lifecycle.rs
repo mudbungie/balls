@@ -81,6 +81,9 @@ pub enum OpError {
     Author(io::Error),
     /// An [`Anvil`] git act (open/seal/head) failed.
     Anvil(io::Error),
+    /// A core substrate step the engine drives between phases failed — the
+    /// `materialize` the `prime` fixpoint runs between `pre` passes (§12, bl-0a23).
+    Substrate(io::Error),
     /// A [`Plugins::run`] returned non-zero — the named plugin aborted the op.
     Plugin { name: String, source: io::Error },
 }
@@ -90,6 +93,7 @@ impl std::fmt::Display for OpError {
         match self {
             OpError::Author(e) => write!(f, "authoring the base change failed: {e}"),
             OpError::Anvil(e) => write!(f, "sealing onto the anvil failed: {e}"),
+            OpError::Substrate(e) => write!(f, "materializing the store failed: {e}"),
             OpError::Plugin { name, source } => write!(f, "plugin {name} aborted the op: {source}"),
         }
     }
@@ -196,58 +200,6 @@ impl<'a> Engine<'a> {
         Ok(sha)
     }
 
-    /// Run a DIFFLESS op (§8 "skip steps 1/3/5"): pre/post against the `checkout`
-    /// (the STORE for sync/prime, §13), no worktree, no seal. Tier 1 is empty, so
-    /// the unwind is reverse plugin rollback only (§13/§14). Unlike the seal path
-    /// there is no commit to land, but the op can still MOVE the anvil tip — a
-    /// `pre` participant (sync ff/push) advances `tasks_branch`. So balls reads
-    /// the tip before `pre` and after it and threads those as the §13
-    /// `previous_commit`/`commit` facts to `post` (and any `post`-phase
-    /// rollback), metadata-less: a diffless op authors no §5 message, so
-    /// `message` is `None` and the wire omits `metadata`. No shipped plugin reads
-    /// them yet; a sync/post cache-rebuild participant will.
-    pub fn diffless(
-        &self,
-        op: Verb,
-        checkout: &Path,
-        pre: &[PluginRef],
-        post: &[PluginRef],
-    ) -> Result<(), OpError> {
-        self.log.record(Level::Info, "core", None, "begin");
-        let mut ran = Vec::new();
-        let mut moved = None;
-        let result = self.diffless_inner(op, checkout, pre, post, &mut ran, &mut moved);
-        match &result {
-            Ok(()) => self.log.record(Level::Info, "core", None, "done"),
-            Err(e) => {
-                unwind(self.plugins, op, checkout, &ran, moved.as_ref());
-                self.log.record(Level::Error, "core", None, &format!("abort {e}"));
-            }
-        }
-        result
-    }
-
-    /// The fallible pre→post body of a diffless op. Captures the anvil tip
-    /// before `pre` and after it (§13), records those facts in `moved` so a
-    /// post-abort unwind hands `post`-phase rollbacks the same shape (mirroring
-    /// [`Trace::seal`] on the mutating path), and threads them — metadata-less —
-    /// to the `post` phase.
-    fn diffless_inner(
-        &self,
-        op: Verb,
-        checkout: &Path,
-        pre: &[PluginRef],
-        post: &[PluginRef],
-        ran: &mut Vec<(PluginRef, Phase)>,
-        moved: &mut Option<SealRecord>,
-    ) -> Result<(), OpError> {
-        let previous_commit = self.anvil.head().map_err(OpError::Anvil)?;
-        run_phase(self.plugins, op, Phase::Pre, checkout, pre, None, ran)?;
-        let commit = self.anvil.head().map_err(OpError::Anvil)?;
-        let record = moved.insert(SealRecord { previous_commit, commit, message: None });
-        run_phase(self.plugins, op, Phase::Post, checkout, post, Some(&record.facts()), ran)
-    }
-
     /// §14 unwind: roll every run plugin back in reverse, THEN core un-seals its
     /// tier-1 change — `git reset` the anvil on a post-abort, discard the
     /// change worktree always. Core's un-seal is local, so its errors are
@@ -293,6 +245,12 @@ fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)
         plugins.rollback(plugin, op, *phase, dir, sealed.as_ref());
     }
 }
+
+/// §13 diffless ops (`sync`/`prime`) — pre/post against a checkout, no seal —
+/// live in a sibling, an `impl Engine` block reaching this module's private
+/// `run_phase`/`unwind`/`SealRecord` seams.
+#[path = "lifecycle_diffless.rs"]
+mod diffless;
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
