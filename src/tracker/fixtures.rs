@@ -114,19 +114,19 @@ pub fn local_unpushed(tmp: &Path) -> PathBuf {
     op
 }
 
-/// A freshly-FOUNDED orphan store — what `substrate::found` lays down BEFORE any
-/// remote is resolved: a single root commit carrying an empty `tasks/.gitkeep`,
-/// with no shared history with any remote. Distinct content (not `seed.txt`) so
-/// its root sha can never collide with [`remote_with_branch`]'s seed (bl-6a39),
-/// keeping it genuinely UNRELATED — the adopt-on-unrelated-history case (bl-fa00).
-pub fn founded_orphan(tmp: &Path) -> PathBuf {
-    let op = tmp.join("founded");
-    run(tmp, &["init", "-q", "-b", BRANCH, &op.to_string_lossy()]);
+/// A local LANDING repo with NO store (`balls`) branch yet — what core founds
+/// before `prime/pre` clones a remote store in (bl-0a23). Uniquely numbered so two
+/// in one tempdir never alias (bl-6a39). Its own branch is `main`, deliberately
+/// NOT under `balls/`: the fixtures' short `balls` store name would D/F-conflict
+/// with a `balls/config` landing ref (in production the two are siblings,
+/// `balls/tasks` + `balls/config`). Distinct from [`local_unpushed`], which sits
+/// ON the store branch.
+pub fn landing_repo(tmp: &Path) -> PathBuf {
+    static N: AtomicU64 = AtomicU64::new(0);
+    let op = tmp.join(format!("landing-{}", N.fetch_add(1, Ordering::Relaxed)));
+    run(tmp, &["init", "-q", "-b", "main", &op.to_string_lossy()]);
     identify(&op);
-    fs::create_dir_all(op.join("tasks")).unwrap();
-    fs::write(op.join("tasks/.gitkeep"), "").unwrap();
-    run(&op, &["add", "-A"]);
-    run(&op, &["commit", "-q", "-m", "balls: found store"]);
+    commit(&op, "config.txt", "config");
     op
 }
 
@@ -155,4 +155,11 @@ pub fn binding(remote: Option<&Path>, store: &Path) -> Binding {
 /// precondition for the §12 store-elsewhere warning; otherwise like [`binding`].
 pub fn default_binding(remote: Option<&Path>, store: &Path) -> Binding {
     Binding { tasks_branch: crate::DEFAULT_TASKS_BRANCH.to_string(), ..binding(remote, store) }
+}
+
+/// A tracked [`Binding`] with `landing` set — what `prime/pre` needs, since its
+/// clone-in and store-elsewhere read the landing repo (the store may not exist
+/// yet on a first prime, bl-0a23).
+pub fn tracked(remote: &Path, store: &Path, landing: &Path) -> Binding {
+    Binding { landing: landing.to_string_lossy().into_owned(), ..binding(Some(remote), store) }
 }
