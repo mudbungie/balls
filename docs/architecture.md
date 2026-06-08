@@ -94,7 +94,10 @@ $XDG_CONFIG_HOME/balls/
 $XDG_STATE_HOME/balls/
   plugins/<name>/<plugin-territory>/   # each plugin owns one subtree
     tracker/<pct-enc-remote>/          #   tracker: a clone tracking the store branch (.git/ tasks/)
-    <delivery>/<pct-enc-local>/<id>/   #   delivery: the code worktree for task <id> (see §11)
+    <delivery>/<local-path>/<id>/      #   delivery: the code worktree for task <id> (see §11).
+                                       #     MIRRORS the invocation path (leading / stripped), NOT
+                                       #     percent-encoded: this is a cargo build dir and rust-lld
+                                       #     cannot write an output file under a `%` ancestor (bl-f3e4).
 
   clones/<pct-enc-local-path>/         # per-invocation-path binding
     binding.toml                       #   tracker remote (if any) + invocation_path + tasks_branch
@@ -105,7 +108,12 @@ $XDG_STATE_HOME/balls/
     log                                #   the unified op log: JSON-lines, balls-owned (§4/§6)
 ```
 
-- URLs and paths are **percent-encoded, never hashed**, so directory names stay inspectable.
+- URLs and paths are **percent-encoded, never hashed**, so directory names stay inspectable. The
+  lone exception is the delivery code worktree (`<delivery>/<local-path>/<id>/`), which mirrors the
+  invocation path verbatim: it is a cargo build dir and `rust-lld` cannot open an output file whose
+  path contains a `%` (bl-f3e4). Mirroring is no less inspectable (§1's goal is *readable*, not
+  *encoded*) and is always a valid path, since the invocation path already is one. Encoding is kept
+  everywhere git data lives (clones, tracker), where nothing compiles and `%` is inert.
 - `config/` and `tasks/` are SEPARATE checkouts of the two branches. There is NO `operating/` symlink
   and no terminus to resolve: config is read from `config/`, tasks from `tasks/` (named by
   `tasks_branch`, §4). If `tasks_branch` names the landing, the two checkouts coincide on one branch
@@ -747,8 +755,10 @@ claimed non-deliverable gets a harmless EMPTY worktree (the close.pre squash is 
 **Derived path; stateless across ops.** The worktree path and branch are pure functions of
 `(binding, id)`:
 ```
-worktree_path(binding, id [, claimant]) = $XDG_STATE_HOME/balls/plugins/<name>/<pct-enc(binding.invocation_path)>/<key>/
+worktree_path(binding, id [, claimant]) = $XDG_STATE_HOME/balls/plugins/<name>/<binding.invocation_path>/<key>/
 branch                                   = work/<key>          # <key> = <id>, or <id>-<claimant>
+# invocation_path is MIRRORED verbatim (leading / stripped), not percent-encoded: this is a cargo
+# build dir and rust-lld cannot open an output file under a `%` ancestor (bl-f3e4, see §1).
 ```
 `<id>` (and `claimant`, if keyed on) ride the post wire — `<id>` is the immutable `bl-id` trailer,
 `claimant` an ordinary frontmatter field — so the plugin RECOMPUTES its resource each op and checks
@@ -1134,7 +1144,8 @@ reactor ever needs a return channel. This is why two hooks suffice and post stay
 - **SCRATCH (only for non-derivable state).** A plugin whose intermediate state genuinely cannot be
   recomputed — an id an external service ASSIGNED, a prior value about to be overwritten — persists it
   in its own §1 territory, id-keyed: `$XDG_STATE_HOME/balls/plugins/<name>/<id>/` (prepend
-  `pct-enc(invocation_path)` when the resource is per-checkout, as §11 does). **Env vars cannot serve
+  `pct-enc(invocation_path)` when the resource is per-checkout; §11's delivery worktree keys the same
+  way but mirrors that path instead of encoding it, since it is a cargo build dir — see §1). **Env vars cannot serve
   this** — `BALLS_*` is balls→plugin for ONE invocation; it never crosses from a plugin's `pre`
   process to its later `post`/`rollback` process. The filesystem territory does, and it is already the
   plugin's by §1.

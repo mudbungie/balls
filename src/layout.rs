@@ -19,8 +19,11 @@
 //! parallel tests vary the layout without racing). No `mkdir`: this layer
 //! answers *where*, never *make it so*. Per §0, core gives a plugin only its
 //! territory root ([`Xdg::plugin_territory`]); the tracker's `<pct-enc-remote>/`
-//! and the delivery plugin's `<pct-enc-local>/<id>/` are those plugins' own
-//! business, built from the same [`crate::encoding`] primitive.
+//! is that plugin's own business, built from the [`crate::encoding`] primitive.
+//! The delivery plugin's `<invocation-path>/<id>/` is the lone exception: it
+//! MIRRORS the path rather than encoding it, because that subtree is a `cargo`
+//! build dir and `rust-lld` chokes on a `%` in an output path (bl-f3e4 — see
+//! [`crate::delivery::binding_territory`]).
 
 use crate::encoding::percent_encode;
 use std::path::{Path, PathBuf};
