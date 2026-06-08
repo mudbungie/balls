@@ -28,7 +28,7 @@ fn ioerr(what: &str) -> io::Error {
 }
 
 fn plugin(name: &str) -> PluginRef {
-    PluginRef { order: 0, name: name.to_string(), bin: None }
+    PluginRef { name: name.to_string(), bin: None }
 }
 
 /// A [`Terminus`] that journals each act, fails the named one, and captures the
