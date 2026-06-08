@@ -49,9 +49,9 @@ $ echo "$FORM"
 bl-9419
 ```
 
-The form carries a *create-time* blocker on the backend. Relational edges
-(`--needs`/`--blocks`/`--parent`) are set at create; `bl update` does not edit the
-dependency graph.
+The form carries a *create-time* blocker on the backend. `--parent` and reciprocal
+`--blocks` edges are create-only, but a task's own blockers can be edited later with
+`bl update --needs`/`--no-needs` (the §10 in-band unlink for a mis-wired or cyclic edge).
 
 ## 3. Status is derived, never stored — `bl list`
 
