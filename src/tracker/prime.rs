@@ -10,7 +10,13 @@
 //!   (`binding.remote`, §12) — read DIRECTLY, with no trail to walk (config
 //!   crosses a checkout boundary exactly once, by `install`, §4/§12). Then
 //!   **adopt or found**, the one sync-or-bootstrap step: an established remote
-//!   store branch is left for `sync` to keep current (adopt); an ABSENT one is
+//!   store branch is ADOPTED — the bootstrap-on-miss step founds a THROWAWAY
+//!   orphan store locally before any remote is resolved, so a fresh checkout's
+//!   local store has UNRELATED history to the established remote and `sync`'s
+//!   ff-only would fatal; adoption discards that orphan and resets the store onto
+//!   the remote tip, after which `sync` keeps it current. A store with RELATED
+//!   history (a prior clone, possibly with unpushed local commits) is left for
+//!   `sync` untouched. An ABSENT remote branch is
 //!   founded by pushing the local checkout (bootstrap-on-miss). A founding push
 //!   REJECTED for lack of a create permission falls back to stealth-local
 //!   silently — harmless by definition, since nothing existed to land on (§12).
@@ -40,7 +46,7 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
         eprintln!("tracker: this repo's tasks are on `{named}` — run `bl install` / `bl prime --install`");
     }
     if remote_has_branch(store, &remote, &b.tasks_branch)? {
-        return Ok(()); // established → adopt; `sync` keeps it current
+        return adopt(store, &remote, &b.tasks_branch); // established → adopt; `sync` keeps it current
     }
     // FOUNDING-MISS: the branch is absent, so this push CREATES it. A rejection
     // here is the once-per-clone founding attempt failing for lack of a create
@@ -60,6 +66,35 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
 /// round-trip that decides adopt vs found.
 fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::Result<bool> {
     Ok(!git(cwd, &["ls-remote", "--heads", remote, branch])?.is_empty())
+}
+
+/// Adopt an ESTABLISHED remote store. The local store branch is one of two
+/// things: a prior clone of the remote (RELATED history — `sync`'s ff-only keeps
+/// it current, so nothing to do here) or the throwaway orphan that
+/// bootstrap-on-miss just founded, whose history is UNRELATED to the remote's
+/// (no shared root). The orphan can't be fast-forwarded — `sync`'s ff-only fatals
+/// on unrelated histories — so we DISCARD it and reset the store onto the remote
+/// tip, the genuine adoption; the next `sync` then ff's a no-op. The reset is
+/// gated on unrelated-ness precisely because a RELATED store may be AHEAD with
+/// unpushed local commits, and a hard reset there would lose them (let `sync` ff
+/// it instead). Established-vs-absent was already decided ([`remote_has_branch`]),
+/// so the `fetch` here only brings the objects needed to compare and reset.
+fn adopt(store: &Path, remote: &str, branch: &str) -> io::Result<()> {
+    git(store, &["fetch", remote, branch])?;
+    if shares_history(store, "HEAD", "FETCH_HEAD") {
+        return Ok(()); // a prior clone — leave it for `sync` to ff
+    }
+    git(store, &["reset", "--hard", "FETCH_HEAD"])?;
+    Ok(())
+}
+
+/// Do `a` and `b` share any ancestor? `git merge-base` prints the base on
+/// success and exits NON-ZERO with no output when the two are UNRELATED — the
+/// exact "founded orphan vs established remote" signal. Both refs are
+/// known-valid here (the founded store's `HEAD`, the just-fetched `FETCH_HEAD`),
+/// so a non-zero exit is the unrelated case, not a lookup failure.
+fn shares_history(cwd: &Path, a: &str, b: &str) -> bool {
+    git(cwd, &["merge-base", a, b]).is_ok()
 }
 
 /// The store this repo really uses, if it is NOT the one we are bound to — the
@@ -94,8 +129,8 @@ fn stealth_lock(b: &Binding, env: &Env) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::tracker::fixtures::{
-        binding, default_binding, empty_remote, env, local_unpushed, store_clone,
-        remote_with_branch, remote_with_config, tip, unpushable_remote, BRANCH,
+        binding, commit, default_binding, empty_remote, env, founded_orphan, local_unpushed,
+        store_clone, remote_with_branch, remote_with_config, tip, unpushable_remote, BRANCH,
     };
     use tempfile::TempDir;
 
@@ -134,6 +169,34 @@ mod tests {
 
         prime(&binding(Some(&remote), &store), &env).unwrap();
         assert_eq!(tip(&remote, BRANCH), before); // no push happened
+        assert_eq!(tip(&store, "HEAD"), before); // and the clone tracks it
+    }
+
+    #[test]
+    fn a_founded_orphan_adopts_the_established_remote_store() {
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_branch(tmp.path());
+        let store = founded_orphan(tmp.path());
+        let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+        // The just-founded local orphan has UNRELATED history to the established
+        // remote — `sync`'s ff-only would fatal. prime discards the orphan and
+        // resets the store onto the remote tip (the real adoption); a later sync
+        // then ff's a no-op.
+        prime(&binding(Some(&remote), &store), &env).unwrap();
+        assert_eq!(tip(&store, "HEAD"), tip(&remote, BRANCH));
+    }
+
+    #[test]
+    fn adopting_an_established_remote_keeps_unpushed_local_commits() {
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_branch(tmp.path());
+        let store = store_clone(tmp.path(), &remote); // RELATED history
+        let ahead = commit(&store, "local.txt", "local"); // unpushed local work
+        let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+        // A related store that is AHEAD is left for `sync` to ff — adoption must
+        // NOT hard-reset it, which would discard the unpushed commit.
+        prime(&binding(Some(&remote), &store), &env).unwrap();
+        assert_eq!(tip(&store, "HEAD"), ahead);
     }
 
     #[test]

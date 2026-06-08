@@ -114,6 +114,22 @@ pub fn local_unpushed(tmp: &Path) -> PathBuf {
     op
 }
 
+/// A freshly-FOUNDED orphan store — what `substrate::found` lays down BEFORE any
+/// remote is resolved: a single root commit carrying an empty `tasks/.gitkeep`,
+/// with no shared history with any remote. Distinct content (not `seed.txt`) so
+/// its root sha can never collide with [`remote_with_branch`]'s seed (bl-6a39),
+/// keeping it genuinely UNRELATED — the adopt-on-unrelated-history case (bl-fa00).
+pub fn founded_orphan(tmp: &Path) -> PathBuf {
+    let op = tmp.join("founded");
+    run(tmp, &["init", "-q", "-b", BRANCH, &op.to_string_lossy()]);
+    identify(&op);
+    fs::create_dir_all(op.join("tasks")).unwrap();
+    fs::write(op.join("tasks/.gitkeep"), "").unwrap();
+    run(&op, &["add", "-A"]);
+    run(&op, &["commit", "-q", "-m", "balls: found store"]);
+    op
+}
+
 /// An [`Env`](super::Env) whose XDG state root is under `state` (so a test's
 /// clone bundle and stealth lock land in its tempdir, not the real `$HOME`).
 pub fn env(home: &Path, state: &Path) -> super::Env {
