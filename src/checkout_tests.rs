@@ -115,6 +115,7 @@ fn prime_rejects_unknown_flags_and_a_missing_value() {
     assert!(prime(&e, &argv(&["--as"])).is_err()); // flag with no value
     assert!(prime(&e, &argv(&["--remote"])).is_err()); // override flag with no value
     assert!(prime(&e, &argv(&["--center"])).is_err());
+    assert!(prime(&e, &argv(&["--install"])).is_err()); // adopt flag with no value
 }
 
 #[test]
