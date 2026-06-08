@@ -88,6 +88,14 @@ fn sole_task_id(tasks: &Path) -> String {
 }
 
 #[test]
+fn skill_prints_the_guide_and_exits_zero() {
+    // `skill` is a pre-verb help affordance: it needs no landing and is not a
+    // Verb, so it works anywhere and never touches the store.
+    assert_eq!(run_in(&TempDir::new().unwrap(), &["skill"]), 0);
+    assert!(SKILL.contains("balls"), "the embedded guide is non-empty");
+}
+
+#[test]
 fn run_rejects_an_unknown_verb() {
     assert_eq!(run_in(&TempDir::new().unwrap(), &["frobnicate"]), 2);
 }
