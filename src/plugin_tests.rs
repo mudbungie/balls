@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::lifecycle::{Plugins, Sealed};
+use crate::log::{Level, Log};
 use crate::op::Phase;
 use crate::registry::PluginRef;
 use crate::verb::Verb;
@@ -12,6 +13,7 @@ use crate::wire::{Binding, Command, OpContext};
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 /// Write an executable `#!/bin/sh` plugin into `dir` and return its path.
@@ -45,24 +47,36 @@ fn ctx() -> OpContext {
     }
 }
 
-/// A workspace: a bin dir for scripts, a cwd for the plugin, a logs root.
+/// A frozen clock so a record's `ts` is stable.
+fn clk() -> i64 {
+    0
+}
+
+/// A workspace: a bin dir for scripts, a cwd for the plugin, and the unified op
+/// log every dispatcher shares (threshold `Debug` so nothing is filtered out).
 struct Env {
     home: TempDir,
+    log: Log,
 }
 
 impl Env {
     fn new() -> Self {
         let home = TempDir::new().unwrap();
-        for sub in ["bin", "cwd", "logs"] {
+        for sub in ["bin", "cwd"] {
             fs::create_dir(home.path().join(sub)).unwrap();
         }
-        Self { home }
+        let log = Log::new(home.path().join("log"), Level::Debug, Verb::Close, clk);
+        Self { home, log }
     }
     fn at(&self, sub: &str) -> PathBuf {
         self.home.path().join(sub)
     }
-    fn dispatcher(&self, depth: u32) -> Subprocess {
-        Subprocess::new(ctx(), &self.at("logs"), depth)
+    /// The unified op log path; its records are JSON-lines.
+    fn log_path(&self) -> PathBuf {
+        self.home.path().join("log")
+    }
+    fn dispatcher(&self, depth: u32) -> Subprocess<'_> {
+        Subprocess::new(ctx(), &self.log, depth)
     }
 }
 
@@ -85,14 +99,22 @@ fn run_delivers_the_env_stdin_and_cwd() {
 }
 
 #[test]
-fn run_captures_stderr_to_the_logs_dir() {
+fn run_envelopes_stderr_into_the_unified_log() {
     let e = Env::new();
     let bin = script(&e.at("bin"), "rec", RECORDER);
     e.dispatcher(0)
         .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
         .unwrap();
-    let log = fs::read_to_string(e.at("logs").join("tracker").join("close-pre.log")).unwrap();
-    assert!(log.contains("log from tracker"));
+    let log = fs::read_to_string(e.log_path()).unwrap();
+    // Core logs the `invoke` first (src=core), then the plugin's stderr line is
+    // enveloped (src=tracker, lvl=info), each its own JSON object.
+    let recs: Vec<serde_json::Value> = log.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(recs[0]["src"], "core");
+    assert_eq!(recs[0]["msg"], "invoke tracker");
+    let envelope = recs.iter().find(|r| r["src"] == "tracker").unwrap();
+    assert_eq!(envelope["lvl"], "info");
+    assert_eq!(envelope["phase"], "pre");
+    assert_eq!(envelope["msg"], "log from tracker");
 }
 
 #[test]
@@ -136,6 +158,11 @@ fn a_nonzero_exit_aborts_the_op() {
         .run(&pref("tracker", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
         .unwrap_err();
     assert!(err.to_string().contains("tracker aborted the op"));
+    // Core records the failure locus at `error` so it survives any threshold (§6).
+    let log = fs::read_to_string(e.log_path()).unwrap();
+    let err_rec = log.lines().map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap()).find(|r| r["lvl"] == "error").unwrap();
+    assert_eq!(err_rec["src"], "core");
+    assert!(err_rec["msg"].as_str().unwrap().contains("tracker aborted the op"));
 }
 
 #[test]
@@ -182,7 +209,7 @@ fn the_depth_cap_runs_plugin_free() {
     let d = e.dispatcher(DEPTH_CAP);
     d.run(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None).unwrap();
     d.rollback(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None);
-    assert!(!e.at("logs").join("tracker").exists(), "suppressed: nothing spawned");
+    assert!(!e.log_path().exists(), "suppressed: nothing spawned, nothing logged");
 }
 
 #[test]

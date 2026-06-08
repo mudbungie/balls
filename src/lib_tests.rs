@@ -15,6 +15,7 @@ fn edge(tmp: &TempDir) -> Edge {
         depth: 0,
         tracker_bin: None,
         color: false,
+        log_level: None,
     }
 }
 
@@ -121,4 +122,46 @@ fn sync_after_prime_targets_the_store() {
 #[test]
 fn a_bad_flag_is_an_op_error() {
     assert_eq!(run_in(&TempDir::new().unwrap(), &["prime", "--center"]), 1);
+}
+
+/// The unified op log path for `tmp`'s edge.
+fn op_log(tmp: &TempDir) -> std::path::PathBuf {
+    edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).op_log()
+}
+
+#[test]
+fn strip_log_level_pulls_the_flag_from_anywhere() {
+    let s = |a: &[&str]| a.iter().map(ToString::to_string).collect::<Vec<_>>();
+    // Leading the verb, with a value following.
+    let (lvl, rest) = strip_log_level(&s(&["--log-level", "debug", "create", "X"])).unwrap();
+    assert_eq!(lvl.as_deref(), Some("debug"));
+    assert_eq!(rest, ["create", "X"]);
+    // Mid-argv too — it is a global flag, position-independent.
+    let (lvl, rest) = strip_log_level(&s(&["create", "--log-level", "error", "X"])).unwrap();
+    assert_eq!(lvl.as_deref(), Some("error"));
+    assert_eq!(rest, ["create", "X"]);
+    // Absent ⇒ no override, argv untouched.
+    let (lvl, rest) = strip_log_level(&s(&["list"])).unwrap();
+    assert!(lvl.is_none());
+    assert_eq!(rest, ["list"]);
+    // Trailing with no value is a usage error.
+    assert!(strip_log_level(&s(&["list", "--log-level"])).is_err());
+}
+
+#[test]
+fn a_dangling_log_level_flag_is_a_usage_error() {
+    assert_eq!(run_in(&TempDir::new().unwrap(), &["--log-level"]), 2);
+}
+
+#[test]
+fn the_log_level_override_threads_through_and_writes_the_op_log() {
+    let tmp = TempDir::new().unwrap();
+    // `--log-level debug` (layer 1) flows onto the edge and into both the diffless
+    // (prime) and mutating (create) dispatch — the engine writes the op log.
+    assert_eq!(run_in(&tmp, &["--log-level", "debug", "prime", "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["--log-level", "debug", "create", "A task", "--as", "me"]), 0);
+    let log = std::fs::read_to_string(op_log(&tmp)).unwrap();
+    // Core's op-level lifecycle records land as JSON-lines (begin + seal).
+    assert!(log.lines().any(|l| l.contains("\"msg\":\"begin\"")), "expected a begin record");
+    assert!(log.lines().any(|l| l.contains("\"msg\":\"seal ")), "expected a seal record");
 }

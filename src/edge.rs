@@ -18,7 +18,10 @@ use std::path::PathBuf;
 /// stealth-only box — prime founds substrate but wires no remote, §12). `color`
 /// is the resolved rich-output signal the read verbs honour (§9): stdout is a
 /// tty AND `NO_COLOR` is unset — a tty/env fact, so it is decided here at the
-/// edge (the bl-bfa8 rule), never in the render layer.
+/// edge (the bl-bfa8 rule), never in the render layer. `log_level` is the §4
+/// layer-1 CLI override (`--log-level`): unlike the other fields it is argv- not
+/// env-derived, so [`crate::run`] strips the flag and stamps it on — `resolve`
+/// leaves it `None` (no override; the config threshold stands).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Edge {
     pub xdg: Xdg,
@@ -27,6 +30,7 @@ pub struct Edge {
     pub depth: u32,
     pub tracker_bin: Option<PathBuf>,
     pub color: bool,
+    pub log_level: Option<String>,
 }
 
 impl Edge {
@@ -57,6 +61,7 @@ impl Edge {
             depth: depth.and_then(|d| d.parse().ok()).unwrap_or(0),
             tracker_bin: sibling(current_exe.as_deref(), "tracker"),
             color: stdout_tty && no_color.is_none(),
+            log_level: None,
         }
     }
 }

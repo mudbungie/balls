@@ -20,6 +20,7 @@ use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::git;
 use crate::lifecycle::Engine;
+use crate::log::{self, Level, Log};
 use crate::plugin::Subprocess;
 use crate::registry::Registry;
 use crate::substrate;
@@ -40,8 +41,8 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     } else {
         substrate::found(&landing, &store, edge.tracker_bin.as_deref())?;
     }
-    let binding = bind(edge, &landing, &store)?;
-    run_chain(edge, &landing, &store, Verb::Prime, &actor, binding)
+    let (binding, level) = bind(edge, &landing, &store)?;
+    run_chain(edge, &landing, &store, Verb::Prime, &actor, binding, level)
 }
 
 /// `bl sync [BRANCH] [--as ID]` — make state consistent (§13): run the `sync`
@@ -57,17 +58,20 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     if opts.branch.as_deref() == Some("landing") {
         return Ok(());
     }
-    let binding = bind(edge, &landing, &store)?;
-    run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding)
+    let (binding, level) = bind(edge, &landing, &store)?;
+    run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
-/// Build the §7 binding for a checkout-lifecycle op: the auto-discovered store
-/// remote, the config-named `tasks_branch`, and the two checkout paths. Reads the
-/// landing's effective config for `tasks_branch` (§4 — config lives on the
-/// landing). The single construction point [`binding`] does the assembly.
-fn bind(edge: &Edge, landing: &Path, store: &Path) -> io::Result<Binding> {
+/// Build the §7 binding for a checkout-lifecycle op plus the resolved §4 log
+/// [`Level`]: the auto-discovered store remote, the config-named `tasks_branch`,
+/// the two checkout paths, and the `log_level` threshold (CLI override over
+/// config). One landing config read serves both. The single construction point
+/// [`binding`] does the binding assembly.
+fn bind(edge: &Edge, landing: &Path, store: &Path) -> io::Result<(Binding, Level)> {
     let cfg = EffectiveConfig::resolve(landing, &edge.xdg.user_config())?;
-    Ok(binding(landing, store, &edge.invocation_path, origin_of(landing), cfg.tasks_branch))
+    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
+    let binding = binding(landing, store, &edge.invocation_path, origin_of(landing), cfg.tasks_branch);
+    Ok((binding, level))
 }
 
 /// The auto-discovered store remote — `git remote get-url origin` on the landing,
@@ -84,15 +88,16 @@ pub(crate) fn origin_of(checkout: &Path) -> Option<String> {
 /// Run the DIFFLESS chain for `op` (§13): resolve the `NN-` plugin sets from the
 /// LANDING registry (the chain lives on `config/plugins`, §2), then run them with
 /// cwd = the STORE checkout and the terminus bracketing the store-branch HEAD.
-fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, binding: Binding) -> io::Result<()> {
+fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let reg = Registry::at(landing);
     let pre = reg.resolve(op.token(), "pre")?;
     let post = reg.resolve(op.token(), "post")?;
     let ctx = OpContext::diffless(actor.to_string(), binding);
-    let plugins = Subprocess::new(ctx, &clone.root().join("logs"), edge.depth);
+    let log = Log::new(clone.op_log(), level, op, log::wall);
+    let plugins = Subprocess::new(ctx, &log, edge.depth);
     let terminus = git::Git::at(store);
-    Engine::new(&terminus, &plugins)
+    Engine::new(&terminus, &plugins, &log)
         .diffless(op, store, &pre, &post)
         .map_err(|e| io::Error::other(e.to_string()))
 }
