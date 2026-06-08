@@ -129,13 +129,17 @@ fn an_integration_failure_aborts_a_close() {
 }
 
 #[test]
-fn worktree_path_is_the_derived_xdg_formula() {
+fn worktree_path_mirrors_the_invocation_path_for_a_cargo_safe_dir() {
     let xdg = Xdg::with(Path::new("/home/me"), None, Some("/st"));
     let p = worktree_path(&xdg, "delivery", "/home/me/dev/proj", "bl-f813");
+    // The code worktree MIRRORS the invocation path (no percent-encoding): a `%`
+    // ancestor breaks `rust-lld`'s output paths (bl-f3e4). The leading `/` is
+    // stripped so it nests under the territory; the result has no `%`.
     assert_eq!(
         p,
-        Path::new("/st/balls/plugins/delivery/%2Fhome%2Fme%2Fdev%2Fproj/bl-f813")
+        Path::new("/st/balls/plugins/delivery/home/me/dev/proj/bl-f813")
     );
+    assert!(!p.to_string_lossy().contains('%'));
 }
 
 #[test]

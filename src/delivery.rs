@@ -33,7 +33,6 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::encoding::percent_encode;
 use crate::layout::Xdg;
 use crate::message::Metadata;
 use crate::task::Task;
@@ -145,12 +144,22 @@ pub fn stage_field(
 }
 
 /// This binding's worktree territory (§11):
-/// `$XDG_STATE_HOME/balls/plugins/<name>/<pct-enc(invocation_path)>/`. Every
-/// `work/<id>` worktree is an `<id>/` child; [`worktree_path`] joins one id onto
-/// it.
+/// `$XDG_STATE_HOME/balls/plugins/<name>/<invocation_path>/`. Every `work/<id>`
+/// worktree is an `<id>/` child; [`worktree_path`] joins one id onto it.
+///
+/// Unlike every other layout name (which percent-encodes its key into one
+/// inspectable component, §1), this one MIRRORS the invocation path verbatim —
+/// the leading `/` stripped so it nests rather than re-roots. The reason is
+/// concrete: this subtree is the project's *code* worktree, where `cargo`/`rustc`
+/// build, and `rust-lld` cannot open an output file whose path contains a `%`
+/// (bl-f3e4). A percent-encoded ancestor would poison every link. Mirroring the
+/// real path is at least as inspectable as encoding it (§1's actual goal — names
+/// you can read, never a hash) and is always a valid filesystem path, since the
+/// invocation path already is one. The git-data layouts (clones, tracker) keep
+/// percent-encoding: nothing compiles there, so `%` is harmless.
 #[must_use]
 pub fn binding_territory(xdg: &Xdg, plugin: &str, invocation_path: &str) -> PathBuf {
-    xdg.plugin_territory(plugin).join(percent_encode(invocation_path))
+    xdg.plugin_territory(plugin).join(invocation_path.trim_start_matches('/'))
 }
 
 /// The derived code-worktree path (§11): the `<id>/` child of this binding's
