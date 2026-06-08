@@ -4,7 +4,8 @@
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:31:59.646818352Z",
-  "delivered_in": null,
+  "delivered_in": "88e585e6cdf24bc8289c5f8037ae06e28e4094c6",
+  "delivered_repo": "git@github.com:mudbungie/balls.git",
   "depends_on": ["bl-3dd9","bl-cd21"],
   "description": "Spec bl-2e26 §13 ('bl prime — readiness, built FROM sync', the 'prime != install, but prime --install fuses them on demand' paragraph). NOT yet built: `run()` accepts only `--as` for prime (any other arg errors), and install is not wired into `run()` (it prints its Op plan) — so the orchestration glue has nothing to call yet.\n\nWHY: `prime --install <center>` is the one-command first-contact / re-adopt. Plain prime is auto-safe (seeds the LOCAL default, syncs what landing already names, never adopts foreign config or activates third-party code). Adopting a center's config+plugins is the deliberate, consent-gated `install` (§6). The `--install` flag IS the consent.\n\nWHAT (src/checkout.rs prime + flag parse): - `bl prime --install <center>`: (1) ensure local substrate (existing prime path), (2) `install` copies the center's config + plugin wiring into the landing (§6, consent-gated, scope-addressed — bl-3dd9), (3) a FINAL prime brings the just-adopted tasks_branch to readiness. - SINGLE hop, NOT a walk: a center's config is self-contained — it names its own tasks_branch (the one config->store indirection, §4), never another config to chase. The older RECURSIVE multi-hop form (the 1d-old note's 'prime->install->prime->install down the config chain') was a config-TRAIL artifact, RETIRED with config-shadowing (§4/§12 — config crosses a checkout boundary exactly ONCE). Do NOT build the recursive form. - Each install is idempotent, so a failed adopt RESUMES rather than double-applies. - prime never PUSHES config (outbound transfer is `install --to`, §6); plain prime still cannot activate code, so the auto-safe property of the every-session path holds.\n\nDEPS: bl-3dd9 (install must be scope-addressed + wired/dispatched — this calls `install --from`), bl-cd21 (takes a <center> remote — needs the --remote>--center>XDG>origin resolution + the seeded-default-mismatch WARNING whose remedy text is literally 'run bl install / prime --install'). The pointer/trail-walk removal that prime --install's auto-safe framing rests on already landed (bl-9329, commit a9b476b).",
   "external": {"github-issues":{"issue":{"last_synced_body_hash":"9a4942d3dbe1d36c","last_synced_status":"in_progress","last_synced_title":"Greenfield §13: bl prime --install <center> — single-hop fuse of prime + install --from + prime [bl-6e93]","number":362,"source":"balls","state":"open","synced_at":"2026-06-08T01:01:05.520782414+00:00","url":"https://github.com/mudbungie/balls/issues/362"}}},
@@ -13,10 +14,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "in_progress",
+  "status": "review",
   "synced_at": {"github-issues":"2026-06-08T01:01:05.539407689Z"},
   "tags": ["greenfield"],
   "title": "Greenfield §13: bl prime --install <center> — single-hop fuse of prime + install --from + prime",
   "type": "task",
-  "updated_at": "2026-06-08T01:01:05.539415994Z"
+  "updated_at": "2026-06-08T03:56:00.937448802Z"
 }
