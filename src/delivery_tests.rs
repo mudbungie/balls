@@ -183,6 +183,62 @@ fn resolve_id_propagates_a_lister_error() {
 }
 
 #[test]
+fn claim_pre_stages_the_worktree_path_under_the_preserved_key() {
+    let content = "+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\nclaimant = \"me\"\n+++\nbody\n";
+    let out = stage_field("claim", "pre", false, Path::new("/wt/bl-x"), || Ok(content.into()))
+        .unwrap()
+        .unwrap();
+    let task = Task::parse(&out).unwrap();
+    assert_eq!(task.extra[WORKTREE_KEY].as_str(), Some("/wt/bl-x"));
+    // claimant + body round-trip untouched — only the one key is added.
+    assert_eq!(task.claimant.as_deref(), Some("me"));
+    assert_eq!(task.body, "body\n");
+}
+
+#[test]
+fn unclaim_pre_clears_the_worktree_path_key() {
+    let content = format!("+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\n{WORKTREE_KEY} = \"/wt/bl-x\"\n+++\n");
+    let out = stage_field("unclaim", "pre", false, Path::new("/wt/bl-x"), || Ok(content))
+        .unwrap()
+        .unwrap();
+    let task = Task::parse(&out).unwrap();
+    assert!(!task.extra.contains_key(WORKTREE_KEY)); // present iff claimed, now gone
+}
+
+#[test]
+fn no_other_hook_stages_anything_or_reads_the_file() {
+    // Every non-staging (op, phase) — and any rollback of the two pre hooks —
+    // returns `None` WITHOUT consulting the file (a post-abort resets the store,
+    // §8, so a staged field needs no explicit undo).
+    for (op, phase, rb) in [
+        ("claim", "post", false),
+        ("unclaim", "post", false),
+        ("close", "pre", false),
+        ("claim", "pre", true),
+        ("unclaim", "pre", true),
+    ] {
+        let out = stage_field(op, phase, rb, Path::new("/wt"), || {
+            unreachable!("a non-staging hook must not read the task file")
+        })
+        .unwrap();
+        assert!(out.is_none());
+    }
+}
+
+#[test]
+fn stage_field_surfaces_an_unparseable_ball() {
+    let err = stage_field("claim", "pre", false, Path::new("/wt"), || Ok("not a ball".into())).unwrap_err();
+    assert!(err.to_string().contains("frontmatter"));
+}
+
+#[test]
+fn stage_field_propagates_a_read_error() {
+    let err =
+        stage_field("claim", "pre", false, Path::new("/wt"), || Err(io::Error::other("disk gone"))).unwrap_err();
+    assert_eq!(err.to_string(), "disk gone");
+}
+
+#[test]
 fn protocol_self_description_lists_every_hooked_op() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
