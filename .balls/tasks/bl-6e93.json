@@ -1,6 +1,6 @@
 {
-  "branch": null,
-  "claimed_by": null,
+  "branch": "work/bl-6e93",
+  "claimed_by": "Lodges",
   "closed_at": null,
   "closed_children": [],
   "created_at": "2026-06-07T20:31:59.646818352Z",
@@ -13,10 +13,10 @@
   "parent": "bl-72a8",
   "priority": 3,
   "repo": "git@github.com:mudbungie/balls.git",
-  "status": "open",
+  "status": "in_progress",
   "synced_at": {"github-issues":"2026-06-08T04:11:08.677397011Z"},
   "tags": ["greenfield"],
   "title": "Greenfield §13: bl prime --install <center> — single-hop fuse of prime + install --from + prime",
   "type": "task",
-  "updated_at": "2026-06-08T04:11:08.677398784Z"
+  "updated_at": "2026-06-08T04:11:14.503199400Z"
 }
