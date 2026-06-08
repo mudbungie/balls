@@ -39,12 +39,29 @@ pub fn push(b: &Binding) -> io::Result<()> {
     Ok(())
 }
 
+/// §6/§13 `install/pre`: fetch the center's config branch (`balls/config`,
+/// [`crate::LANDING_BRANCH`]) into the LANDING repo so core can MATERIALIZE it
+/// locally and copy it in. The tracker is balls' only remote-talker — core never
+/// fetches (§0) — so `prime --install`'s remote read rides this hook. It leaves
+/// the config at the landing's `FETCH_HEAD` (a git-standard ref, so no invented
+/// core↔plugin convention); core reads it from the same checkout. This is a READ
+/// only — config adoption is destructive on the LANDING, never a push to the
+/// center (publishing is `install --to`, a separate direction). Stealth (no
+/// remote) is a no-op, like every handler.
+pub fn fetch_config(b: &Binding) -> io::Result<()> {
+    let Some(remote) = b.remote.as_deref() else {
+        return Ok(());
+    };
+    git(Path::new(&b.landing), &["fetch", remote, crate::LANDING_BRANCH])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tracker::fixtures::{
         binding, checkout, commit, empty_remote, local_unpushed, store_clone,
-        remote_with_branch, tip, BRANCH,
+        remote_with_branch, remote_with_config, tip, BRANCH,
     };
     use tempfile::TempDir;
 
@@ -96,6 +113,29 @@ mod tests {
 
         push(&binding(Some(&remote), &store)).unwrap();
         assert_eq!(tip(&remote, BRANCH), landed);
+    }
+
+    #[test]
+    fn fetch_config_brings_the_centers_config_to_the_landing_fetch_head() {
+        let tmp = TempDir::new().unwrap();
+        let center = remote_with_config(tmp.path(), "balls/shared");
+        let landing = local_unpushed(tmp.path()); // any local git repo to fetch into
+        let mut b = binding(Some(&center), &landing);
+        b.landing = landing.to_string_lossy().into_owned();
+        fetch_config(&b).unwrap();
+        // FETCH_HEAD in the landing now carries the center's config branch.
+        let cfg = git(&landing, &["show", "FETCH_HEAD:config/balls.toml"]).unwrap();
+        assert!(cfg.contains("balls/shared"), "fetched config: {cfg}");
+    }
+
+    #[test]
+    fn fetch_config_in_stealth_is_a_no_op() {
+        let tmp = TempDir::new().unwrap();
+        let landing = local_unpushed(tmp.path());
+        let mut b = binding(None, &landing);
+        b.landing = landing.to_string_lossy().into_owned();
+        fetch_config(&b).unwrap(); // no remote → nothing fetched, no error
+        assert!(git(&landing, &["rev-parse", "FETCH_HEAD"]).is_err());
     }
 
     #[test]

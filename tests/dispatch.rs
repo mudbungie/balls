@@ -150,3 +150,57 @@ fn the_read_verbs_render_a_created_ball_end_to_end() {
     assert_eq!(v[0]["title"], "Render me");
     assert!(v[0]["created"].is_i64());
 }
+
+/// Run `git -C <cwd> <args>`, asserting success — the integration harness builds
+/// the center repo with plain git (no access to the crate-internal runner).
+fn git(cwd: &Path, args: &[&str]) {
+    let ok = std::process::Command::new("git").arg("-C").arg(cwd).args(args).status().unwrap().success();
+    assert!(ok, "git {args:?} failed in {}", cwd.display());
+}
+
+/// A BARE center carrying a `balls/config` branch whose `config/` names
+/// `tasks_branch` and wires the tracker, plus a `# CENTER-MARKER` in `balls.toml`
+/// so the adopting side can prove it copied the center's file verbatim.
+fn center(dir: &Path) -> PathBuf {
+    let bare = dir.join("center.git");
+    git(dir, &["init", "--bare", "-q", "-b", "balls/config", &bare.to_string_lossy()]);
+    let seed = dir.join("center-seed");
+    git(dir, &["clone", "-q", &bare.to_string_lossy(), &seed.to_string_lossy()]);
+    git(&seed, &["config", "user.name", "c"]);
+    git(&seed, &["config", "user.email", "c@c"]);
+    std::fs::create_dir_all(seed.join("config")).unwrap();
+    std::fs::write(seed.join("config/balls.toml"), "tasks_branch = \"balls/tasks\"\n# CENTER-MARKER\n").unwrap();
+    std::fs::write(
+        seed.join("config/plugins.toml"),
+        "[hooks]\n\"sync.pre\" = [\"tracker\"]\n\"prime.pre\" = [\"tracker\"]\n\"install.pre\" = [\"tracker\"]\n",
+    )
+    .unwrap();
+    git(&seed, &["add", "-A"]);
+    git(&seed, &["commit", "-q", "-m", "center config"]);
+    git(&seed, &["push", "-q", "origin", "balls/config"]);
+    bare
+}
+
+#[test]
+fn prime_install_adopts_a_centers_config_via_the_tracker_fetch() {
+    // §13 end to end: the tracker (install.pre) fetches the center's config, core
+    // copies it into the landing, then prime+sync run. Proof the whole
+    // engine→subprocess→tracker→core-copy path works — core itself never fetches.
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    let bare = center(tmp.path());
+
+    bl_primed(&project, &home, &state)
+        .args(["prime", "--install", &bare.to_string_lossy()])
+        .assert()
+        .success()
+        .stdout(contains("install:")); // the change summary prints
+
+    // The landing's config is the center's, copied verbatim (the marker proves it).
+    let landing = balls::layout::Xdg::with(Path::new("/unused"), None, Some(&state.to_string_lossy()))
+        .clone_dir(&project)
+        .landing();
+    let cfg = std::fs::read_to_string(landing.join("config/balls.toml")).unwrap();
+    assert!(cfg.contains("CENTER-MARKER"), "adopted the center's config file: {cfg}");
+}

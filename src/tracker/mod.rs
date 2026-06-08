@@ -38,9 +38,10 @@ pub struct Env {
 }
 
 /// The ops the tracker handles, for the §6 `protocol` self-description: the
-/// deliverable verbs (it pushes on their `post`) plus `sync`/`prime`.
+/// deliverable verbs (it pushes on their `post`), `sync`/`prime`, and `install`
+/// (it fetches the center's config on `install/pre`, §13).
 const OPS: &[&str] = &[
-    "create", "claim", "unclaim", "update", "close", "drop", "sync", "prime",
+    "create", "claim", "unclaim", "update", "close", "drop", "sync", "prime", "install",
 ];
 
 /// The §6 self-description emitted by `tracker protocol`. balls never persists
@@ -79,16 +80,20 @@ fn protocol(out: &mut impl Write) -> io::Result<()> {
     out.write_all(b"\n")
 }
 
-/// Route one `<op> <phase>` to its handler. The tracker acts in exactly three
-/// slots — `sync/pre`, `prime/pre`, and any deliverable verb's `post` — and
-/// no-ops everywhere else (reads, the other phases). `sync`/`prime` are matched
-/// out before the catch-all `post` so their own `post` never triggers a push.
+/// Route one `<op> <phase>` to its handler. The tracker acts in four slots —
+/// `sync/pre`, `prime/pre`, `install/pre` (the §13 config fetch), and any
+/// deliverable verb's `post` (the push) — and no-ops everywhere else (reads, the
+/// other phases). `sync`/`prime`/`install` are matched out before the catch-all
+/// `post` so their own `post` never triggers a push: in particular `install`
+/// adopts config INTO the local landing (a fetch), and must NEVER push the
+/// landing back out (publishing is a separate direction, §6/§13).
 fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result<()> {
     let binding = payload::read_binding(input)?;
     match (op, phase) {
         ("sync", "pre") => remote_ops::sync(&binding),
         ("prime", "pre") => prime::prime(&binding, env),
-        ("sync" | "prime", _) => Ok(()),
+        ("install", "pre") => remote_ops::fetch_config(&binding),
+        ("sync" | "prime" | "install", _) => Ok(()),
         (_, "post") => remote_ops::push(&binding),
         _ => Ok(()),
     }
@@ -148,9 +153,26 @@ mod tests {
             ("prime", "post"),
             ("claim", "pre"),
             ("claim", "post"),
+            ("install", "pre"),
+            ("install", "post"), // must NOT push the landing back out
         ] {
             assert_eq!(invoke(op, phase, &stealth(), &env), 0, "{op} {phase}");
         }
+    }
+
+    #[test]
+    fn install_pre_dispatches_to_the_config_fetch() {
+        let (tmp, env) = env();
+        let center = super::fixtures::remote_with_config(tmp.path(), "balls/shared");
+        let landing = super::fixtures::local_unpushed(tmp.path());
+        let payload = format!(
+            r#"{{"binding":{{"remote":"{}","tasks_branch":"balls/tasks","store":"/nope","landing":"{}","invocation_path":"/p"}}}}"#,
+            center.display(),
+            landing.display(),
+        );
+        assert_eq!(invoke("install", "pre", &payload, &env), 0);
+        // Proof the fetch handler ran (not the catch-all): FETCH_HEAD now resolves.
+        assert!(super::git::git(&landing, &["rev-parse", "FETCH_HEAD"]).is_ok());
     }
 
     #[test]

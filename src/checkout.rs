@@ -67,7 +67,7 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
         substrate::found(&landing, &store, &edge.xdg, edge.exe_dir.as_deref())?;
     }
     if let Some(center) = &opts.install {
-        adopt::adopt(edge, &landing, center)?;
+        adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
     }
     let remote = opts.remote.or(opts.install);
     let (binding, level) = bind(edge, &landing, &store, remote, None)?;
