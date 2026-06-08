@@ -8,7 +8,9 @@
 //!   store), then run the `prime` chain whose `tracker` handler adopts/founds/
 //!   stealth-locks the remote. Re-running converges.
 //! - **`sync`** is the synchronization primitive (§13): run the `sync` chain
-//!   against the store (the tracker's `sync/pre` does the fetch + ff-only).
+//!   against the store (the tracker's `sync/pre` does the fetch + ff-only). With
+//!   no arg it syncs the config `tasks_branch`; `bl sync <branch>` PULLS that
+//!   named branch (the positional substitutes `tasks_branch` in the binding).
 //!   `bl sync landing` is a no-op — the landing is never a sync target (§13).
 //!
 //! Core stays local-only (§0): it ensures the two LOCAL checkouts and reads
@@ -41,13 +43,16 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     } else {
         substrate::found(&landing, &store, edge.tracker_bin.as_deref())?;
     }
-    let (binding, level) = bind(edge, &landing, &store)?;
+    let (binding, level) = bind(edge, &landing, &store, None)?;
     run_chain(edge, &landing, &store, Verb::Prime, &actor, binding, level)
 }
 
 /// `bl sync [BRANCH] [--as ID]` — make state consistent (§13): run the `sync`
-/// chain against the store (the tracker's `sync/pre` fetches + ff-only). A
-/// `landing` target is a no-op — the landing is never a sync target (§2/§13).
+/// chain against the store (the tracker's `sync/pre` fetches + ff-only). With no
+/// arg it syncs the config-named `tasks_branch`; `bl sync <branch>` PULLS that
+/// named branch instead — the positional substitutes `tasks_branch` in the §7
+/// binding, the one datum the tracker fetches/ff's against. A `landing` target
+/// is a no-op — the landing is never a sync target (§2/§13).
 pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_sync(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -58,19 +63,21 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     if opts.branch.as_deref() == Some("landing") {
         return Ok(());
     }
-    let (binding, level) = bind(edge, &landing, &store)?;
+    let (binding, level) = bind(edge, &landing, &store, opts.branch)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
 /// Build the §7 binding for a checkout-lifecycle op plus the resolved §4 log
-/// [`Level`]: the auto-discovered store remote, the config-named `tasks_branch`,
-/// the two checkout paths, and the `log_level` threshold (CLI override over
-/// config). One landing config read serves both. The single construction point
-/// [`binding`] does the binding assembly.
-fn bind(edge: &Edge, landing: &Path, store: &Path) -> io::Result<(Binding, Level)> {
+/// [`Level`]: the auto-discovered store remote, the `tasks_branch` (the `target`
+/// override, else the config-named one — §13 `bl sync <branch>`), the two
+/// checkout paths, and the `log_level` threshold (CLI override over config). One
+/// landing config read serves both. The single construction point [`binding`]
+/// does the binding assembly.
+fn bind(edge: &Edge, landing: &Path, store: &Path, target: Option<String>) -> io::Result<(Binding, Level)> {
     let cfg = EffectiveConfig::resolve(landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
-    let binding = binding(landing, store, &edge.invocation_path, origin_of(landing), cfg.tasks_branch);
+    let tasks_branch = target.unwrap_or(cfg.tasks_branch);
+    let binding = binding(landing, store, &edge.invocation_path, origin_of(landing), tasks_branch);
     Ok((binding, level))
 }
 
