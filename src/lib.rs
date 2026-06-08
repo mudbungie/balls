@@ -89,6 +89,7 @@
 //! Pure path arithmetic plus the registry's filesystem ops — no git, no env
 //! reads (the binary edge supplies those), no bootstrap (that is prime's job).
 
+pub mod adopt;
 pub mod change;
 pub mod checkout;
 pub mod civil;
