@@ -29,8 +29,17 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
         return stealth_lock(b, env);
     };
     let store = Path::new(&b.store);
-    if !remote_has_branch(store, &remote, &b.tasks_branch)? {
-        git(store, &["push", &remote, &b.tasks_branch])?; // found the remote
+    if let Some(named) = store_elsewhere(b, store, &remote) {
+        eprintln!("tracker: this repo's tasks are on `{named}` — run `bl install` / `bl prime --install`");
+    }
+    if remote_has_branch(store, &remote, &b.tasks_branch)? {
+        return Ok(()); // established → adopt; `sync` keeps it current
+    }
+    // Absent → bootstrap (create+push). A push that fails for lack of perms falls
+    // back to stealth-local SILENTLY (§12): founding a branch you can't push is
+    // harmless by definition, so a no-write-access box just keeps the store local.
+    if git(store, &["push", &remote, &b.tasks_branch]).is_err() {
+        return stealth_lock(b, env);
     }
     Ok(())
 }
@@ -39,6 +48,27 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
 /// round-trip that decides adopt vs found.
 fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::Result<bool> {
     Ok(!git(cwd, &["ls-remote", "--heads", remote, branch])?.is_empty())
+}
+
+/// The store this repo really uses, if it is NOT the one we are bound to — the
+/// silent-empty diagnostic (§12). Returns `Some(branch)` only when our
+/// `tasks_branch` is still the SEEDED DEFAULT (an un-`install`ed clone): it fetches
+/// the standard `balls/config` landing branch from `remote` (reading is free, no
+/// authority) and reads its `tasks_branch`; a value DIFFERENT from ours is the gap
+/// to warn about. Any failure to read it — remote unreachable, no `balls/config`
+/// branch, malformed config — is an UNCATCHABLE case, silent by design: `None`.
+fn store_elsewhere(b: &Binding, store: &Path, remote: &str) -> Option<String> {
+    if b.tasks_branch != crate::DEFAULT_TASKS_BRANCH {
+        return None; // user-set or `install`-adopted — not the silent-empty gap
+    }
+    git(store, &["fetch", remote, crate::LANDING_BRANCH]).ok()?;
+    let cfg = git(store, &["show", "FETCH_HEAD:config/balls.toml"]).ok()?;
+    let named = toml::from_str::<toml::Table>(&cfg)
+        .ok()?
+        .get("tasks_branch")?
+        .as_str()?
+        .to_string();
+    (named != b.tasks_branch).then_some(named)
 }
 
 /// Write the self-reference stealth lock into this checkout's clone bundle (§1).
@@ -52,8 +82,8 @@ fn stealth_lock(b: &Binding, env: &Env) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::tracker::fixtures::{
-        binding, empty_remote, env, local_unpushed, operating_clone, remote_with_branch, tip,
-        BRANCH,
+        binding, default_binding, empty_remote, env, local_unpushed, operating_clone,
+        remote_with_branch, remote_with_config, tip, unpushable_remote, BRANCH,
     };
     use tempfile::TempDir;
 
@@ -92,5 +122,58 @@ mod tests {
 
         prime(&binding(Some(&remote), &operating), &env).unwrap();
         assert_eq!(tip(&remote, BRANCH), before); // no push happened
+    }
+
+    #[test]
+    fn a_rejected_push_falls_back_to_stealth_local() {
+        let tmp = TempDir::new().unwrap();
+        let remote = unpushable_remote(tmp.path());
+        let operating = local_unpushed(tmp.path());
+        let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+        let b = binding(Some(&remote), &operating);
+
+        prime(&b, &env).unwrap(); // push denied → silent stealth fallback, not an error
+        let lock = env.xdg.clone_dir(Path::new(&b.invocation_path)).root().join("stealth.lock");
+        assert!(lock.is_file()); // fell back to stealth-local
+        assert!(git(&remote, &["rev-parse", BRANCH]).is_err()); // nothing was founded
+    }
+
+    #[test]
+    fn store_elsewhere_reports_a_differently_configured_origin() {
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_config(tmp.path(), "balls/work");
+        let store = local_unpushed(tmp.path());
+        let b = default_binding(Some(&remote), &store);
+        // The synced origin:balls/config names a different store than our default.
+        assert_eq!(
+            store_elsewhere(&b, Path::new(&b.store), b.remote.as_deref().unwrap()),
+            Some("balls/work".to_string())
+        );
+    }
+
+    #[test]
+    fn store_elsewhere_is_silent_when_origin_agrees_or_is_unreadable() {
+        let tmp = TempDir::new().unwrap();
+        let store = local_unpushed(tmp.path());
+        // Origin's config names the SAME default store → no gap.
+        let agree = remote_with_config(tmp.path(), crate::DEFAULT_TASKS_BRANCH);
+        let b = default_binding(Some(&agree), &store);
+        assert_eq!(store_elsewhere(&b, Path::new(&b.store), b.remote.as_deref().unwrap()), None);
+        // No balls/config branch to read → uncatchable, silent.
+        let bare = empty_remote(tmp.path());
+        let b = default_binding(Some(&bare), &store);
+        assert_eq!(store_elsewhere(&b, Path::new(&b.store), b.remote.as_deref().unwrap()), None);
+    }
+
+    #[test]
+    fn prime_warns_about_a_relocated_store_but_does_not_abort() {
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_config(tmp.path(), "balls/work");
+        let store = local_unpushed(tmp.path());
+        let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+        // Default tasks_branch + a relocated origin: prime warns (stderr) then,
+        // finding no default store to push (local has no such branch), falls back
+        // to stealth — the warning is diagnostic, never fatal.
+        prime(&default_binding(Some(&remote), &store), &env).unwrap();
     }
 }
