@@ -1,7 +1,2 @@
-.balls/local
-.balls-worktrees
 target
 *.profraw
-.balls/tasks
-.balls/worktree
-.balls/code-refs
