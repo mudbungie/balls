@@ -15,7 +15,10 @@ use std::path::PathBuf;
 /// uses unless `--as` overrides it; `depth` is `$BALLS_PLUGIN_DEPTH` (`0` at the
 /// top level, the §6 recursion guard); `tracker_bin` is the shipped default
 /// remote-talker if it is installed beside `bl` (`None` ⇒ a tracker-free,
-/// stealth-only box — prime founds substrate but wires no remote, §12).
+/// stealth-only box — prime founds substrate but wires no remote, §12). `color`
+/// is the resolved rich-output signal the read verbs honour (§9): stdout is a
+/// tty AND `NO_COLOR` is unset — a tty/env fact, so it is decided here at the
+/// edge (the bl-bfa8 rule), never in the render layer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Edge {
     pub xdg: Xdg,
@@ -23,14 +26,19 @@ pub struct Edge {
     pub default_actor: String,
     pub depth: u32,
     pub tracker_bin: Option<PathBuf>,
+    pub color: bool,
 }
 
 impl Edge {
     /// Assemble an `Edge` from raw boundary values. `main` reads each from the
     /// environment (one always-executed line apiece) and hands them here, so the
-    /// fallback logic — default actor, depth parse, sibling resolution — lives in
-    /// the library where unit tests reach every branch (the bl-bfa8 rule).
+    /// fallback logic — default actor, depth parse, sibling resolution, the
+    /// colour decision — lives in the library where unit tests reach every branch
+    /// (the bl-bfa8 rule). `no_color` is `$NO_COLOR` (any value, even empty,
+    /// disables colour — the de-facto standard); `stdout_tty` is whether stdout
+    /// is a terminal (a syscall `main` makes at the boundary).
     #[must_use]
+    #[allow(clippy::too_many_arguments)] // a boundary adapter: each arg is one host input
     pub fn resolve(
         home: PathBuf,
         config_home: Option<String>,
@@ -39,6 +47,8 @@ impl Edge {
         user: Option<String>,
         depth: Option<String>,
         current_exe: Option<PathBuf>,
+        no_color: Option<String>,
+        stdout_tty: bool,
     ) -> Self {
         Self {
             xdg: Xdg::with(&home, config_home.as_deref(), state_home.as_deref()),
@@ -46,6 +56,7 @@ impl Edge {
             default_actor: user.unwrap_or_else(|| "unknown".into()),
             depth: depth.and_then(|d| d.parse().ok()).unwrap_or(0),
             tracker_bin: sibling(current_exe.as_deref(), "tracker"),
+            color: stdout_tty && no_color.is_none(),
         }
     }
 }
@@ -73,7 +84,25 @@ mod tests {
             user.map(str::to_string),
             depth.map(str::to_string),
             exe,
+            None,
+            true,
         )
+    }
+
+    /// Build an edge varying only the two colour inputs.
+    fn color_of(no_color: Option<&str>, stdout_tty: bool) -> bool {
+        Edge::resolve(
+            PathBuf::from("/h"),
+            None,
+            None,
+            PathBuf::from("/p"),
+            None,
+            None,
+            None,
+            no_color.map(str::to_string),
+            stdout_tty,
+        )
+        .color
     }
 
     #[test]
@@ -107,5 +136,13 @@ mod tests {
         assert_eq!(resolve(None, None, None).tracker_bin, None);
         // A root path has no parent — also no sibling.
         assert_eq!(sibling(Some(Path::new("/")), "tracker"), None);
+    }
+
+    #[test]
+    fn colour_needs_both_a_tty_and_an_unset_no_color() {
+        assert!(color_of(None, true)); // tty, NO_COLOR unset ⇒ colour
+        assert!(!color_of(None, false)); // not a tty ⇒ plain
+        assert!(!color_of(Some("1"), true)); // NO_COLOR set ⇒ plain
+        assert!(!color_of(Some(""), true)); // even empty NO_COLOR disables
     }
 }
