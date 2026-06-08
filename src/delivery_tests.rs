@@ -200,7 +200,7 @@ fn binding_territory_is_the_parent_of_every_worktree() {
 fn wire_deserializes_the_slice_the_plugin_needs() {
     let json = r#"{
         "protocol": 1, "op": "close", "phase": "post", "plugin_name": "delivery",
-        "actor": "me", "binding": {"branch": "balls", "operating": "/o", "invocation_path": "/proj"},
+        "actor": "me", "binding": {"branch": "balls", "store": "/s", "invocation_path": "/proj"},
         "command": {"op": "close"},
         "current_state": {"title": "Refactor foo", "created": 0, "updated": 0},
         "metadata": {"bl-id": ["bl-f813"]}, "commit": "c", "previous_commit": "p"
@@ -208,7 +208,6 @@ fn wire_deserializes_the_slice_the_plugin_needs() {
     let wire: Wire = serde_json::from_str(json).unwrap();
     assert_eq!(wire.actor, "me");
     assert_eq!(wire.binding.invocation_path, "/proj");
-    assert_eq!(wire.binding.operating.as_deref(), Some("/o"));
     assert_eq!(wire.current_state.unwrap().title, "Refactor foo");
     assert_eq!(wire.metadata.unwrap()["bl-id"], ["bl-f813"]);
     assert!(wire.rolling_back.is_none());
@@ -220,7 +219,6 @@ fn wire_tolerates_a_minimal_pre_payload_and_a_rollback_tag() {
     let wire: Wire = serde_json::from_str(json).unwrap();
     assert_eq!(wire.rolling_back.as_deref(), Some("pre"));
     assert_eq!(wire.actor, ""); // absent actor defaults empty (per-ball ops ignore it)
-    assert!(wire.binding.operating.is_none()); // absent on a minimal per-ball payload
     assert!(wire.metadata.is_none());
     assert!(wire.current_state.is_none());
 }
