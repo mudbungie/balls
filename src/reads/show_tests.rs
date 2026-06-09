@@ -109,13 +109,16 @@ fn show_falls_through_to_history_for_a_dead_ball() {
 }
 
 #[test]
-fn show_renders_a_dropped_ball_with_its_drop_badge() {
+fn show_renders_a_dropped_ball_as_closed() {
+    // A `drop` retirement projects as `closed` like any other dead ball — the
+    // verb survives only in git history (`bl-op: drop`), not as a status word.
     let s = git_store();
     s.create("bl-gone", &task("Abandoned", 1), 1).retire("bl-gone", "drop", 9);
     let cat = Catalog::load(s.dir()).unwrap();
     let out = dispatch(s.dir(), &cat, &flags(false, "bl-gone"), &plain()).unwrap();
-    assert!(out.contains("dropped  bl-gone  Abandoned"));
-    assert!(out.contains("status   dropped"));
+    assert!(out.contains("closed   bl-gone  Abandoned"));
+    assert!(out.contains("status   closed"));
+    assert!(!out.contains("dropped"));
 }
 
 #[test]

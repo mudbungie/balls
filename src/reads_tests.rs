@@ -134,22 +134,14 @@ fn reach_predicates_split_live_and_dead() {
 }
 
 #[test]
-fn retired_reads_the_bl_op_trailer_and_names_a_word() {
-    assert_eq!(Retired::from_op("drop"), Retired::Dropped);
-    assert_eq!(Retired::from_op("close"), Retired::Closed);
-    assert_eq!(Retired::from_op(""), Retired::Closed); // a non-drop op (or none)
-    assert_eq!(Retired::Closed.word(), "closed");
-    assert_eq!(Retired::Dropped.word(), "dropped");
-}
-
-#[test]
-fn the_retired_badge_is_a_word_or_a_dim_glyph() {
+fn every_retirement_reads_as_closed() {
+    // A `drop` is a close without delivery; both collapse to `closed` in
+    // projection. The badge takes no retirement arg — there is nothing to split.
     let plain = Style { plain: true };
-    assert_eq!(plain.retired_badge(Retired::Closed), "closed  ");
-    assert_eq!(plain.retired_badge(Retired::Dropped), "dropped ");
+    assert_eq!(plain.retired_badge(), "closed  ");
     let rich = Style { plain: false };
-    assert!(rich.retired_badge(Retired::Closed).contains('\u{2713}'));
-    assert!(rich.retired_badge(Retired::Dropped).contains('\u{2717}'));
+    assert!(rich.retired_badge().contains('\u{2713}')); // ✓
+    assert!(!rich.retired_badge().contains('\u{2717}')); // never a drop ✗
 }
 
 #[test]
