@@ -70,7 +70,9 @@ fn claimed_ball(store: &Path, id: &str, claimant: &str) {
 }
 
 #[test]
-fn claim_pre_stages_the_worktree_path_field_then_unclaim_pre_clears_it() {
+fn show_read_prints_the_worktree_field_line_only_once_materialized() {
+    // §6 read dispatch (bl-0af4): nothing is stored — the plugin recomputes the
+    // path and answers `show` from the filesystem fact alone.
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
     fs::create_dir_all(&home).unwrap();
@@ -80,30 +82,21 @@ fn claim_pre_stages_the_worktree_path_field_then_unclaim_pre_clears_it() {
     let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
     let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
 
-    // The change worktree balls runs a pre hook in: a git repo whose staged
-    // change is the op's `tasks/bl-x.md`. The id is recovered from it — no
-    // metadata on the pre wire (§7).
-    let change = tmp.path().join("change");
-    fs::create_dir(&change).unwrap();
-    git(&change, &["init", "-q", "-b", "balls"]);
-    git(&change, &["config", "user.name", "test"]);
-    git(&change, &["config", "user.email", "test@example.com"]);
-    fs::write(change.join("seed"), "s\n").unwrap();
-    git(&change, &["add", "-A"]);
-    git(&change, &["commit", "-qm", "seed"]);
-    fs::create_dir(change.join("tasks")).unwrap();
-    let ball = change.join("tasks/bl-x.md");
-    fs::write(&ball, "+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\nclaimant = \"me\"\n+++\n").unwrap();
-    git(&change, &["add", "-A"]);
+    // Before any claim there is no worktree — show prints NOTHING (a released
+    // or other-machine claim must not surface a path that isn't there).
+    delivery(&root, &home, "show", "read", &post(inv, "bl-x", "T")).assert().success().stdout("");
 
-    // claim.pre — the plugin writes the derived path under `delivery-worktree`.
-    delivery(&change, &home, "claim", "pre", &pre(inv, "T")).assert().success();
-    assert!(fs::read_to_string(&ball).unwrap().contains(&format!("delivery-worktree = \"{}\"", wt.display())));
+    // claim.post materializes AND prints the bare path — the verb's product (§11).
+    delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "T"))
+        .assert()
+        .success()
+        .stdout(format!("{}\n", wt.display()));
 
-    // unclaim.pre — the key is cleared in lockstep (present iff claimed).
-    git(&change, &["add", "-A"]);
-    delivery(&change, &home, "unclaim", "pre", &pre(inv, "T")).assert().success();
-    assert!(!fs::read_to_string(&ball).unwrap().contains("delivery-worktree"));
+    // Now show answers with the human field line balls folds into its render.
+    delivery(&root, &home, "show", "read", &post(inv, "bl-x", "T"))
+        .assert()
+        .success()
+        .stdout(format!("  worktree {}\n", wt.display()));
 }
 
 #[test]
@@ -113,7 +106,7 @@ fn protocol_self_describes_without_env_or_stdin() {
         .arg("protocol")
         .assert()
         .success()
-        .stdout(contains(r#""ops":["claim","unclaim","drop","close","prime"]"#));
+        .stdout(contains(r#""ops":["claim","unclaim","drop","close","prime","show"]"#));
 }
 
 #[test]
@@ -133,13 +126,19 @@ fn prime_re_materializes_only_the_actors_still_claimed_worktrees() {
     let mine = worktree_path(&xdg, "delivery", inv, "bl-mine");
     let theirs = worktree_path(&xdg, "delivery", inv, "bl-theirs");
 
-    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success();
+    // The path of each re-materialized worktree prints — the resume-session
+    // counterpart of claim.post's print (§11) — and only mine.
+    delivery(&store, &home, "prime", "post", &prime("me", inv))
+        .assert()
+        .success()
+        .stdout(format!("{}\n", mine.display()));
 
     assert!(mine.join("seed.txt").exists()); // my claim re-materialized
     assert!(!theirs.exists()); // a different actor's claim is not mine to make
 
-    // Idempotent: a second prime over the same set converges to a no-op.
-    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success();
+    // Idempotent: a second prime over the same set converges to a no-op (the
+    // path still prints — prime re-surfaces it every session).
+    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success().stdout(format!("{}\n", mine.display()));
     assert!(mine.join("seed.txt").exists());
 }
 

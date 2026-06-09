@@ -13,6 +13,7 @@ const SAMPLE: &str = r#"
 "close.pre"  = ["bl-delivery"]
 "close.post" = ["bl-delivery", "tracker"]
 "create.post" = ["tracker"]
+"show" = ["bl-delivery"]
 "#;
 
 #[test]
@@ -167,10 +168,25 @@ fn resolve_stitches_names_to_local_binaries_in_order() {
 }
 
 #[test]
+fn resolve_read_uses_the_bare_op_key_for_the_single_read_phase() {
+    // §6 read dispatch: a read has no pre/post split, so its hook key is the
+    // bare op token; a phased key never answers it (and vice versa).
+    let tmp = TempDir::new().unwrap();
+    let reg = Registry::at(tmp.path());
+    let hooks = Hooks::parse(SAMPLE).unwrap();
+    let refs = hooks.resolve_read(&reg, "show");
+    assert_eq!(refs.len(), 1);
+    assert_eq!((refs[0].name.as_str(), refs[0].bin.as_deref()), ("bl-delivery", None));
+    assert!(hooks.resolve_read(&reg, "close").is_empty()); // phased keys don't leak in
+    assert!(hooks.names("show", "read").is_empty()); // nor the bare key out
+}
+
+#[test]
 fn referenced_maps_each_plugin_to_the_ops_it_is_wired_into() {
+    // A bare read key ("show") projects its op like any phased key does.
     let refs = Hooks::parse(SAMPLE).unwrap().referenced();
     assert_eq!(refs["tracker"], BTreeSet::from(["close".to_string(), "create".to_string()]));
-    assert_eq!(refs["bl-delivery"], BTreeSet::from(["close".to_string()]));
+    assert_eq!(refs["bl-delivery"], BTreeSet::from(["close".to_string(), "show".to_string()]));
 }
 
 #[test]
