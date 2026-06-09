@@ -98,6 +98,7 @@ pub mod checkout;
 pub mod civil;
 pub mod config;
 pub mod delivery;
+pub mod delivery_prune;
 pub mod delivery_repo;
 pub mod edge;
 pub mod encoding;

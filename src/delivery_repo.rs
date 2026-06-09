@@ -22,7 +22,7 @@ use crate::task::Task;
 
 /// The production [`Repo`]: git against one project-repo root.
 pub struct Project {
-    root: PathBuf,
+    pub(crate) root: PathBuf,
 }
 
 impl Project {
@@ -34,7 +34,7 @@ impl Project {
 
     /// Run `git -C <cwd> <args>`, returning stdout; a non-zero exit becomes an
     /// [`io::Error`] carrying git's stderr (the one failure funnel).
-    fn run(cwd: &Path, args: &[&str]) -> io::Result<String> {
+    pub(crate) fn run(cwd: &Path, args: &[&str]) -> io::Result<String> {
         let out = Command::new("git")
             .arg("-C")
             .arg(cwd)
@@ -56,7 +56,7 @@ impl Project {
     /// Run `git -C <cwd> <args>` purely for its exit code — a predicate (does a
     /// ref exist? do two trees differ?). `Ok(true)` on exit 0, `Ok(false)` on
     /// any non-zero; only a spawn failure is an error.
-    fn ok(cwd: &Path, args: &[&str]) -> io::Result<bool> {
+    pub(crate) fn ok(cwd: &Path, args: &[&str]) -> io::Result<bool> {
         Ok(Command::new("git")
             .arg("-C")
             .arg(cwd)
@@ -70,6 +70,23 @@ impl Project {
     /// Does local branch `branch` exist?
     fn branch_exists(&self, branch: &str) -> io::Result<bool> {
         Self::ok(&self.root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+    }
+
+    /// Is `branch` SETTLED on `integration` — carrying nothing undelivered?
+    /// True when every branch commit is already on integration
+    /// (`--is-ancestor`: the fresh or fully-merged branch) or a `marker`
+    /// delivery commit landed on integration since the branch forked (this
+    /// incarnation's squash survived — scoped to the fork so a reused id's
+    /// PRIOR delivery, always an ancestor of the fork point, cannot
+    /// false-positive; bl-430e/§11). The one predicate `deliver`'s retry-skip
+    /// and the prime prune ([`Project::prune`]) both read through. The branch
+    /// must exist.
+    pub(crate) fn settled(&self, branch: &str, integration: &str, marker: &str) -> io::Result<bool> {
+        if Self::ok(&self.root, &["merge-base", "--is-ancestor", branch, integration])? {
+            return Ok(true);
+        }
+        let base = Self::run(&self.root, &["merge-base", integration, branch])?.trim().to_string();
+        Ok(!self.marked(&format!("{base}..{integration}"), marker)?.is_empty())
     }
 
     /// Capture any pending worktree work onto `branch` as a commit (squashed
@@ -188,26 +205,13 @@ impl Repo for Project {
         if path.exists() {
             Self::capture(path, subject)?;
         }
-        // Nothing to deliver: branch never made, every branch commit already on
-        // integration (`--is-ancestor` — covers the claimed non-deliverable AND
-        // a surviving delivery whose squash minted the very same sha as the
-        // branch tip: same parent/tree/message/second), or no tree change.
+        // Nothing to deliver: branch never made, SETTLED (fully merged, or this
+        // incarnation's delivery survived an aborted close — the bl-430e retry;
+        // see [`Self::settled`]), or no tree change.
         if !self.branch_exists(branch)?
-            || Self::ok(&self.root, &["merge-base", "--is-ancestor", branch, integration])?
+            || self.settled(branch, integration, marker)?
             || Self::ok(&self.root, &["diff", "--quiet", integration, branch])?
         {
-            return Ok(());
-        }
-        // Already delivered: an aborted close can leave its squash on
-        // `integration` (the §14 un-squash is best-effort), and re-squashing on
-        // retry mints an EMPTY duplicate delivery commit (bl-430e). A `marker`
-        // commit since `branch` forked means THIS incarnation delivered, so the
-        // retry skips to the bookkeeping. Scoped to `merge-base..integration`
-        // because a reused id's prior delivery is always an ancestor of the
-        // fork point (§11 recency) — a full-history scan would false-positive
-        // and silently swallow the new incarnation's delivery.
-        let base = Self::run(&self.root, &["merge-base", integration, branch])?.trim().to_string();
-        if !self.marked(&format!("{base}..{integration}"), marker)?.is_empty() {
             return Ok(());
         }
         // Reintegration and the gate both act in the worktree; a close on a box
@@ -272,7 +276,7 @@ pub fn changed_task_paths(cwd: &Path) -> io::Result<Vec<String>> {
 
 #[cfg(test)]
 #[path = "delivery_repo_tests.rs"]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 #[path = "delivery_repo_gate_tests.rs"]
