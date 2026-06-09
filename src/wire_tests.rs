@@ -18,11 +18,7 @@ fn ctx() -> OpContext {
             landing: "/landing".into(),
             invocation_path: "/proj".into(),
         },
-        command: Some(Command {
-            op: "close".into(),
-            field_changes: vec![FieldChange { field: "claimant".into(), value: None }],
-            body_change: Some("new body".into()),
-        }),
+        command: Some(Command { op: "close".into(), body_change: Some("new body".into()) }),
         before: Some(before),
     }
 }
@@ -42,6 +38,7 @@ fn a_pre_payload_is_states_only_with_no_commit_or_id() {
     assert_eq!(v["actor"], "me@example.com");
     assert_eq!(v["binding"]["remote"], "origin");
     assert_eq!(v["command"]["op"], "close");
+    assert_eq!(v["command"]["body_change"], "new body");
     // pre current_state is the op-start (before) state.
     assert_eq!(v["current_state"]["title"], "before");
     // None of the post-only keys are present, and the id is never on pre.
@@ -99,15 +96,6 @@ fn a_create_omits_the_absent_before_state() {
     c.before = None;
     let v = json(&c.wire("tracker", "create", "pre", None, None));
     assert!(v.get("current_state").is_none(), "create pre has no before-state");
-}
-
-#[test]
-fn a_clearing_field_change_serializes_a_null_value() {
-    let c = ctx();
-    let v = json(&c.wire("tracker", "close", "pre", None, None));
-    assert_eq!(v["command"]["field_changes"][0]["field"], "claimant");
-    assert!(v["command"]["field_changes"][0]["value"].is_null());
-    assert_eq!(v["command"]["body_change"], "new body");
 }
 
 #[test]
