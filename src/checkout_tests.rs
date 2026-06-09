@@ -68,16 +68,6 @@ fn prime_drives_a_sync_after_the_prime_chain() {
 }
 
 #[test]
-fn prime_auto_discovers_the_origin_remote_for_the_binding() {
-    let tmp = TempDir::new().unwrap();
-    let e = edge(&tmp, None);
-    prime(&e, &[]).unwrap();
-    // Give the landing an origin; a re-prime discovers it for the (empty) chain.
-    crate::git::run(&landing(&e), &["remote", "add", "origin", "git@hub:origin"], None).unwrap();
-    prime(&e, &[]).unwrap(); // resolves Some(origin) into the binding
-}
-
-#[test]
 fn sync_before_prime_is_an_error() {
     let tmp = TempDir::new().unwrap();
     assert!(sync(&edge(&tmp, None), &[]).is_err());
@@ -129,26 +119,22 @@ fn prime_accepts_the_remote_override_flags() {
 }
 
 #[test]
-fn resolve_remote_prefers_cli_then_xdg_then_origin() {
+fn resolve_remote_prefers_cli_then_xdg_then_none() {
+    // Core resolves only the EXPLICIT tiers (§12): `--remote`/`--center` (CLI) >
+    // XDG `remote`. Implicit `origin` discovery is the TRACKER's, not core's (§0)
+    // — so `None` here means "no explicit remote", and core hands the tracker a
+    // `remote: None` binding for it to discover the project origin off.
     let tmp = TempDir::new().unwrap();
-    let landing = tmp.path().join("landing");
-    std::fs::create_dir(&landing).unwrap();
-    crate::git::run(&landing, &["init", "-q"], None).unwrap();
-    crate::git::run(&landing, &["remote", "add", "origin", "git@hub:origin"], None).unwrap();
     let xdg = tmp.path().join("config.toml");
     std::fs::write(&xdg, "remote = \"git@hub:xdg\"\n").unwrap();
 
-    // CLI override beats everything.
-    assert_eq!(resolve_remote(Some("git@hub:cli".into()), &landing, &xdg).as_deref(), Some("git@hub:cli"));
-    // No CLI → XDG beats origin.
-    assert_eq!(resolve_remote(None, &landing, &xdg).as_deref(), Some("git@hub:xdg"));
-    // No CLI, no XDG file → fall through to origin.
+    // CLI override beats XDG.
+    assert_eq!(resolve_remote(Some("git@hub:cli".into()), &xdg).as_deref(), Some("git@hub:cli"));
+    // No CLI → XDG.
+    assert_eq!(resolve_remote(None, &xdg).as_deref(), Some("git@hub:xdg"));
+    // No CLI, no XDG file → None (core resolves no implicit origin).
     let none = tmp.path().join("absent.toml");
-    assert_eq!(resolve_remote(None, &landing, &none).as_deref(), Some("git@hub:origin"));
-    // No CLI, no XDG, no origin → stealth (None).
-    let bare = tmp.path().join("not-a-repo");
-    std::fs::create_dir(&bare).unwrap();
-    assert_eq!(resolve_remote(None, &bare, &none), None);
+    assert_eq!(resolve_remote(None, &none), None);
 }
 
 #[test]

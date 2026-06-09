@@ -1259,9 +1259,15 @@ RESOLVED (folded into the body, no longer open):
   `--remote`/`--center`/XDG tiers (config reads) and hands the tracker `remote: None`, and the tracker
   discovers `origin` from the invocation path as its single shared fallback (not re-probed per handler).
   Folded into §12 (the "standard case" bullet gains the origin-source + ownership clarification). The
-  code drift predates bl-0a23 (came in with `resolve_remote`, bl-cd21); the move into the tracker —
-  with the stealth-gate ripple (every handler's "no remote ⇒ stealth" becomes "no explicit remote AND
-  no discoverable origin") — is tracked under bl-a476 (still a design topic). Tracked under bl-72a8.
+  code drift predates bl-0a23 (came in with `resolve_remote`, bl-cd21). The move into the tracker LANDED
+  (bl-a476): `checkout::resolve_remote` dropped its `origin` tier + landing param (core resolves the
+  explicit tiers ALONE, hands `remote: None` otherwise); the tracker discovers `origin` in ONE place —
+  its `handle` dispatch point resolves the effective remote once (explicit binding `remote`, else
+  `git remote get-url origin` on `invocation_path`) and writes it back onto the binding, so every handler
+  reads `binding.remote` unchanged and the stealth gate ("no remote ⇒ no-op") now means "no explicit
+  remote AND no discoverable origin" with no per-handler re-probe. Discovery is a stateless per-op pure
+  read (mutate ops discover too, via their `*/post` push) — deterministic over the project repo, so all
+  handlers agree with no persisted session state. Tracked under bl-72a8.
 - **prime materializes the store LAZILY via a core fixpoint — supersedes the bl-fa00 reset (2026-06-08,
   bl-0a23 — post-freeze).** bl-fa00 had founded a throwaway orphan store EAGERLY (before any remote was
   resolved), so a fresh clone's local store had history UNRELATED to an established remote and the

@@ -58,7 +58,7 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
     let log = Log::new(clone.op_log(), level, verb, log::wall);
-    let remote = checkout::resolve_remote(None, &landing, &edge.xdg.user_config());
+    let remote = checkout::resolve_remote(None, &edge.xdg.user_config());
     let binding = checkout::binding(&landing, &store, &edge.invocation_path, remote, cfg.tasks_branch);
     let ctx = OpContext {
         actor: flags.actor.clone(),
