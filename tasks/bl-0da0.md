@@ -1,7 +1,7 @@
 +++
 title = "Release & cutover readiness (0.5.0 bump)"
 created = 1780970020
-updated = 1781036112
+updated = 1781036142
 parent = "bl-72a8"
 priority = 1
 tags = ["review"]
@@ -88,6 +88,10 @@ on = "claim"
 
 [[blockers]]
 id = "bl-479d"
+on = "claim"
+
+[[blockers]]
+id = "bl-3911"
 on = "claim"
 +++
 Gate the milestone: confirm the system is releasable. Bump 0.4.2 → 0.5.0 — a MINOR, not 1.0 (the design/API isn't frozen for a 1.0 commitment yet, per maintainer). Finalize the CHANGELOG via release-plz; verify `make install` is reproducible from a clean main worktree and the installed bl self-hosts; re-verify the §17 migration's 4 known holes stay closed (branch collision, epic edges, gh dup, claimed-guard) — cutover already executed (bl-0802) so this is confirmation, not first run; confirm the release-plz marker/tag flow (watch the [minor]/[major] self-match and merge-no-trigger gotchas).
