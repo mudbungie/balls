@@ -17,7 +17,9 @@
 //!   against the store (the tracker's `sync/pre` does the fetch + ff-only). With
 //!   no arg it syncs the config `tasks_branch`; `bl sync <branch>` PULLS that
 //!   named branch (the positional substitutes `tasks_branch` in the binding).
-//!   `bl sync landing` is a no-op — the landing is never a sync target (§13).
+//!   Syncing the landing is a no-op FOR FREE: the landing is upstream-less by
+//!   construction (§4), and the tracker's general rule — fetch the branch's
+//!   upstream, if any — yields nothing for it. Core special-cases no name (§13).
 //!
 //! Core stays local-only (§0): it ensures the two LOCAL checkouts and reads
 //! config from the landing; the one component that talks to a remote is the
@@ -122,17 +124,16 @@ fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Bin
 /// chain against the store (the tracker's `sync/pre` fetches + ff-only). With no
 /// arg it syncs the config-named `tasks_branch`; `bl sync <branch>` PULLS that
 /// named branch instead — the positional substitutes `tasks_branch` in the §7
-/// binding, the one datum the tracker fetches/ff's against. A `landing` target
-/// is a no-op — the landing is never a sync target (§2/§13).
+/// binding, the one datum the tracker fetches/ff's against. The landing is
+/// never a sync target, but core special-cases no name: the landing is
+/// upstream-less by construction (§4), so the tracker's general rule — fetch
+/// the branch's upstream, if any — no-ops on it for free (§2/§13).
 pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_sync(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
     if !is_landing(&landing) {
         return Err(io::Error::other("no balls checkout here — run `bl prime` first"));
-    }
-    if opts.branch.as_deref() == Some("landing") {
-        return Ok(());
     }
     let (binding, level) = bind(edge, &landing, &store, None, opts.branch, false)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)

@@ -1127,8 +1127,8 @@ cannot* re-home your config or activate code — it touches the store branch and
 branch may be a shared one the whole team names (`tasks_branch`); syncing it is ordinary federation,
 not a consent breach, because consent governs config + executable plugins, never store currency.
 
-- **`--branch` names a sync TARGET, and the landing is never one.** `bl sync --branch landing` is a
-  no-op — *for free*, not by special-case. The landing is the local, path-derived config branch (§2):
+- **The `[BRANCH]` positional names a sync TARGET, and the landing is never one.** Syncing the
+  landing branch is a no-op — *for free*, not by special-case. The landing is the local, path-derived config branch (§2):
   it is single-owner, has no upstream to fetch, and holds no task state to move (tasks live on
   `tasks_branch`). The general rule "fetch a branch's upstream, if any" yields nothing on an
   upstream-less branch, and the landing is upstream-less by construction (§4 — it is never a sync
@@ -1321,6 +1321,25 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **sync's landing no-op now falls out of the general rule — the literal-token special case is
+  deleted (2026-06-09, bl-6916 — post-freeze).** §13 promised the no-op "for free, not by
+  special-case", but core keyed on the literal TOKEN `landing` (`src/checkout.rs`), not the actual
+  branch — `bl sync balls/config` took the general path, where the tracker fetched the named branch
+  and then ff'd whatever branch the STORE checkout had checked out (the deeper wrongness: the merge
+  target was the checkout, not the sync target). The general rule now lives where remote-talk lives,
+  in the tracker's `sync/pre` (`src/tracker/remote_ops.rs`): fetch the branch's upstream, **if any**
+  — "if any" read by the same `ls-remote` probe that decides prime's adopt-vs-found, so an
+  upstream-less branch (the landing by construction, §4; any local-only branch) no-ops with no name
+  special-cased anywhere — and fast-forward THE BRANCH THE BINDING NAMES: the store's own checked-out
+  branch by `merge --ff-only FETCH_HEAD` (working tree moves), any other branch by the
+  `<branch>:<branch>` refspec (a pure ref move, ff-only by git's default). The existence probe is not
+  the rejected "has the remote moved?" contention probe — contention is still decided by the ff
+  itself. Spelling reconciled CODE-ward: sync's target was specced `--branch` in one §13 bullet but
+  `bl sync <branch>` in the section body, SKILL.md, README, and the shipped parser — the positional
+  is the better interface (one arg, no flag) and the bullet now spells it `[BRANCH]`. Touched §13
+  (the bullet), §15 (this entry). Code: `src/checkout.rs` (special case deleted),
+  `src/tracker/remote_ops.rs` (the general rule), `src/tracker/prime.rs` (shares the probe). Tracked
+  under bl-72a8.
 - **the prime fixpoint gets a REAL bound — its own pass cap; the claimed §6 bound never existed
   (2026-06-09, bl-33db — post-freeze; corrects the bl-0a23 entry below).** §8 and §13 both said the
   fixpoint "is bounded by the §6 invocation-tree cap", but that cap structurally CANNOT bound it:
