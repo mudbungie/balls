@@ -3,7 +3,7 @@
 //! `closed` included — it INFERS the dead-set reach), the `--all` reach, and the
 //! compose-AND `--tag`/`--since`/`--until` history filters. Every `list` filter
 //! is gated on `verb == List`; on any other read it falls through to the
-//! unknown-flag arm, so `show`/`dep-tree` reject them.
+//! unknown-flag arm, so `show` rejects them.
 
 use std::io;
 
