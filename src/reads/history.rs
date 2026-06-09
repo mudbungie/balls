@@ -7,7 +7,7 @@
 //! set through here, so the discipline is factored once: for one id, find the
 //! NEWEST commit that deleted it, reconstruct its frontmatter from that
 //! deletion's PARENT (the last tree that still held the file), and derive the
-//! retirement (close vs drop) and its date from the deletion commit itself (§5).
+//! retirement and its date from the deletion commit itself (§5).
 //! Taking the newest deletion makes a reused id unambiguous — at most one
 //! incarnation is ever live, so the most recent dead one is "the" dead ball.
 
@@ -22,8 +22,9 @@ use crate::taskfile::invalid;
 
 /// A ball reconstructed from history: its id, the frontmatter+body as it stood
 /// the instant before deletion, and its deletion-commit date — the one fact the
-/// gone file cannot carry. Retirement (`close` vs `drop`) is *not* reconstructed:
-/// both project as `closed`, so the distinction stays git bedrock alone (§5).
+/// gone file cannot carry. The deleting op is *not* reconstructed: every
+/// retirement — a `close`, or a legacy `drop` deletion from before the verb
+/// was deleted — projects as `closed`; the op stays git bedrock alone (§5).
 pub(crate) struct Dead {
     pub id: String,
     pub task: Task,

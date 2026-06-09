@@ -13,7 +13,7 @@
 //! every mutating verb routes through it — a blocker on a third op is enforced by
 //! core, no per-op carve-out. [`claim`]/[`close`] are its two named, sugar-bearing
 //! spellings (`claim` over [`Task::ready`], `close` over [`Task::closeable`]); the
-//! rest (`update`/`unclaim`/`drop`) call [`gate`] directly. `create` has no prior
+//! rest (`update`/`unclaim`) call [`gate`] directly. `create` has no prior
 //! ball, so nothing gates it. Resolution is file-existence
 //! ([`crate::taskfile::exists`]): a blocker resolves when its `tasks/<id>.md` is
 //! gone (closed/dropped, §10).

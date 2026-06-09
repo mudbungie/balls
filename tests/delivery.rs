@@ -122,7 +122,7 @@ fn protocol_self_describes_without_env_or_stdin() {
         .arg("protocol")
         .assert()
         .success()
-        .stdout(contains(r#""ops":["claim","unclaim","drop","close","prime","show"]"#));
+        .stdout(contains(r#""ops":["claim","unclaim","close","prime","show"]"#));
 }
 
 #[test]

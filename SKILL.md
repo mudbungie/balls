@@ -100,7 +100,6 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--edit] [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. `--edit` (human-only) sources the whole change from `$EDITOR` instead — see below. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (fold `main` in, run the repo's pre-commit hook — a failure aborts the close — then squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
-| `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl skill` | Print this guide (the full manual). |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
@@ -113,7 +112,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 > `create` prints the minted id (so `id=$(bl create "…")` captures it clean),
 > `claim` prints the worktree path, and `prime` prints the path of each
 > still-held task's worktree. Every other mutating verb
-> (`unclaim`/`update`/`close`/`drop`) prints nothing to stdout. The terse
+> (`unclaim`/`update`/`close`) prints nothing to stdout. The terse
 > confirmations and the op log (JSON lines) are on **stderr** — for clean
 > scripting without losing the confirmations, silence the op log with the global
 > `bl --log-level error <verb>` (levels `debug`/`info`/`error`; there is no
@@ -128,10 +127,10 @@ A task has no `status` field. The three live states are computed on read:
 - **blocked** — unclaimed, but an unresolved `claim`-blocker remains.
 - **ready** — unclaimed with every `claim`-blocker resolved; claimable now.
 
-A closed task has **no file** (absence = resolved); a `drop` retires a task the
-same way and reads as `closed` too — the verb survives only in git history, never
-as a distinct status. Its history — including the delivery commit on `main`
-tagged `[bl-xxxx]` — is the record.
+A closed task has **no file** (absence = resolved). Its history — including the
+delivery commit on `main` tagged `[bl-xxxx]` — is the record. Closing is the
+ONLY retirement: to abandon a held task, `bl unclaim` then `bl close` (an empty
+worktree delivers nothing), so a `close`-gate guards every way a task can die.
 
 ## Blockers and the dependency model
 
@@ -176,8 +175,11 @@ Then:
 
 ## Removing or abandoning tasks
 
-- A task you decided against (dupe, stale): `bl drop <id>` if you hold it, else
-  `bl close <id>` to archive without delivering code.
+- A task you decided against (dupe, stale): `bl close <id>` archives it; an
+  empty deliverable delivers no code. If you hold it, `bl unclaim <id>` first —
+  that tears down the worktree (uncommitted work dies with it; work COMMITTED on
+  `work/<id>` survives and a later close delivers it — discard that explicitly
+  with `git branch -D work/<id>`).
 - `update` overwrites **every** ball field — there is no create-only split.
   `--title`/`--body` retitle and rewrite the markdown body; `--parent`/`-p` set a
   scalar and `--no-parent`/`--no-priority` clear it; `-t`/`--no-tag` add or drop a

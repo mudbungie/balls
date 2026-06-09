@@ -83,9 +83,8 @@ fn prime_post_re_materializes_like_a_claim() {
 }
 
 #[test]
-fn unclaim_and_drop_post_release() {
+fn unclaim_post_releases() {
     assert_eq!(drive("unclaim", "post", false), ["release /wt"]);
-    assert_eq!(drive("drop", "post", false), ["release /wt"]);
 }
 
 #[test]
@@ -117,7 +116,6 @@ fn close_pre_rollback_unsquashes_when_marked() {
 fn re_creatable_rollbacks_and_unwired_hooks_are_noops() {
     assert!(drive("close", "post", true).is_empty()); // teardown re-creatable
     assert!(drive("unclaim", "post", true).is_empty()); // release re-creatable
-    assert!(drive("drop", "post", true).is_empty());
     assert!(drive("create", "post", false).is_empty()); // not our hook
     assert!(drive("claim", "pre", false).is_empty()); // wrong phase
 }
@@ -226,7 +224,7 @@ fn no_other_hook_or_rollback_surfaces_anything() {
 fn protocol_self_description_lists_every_hooked_op() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
-    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime", "show"]));
+    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "close", "prime", "show"]));
 }
 
 #[test]

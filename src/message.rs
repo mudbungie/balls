@@ -39,7 +39,7 @@ pub type Metadata = BTreeMap<String, Vec<String>>;
 /// A commit balls is about to seal: a `subject` (always the ball title — there
 /// is no override, §5), an optional body (the `-m` narration),
 /// and the op/actor/id that fix its core trailers. `id` is `Some` for a
-/// per-task op (`create`/`claim`/`unclaim`/`update`/`close`/`drop`) and `None`
+/// per-task op (`create`/`claim`/`unclaim`/`update`/`close`) and `None`
 /// for a checkout-scoped op (`prime`/`sync`/`install`) that names no single
 /// ball (§5).
 #[derive(Debug, Clone, PartialEq, Eq)]

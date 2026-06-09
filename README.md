@@ -90,7 +90,7 @@ A task has no `status` field. The three live states are computed on read:
 - **blocked** — unclaimed, but an unresolved `claim`-blocker remains.
 - **ready** — unclaimed with every `claim`-blocker resolved; claimable now.
 
-A closed or dropped task has **no file** — absence is the resolution. Its history (including the delivery commit on `main` tagged `[bl-xxxx]`) is the record. `bl show <id>` and `bl list -s closed/--all` reconstruct dead tasks from `balls/tasks` history, walking newest→oldest.
+A closed task has **no file** — absence is the resolution. Its history (including the delivery commit on `main` tagged `[bl-xxxx]`) is the record. `bl show <id>` and `bl list -s closed/--all` reconstruct dead tasks from `balls/tasks` history, walking newest→oldest.
 
 ### `--json` is bedrock
 
@@ -112,7 +112,6 @@ The human-facing output of `list`/`show`/`dep-tree` paints derived columns — t
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. |
-| `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `--from` is required; `PATH` defaults to `config/`, `--to` to the landing. A folder source mirrors (deletions propagate), a file/glob source unions. |
 | `bl skill` | Print the agent guide (`SKILL.md`) — the full manual. |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
@@ -193,7 +192,6 @@ The shipped seed (`default-config/plugins.toml`):
 "show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
-"drop.post"    = ["bl-delivery", "tracker"]
 "create.post"  = ["tracker"]
 "update.post"  = ["tracker"]
 ```
@@ -229,7 +227,7 @@ Because state lives in XDG and the two branches are path-derived per checkout, m
 
 ## Removing or abandoning tasks
 
-- A task you decided against (dupe, stale): `bl drop <id>` if you hold it, else `bl close <id>` to archive without delivering code.
+- A task you decided against (dupe, stale): `bl unclaim <id>` if you hold it, then `bl close <id>` — an empty deliverable archives without delivering code.
 - `update` overwrites **every** ball field — no create-only split. It sets (`--title`/`--body`/`--parent`/`-p`/`-t`/`key=value`/`--needs`) and clears (`--no-parent`/`--no-priority` blank a scalar, `--no-tag`/`--no-needs` drop a member, a bare `key=` removes an extra) — so a mis-wired or cyclic blocker, a stale parent, or a wrong title is fixed in-band, never with store-file surgery. The lone create-only flag is reciprocal `--blocks` (an edge naming this task on ANOTHER task), since that is not this task's own field.
 
 ---

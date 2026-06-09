@@ -41,7 +41,7 @@ use crate::message::Metadata;
 /// lifecycle ops, `prime` for re-materialization, and the `show` read-op (§6
 /// read dispatch). balls reads it at install time, validates the wiring against
 /// it, and never persists it.
-pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close","prime","show"]}"#;
+pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","close","prime","show"]}"#;
 
 /// The project-repo git acts the delivery hooks need, behind a seam so
 /// [`dispatch`] is testable without a real repo. Each is idempotent — it
@@ -51,7 +51,7 @@ pub trait Repo {
     /// (create-if-absent). A non-deliverable that was claimed gets a harmless
     /// empty worktree.
     fn materialize(&self, path: &Path, branch: &str) -> io::Result<()>;
-    /// `unclaim/drop.post` + `close.post`: remove the worktree DIRECTORY if
+    /// `unclaim.post` + `close.post`: remove the worktree DIRECTORY if
     /// present; KEEP `branch` (re-creatable; deleting it is deferred to
     /// prime, §14).
     fn release(&self, path: &Path) -> io::Result<()>;
@@ -102,12 +102,12 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
             repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject, spec.marker)
         }
         // Every worktree-deleting teardown is the same act — release the
-        // worktree directory — whichever deleting op (close.post, unclaim,
-        // drop) triggers it.
-        ("close" | "unclaim" | "drop", "post", false) => repo.release(spec.worktree),
+        // worktree directory — whichever deleting op (close.post, unclaim)
+        // triggers it.
+        ("close" | "unclaim", "post", false) => repo.release(spec.worktree),
         ("claim", "post", true) => repo.discard(spec.worktree, spec.branch),
         ("close", "pre", true) => repo.unsquash(&repo.integration()?, spec.marker),
-        // close.post teardown + unclaim/drop release are re-creatable from the
+        // close.post teardown + unclaim release are re-creatable from the
         // branch, so their rollback is a no-op (§14); any unwired hook too.
         _ => Ok(()),
     }

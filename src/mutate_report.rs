@@ -4,7 +4,7 @@
 //!
 //! stdout is the SOLE machine channel: `create` prints the minted id ALONE so
 //! `id=$(bl create …)` captures it clean; every other mutating verb
-//! (`claim`/`unclaim`/`update`/`close`/`drop`) prints a terse human confirmation
+//! (`claim`/`unclaim`/`update`/`close`) prints a terse human confirmation
 //! to stderr, leaving stdout empty. The id is read back from the sealed commit's
 //! `bl-id` trailer ([`message::parse`]), NOT the pre-seal [`crate::id::IdScheme`]
 //! mint — so a `create/pre` plugin's id reassignment is reflected correctly (§5:

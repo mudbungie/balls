@@ -5,7 +5,7 @@
 //! annotated by what each gates (§10), the containment children that point at it
 //! (§3 — `parent` is display-only), and the markdown body. `--json` is the
 //! bedrock record. A dead ball renders the same block with its retirement
-//! (close/drop) and deletion date in place of the live status; an id that
+//! and deletion date in place of the live status; an id that
 //! resolves to neither a live nor a dead ball is an error.
 
 use std::fmt::Write;

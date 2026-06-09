@@ -21,7 +21,6 @@ pub enum Verb {
     Unclaim,
     Update,
     Close,
-    Drop,
     // Reads (§9): author no diff; hook dirs only.
     Show,
     List,
@@ -46,13 +45,12 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 12] = [
+    pub const ALL: [Verb; 11] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
         Verb::Update,
         Verb::Close,
-        Verb::Drop,
         Verb::Show,
         Verb::List,
         Verb::DepTree,
@@ -69,7 +67,6 @@ impl Verb {
             Verb::Unclaim => "unclaim",
             Verb::Update => "update",
             Verb::Close => "close",
-            Verb::Drop => "drop",
             Verb::Show => "show",
             Verb::List => "list",
             Verb::DepTree => "dep-tree",
@@ -95,7 +92,6 @@ impl Verb {
             Verb::Unclaim => "release a claim",
             Verb::Update => "overwrite any field of a task",
             Verb::Close => "deliver the work and archive the task",
-            Verb::Drop => "abandon a task without delivering",
             Verb::Show => "show one task in full",
             Verb::List => "list tasks (status, tag, and date filters)",
             Verb::DepTree => "show the parent/child tree with blocker edges",
@@ -112,8 +108,7 @@ impl Verb {
             | Verb::Claim
             | Verb::Unclaim
             | Verb::Update
-            | Verb::Close
-            | Verb::Drop => OpClass::Mutating,
+            | Verb::Close => OpClass::Mutating,
             Verb::Show
             | Verb::List
             | Verb::DepTree
@@ -187,7 +182,6 @@ mod tests {
             Verb::Unclaim,
             Verb::Update,
             Verb::Close,
-            Verb::Drop,
         ];
         for v in Verb::ALL {
             let expected = if mutating.contains(&v) {
