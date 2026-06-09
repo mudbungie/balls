@@ -3,7 +3,6 @@
 "close.post" = ["bl-delivery", "tracker"]
 "close.pre" = ["bl-delivery"]
 "create.post" = ["tracker"]
-"drop.post" = ["bl-delivery", "tracker"]
 "install.pre" = ["tracker"]
 "prime.post" = ["bl-delivery"]
 "prime.pre" = ["tracker"]
