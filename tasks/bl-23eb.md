@@ -1,8 +1,10 @@
 +++
 title = "Retire the 'dropped' status semantic — collapse to 'closed'"
 created = 1780965575
-updated = 1780965575
+updated = 1780966697
+claimant = "Imprudence"
 priority = 3
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-23eb"
 +++
 Reductive: dropped is just a subset of closed. Both are *retirement* — the task file is deleted from balls/tasks; the only difference is the deleting verb (bl-op: close vs drop), which src/reads/history.rs surfaces as two derived statuses via Retired::from_op.
 
