@@ -74,13 +74,19 @@ fn sync_before_prime_is_an_error() {
 }
 
 #[test]
-fn sync_targets_the_store_and_treats_landing_as_a_no_op() {
+fn sync_targets_the_store_and_special_cases_no_branch_name() {
+    // §13: core keys on NO literal token — the landing's no-op falls out of the
+    // tracker's general rule (no upstream ⇒ nothing fetched), so every name,
+    // the landing branch included, takes the one general path through the chain.
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     prime(&e, &[]).unwrap();
     sync(&e, &[]).unwrap(); // no arg: sync the store
     sync(&e, &argv(&["work/bl-1234", "--as", "me"])).unwrap(); // a named target
-    sync(&e, &argv(&["landing"])).unwrap(); // the landing is never a target
+    sync(&e, &argv(&[crate::LANDING_BRANCH])).unwrap(); // the landing, by its real name
+    let (l, s) = (landing(&e), store(&e));
+    let (b, _) = bind(&e, &l, &s, None, Some(crate::LANDING_BRANCH.into()), false).unwrap();
+    assert_eq!(b.tasks_branch, crate::LANDING_BRANCH); // rides the binding untouched
 }
 
 #[test]

@@ -24,6 +24,7 @@
 
 use super::git::git;
 use super::payload::Binding;
+use super::remote_ops::remote_has_branch;
 use super::Env;
 use std::fs;
 use std::io;
@@ -96,12 +97,6 @@ fn clone_in(landing: &Path, remote: &str, branch: &str) -> io::Result<()> {
 /// --quiet` exits zero iff the ref resolves — the "already cloned in" signal.
 fn local_branch(repo: &Path, branch: &str) -> bool {
     git(repo, &["show-ref", "--verify", "--quiet", &format!("refs/heads/{branch}")]).is_ok()
-}
-
-/// Does `remote` already carry `branch`? `git ls-remote --heads` is the one
-/// round-trip that decides adopt-vs-found / clone-vs-bootstrap.
-fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::Result<bool> {
-    Ok(!git(cwd, &["ls-remote", "--heads", remote, branch])?.is_empty())
 }
 
 /// The store this repo really uses, if it is NOT the one we are bound to — the
