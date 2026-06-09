@@ -15,25 +15,24 @@ use std::collections::HashSet;
 use std::io;
 use std::path::Path;
 
-use super::{Catalog, Retired};
+use super::Catalog;
 use crate::git;
-use crate::message;
 use crate::task::Task;
 use crate::taskfile::invalid;
 
 /// A ball reconstructed from history: its id, the frontmatter+body as it stood
-/// the instant before deletion, and the retirement (§5 `bl-op:` close/drop) plus
-/// its deletion-commit date — the two facts the gone file cannot carry.
+/// the instant before deletion, and its deletion-commit date — the one fact the
+/// gone file cannot carry. Retirement (`close` vs `drop`) is *not* reconstructed:
+/// both project as `closed`, so the distinction stays git bedrock alone (§5).
 pub(crate) struct Dead {
     pub id: String,
     pub task: Task,
-    pub retired: Retired,
     pub retired_at: i64,
 }
 
 /// The `\x1f` field separator the reconstruction `git log` format uses — a
-/// control byte that cannot appear in a sha or unix timestamp, so the trailing
-/// (multi-line) commit body is unambiguously everything after the second one.
+/// control byte that cannot appear in a sha or unix timestamp, so the two
+/// fields split unambiguously.
 const SEP: char = '\u{1f}';
 
 /// Reconstruct one dead ball by id, or `None` when `tasks/<id>.md` was never
@@ -41,24 +40,21 @@ const SEP: char = '\u{1f}';
 /// walk's single id→content step: the caller checks the LIVE set first (§9).
 pub(crate) fn resolve_dead(store: &Path, id: &str) -> io::Result<Option<Dead>> {
     let path = format!("tasks/{id}.md");
-    let fmt = format!("--format=%H{SEP}%ct{SEP}%B");
+    let fmt = format!("--format=%H{SEP}%ct");
     // The newest commit that DELETED the file — its parent still held it.
     let log = git::run(store, &["log", "-1", "--diff-filter=D", &fmt, "--", &path], None)?;
     let log = log.trim_end_matches('\n');
     if log.is_empty() {
         return Ok(None); // no deletion in history ⇒ no dead incarnation
     }
-    // git's format guarantees the two separators, so the three fields are total.
-    let mut fields = log.splitn(3, SEP);
+    // git's format guarantees the separator, so the two fields are total.
+    let mut fields = log.splitn(2, SEP);
     let sha = fields.next().expect("splitn always yields a first field");
     let ct = fields.next().expect("git --format emitted a %ct field");
-    let body = fields.next().expect("git --format emitted a %B field");
     let retired_at = ct.parse().expect("git %ct is an integer unix timestamp");
-    let op = message::parse(body)?;
-    let retired = Retired::from_op(op.get("bl-op").and_then(|v| v.first()).map_or("", String::as_str));
     let content = git::run(store, &["show", &format!("{sha}^:{path}")], None)?;
     let task = Task::parse(&content).map_err(|e| invalid(e.to_string()))?;
-    Ok(Some(Dead { id: id.to_string(), task, retired, retired_at }))
+    Ok(Some(Dead { id: id.to_string(), task, retired_at }))
 }
 
 /// Every currently-dead ball, newest-deletion first — the `list --closed/--all`

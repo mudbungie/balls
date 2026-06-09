@@ -4,7 +4,7 @@
 use super::*;
 use crate::reads::history::Dead;
 use crate::reads::test_support::{catalog, task};
-use crate::reads::{Flags, Reach, Retired, Style};
+use crate::reads::{Flags, Reach, Style};
 use crate::task::{Status, Task};
 
 /// Plain (glyph-free) flags, optionally JSON; no status filter.
@@ -22,8 +22,8 @@ fn plain() -> Style {
 }
 
 /// A reconstructed dead ball, for the reach/render tests.
-fn dead(id: &str, title: &str, created: i64, retired: Retired) -> Dead {
-    Dead { id: id.into(), task: task(title, created), retired, retired_at: created + 1 }
+fn dead(id: &str, title: &str, created: i64) -> Dead {
+    Dead { id: id.into(), task: task(title, created), retired_at: created + 1 }
 }
 
 /// A ball with an explicit priority.
@@ -103,7 +103,7 @@ fn flags_reach(reach: Reach) -> Flags {
 #[test]
 fn the_default_reach_omits_the_dead_set() {
     let cat = catalog(&[("bl-live", task("Live", 1))]);
-    let dead_set = [dead("bl-dead", "Dead", 2, Retired::Closed)];
+    let dead_set = [dead("bl-dead", "Dead", 2)];
     // reach=Live: the dead slice is present but never reached.
     let out = render_list(&cat, &dead_set, &flags(false), &plain());
     assert_eq!(out, "ready    bl-live  Live\n");
@@ -111,25 +111,27 @@ fn the_default_reach_omits_the_dead_set() {
 
 #[test]
 fn closed_reach_shows_only_the_dead_set() {
+    // Both a closed and a dropped ball render `closed` — the verb that retired
+    // them is not projected as a distinct status (the titles label the source).
     let cat = catalog(&[("bl-live", task("Live", 1))]);
-    let dead_set = [dead("bl-c", "Closed", 2, Retired::Closed), dead("bl-x", "Dropped", 3, Retired::Dropped)];
+    let dead_set = [dead("bl-c", "Was closed", 2), dead("bl-x", "Was dropped", 3)];
     let out = render_list(&cat, &dead_set, &flags_reach(Reach::Dead), &plain());
-    assert_eq!(out, "closed   bl-c  Closed\ndropped  bl-x  Dropped\n");
+    assert_eq!(out, "closed   bl-c  Was closed\nclosed   bl-x  Was dropped\n");
 }
 
 #[test]
 fn all_reach_interleaves_live_and_dead_by_the_uniform_order() {
     // created drives the order across both sets (no priorities here).
     let cat = catalog(&[("bl-live", task("Live", 2))]);
-    let dead_set = [dead("bl-old", "Old", 1, Retired::Closed), dead("bl-new", "New", 3, Retired::Dropped)];
+    let dead_set = [dead("bl-old", "Old", 1), dead("bl-new", "New", 3)];
     let out = render_list(&cat, &dead_set, &flags_reach(Reach::All), &plain());
-    assert_eq!(out, "closed   bl-old  Old\nready    bl-live  Live\ndropped  bl-new  New\n");
+    assert_eq!(out, "closed   bl-old  Old\nready    bl-live  Live\nclosed   bl-new  New\n");
 }
 
 #[test]
 fn all_reach_json_emits_one_bedrock_array_over_both_sets() {
     let cat = catalog(&[("bl-live", task("Live", 2))]);
-    let dead_set = [dead("bl-dead", "Dead", 1, Retired::Closed)];
+    let dead_set = [dead("bl-dead", "Dead", 1)];
     let f = Flags { json: true, plain: true, reach: Reach::All, ..Default::default() };
     let out = render_list(&cat, &dead_set, &f, &plain());
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
@@ -142,9 +144,9 @@ fn a_tag_filter_narrows_both_live_and_dead() {
     let mut tagged_live = task("Tagged live", 1);
     tagged_live.tags = vec!["keep".into()];
     let cat = catalog(&[("bl-keep", tagged_live), ("bl-drop", task("Untagged", 2))]);
-    let mut d = dead("bl-dkeep", "Tagged dead", 3, Retired::Closed);
+    let mut d = dead("bl-dkeep", "Tagged dead", 3);
     d.task.tags = vec!["keep".into()];
-    let dead_set = [d, dead("bl-dother", "Untagged dead", 4, Retired::Closed)];
+    let dead_set = [d, dead("bl-dother", "Untagged dead", 4)];
     let f = Flags { plain: true, reach: Reach::All, tags: vec!["keep".into()], ..Default::default() };
     let out = render_list(&cat, &dead_set, &f, &plain());
     assert_eq!(out, "ready    bl-keep  Tagged live\nclosed   bl-dkeep  Tagged dead\n");
@@ -162,7 +164,7 @@ fn a_text_filter_searches_the_live_set() {
 fn a_dead_ball_date_window_reads_its_deletion_date() {
     // The dead ball was created at 1 but retired_at = created + 1 = 2; a window
     // that excludes both created and retired drops it.
-    let dead_set = [dead("bl-d", "Dead", 1, Retired::Closed)];
+    let dead_set = [dead("bl-d", "Dead", 1)];
     let in_win = Flags { plain: true, reach: Reach::Dead, since: Some(2), until: Some(2 + 86_399), ..Default::default() };
     assert!(render_list(&catalog(&[]), &dead_set, &in_win, &plain()).contains("bl-d"));
     let out_win = Flags { plain: true, reach: Reach::Dead, since: Some(100), ..Default::default() };

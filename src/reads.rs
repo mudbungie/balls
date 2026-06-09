@@ -135,37 +135,6 @@ impl Reach {
     }
 }
 
-/// How a dead ball was retired, derived from its deletion commit's `bl-op:`
-/// trailer (§5 — `close` vs `drop`). The one fact history reconstruction adds
-/// that the reconstructed frontmatter cannot carry (the file is gone, §2).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Retired {
-    Closed,
-    Dropped,
-}
-
-impl Retired {
-    /// Read the retirement from a deletion commit's `bl-op` value: `drop` is a
-    /// [`Retired::Dropped`], every other op (a `close`, the dominant case) reads
-    /// as [`Retired::Closed`] — a balls deletion is only ever one of the two (§5).
-    pub(crate) fn from_op(op: &str) -> Retired {
-        if op == Verb::Drop.token() {
-            Retired::Dropped
-        } else {
-            Retired::Closed
-        }
-    }
-
-    /// The stable status word for the retirement — the dead counterpart of
-    /// [`status_word`], shown on the human render's badge and `status` line.
-    pub(crate) fn word(self) -> &'static str {
-        match self {
-            Retired::Closed => "closed",
-            Retired::Dropped => "dropped",
-        }
-    }
-}
-
 /// The §8 diffless dispatch for the read verbs: load the store catalog, then
 /// render. `edge.color` is the resolved host signal (tty AND no `NO_COLOR`);
 /// `--plain` overrides it off. Reads never touch the landing or a remote (§13).
@@ -209,18 +178,16 @@ impl Style {
         format!("\u{1b}[{colour}m{glyph}\u{1b}[0m")
     }
 
-    /// The badge for a dead (history-served) ball: a dim glyph in rich mode (a
-    /// `✓` for a close, a `✗` for a drop), the padded retirement word in plain
-    /// mode — the dead counterpart of [`Self::badge`] (§9).
-    pub(crate) fn retired_badge(&self, r: Retired) -> String {
+    /// The badge for a dead (history-served) ball: a dim `✓` glyph in rich mode,
+    /// the padded `closed` word in plain mode — the dead counterpart of
+    /// [`Self::badge`] (§9). Every retirement reads as **closed**: a `drop` is a
+    /// close without delivery, so the two collapse in projection; the distinguishing
+    /// `bl-op:` trailer survives only as git bedrock (§5), never as a status word.
+    pub(crate) fn retired_badge(&self) -> String {
         if self.plain {
-            return format!("{:<8}", r.word());
+            return format!("{:<8}", "closed");
         }
-        let glyph = match r {
-            Retired::Closed => '\u{2713}',  // ✓
-            Retired::Dropped => '\u{2717}', // ✗
-        };
-        format!("\u{1b}[90m{glyph}\u{1b}[0m") // dim grey — retired, not live
+        "\u{1b}[90m\u{2713}\u{1b}[0m".to_string() // ✓ dim grey — retired, not live
     }
 }
 

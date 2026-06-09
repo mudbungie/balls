@@ -4,7 +4,6 @@
 
 use super::*;
 use crate::reads::test_support::{git_store, task};
-use crate::reads::Retired;
 
 #[test]
 fn resolve_dead_reconstructs_a_closed_ball_from_history() {
@@ -17,16 +16,18 @@ fn resolve_dead_reconstructs_a_closed_ball_from_history() {
     assert_eq!(dead.id, "bl-1");
     assert_eq!(dead.task.title, "Refactor");
     assert_eq!(dead.task.body, "the plan"); // frontmatter+body from the deletion's parent
-    assert_eq!(dead.retired, Retired::Closed); // bl-op: close
     assert_eq!(dead.retired_at, 500); // the deletion commit's date
 }
 
 #[test]
-fn resolve_dead_reads_drop_from_the_bl_op_trailer() {
+fn resolve_dead_reconstructs_a_dropped_ball_the_same_as_a_closed_one() {
+    // A `drop` retirement reconstructs identically — no distinct status survives
+    // the collapse; the `bl-op: drop` trailer stays git bedrock, never a field.
     let s = git_store();
     s.create("bl-2", &task("Abandoned", 1), 1).retire("bl-2", "drop", 9);
     let dead = resolve_dead(s.dir(), "bl-2").unwrap().unwrap();
-    assert_eq!(dead.retired, Retired::Dropped);
+    assert_eq!(dead.task.title, "Abandoned");
+    assert_eq!(dead.retired_at, 9);
 }
 
 #[test]
@@ -47,7 +48,6 @@ fn resolve_dead_takes_the_newest_incarnation_of_a_reused_id() {
 
     let dead = resolve_dead(s.dir(), "bl-r").unwrap().unwrap();
     assert_eq!(dead.task.title, "Second"); // most-recent-down
-    assert_eq!(dead.retired, Retired::Dropped);
     assert_eq!(dead.retired_at, 4);
 }
 

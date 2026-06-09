@@ -107,8 +107,10 @@ A task has no `status` field. The three live states are computed on read:
 - **blocked** — unclaimed, but an unresolved `claim`-blocker remains.
 - **ready** — unclaimed with every `claim`-blocker resolved; claimable now.
 
-A closed or dropped task has **no file** (absence = resolved). Its history —
-including the delivery commit on `main` tagged `[bl-xxxx]` — is the record.
+A closed task has **no file** (absence = resolved); a `drop` retires a task the
+same way and reads as `closed` too — the verb survives only in git history, never
+as a distinct status. Its history — including the delivery commit on `main`
+tagged `[bl-xxxx]` — is the record.
 
 ## Blockers and the dependency model
 
