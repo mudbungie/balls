@@ -16,8 +16,12 @@
 //!   established remote then push, or found an absent branch by pushing (§12).
 //!
 //! The wire's [`Binding`] is everything it needs — `remote` + `tasks_branch`
-//! name the store upstream DIRECTLY, with no trail to walk (§12). Each handler
-//! no-ops in a stealth (no-remote) repo — the structural opt-out (§12).
+//! name the store upstream DIRECTLY, with no trail to walk (§12). When the binding
+//! carries no explicit `remote` (core resolves only `--remote`/`--center`/XDG, the
+//! config tiers — §0 keeps it local-only), the tracker discovers the project-repo
+//! `origin` as its single fallback ([`effective_remote`], resolved once at the
+//! [`handle`] dispatch point). Each handler no-ops in a stealth repo — no explicit
+//! remote AND no discoverable origin — the structural opt-out (§12).
 
 mod git;
 mod payload;
@@ -31,6 +35,7 @@ pub use payload::Binding;
 
 use serde::Serialize;
 use std::io::{self, Read, Write};
+use std::path::Path;
 
 /// The host-resolved environment the binary edge hands the tracker: the XDG
 /// roots that locate this checkout's clone bundle (§1). No env reads in the lib
@@ -93,7 +98,8 @@ fn protocol(out: &mut impl Write) -> io::Result<()> {
 /// must NEVER push the landing back out (publishing is a separate direction,
 /// §6/§13).
 fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result<()> {
-    let binding = payload::read_binding(input)?;
+    let mut binding = payload::read_binding(input)?;
+    binding.remote = effective_remote(&binding);
     match (op, phase) {
         ("sync", "pre") => remote_ops::sync(&binding),
         ("prime", "pre") => prime::prime(&binding, env),
@@ -103,6 +109,29 @@ fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result
         (_, "post") => remote_ops::push(&binding),
         _ => Ok(()),
     }
+}
+
+/// The effective store remote for this op (§12): the EXPLICIT remote core already
+/// resolved (`--remote`/`--center`/XDG `remote`, on the binding), else the
+/// auto-discovered project-repo `origin`. Implicit `origin` discovery is the
+/// TRACKER's alone — core stays local-only (§0) and hands a `remote: None`
+/// binding when no explicit tier is set. Resolved ONCE here at the [`handle`]
+/// dispatch point and written back onto `binding.remote`, so every handler shares
+/// this one fallback and reads `binding.remote` as before — the stealth gate
+/// ("no remote ⇒ no-op") thus means "no explicit remote AND no discoverable
+/// origin", with no per-handler re-probe.
+fn effective_remote(b: &Binding) -> Option<String> {
+    b.remote.clone().or_else(|| origin_of(Path::new(&b.invocation_path)))
+}
+
+/// The auto-discovered store remote — `git remote get-url origin` on the PROJECT
+/// repo (the `invocation_path`, the clone the user works in, whose `origin` is the
+/// real upstream the code rides and where `balls/tasks` sits alongside it). A
+/// LOCAL config read, no network. NEVER the landing: the landing is local-only
+/// (§2 install-transport, founded by a bare `git init`) and carries no origin.
+/// Absent origin (the stealth case, or a non-repo path) ⇒ `None`.
+fn origin_of(project: &Path) -> Option<String> {
+    git::git(project, &["remote", "get-url", "origin"]).ok()
 }
 
 #[cfg(test)]
@@ -187,5 +216,57 @@ mod tests {
         assert_eq!(invoke("prime", "pre", &stealth(), &env), 0);
         let lock = env.xdg.clone_dir(Path::new("/p")).root().join("stealth.lock");
         assert!(lock.is_file()); // proof the prime handler, not a no-op, ran
+    }
+
+    #[test]
+    fn effective_remote_prefers_explicit_then_discovers_the_project_origin() {
+        // §12 precedence FROM THE TRACKER's seat: explicit binding `remote` (core
+        // resolved --remote/--center/XDG) > the discovered project `origin`.
+        let tmp = TempDir::new().unwrap();
+        let proj = tmp.path().join("proj");
+        std::fs::create_dir(&proj).unwrap();
+        super::git::git(&proj, &["init", "-q"]).unwrap();
+        super::git::git(&proj, &["remote", "add", "origin", "git@hub:proj"]).unwrap();
+        let discover = Binding {
+            remote: None,
+            tasks_branch: "balls/tasks".into(),
+            store: "/nope".into(),
+            landing: String::new(),
+            invocation_path: proj.to_string_lossy().into_owned(),
+        };
+        // No explicit remote → discover the PROJECT repo's origin (invocation_path).
+        assert_eq!(effective_remote(&discover).as_deref(), Some("git@hub:proj"));
+        // An explicit remote wins, never probed.
+        let explicit = Binding { remote: Some("git@hub:explicit".into()), ..discover.clone() };
+        assert_eq!(effective_remote(&explicit).as_deref(), Some("git@hub:explicit"));
+        // A path with no origin (or no repo) → None = stealth.
+        let stealth = Binding { invocation_path: "/p".into(), ..discover };
+        assert_eq!(effective_remote(&stealth), None);
+    }
+
+    #[test]
+    fn dispatch_discovers_the_project_origin_when_no_explicit_remote() {
+        // The wire-up: a binding with `remote: None` but a project repo whose
+        // `origin` is the store's upstream → handle() discovers it ONCE at the
+        // dispatch point (the one place all handlers share), so `sync/pre` takes
+        // the TRACKED path and fast-forwards. Proof discovery is wired at dispatch
+        // and reads the invocation_path — not a stealth no-op.
+        let (tmp, env) = env();
+        let remote = super::fixtures::remote_with_branch(tmp.path());
+        let store = super::fixtures::store_clone(tmp.path(), &remote);
+        // Advance the remote out from under the store.
+        let other = super::fixtures::checkout(tmp.path(), &remote, "other");
+        let moved = super::fixtures::commit(&other, "next.txt", "next");
+        super::git::git(&other, &["push", "-q", "origin", super::fixtures::BRANCH]).unwrap();
+        // The project repo bl was invoked from, whose `origin` is that remote.
+        let proj = super::fixtures::checkout(tmp.path(), &remote, "proj");
+        let payload = format!(
+            r#"{{"binding":{{"tasks_branch":"{}","store":"{}","invocation_path":"{}"}}}}"#,
+            super::fixtures::BRANCH,
+            store.display(),
+            proj.display(),
+        );
+        assert_eq!(invoke("sync", "pre", &payload, &env), 0);
+        assert_eq!(super::fixtures::tip(&store, "HEAD"), moved); // discovered origin → ff'd
     }
 }
