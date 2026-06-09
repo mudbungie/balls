@@ -506,7 +506,11 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   deep and never re-triggers its own op. There is no hatch to re-enable plugins on a nested call (it
   would let a runaway defeat its own backstop). A plugin SHOULD NOT re-trigger its own op; §0 already
   bars a plugin from depending on another plugin's presence (the mutual half). Finer-grained per-op
-  controls can layer ON TOP; this cap is the failback under them.
+  controls can layer ON TOP; this cap is the failback under them. The cap is a FOOTGUN-GUARD, not a
+  security boundary: the odometer rides the child environment (`BALLS_PLUGIN_DEPTH`), and a plugin —
+  already arbitrary local code — fully controls the environment of any `bl` it spawns and can reset
+  it. That is accepted: the cap exists to surface accidental cascades, and no control may rely on it
+  as a sandbox or trust boundary.
 - **Snapshot:** an op reads the effective `[hooks]` schedule at op-start and uses that frozen set;
   an install landing mid-op affects only the next op.
 - **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key; reads stay
