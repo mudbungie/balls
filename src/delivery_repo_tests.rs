@@ -206,8 +206,8 @@ fn a_git_failure_surfaces_with_stderr() {
 #[test]
 fn claimed_ids_returns_only_the_actors_still_claimed_balls() {
     let tmp = TempDir::new().unwrap();
-    let op = tmp.path();
-    let tasks = op.join("tasks");
+    let repo = tmp.path();
+    let tasks = repo.join("tasks");
     fs::create_dir(&tasks).unwrap();
     let ball = |claimant: &str| {
         format!("+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\nclaimant = \"{claimant}\"\n+++\nbody\n")
@@ -218,7 +218,7 @@ fn claimed_ids_returns_only_the_actors_still_claimed_balls() {
     fs::write(tasks.join("bl-bad.md"), "not a ball").unwrap(); // unparseable → skipped
     fs::write(tasks.join("notes.txt"), "stray\n").unwrap(); // non-`.md` → skipped
 
-    let mut ids = claimed_ids(op, "me").unwrap();
+    let mut ids = claimed_ids(repo, "me").unwrap();
     ids.sort();
     assert_eq!(ids, ["bl-mine"]);
 }

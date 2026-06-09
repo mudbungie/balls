@@ -107,11 +107,11 @@ pub fn store_clone(tmp: &Path, remote: &Path) -> PathBuf {
 /// A fresh `balls`-branch checkout with one commit and nothing pushed — what
 /// core hands the tracker to FOUND an absent remote (bootstrap-on-miss).
 pub fn local_unpushed(tmp: &Path) -> PathBuf {
-    let op = tmp.join("store");
-    run(tmp, &["init", "-q", "-b", BRANCH, &op.to_string_lossy()]);
-    identify(&op);
-    commit(&op, "seed.txt", "seed");
-    op
+    let store = tmp.join("store");
+    run(tmp, &["init", "-q", "-b", BRANCH, &store.to_string_lossy()]);
+    identify(&store);
+    commit(&store, "seed.txt", "seed");
+    store
 }
 
 /// A local LANDING repo with NO store (`balls`) branch yet — what core founds
@@ -123,11 +123,11 @@ pub fn local_unpushed(tmp: &Path) -> PathBuf {
 /// ON the store branch.
 pub fn landing_repo(tmp: &Path) -> PathBuf {
     static N: AtomicU64 = AtomicU64::new(0);
-    let op = tmp.join(format!("landing-{}", N.fetch_add(1, Ordering::Relaxed)));
-    run(tmp, &["init", "-q", "-b", "main", &op.to_string_lossy()]);
-    identify(&op);
-    commit(&op, "config.txt", "config");
-    op
+    let landing = tmp.join(format!("landing-{}", N.fetch_add(1, Ordering::Relaxed)));
+    run(tmp, &["init", "-q", "-b", "main", &landing.to_string_lossy()]);
+    identify(&landing);
+    commit(&landing, "config.txt", "config");
+    landing
 }
 
 /// An [`Env`](super::Env) whose XDG state root is under `state` (so a test's

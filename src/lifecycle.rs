@@ -194,8 +194,10 @@ impl<'a> Engine<'a> {
         let message = base.finalize(change_dir).map_err(OpError::Author)?;
         let sha = self.anvil.seal(change_dir, &message).map_err(OpError::Anvil)?; // (3) SEAL
         // boundary crossed: record the seal so post (and any post-abort) gets §7 facts.
-        trace.seal = Some(SealRecord { previous_commit: prev, commit: sha.clone(), message: Some(message) });
-        let sealed = trace.seal.as_ref().expect("just set").facts();
+        let sealed = trace
+            .seal
+            .insert(SealRecord { previous_commit: prev, commit: sha.clone(), message: Some(message) })
+            .facts();
         run_phase(self.plugins, op, Phase::Post, change_dir, post, Some(&sealed), &mut trace.ran)?; // (4)
         Ok(sha)
     }
