@@ -14,8 +14,8 @@
 //! unwind: every plugin that ran a phase for THIS op rolls back in reverse,
 //! THEN core un-seals its own tier-1 change — discard the worktree on a
 //! pre-abort, `git reset` the anvil on a post-abort (§14). The committed
-//! `NN-` plugin set is resolved once at op-start (§6 snapshot) and passed in,
-//! so the engine never touches the filesystem registry itself.
+//! `[hooks]` plugin set (§6 — `config/plugins.toml`, bl-8540) is resolved once at
+//! op-start (the §6 snapshot) and passed in, so the engine never reads config itself.
 
 use std::io;
 use std::path::Path;
@@ -149,8 +149,8 @@ impl<'a> Engine<'a> {
     }
 
     /// Run a MUTATING op (§8 steps 1–6): Author → Pre → Seal → Post → Teardown,
-    /// with §14 rollback on any abort. `pre`/`post` are the committed `NN-` plugin
-    /// sets resolved at op-start. Logs `begin`/`seal`/`abort` (§6); returns the sha.
+    /// with §14 rollback on any abort. `pre`/`post` are the committed `[hooks]`
+    /// plugin sets resolved at op-start (§6). Logs `begin`/`seal`/`abort` (§6); returns the sha.
     pub fn seal(
         &self,
         base: &dyn BaseChange,
@@ -217,7 +217,7 @@ impl<'a> Engine<'a> {
     }
 }
 
-/// Run one phase's plugins in resolved `NN-` order, recording each success on
+/// Run one phase's plugins in resolved hook-list order, recording each success on
 /// `ran` (a failing plugin cleaned up inline, so it is NOT recorded — §14).
 fn run_phase(
     plugins: &dyn Plugins,

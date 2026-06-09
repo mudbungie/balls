@@ -16,11 +16,11 @@ use crate::verb::{OpClass, Verb};
 pub enum Phase {
     /// (1) balls makes the change worktree and stages the op's base diff.
     Author,
-    /// (2) pre modifiers run in `NN-` order; they shape what gets sealed.
+    /// (2) pre modifiers run in hook-list order; they shape what gets sealed.
     Pre,
     /// (3) balls SEALS — commit + integrate onto the anvil, atomically.
     Seal,
-    /// (4) post reactors run in `NN-` order; they act on the sealed record.
+    /// (4) post reactors run in hook-list order; they act on the sealed record.
     Post,
     /// (5) teardown — balls removes the change worktree.
     Teardown,
