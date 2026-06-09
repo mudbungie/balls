@@ -79,12 +79,13 @@ fn run_fixpoint(
     let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
     let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
     let mut n = 0u32;
-    let mut step = || -> io::Result<bool> {
+    let mut step = || -> io::Result<Option<String>> {
         if step_fail {
             return Err(io::Error::other("materialize"));
         }
         n += 1;
-        Ok(n >= passes) // converge once `step` has run `passes` times
+        // Converge once `step` has run `passes` times; until then the dial moved.
+        Ok((n < passes).then(|| format!("dial-{n}")))
     };
     let result = Engine::new(&anvil, &plugins, &test_log()).fixpoint(
         Verb::Prime,
@@ -121,6 +122,23 @@ fn a_fixpoint_step_failure_is_a_substrate_abort_that_unwinds_pre() {
     let (r, log) = run_fixpoint(1, true, None, &["a"], &["b"]);
     assert!(matches!(r, Err(OpError::Substrate(_))));
     assert_eq!(log, ["run:a:pre", "rollback:a:pre"]);
+}
+
+#[test]
+fn a_fixpoint_whose_dial_never_holds_aborts_loudly_at_the_pass_cap() {
+    // A pre participant rewrites the dial on EVERY pass (bl-33db): the loop must
+    // not spin forever — it aborts at FIXPOINT_CAP, the error naming the op and
+    // the last dial value, and unwinds every run pre. `post` never runs.
+    let (r, log) = run_fixpoint(u32::MAX, false, None, &["a"], &["b"]);
+    let Err(OpError::Substrate(e)) = r else { panic!("expected a Substrate abort, got {r:?}") };
+    let msg = e.to_string();
+    assert!(msg.contains(&format!("fixpoint pass cap ({FIXPOINT_CAP})")), "{msg}");
+    assert!(msg.contains("prime.pre"), "{msg}");
+    assert!(msg.contains(&format!("dial-{FIXPOINT_CAP}")), "{msg}"); // the value still moving at the cap
+    let cap = FIXPOINT_CAP as usize;
+    assert_eq!(log.iter().filter(|l| *l == "run:a:pre").count(), cap);
+    assert_eq!(log.iter().filter(|l| *l == "rollback:a:pre").count(), cap);
+    assert!(!log.contains(&"run:b:post".to_string()));
 }
 
 #[test]

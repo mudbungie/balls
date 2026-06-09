@@ -94,6 +94,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--to` the landing. Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). |
+| `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID] [-- TITLE]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. A `--` ends option parsing (getopt; create and update alike), so an untrusted `-`-leading title can't hijack a flag: `bl create -- "$TITLE"`. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree (prints its path), take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
@@ -102,7 +103,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl skill` | Print this guide (the full manual). |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
-> **For agents:** the human-facing output of `list`/`show` uses status
+> **For agents:** the human-facing output of `list`/`show`/`dep-tree` uses status
 > glyphs and color on a tty. Always prefer `--json` for parsing — it is the
 > **bedrock** projection (raw stored frontmatter, literal integer timestamps, no
 > derived fields), the supported machine contract.

@@ -94,7 +94,7 @@ A closed task has **no file** — absence is the resolution. Its history (includ
 
 ### `--json` is bedrock
 
-The human-facing output of `list`/`show` paints derived columns — the status ladder, the tree, ISO-8601 dates — none of them stored. `--json` is the orthogonal **bedrock** projection: raw stored frontmatter only, literal integer timestamps, no derived field. It is the round-trippable "what's actually there" and the supported machine contract. Parse `--json`, never the human render.
+The human-facing output of `list`/`show`/`dep-tree` paints derived columns — the status ladder, the tree, ISO-8601 dates — none of them stored. `--json` is the orthogonal **bedrock** projection: raw stored frontmatter only, literal integer timestamps, no derived field. It is the round-trippable "what's actually there" and the supported machine contract. Parse `--json`, never the human render.
 
 ---
 
@@ -106,6 +106,7 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail. A closed id still resolves (reconstructed from history). |
+| `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body, `-m` the commit note). Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. **Prints the worktree path** to stdout. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |

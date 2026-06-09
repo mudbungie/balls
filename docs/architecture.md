@@ -517,8 +517,8 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   an install landing mid-op affects only the next op.
 - **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key, and the default
   schedule USES one: `show` lists the delivery plugin (the §11 worktree-path fold into the human
-  render — the bl-0af4 read-op dispatch). The other read (`list`) stays plugin-free in PRACTICE only
-  because nothing is listed for it by default.
+  render — the bl-0af4 read-op dispatch). The other reads (`list`, `dep-tree`) stay plugin-free in
+  PRACTICE only because nothing is listed for them by default.
 
 ## §7 Plugin wire payloads
 
@@ -580,8 +580,11 @@ the five verbs — they differ only in which fields the base change stages.
   `tasks_branch` stops moving, THEN runs `prime/post` once — so an established remote branch the
   `pre` tracker clones in is checked out before any orphan is founded. The loop is CORE's, its signal
   the config branch core owns (no §7 return channel); `pre` runs with cwd = the landing (the store may
-  not be materialized yet), `post` with cwd = the now-materialized store. It is bounded by the §6
-  invocation-tree cap and converges in one pass when the dial holds (the common case).
+  not be materialized yet), `post` with cwd = the now-materialized store. It is bounded by its OWN
+  pass cap (`FIXPOINT_CAP` = 32; bl-33db — the §6 cap bounds depth DOWN the invocation tree and
+  structurally cannot bound passes ACROSS it at one depth): a dial still moving at the cap ABORTS the
+  op — fail, not silent, §6's disposition — the error naming the op and the value that kept changing.
+  It converges in one pass when the dial holds (the common case).
 
 The canonical task-op sequence (verb-agnostic):
 
@@ -614,10 +617,8 @@ The canonical task-op sequence (verb-agnostic):
 Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`.**
 There is **no `review` verb** — see "close" below.
 
-Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`.**
-(There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10. There is
-**no `dep-tree` verb** — its `--json` was a duplicate of `list --json`, so it owned no machine
-contract; retired 2026-06-09, see §15 bl-ffaf.) They
+Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep-tree`.**
+(There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10.) They
 author no ball-file diff; their whole contribution is what the hook chain prints (§7). `--json` on any
 read verb is the lossless **bedrock** projection — raw stored fields only, no derived value (the
 round-trippable "what's actually there", §3); the default human render is the orthogonal projection
@@ -1151,7 +1152,8 @@ converging predicate.
 - **prime is a bounded fixpoint, core-owned (bl-0a23).** Core loops `prime/pre` then
   `materialize(tasks_branch)` until the configured name stops moving, THEN runs `prime/post` once. The
   loop's signal is the config branch core owns — no §7 return channel, no plugin-driven control flow —
-  and it is bounded by the §6 invocation-tree cap. `prime/pre` (the tracker's name-settle + clone-in)
+  and it is bounded by the engine's own pass cap (`FIXPOINT_CAP`, §8; bl-33db — the §6 cap bounds
+  depth, not passes). `prime/pre` (the tracker's name-settle + clone-in)
   runs against the landing; `post` (fetch-ff + publish) against the now-materialized store. It converges
   in ONE `pre` pass in the common case (the dial holds), since plain prime never rewrites `tasks_branch`
   — that crosses only by `install` (§12). The fixpoint is what lets an established remote branch be
@@ -1317,17 +1319,23 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
-- **`dep-tree` retired — a verb that owned no machine contract (2026-06-09, bl-ffaf — post-freeze).**
-  `dep-tree --json` emitted the same flat bedrock array as `list --json` — the nesting is derived, so
-  the verb's own source already deferred to the consumer to rebuild the tree. Two verbs printing one
-  set is a drifted fact (§3 single source); the human forest render was the verb's sole property, and
-  the per-ball containment/blocker view (children, `needs`/`gate` edges) already lives in `show`.
-  Deleted outright: `src/reads/tree.rs`, the `Verb::DepTree` variant, the §9 read-verb listing (now
-  `show`, `list`), §6's reads bullet, and the README/SKILL/demonstration rows. NO replacement flag —
-  if a human forest is ever wanted, it is a `--tree` projection on `list` (the `ready` → `list -s
-  ready` precedent: projections ride the set verb), argued up as its own task. The `docs/e2e/`
-  transcripts that invoke `dep-tree` are captured runs of their epochs and stand unedited. Touched §6
-  (reads bullet), §9 (read-verb list + this pointer), §15 (this entry).
+- **the prime fixpoint gets a REAL bound — its own pass cap; the claimed §6 bound never existed
+  (2026-06-09, bl-33db — post-freeze; corrects the bl-0a23 entry below).** §8 and §13 both said the
+  fixpoint "is bounded by the §6 invocation-tree cap", but that cap structurally CANNOT bound it:
+  `BALLS_PLUGIN_DEPTH` grows DOWN the invocation tree (one bump per nested spawn), while the
+  convergence loop iterates ACROSS passes at the same depth+1 — `Engine::fixpoint` was a bare
+  `loop { pre; if step()? { break } }` with no counter, so a `prime/pre` participant rewriting
+  `tasks_branch` on every pass looped forever. The fix gives the loop its OWN bound, mirroring the
+  depth cap's fail-not-silent disposition (§6: "Crossing the cap ABORTS the op — fail, not silent…
+  There is no hatch"): a pass cap (`FIXPOINT_CAP` = 32 — generous; convergence normally takes 1–2
+  passes) that, when the dial is still moving, ABORTS with an error naming the op and the dial value
+  that kept changing, unwinding the run plugins in reverse as any abort does (§14). Mechanism is
+  minimal: `step` now reports the dial (`None` = held, `Some(value)` = moved) instead of a bare bool,
+  so the abort can name the oscillating value; no env, no config knob — a runaway dial is a plugin
+  bug to surface, not a limit to tune. Touched §8 (the fixpoint bullet names the real bound), §13
+  (same), §15 (the bl-0a23 entry's bound claim carries a correction marker). Code:
+  `src/lifecycle_diffless.rs` (`FIXPOINT_CAP` + the bounded loop), `src/checkout.rs` (`converge`'s
+  `step` reports the moved branch name). Tracked under bl-72a8.
 - **`drop` verb DELETED — it was `unclaim ∘ close`, and a close-gate bypass (2026-06-09, bl-65e0 —
   post-freeze).** drop was a composite, not a primitive: identical `Retire` mechanics to close,
   differing only in which §10 guard ran — and that difference was an enforcement hole: a `--blocks
@@ -1476,8 +1484,10 @@ RESOLVED (folded into the body, no longer open):
   config crosses only by `install`, §12) and CLONES IN an established remote branch into a local ref;
   `prime/post` settles the CONTENT (fetch-ff + push; the founding push moved here from the old in-pre
   handler). So materialize checks out the cloned-in ref before any orphan is founded — no divergence to
-  reset. The loop's signal is the config branch core owns (no §7 return channel) and is bounded by the
-  §6 invocation-tree cap; it converges in one `pre` pass when the dial holds (the common case). Touched
+  reset. The loop's signal is the config branch core owns (no §7 return channel) and is bounded
+  [the "§6 invocation-tree cap" bound claimed here was never real — CORRECTED 2026-06-09 by bl-33db,
+  entry above: the loop carries its own pass cap]; it converges in one `pre` pass when the dial holds
+  (the common case). Touched
   §2 (lazy materialize bullet), §8 (prime is a fixpoint, not a single pre→post), §12 (two-slot tracker
   prime + lazy substrate + E5 now covers prime/post's established publish), §13 (prime fixpoint +
   `prime/pre` cwd = landing). Code: `src/substrate.rs` (`found_landing` + `materialize`),
