@@ -57,7 +57,8 @@ pub struct Sealed<'a> {
 /// The plugin chain (§6/§7) as a seam: run ONE plugin in a phase, or roll one
 /// back. The lifecycle owns ORDER (the resolved set) and the reverse-order
 /// unwind (§14); this seam owns the subprocess + wire (bl-5d56). `sealed` is
-/// `Some` on `post` (and a `post`-phase rollback), carrying the §7 post facts.
+/// `Some` on `post` — and on EVERY rollback once the op sealed (§14: the id
+/// rides "post/rollback from the sealed §5 trailer"), carrying the §7 post facts.
 /// `rollback` returns nothing — best-effort, exit IGNORED (§14), so it can never
 /// abort the unwind.
 pub trait Plugins {
@@ -238,12 +239,16 @@ fn run_phase(
 }
 
 /// Roll back every recorded plugin run in strict reverse execution order,
-/// regardless of which phase it ran — the op is the unit of atomicity (§14). A
-/// `post`-phase rollback gets the same [`Sealed`] facts its forward run saw; a
-/// `pre`-phase one gets `None` (it ran before the seal existed, §7).
+/// regardless of which phase it ran — the op is the unit of atomicity (§14).
+/// EVERY rollback gets the [`Sealed`] facts once the seal landed — §14's id
+/// rule ("post/rollback from the sealed §5 trailer") makes no phase split, and
+/// a post-abort leaves the change worktree CLEAN, so a pre-phase rollback
+/// (the delivery un-squash) starved of the trailer cannot re-derive its id
+/// from changed task files and silently no-ops (bl-430e). On a pre-abort there
+/// is no seal: `sealed` is `None` and the worktree is still dirty to read.
 fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)], seal: Option<&SealRecord>) {
+    let sealed = seal.map(SealRecord::facts);
     for (plugin, phase) in ran.iter().rev() {
-        let sealed = if *phase == Phase::Post { seal.map(SealRecord::facts) } else { None };
         plugins.rollback(plugin, op, *phase, dir, sealed.as_ref());
     }
 }

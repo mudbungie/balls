@@ -541,7 +541,11 @@ ball — what `pre` saw as `current_state`; `null` on create). There is **no pos
 `commit` it is handed plus `git show` — never the wire (derive-don't-store, §14; bl-667e, §15). So the
 after-state is a read, not a payload field; `current_state` exists on the `pre` wire alone.
 
-**rollback payload:** the shape of the op being undone plus `rolling_back: pre|post`; the plugin
+**rollback payload:** the shape of the op being undone plus `rolling_back: pre|post`; once the op
+has SEALED, every rollback — whichever phase it undoes — also carries the post facts
+(`commit`/`previous_commit`/`metadata`): §14's id rule ("post/rollback from the sealed §5 trailer")
+makes no phase split, and the post-abort change worktree is clean, so a pre-phase rollback starved of
+the trailer has no staged task file left to re-derive its id from (bl-430e). The plugin
 tracks its own intermediate state (§11 rollback is the worked derived-state example; general rule §14).
 
 ## §8 Op lifecycle
@@ -894,6 +898,12 @@ is the correct in-review state, never undone (abandon is `bl drop`, whose `drop.
 PR/branch). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
 is rollback-safe); deleting `work/<id>` is deferred, non-transactional cleanup (`prime`).
 The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
+And because a rollback is best-effort (§14), deliver itself is RETRY-IDEMPOTENT (bl-430e): a squash
+that survived an aborted close — `work/<id>` fully merged into the integration branch, or a `[bl-id]`
+commit on it since the branch forked (fork-scoped so a reused id's PRIOR delivery, always an ancestor
+of the fork, cannot false-positive) — means this incarnation already delivered, and the re-close
+skips the squash instead of minting an empty duplicate delivery commit; retrying the failed `bl
+close` is the sanctioned recovery.
 
 ## §12 bl prime & federation (the store pointer)
 

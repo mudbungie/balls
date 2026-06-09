@@ -68,8 +68,12 @@ pub trait Repo {
     /// runs; a failure aborts the close before the seal), then squash `branch`
     /// → `integration` as ONE commit whose subject is `subject` (carrying the
     /// `[bl-id]` delivery tag). A no-op when the worktree/branch is absent or
-    /// carries no changes (the empty deliverable, §11).
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str) -> io::Result<()>;
+    /// carries no changes (the empty deliverable, §11) — and RETRY-IDEMPOTENT:
+    /// when a `marker` commit already sits on `integration` since `branch`
+    /// forked, this incarnation's delivery landed in an earlier aborted close,
+    /// and re-squashing would mint an empty duplicate (bl-430e), so deliver
+    /// skips.
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()>;
     /// `rollback close.pre` (§14): un-squash — reset `integration` to its parent
     /// IFF its tip is the delivery commit (its subject contains `marker`).
     /// Stateless and idempotent: a no-op delivery leaves no marked tip to undo.
@@ -95,7 +99,7 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
         // and calls one dispatch per id) — the same act as a fresh `claim.post`.
         ("claim" | "prime", "post", false) => repo.materialize(spec.worktree, spec.branch),
         ("close", "pre", false) => {
-            repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject)
+            repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject, spec.marker)
         }
         // Every worktree-deleting teardown is the same act — release the
         // worktree directory — whichever deleting op (close.post, unclaim,

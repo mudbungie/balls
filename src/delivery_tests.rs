@@ -44,8 +44,8 @@ impl Repo for FakeRepo {
         self.log("integration".into());
         Ok("main".into())
     }
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str) -> io::Result<()> {
-        self.log(format!("deliver {} {branch} -> {integration} : {subject}", path.display()));
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
+        self.log(format!("deliver {} {branch} -> {integration} : {subject} : {marker}", path.display()));
         Ok(())
     }
     fn unsquash(&self, integration: &str, marker: &str) -> io::Result<()> {
@@ -90,9 +90,11 @@ fn unclaim_and_drop_post_release() {
 
 #[test]
 fn close_pre_resolves_integration_then_delivers() {
+    // The marker rides along so deliver can skip a delivery that already landed
+    // in an earlier aborted close (retry-idempotence, bl-430e).
     assert_eq!(
         drive("close", "pre", false),
-        ["integration", "deliver /wt work/bl-f813 -> main : Title [bl-f813]"]
+        ["integration", "deliver /wt work/bl-f813 -> main : Title [bl-f813] : [bl-f813]"]
     );
 }
 
