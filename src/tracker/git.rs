@@ -13,14 +13,14 @@
 
 use std::io;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 /// Run `git -C <cwd> <args>`, returning trimmed stdout. A non-zero exit becomes
-/// an [`io::Error`] carrying git's stderr — the contention/abort signal.
+/// an [`io::Error`] carrying git's stderr — the contention/abort signal. The
+/// command is built through [`crate::safegit::at`], so the redirection `GIT_*`
+/// env is stripped and the `ext::` transport denied (bl-2d6d).
 pub fn git(cwd: &Path, args: &[&str]) -> io::Result<String> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(cwd)
+    let out = crate::safegit::at(cwd)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

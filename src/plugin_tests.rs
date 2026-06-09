@@ -276,3 +276,23 @@ fn describe_errors_when_the_binary_is_missing() {
     let e = Env::new();
     assert!(describe(&e.at("bin").join("nope")).is_err());
 }
+
+#[test]
+fn capped_lines_splits_lines_and_trims_newlines() {
+    // A newline-terminated stream and a final un-terminated blob both surface,
+    // each with its trailing '\n' trimmed.
+    let mut got = Vec::new();
+    capped_lines(&b"alpha\nbeta\ngamma"[..], RELAY_LINE_MAX, |l| got.push(l.to_string()));
+    assert_eq!(got, vec!["alpha", "beta", "gamma"]);
+}
+
+#[test]
+fn capped_lines_bounds_a_no_newline_flood() {
+    // 10 KiB with no newline, cap 4 bytes: it is flushed in <=cap pieces rather
+    // than buffered whole — the bl-2d6d OOM guard. Reassembled, no byte is lost.
+    let flood = "x".repeat(10_240);
+    let mut pieces = Vec::new();
+    capped_lines(flood.as_bytes(), 4, |l| pieces.push(l.to_string()));
+    assert!(pieces.iter().all(|p| p.len() <= 4), "every piece stays within the cap");
+    assert_eq!(pieces.concat(), flood, "no byte dropped");
+}

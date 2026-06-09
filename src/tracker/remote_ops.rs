@@ -6,6 +6,7 @@
 
 use super::git::git;
 use super::payload::Binding;
+use crate::safegit::reject_option_like;
 use std::io;
 use std::path::Path;
 
@@ -19,6 +20,8 @@ pub fn sync(b: &Binding) -> io::Result<()> {
         return Ok(());
     };
     let store = Path::new(&b.store);
+    reject_option_like(remote)?;
+    reject_option_like(&b.tasks_branch)?;
     git(store, &["fetch", remote, &b.tasks_branch])?;
     git(store, &["merge", "--ff-only", "FETCH_HEAD"])?;
     Ok(())
@@ -35,6 +38,8 @@ pub fn push(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
+    reject_option_like(remote)?;
+    reject_option_like(&b.tasks_branch)?;
     git(Path::new(&b.store), &["push", remote, &b.tasks_branch])?;
     Ok(())
 }
@@ -52,6 +57,7 @@ pub fn fetch_config(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
+    reject_option_like(remote)?;
     git(Path::new(&b.landing), &["fetch", remote, crate::LANDING_BRANCH])?;
     Ok(())
 }
@@ -160,5 +166,18 @@ mod tests {
         commit(&store, "local.txt", "local");
 
         assert!(push(&binding(Some(&remote), &store)).is_err());
+    }
+
+    #[test]
+    fn sync_refuses_an_option_like_branch_before_touching_git() {
+        // A config-sourced branch that begins with `-` (e.g. `--upload-pack=…`)
+        // is refused as option-injection, not handed to `git fetch` (bl-2d6d).
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_branch(tmp.path());
+        let store = store_clone(tmp.path(), &remote);
+        let mut b = binding(Some(&remote), &store);
+        b.tasks_branch = "--upload-pack=evil".into();
+        let err = sync(&b).unwrap_err().to_string();
+        assert!(err.contains("looks like an option"), "{err}");
     }
 }
