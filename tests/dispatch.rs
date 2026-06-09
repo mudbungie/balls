@@ -66,7 +66,14 @@ fn an_unknown_verb_exits_with_a_usage_error() {
         .assert()
         .failure()
         .code(2)
-        .stderr(contains("usage: bl <verb>"));
+        .stderr(contains("unknown command 'frobnicate'").and(contains("bl help")));
+}
+
+#[test]
+fn help_prints_the_command_directory_to_stdout() {
+    // `bl help` → the terse directory (verb tokens) on stdout, exit 0.
+    let dir = contains("create").and(contains("dep-tree")).and(contains("skill")).and(contains("usage: bl"));
+    bl(&TempDir::new().unwrap()).arg("help").assert().success().stdout(dir);
 }
 
 #[test]

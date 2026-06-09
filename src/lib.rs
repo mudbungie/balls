@@ -102,6 +102,7 @@ pub mod edge;
 pub mod encoding;
 pub mod enforce;
 pub mod git;
+pub mod help;
 pub mod hooks;
 pub mod id;
 pub mod install;
@@ -148,11 +149,13 @@ const SKILL: &str = include_str!("../SKILL.md");
 /// (§9) via [`mutate`]; the read verbs (`show`/`list`/`dep-tree`, §9) via
 /// [`reads`] — they author no diff and print the store view. The remaining
 /// diffless verb (`install`) is unwired, so it reports its §8 op plan; `skill`
-/// prints the embedded agent guide. `edge` carries the host inputs `main`
+/// prints the embedded agent guide and `help` (also `--help`/`-h`) the terse
+/// command directory ([`help::directory`]). `edge` carries the host inputs `main`
 /// resolved.
 ///
-/// Returns the process exit code: `0` on success, `1` on an op failure (a plugin
-/// aborted, a bad flag), `2` for an unknown or missing verb (usage convention).
+/// Returns the process exit code: `0` on success (including `skill`/`help`), `1`
+/// on an op failure (a plugin aborted, a bad flag), `2` for an unknown or missing
+/// command (usage convention — the message points at `bl help`).
 ///
 /// `--log-level LEVEL` is the §4 layer-1 CLI override (the only global flag): it
 /// is stripped here from anywhere in argv and stamped onto the [`Edge`] the op
@@ -166,13 +169,27 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             return 2;
         }
     };
-    if rest.first().map(String::as_str) == Some("skill") {
-        print!("{SKILL}");
-        return 0;
+    // `skill` (full manual) and `help` (terse command directory) are help OUTPUT,
+    // not ops: kept out of `Verb`, dispatched here, print to stdout, exit 0. `help`
+    // also answers the conventional `--help`/`-h`.
+    match rest.first().map(String::as_str) {
+        Some("skill") => {
+            print!("{SKILL}");
+            return 0;
+        }
+        Some("help" | "--help" | "-h") => {
+            print!("{}", help::directory());
+            return 0;
+        }
+        _ => {}
     }
     let edge = &Edge { log_level, ..edge.clone() };
-    let Some(verb) = rest.first().map(String::as_str).and_then(Verb::parse) else {
-        eprintln!("usage: bl <verb>");
+    let Some(token) = rest.first().map(String::as_str) else {
+        eprintln!("usage: bl <command> — run `bl help` for the list");
+        return 2;
+    };
+    let Some(verb) = Verb::parse(token) else {
+        eprintln!("bl: unknown command '{token}' — run `bl help` for the list");
         return 2;
     };
     let result = match verb {
