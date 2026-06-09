@@ -88,11 +88,18 @@ fn an_unwritable_path_is_swallowed_not_panicked() {
 }
 
 #[test]
-fn level_parses_each_token_and_falls_back_to_info() {
-    assert_eq!(Level::parse("debug"), Level::Debug);
-    assert_eq!(Level::parse("info"), Level::Info);
-    assert_eq!(Level::parse("error"), Level::Error);
-    assert_eq!(Level::parse("garbage"), Level::Info);
+fn level_parses_each_rung_strictly() {
+    assert_eq!(Level::parse("debug").unwrap(), Level::Debug);
+    assert_eq!(Level::parse("info").unwrap(), Level::Info);
+    assert_eq!(Level::parse("error").unwrap(), Level::Error);
+}
+
+#[test]
+fn an_unrecognised_level_is_an_error_naming_the_ladder() {
+    // No `warn` rung (§4): a typo must fail loud, not silently run at `info`.
+    let err = Level::parse("warn").unwrap_err().to_string();
+    assert!(err.contains("'warn'"));
+    assert!(err.contains("debug|info|error"));
 }
 
 #[test]
