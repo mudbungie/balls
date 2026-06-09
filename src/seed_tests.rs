@@ -48,6 +48,11 @@ fn seed_writes_the_embedded_default_then_copies_and_binds_present_plugins() {
     assert_eq!(hooks.names("close", "post"), ["bl-delivery", "tracker"]);
     assert!(bin_link(&landing, "tracker").symlink_metadata().is_ok());
     assert!(bin_link(&landing, "bl-delivery").symlink_metadata().is_ok());
+    // The default wires no pre-seal staging (bl-0af4 — nothing is stored) but
+    // does wire the `show` read-op under its bare key (§6 read dispatch).
+    assert!(hooks.names("claim", "pre").is_empty());
+    assert!(hooks.names("unclaim", "pre").is_empty());
+    assert_eq!(hooks.resolve_read(&crate::registry::Registry::at(&landing), "show").len(), 1);
 }
 
 #[test]

@@ -1,6 +1,8 @@
 //! §9 read verbs — `show`, `list`, `dep-tree`. Diffless ops (§8 "skip
 //! steps 1/3/5"): they author no ball-file diff and seal nothing; the printed
-//! output IS the whole contribution. Each walks `tasks/` on the STORE checkout
+//! output IS the whole contribution. The human render of `show` may also FOLD
+//! IN a §6 read-op plugin dispatch ([`readop`] — the delivery worktree line,
+//! §11); `--json` never dispatches. Each walks `tasks/` on the STORE checkout
 //! (§12 — reads run with cwd = the store, never the landing), parses every
 //! [`Task`], and renders the §3 derived status ladder plus the §10
 //! ready/closeable predicates two ways: a human view (status glyphs, ANSI
@@ -31,6 +33,7 @@ mod filter;
 mod flags;
 mod history;
 mod list;
+mod readop;
 mod show;
 mod tree;
 
@@ -146,7 +149,16 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let cat = Catalog::load(&store)?;
     let style = Style { plain: flags.plain || !edge.color };
     let out = match verb {
-        Verb::Show => show::dispatch(&store, &cat, &flags, &style)?,
+        Verb::Show => {
+            // §6 read dispatch: the HUMAN render folds wired plugins' lines in
+            // (the delivery worktree path, §11); `--json` never dispatches — it
+            // stays the lossless mirror of stored frontmatter.
+            let folded = match &flags.target {
+                Some(id) if !flags.json => readop::fold(edge, &store, verb, id),
+                _ => String::new(),
+            };
+            show::dispatch(&store, &cat, &flags, &style, &folded)?
+        }
         Verb::List => {
             // The dead set is reconstructed from history only when the reach
             // calls for it — the live-only default never touches git (§9).
@@ -216,13 +228,13 @@ pub(crate) fn on_word(on: On) -> &'static str {
 /// orthogonal HUMAN render alone (§3, bl-d074). `id` is the filename identity
 /// (the round-trip key), not a frontmatter field.
 ///
-/// Preserved `extra` keys (§3 seam — a team's `state:` field, the delivery
-/// plugin's `delivery-worktree`) ride through too: lossless means EVERY stored
-/// key, and `bl show --json` is the consumer's authoritative read for
-/// `delivery-worktree` (architecture §11). Extras are UNKNOWN keys, so none can
-/// collide with the canonical fields layered over them; the canonical set is
-/// always present (a cleared scalar emits `null`), unlike the file's
-/// skip-if-absent frontmatter.
+/// Preserved `extra` keys (§3 seam — a team's `state:` field) ride through too:
+/// lossless means EVERY stored key. And ONLY stored keys: a plugin-computed
+/// value (the delivery worktree path, §11) is never here — `--json` never
+/// dispatches a read-op plugin (§6), it mirrors the file alone. Extras are
+/// UNKNOWN keys, so none can collide with the canonical fields layered over
+/// them; the canonical set is always present (a cleared scalar emits `null`),
+/// unlike the file's skip-if-absent frontmatter.
 pub(crate) fn task_json(id: &str, task: &Task) -> Value {
     let blockers: Vec<Value> = task
         .blockers
