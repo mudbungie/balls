@@ -193,72 +193,11 @@ fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
     }
 }
 
-/// The parsed front-door flags + positionals, verb-agnostic. The per-verb
-/// `base_change` validates which it accepts. `message` is the `-m` §5 commit
-/// narration (every verb); `body` is the `--body` ball markdown body
-/// (create/update). EVERY ball field is overwriteable on `update` — there is no
-/// create-only split: `title`/`parent`/`priority`/`tags`/extras set, and the
-/// `--no-*` family clears (`no_parent`/`no_priority` clear the scalar,
-/// `no_tags`/`no_needs` drop a member, a `key=` empty extra removes it). Only
-/// `blocks` (a reciprocal edge on ANOTHER task) stays create-only.
-#[derive(Debug, Default, PartialEq, Eq)]
-struct Flags {
-    actor: String,
-    message: Option<String>,
-    body: Option<String>,
-    title: Option<String>,
-    parent: Option<String>,
-    no_parent: bool,
-    blocks: Vec<String>,
-    needs: Vec<String>,
-    no_needs: Vec<String>,
-    priority: Option<i64>,
-    no_priority: bool,
-    tags: Vec<String>,
-    no_tags: Vec<String>,
-    /// `update --edit` (§9): source the change from $EDITOR instead of the field
-    /// flags — mutually exclusive with them (they would race over the payload).
-    edit: bool,
-    positionals: Vec<String>,
-}
-
-/// Parse argv into [`Flags`]. A leading-`-` token that is not a known flag is an
-/// error; everything else is a positional. `--as` defaults to `default_actor`.
-fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
-    let mut f = Flags { actor: default_actor.to_string(), ..Flags::default() };
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--as" => f.actor = value(args, &mut i, "--as")?,
-            "-m" | "--message" => f.message = Some(value(args, &mut i, "-m")?),
-            "--body" => f.body = Some(value(args, &mut i, "--body")?),
-            "--title" => f.title = Some(value(args, &mut i, "--title")?),
-            "--parent" => f.parent = Some(value(args, &mut i, "--parent")?),
-            "--no-parent" => f.no_parent = true,
-            "--blocks" => f.blocks.push(value(args, &mut i, "--blocks")?),
-            "--needs" => f.needs.push(value(args, &mut i, "--needs")?),
-            "--no-needs" => f.no_needs.push(value(args, &mut i, "--no-needs")?),
-            "-p" | "--priority" => {
-                let v = value(args, &mut i, "-p")?;
-                f.priority = Some(v.parse().map_err(|_| other(format!("-p: '{v}' is not an integer")))?);
-            }
-            "--no-priority" => f.no_priority = true,
-            "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
-            "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
-            "--edit" => f.edit = true,
-            flag if flag.starts_with('-') => return Err(other(format!("unexpected flag '{flag}'"))),
-            _ => f.positionals.push(args[i].clone()),
-        }
-        i += 1;
-    }
-    Ok(f)
-}
-
-/// The value following a `--flag`, advancing the cursor; a missing value errors.
-fn value(args: &[String], i: &mut usize, flag: &str) -> io::Result<String> {
-    *i += 1;
-    args.get(*i).cloned().ok_or_else(|| other(format!("{flag} needs a value")))
-}
+// The argv→[`Flags`] front-door parse lives in a sibling module (the §9 flag
+// vocabulary in one place); re-imported so the dispatch reads naturally.
+#[path = "mutate_args.rs"]
+mod args;
+use args::{parse, Flags};
 
 /// The SOLE site that reads the wall clock and reduces it to §3 unix seconds.
 /// Injected into each [`BaseChange`] so `change.rs` stays a pure, clock-free unit
