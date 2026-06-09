@@ -8,7 +8,7 @@ The CLI is `bl`. State rides two git branches and nothing touches `main` — tha
 
 ### Default workflow
 
-One agent takes a task all the way through: `bl claim → work → bl close → done`. There is **no `review` step and no separate reviewer**: claiming gives you a code worktree, and `bl close` delivers it (squashes your work to `main`) and tears the worktree down in one move. Balls does not assume a separate reviewer; if you want a split submit/approve flow, wire a `close.pre` approval gate explicitly. Otherwise the agent that claims also closes — which keeps agents from stopping short of finishing, the single most expensive failure mode in an agent-driven workflow.
+One agent takes a task all the way through: `bl claim → work → bl close → done`. There is **no `review` step and no separate reviewer**: claiming gives you a code worktree, and `bl close` delivers it (squashes your work to `main`) and tears the worktree down in one move. Balls does not assume a separate reviewer; if you want a split submit/approve flow, add a review gate as an ordinary close-blocker subtask (or a forge plugin that mints one at claim) — submission itself is git-native work, never a close phase. Otherwise the agent that claims also closes — which keeps agents from stopping short of finishing, the single most expensive failure mode in an agent-driven workflow.
 
 ---
 
@@ -202,12 +202,11 @@ Two plugins ship by default and are wired by the seed config:
 
 A plugin contributes by **editing the change worktree** (the task file), never by a parsed return value — core parses nothing back (there is no return channel, §7). Its stdout is the **user-facing channel**, forwarded verbatim to the invoker's stdout: "`bl claim` prints the worktree path" is bl-delivery printing there, and `bl prime` re-prints the path of every task you still hold the same way. Its stderr is enveloped line-by-line into the per-clone op log. A non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol. See `docs/architecture.md` §6–§8 for the full contract.
 
-### Delivery: direct vs. forge
+### Delivery: one path; forge changes who merges
 
-The delivery plugin has two variants; only what is wired into the hooks differs.
+There is one delivery path: `close.pre` squashes `work/<id>` into the integration branch as one commit whose subject carries the `[bl-id]` delivery tag — and skips the squash when that incarnation already delivered (a `[bl-id]` commit on integration since the branch forked), whoever performed the merge.
 
-- **Direct** (default): `close.pre` squashes `work/<id>` into the integration branch as one commit whose subject carries the `[bl-id]` delivery tag.
-- **Forge** (opt-in, ships separately per-forge): the forge plugin adds an **approval gate child** at `claim` (an ordinary close-blocker, not a special mechanism) and at `close.pre` pushes `work/<id>` + opens/updates the PR instead of squashing locally. A forge `sync` closes the gate child when the PR merges, unblocking the next close. "Forge review" is not a mode — it is the ordinary close plus a gate child, enforced by core's close-blocker guard.
+- **Forge** (opt-in, ships separately per-forge) is not a delivery variant — it never hooks `close.pre`. The forge plugin mints an **approval gate child** at `claim` (an ordinary close-blocker, not a special mechanism) and closes it at `sync` when the PR merges, unblocking the next close. Submission is git-native work: push `work/<id>` and open the PR yourself, with the `[bl-id]` tag in the PR title — that tag is what lets the post-merge close recognize the squash-merge as the delivery and skip the local squash. "Forge review" is not a mode — it is the ordinary close plus a gate child, enforced by core's close-blocker guard.
 
 Don't confuse a forge plugin with an **issue-tracker plugin** (Jira, Linear, GitHub Issues): same plugin protocol, unrelated job. Issue-tracker plugins mirror backlog state; forge plugins drive the merge gate. Both ship separately, not bundled here.
 
