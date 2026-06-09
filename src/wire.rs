@@ -70,10 +70,10 @@ pub struct OpContext {
     pub command: Option<Command>,
     /// The ball at op-start, before the base change. `None` on create (no ball
     /// yet). This is `pre`'s `current_state` and `post`'s `previous_state` (§7).
+    /// There is no after-state companion: a `post` reactor derives the LANDED
+    /// ball from git (the §14 derive-don't-store rule), never the wire — so §7
+    /// carries no post `current_state` (bl-667e, §15).
     pub before: Option<Task>,
-    /// The ball as sealed, after the change. `None` on close/drop (file gone).
-    /// This is `post`'s `current_state`; `pre` never sees it (§7).
-    pub after: Option<Task>,
 }
 
 /// Post facts threaded onto a `post`/`rollback` payload: the new commit, the tip
@@ -124,7 +124,7 @@ impl OpContext {
     /// invoking identity (`--as`).
     #[must_use]
     pub fn diffless(actor: String, binding: Binding) -> Self {
-        Self { actor, binding, command: None, before: None, after: None }
+        Self { actor, binding, command: None, before: None }
     }
 
     /// Stamp the §7 payload for `plugin_name` in `phase`. `sealed` is `Some` once
@@ -156,11 +156,13 @@ impl OpContext {
             rolling_back,
         };
         if let Some(s) = sealed {
-            // post shape: current advances to the sealed after-state, the
-            // op-start state slides into previous_state, the commit pair lands.
-            // `metadata` follows only when the op sealed a §5 message — a
-            // diffless op (§13) carries the commit pair alone.
-            p.current_state = self.after.as_ref();
+            // post shape: the op-start state slides from current_state into
+            // previous_state, and the commit pair lands. There is NO post
+            // current_state — the landed ball is derived from git, not the wire
+            // (§14 derive-don't-store; bl-667e, §15). `metadata` follows only when
+            // the op sealed a §5 message — a diffless op (§13) carries the commit
+            // pair alone.
+            p.current_state = None;
             p.previous_state = self.before.as_ref();
             p.commit = Some(s.commit);
             p.previous_commit = Some(s.previous_commit);

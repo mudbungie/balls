@@ -519,8 +519,11 @@ the project-repo root the delivery plugin needs, §11), `command` (`op` + intend
 yet — a reassigning plugin reads it from the single staged `tasks/*.md`).
 
 **post payload (stdin):** same plus `commit`/`previous_commit`, the final `command`, `metadata`
-(parsed from the §5 trailer block, incl. the now-sealed `bl-id`), and `previous_state`/`current_state`
-(`null` for create / close-drop respectively).
+(parsed from the §5 trailer block, incl. the now-sealed `bl-id`), and `previous_state` (the op-start
+ball — what `pre` saw as `current_state`; `null` on create). There is **no post `current_state`**: a
+`post` reactor MUST NOT mutate the sealed ball (§14) and derives the LANDED ball from git — the
+`commit` it is handed plus `git show` — never the wire (derive-don't-store, §14; bl-667e, §15). So the
+after-state is a read, not a payload field; `current_state` exists on the `pre` wire alone.
 
 **rollback payload:** the shape of the op being undone plus `rolling_back: pre|post`; the plugin
 tracks its own intermediate state (§11 rollback is the worked derived-state example; general rule §14).
@@ -1249,6 +1252,22 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **post wire carries no `current_state` — strike, not populate (2026-06-08, bl-667e —
+  post-freeze, surfaced by the bl-1a66 conformance review).** §7's post payload listed
+  `previous_state`/`current_state`, but the build never populated the post `current_state` (the sealed
+  after-state): `OpContext.after` was always `None`, so the field serialized as absent on every post
+  call. Two ways to reconcile a spec field with code that never fills it — POPULATE or STRIKE.
+  RESOLVED by SUBTRACTION (minimalism): STRIKE it. Populating correctly would force the generic §8
+  engine to re-read the sealed ball and thread a `Task` onto the post wire — coupling the engine to
+  task parsing — to carry a value §14 already says a `post` reactor must DERIVE, not be handed: "post
+  never mutates the ball; derive-don't-store is what makes that safe… a value that only EXISTS
+  post-seal is DERIVED on read." The landed ball is exactly such a value — the reactor has the sealed
+  `commit` on the wire and reads the tree with `git show`. So the after-state was never a payload field
+  in spirit; the wire now carries `previous_state` (the op-start ball) plus the commit pair, and the
+  after-state is a git read. No shipped plugin consumed the field (the delivery plugin reads
+  `current_state` only at `pre`, for the squash subject's title — untouched). Touched §7 (post payload:
+  struck `current_state`, kept `previous_state`). Code: `src/wire.rs` (`OpContext.after` removed, the
+  post branch nulls `current_state`). Tracked under bl-72a8.
 - **status filtering unified under one axis — `--closed` subtracted (2026-06-08, bl-7218 —
   post-freeze, refines bl-d7a5 below).** bl-d7a5 had given `bl list` a standalone `--closed` flag
   alongside `--status`/`--all`. Two flags for one axis is the smell: `--closed` IS `--status closed`.
