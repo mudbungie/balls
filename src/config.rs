@@ -119,8 +119,9 @@ fn read_layer(path: &Path) -> io::Result<Option<Table>> {
 
 /// Apply §4 merge of `inner` over `base`, `inner` winning. A `<field>_prepend`/
 /// `_append`/`_ban` key composes the list at `<field>`; every other key (scalar
-/// or object) fully replaces its `base` entry.
-fn layer_over(base: &mut Table, inner: Table) {
+/// or object) fully replaces its `base` entry. Shared with [`crate::hooks`], which
+/// layers the `[hooks]` lists the SAME way (§4/§6, bl-8540) — one merge, not two.
+pub(crate) fn layer_over(base: &mut Table, inner: Table) {
     for (key, value) in inner {
         match list_directive(&key) {
             Some((field, op)) => compose_list(base, field, op, value),
