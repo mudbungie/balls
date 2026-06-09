@@ -91,8 +91,8 @@ fn a_named_sync_branch_overrides_the_config_tasks_branch_in_the_binding() {
     let (l, s) = (landing(&e), store(&e));
     // No target ⇒ the config-named store branch; a target ⇒ that branch, which
     // is the one datum the tracker fetches/ff's (§13 `bl sync <branch>`).
-    let (default_b, _) = bind(&e, &l, &s, None, None).unwrap();
-    let (named_b, _) = bind(&e, &l, &s, None, Some("federation/shared".into())).unwrap();
+    let (default_b, _) = bind(&e, &l, &s, None, None, false).unwrap();
+    let (named_b, _) = bind(&e, &l, &s, None, Some("federation/shared".into()), false).unwrap();
     assert_eq!(named_b.tasks_branch, "federation/shared");
     assert_ne!(default_b.tasks_branch, named_b.tasks_branch);
 }
@@ -116,6 +116,42 @@ fn prime_accepts_the_remote_override_flags() {
     // chain ignores it, so this just proves they parse and resolve into the binding.
     prime(&e, &argv(&["--remote", "git@hub:r"])).unwrap();
     prime(&e, &argv(&["--center", "git@hub:c", "--remote", "git@hub:r"])).unwrap();
+}
+
+#[test]
+fn prime_rejects_stealth_combined_with_any_remote_naming_flag() {
+    // §12: --stealth opts out of any store remote, so a flag that NAMES one
+    // contradicts it — refused loud at parse, never silently picking a winner.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    for contradictory in [
+        ["--stealth", "--remote", "git@hub:r"],
+        ["--stealth", "--center", "git@hub:c"],
+        ["--install", "git@hub:c", "--stealth"],
+    ] {
+        let err = prime(&e, &argv(&contradictory)).unwrap_err().to_string();
+        assert!(err.contains("--stealth contradicts"), "{err}");
+    }
+}
+
+#[test]
+fn a_stealth_prime_binds_no_remote_outranking_even_the_xdg_one() {
+    // §12 `bl prime --stealth`: the binding carries `stealth` and NO remote.
+    // The CLI layer outranks config (§4), so the per-machine XDG `remote` —
+    // the one remote tier the parse cannot forbid — is dropped too.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    prime(&e, &argv(&["--stealth", "--as", "me"])).unwrap(); // the full verb runs
+    let user_config = e.xdg.user_config();
+    std::fs::create_dir_all(user_config.parent().unwrap()).unwrap();
+    std::fs::write(&user_config, "remote = \"git@hub:r\"\n").unwrap();
+    let (l, s) = (landing(&e), store(&e));
+    let (tracked, _) = bind(&e, &l, &s, None, None, false).unwrap();
+    assert_eq!(tracked.remote.as_deref(), Some("git@hub:r")); // XDG tier resolves
+    assert!(!tracked.stealth);
+    let (stealth, _) = bind(&e, &l, &s, None, None, true).unwrap();
+    assert_eq!(stealth.remote, None); // --stealth drops it
+    assert!(stealth.stealth);
 }
 
 #[test]

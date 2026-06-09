@@ -77,6 +77,11 @@ To point a fresh checkout at a shared project, pass the remote once:
 `bl prime --as ID --remote <git-url>` (or `--install <git-url>` to also adopt
 that center's `config/`). Re-running plain `bl prime` later converges to a no-op.
 
+In a repo with a pushable `origin`, prime founds a `balls/tasks` branch there
+and pushes it. `bl prime --stealth` is the opt-out: the store stays local and
+prime founds, pushes, and discovers nothing. It contradicts
+`--remote`/`--center`/`--install` (each names a remote), refused at parse.
+
 ## Identity
 
 Every claim/close/prime is stamped with a worker identity from `--as ID`, else
@@ -89,7 +94,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. Run at session start, then `bl list`. |
+| `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. `--stealth` opts out of any store remote (store stays local). Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--to` the landing. Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |

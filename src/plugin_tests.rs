@@ -36,6 +36,7 @@ fn ctx() -> OpContext {
         actor: "me@example.com".into(),
         binding: Binding {
             remote: None,
+            stealth: false,
             tasks_branch: "balls/tasks".into(),
             store: "/store".into(),
             landing: "/landing".into(),
@@ -47,9 +48,7 @@ fn ctx() -> OpContext {
 }
 
 /// A frozen clock so a record's `ts` is stable.
-fn clk() -> i64 {
-    0
-}
+fn clk() -> i64 { 0 }
 
 /// A workspace: a bin dir for scripts, a cwd for the plugin, and the unified op
 /// log every dispatcher shares (threshold `Debug` so nothing is filtered out).

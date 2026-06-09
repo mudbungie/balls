@@ -87,7 +87,7 @@ fn fetch_config(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: 
 /// subprocess seam is constructed but never invoked.
 pub(crate) fn install_local(edge: &Edge, landing: &Path) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
-    let (binding, level) = checkout::bind(edge, landing, &clone.store(), None, None)?;
+    let (binding, level) = checkout::bind(edge, landing, &clone.store(), None, None, false)?;
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(edge.default_actor.clone(), binding), &log, edge.depth);
     let chain = install::Chain { plugins: &plugins, log: &log, pre: Vec::new(), post: Vec::new() };

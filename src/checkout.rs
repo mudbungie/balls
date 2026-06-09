@@ -40,7 +40,8 @@ use crate::wire::{Binding, OpContext};
 use std::io;
 use std::path::Path;
 
-/// `bl prime [--as ID] [--install CENTER]` — bring this checkout to readiness
+/// `bl prime [--as ID] [--install CENTER] [--stealth]` — bring this checkout to
+/// readiness
 /// (§12/§13). Bootstrap-on-miss founds the LANDING; the [`converge`] fixpoint
 /// materializes the store and runs the `prime` chain; THEN prime drives `sync` so
 /// an established checkout is brought current. Prime's binding already names the
@@ -59,6 +60,12 @@ use std::path::Path;
 /// the binding) unless an explicit `--remote` overrides it. Plain prime (no
 /// `--install`) never adopts foreign config nor activates code — the auto-safe
 /// every-session path holds.
+///
+/// `--stealth` is the §12 consent opt-out: the binding rides with `stealth` set
+/// and no remote (even the XDG one), so the tracker takes the same path the
+/// inferred no-remote case already takes — write the self-lock, found and push
+/// nothing. It contradicts `--remote`/`--center`/`--install` (each names a
+/// remote), refused at parse.
 pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_prime(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -73,7 +80,7 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
         adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
     }
     let remote = opts.remote.or(opts.install);
-    let (binding, level) = bind(edge, &landing, &store, remote, None)?;
+    let (binding, level) = bind(edge, &landing, &store, remote, None, opts.stealth)?;
     converge(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
@@ -127,7 +134,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     if opts.branch.as_deref() == Some("landing") {
         return Ok(());
     }
-    let (binding, level) = bind(edge, &landing, &store, None, opts.branch)?;
+    let (binding, level) = bind(edge, &landing, &store, None, opts.branch, false)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
@@ -140,14 +147,19 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// implicit remote (§0). `None` here is NOT stealth: it means "no EXPLICIT remote",
 /// and the binding carries `remote: None` to the tracker, which discovers the
 /// project-repo `origin` (the bottom §12 tier — remote-talk, so the tracker's
-/// alone). One landing config read serves both fields; [`binding`] assembles it.
-pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
+/// alone). `stealth` is `bl prime --stealth`'s explicit §12 opt-out: it rides the
+/// binding so the tracker skips that discovery, and — the CLI layer outranking
+/// config, §4 — drops even the XDG `remote` (the parse already forbids combining
+/// it with an explicit remote flag). One landing config read serves both fields;
+/// [`binding`] assembles it.
+pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>, stealth: bool) -> io::Result<(Binding, Level)> {
     let user_config = edge.xdg.user_config();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
-    let remote = cli_remote.or_else(|| crate::config::xdg_remote(&user_config));
+    let remote = cli_remote.or_else(|| crate::config::xdg_remote(&user_config)).filter(|_| !stealth);
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
-    let binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);
+    let mut binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);
+    binding.stealth = stealth;
     Ok((binding, level))
 }
 
@@ -181,6 +193,7 @@ fn is_landing(landing: &Path) -> bool {
 pub(crate) fn binding(landing: &Path, store: &Path, invocation: &Path, remote: Option<String>, tasks_branch: String) -> Binding {
     Binding {
         remote,
+        stealth: false, // only `bl prime --stealth` sets it, via [`bind`]
         tasks_branch,
         store: store.to_string_lossy().into_owned(),
         landing: landing.to_string_lossy().into_owned(),
@@ -195,24 +208,30 @@ struct SyncOpts {
 }
 
 /// Parsed `bl prime` flags: the resolved actor, the optional store-remote
-/// override that becomes the binding's explicit remote (over XDG, §12), and the
-/// optional `--install CENTER` that triggers config adoption (§13). `install`
-/// also seeds the remote when `remote` is unset (the center is where the adopted
+/// override that becomes the binding's explicit remote (over XDG, §12), the
+/// optional `--install CENTER` that triggers config adoption (§13), and
+/// `--stealth` — the §12 consent opt-out (no remote is founded, pushed, or even
+/// discovered; the tracker writes the self-lock instead). `install` also seeds
+/// the remote when `remote` is unset (the center is where the adopted
 /// `tasks_branch` lives), resolved in [`prime`].
 struct PrimeOpts {
     actor: String,
     remote: Option<String>,
     install: Option<String>,
+    stealth: bool,
 }
 
-/// Parse `bl prime [--as ID] [--remote URL] [--center URL] [--install CENTER]`.
-/// `--remote` and `--center` both name the store remote (the federation framing
-/// differs, the effect is one URL); `--remote` wins if both are given, whatever
-/// the order (`get_or_insert` lets a later `--center` fill an empty slot but never
-/// overwrite a `--remote`, which always assigns). `--install` names the center to
-/// adopt config from (§13). An unknown flag or positional is an error.
+/// Parse `bl prime [--as ID] [--remote URL] [--center URL] [--install CENTER]
+/// [--stealth]`. `--remote` and `--center` both name the store remote (the
+/// federation framing differs, the effect is one URL); `--remote` wins if both
+/// are given, whatever the order (`get_or_insert` lets a later `--center` fill an
+/// empty slot but never overwrite a `--remote`, which always assigns).
+/// `--install` names the center to adopt config from (§13). `--stealth` opts out
+/// of any store remote (§12) and so CONTRADICTS every flag that names one —
+/// fail loud, never pick a winner silently. An unknown flag or positional is an
+/// error.
 fn parse_prime(args: &[String], default_actor: &str) -> io::Result<PrimeOpts> {
-    let mut o = PrimeOpts { actor: default_actor.to_string(), remote: None, install: None };
+    let mut o = PrimeOpts { actor: default_actor.to_string(), remote: None, install: None, stealth: false };
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -223,9 +242,15 @@ fn parse_prime(args: &[String], default_actor: &str) -> io::Result<PrimeOpts> {
                 o.remote.get_or_insert(center);
             }
             "--install" => o.install = Some(value(args, &mut i, "--install")?),
+            "--stealth" => o.stealth = true,
             other => return Err(io::Error::other(format!("prime: unexpected argument '{other}'"))),
         }
         i += 1;
+    }
+    if o.stealth && (o.remote.is_some() || o.install.is_some()) {
+        return Err(io::Error::other(
+            "prime: --stealth contradicts --remote/--center/--install — stealth opts out of any store remote",
+        ));
     }
     Ok(o)
 }

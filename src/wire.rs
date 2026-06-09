@@ -23,11 +23,17 @@ use crate::task::Task;
 /// paths (§1 — the `tasks_branch` store and the `balls/config` landing);
 /// `tasks_branch` names the store branch (§4); `invocation_path` is where `bl`
 /// was invoked (the project-repo root the delivery plugin needs, §11). `remote`
-/// is absent in a no-remote (stealth) repo.
+/// is absent in a no-remote (stealth) repo. `stealth` is `bl prime --stealth`'s
+/// EXPLICIT §12 consent opt-out riding the wire so the tracker takes its stealth
+/// path even where a project `origin` is discoverable; `false` (the ordinary
+/// tracked or inferred case) is never serialized, so every existing payload
+/// shape is unchanged.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Binding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub stealth: bool,
     pub tasks_branch: String,
     pub store: String,
     pub landing: String,
