@@ -40,7 +40,7 @@ fn a_read_verb_renders_the_store_and_exits_zero() {
     let id = sole_task_id(&store(&tmp).join("tasks"));
     // The reads dispatch through `reads::run` against the store (the old `ready`
     // verb is now `list --status ready`, §9).
-    for a in [&["list"][..], &["list", "--status", "ready"], &["dep-tree"], &["show", &id]] {
+    for a in [&["list"][..], &["list", "--status", "ready"], &["show", &id]] {
         assert_eq!(run_in(&tmp, a), 0);
     }
     // A read before prime is empty (§13); a missing id errors.

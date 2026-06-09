@@ -24,7 +24,6 @@ pub enum Verb {
     // Reads (§9): author no diff; hook dirs only.
     Show,
     List,
-    DepTree,
     // Checkout lifecycle (§9/§13): act on the checkout, not a ball.
     Prime,
     Sync,
@@ -45,7 +44,7 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 11] = [
+    pub const ALL: [Verb; 10] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
@@ -53,7 +52,6 @@ impl Verb {
         Verb::Close,
         Verb::Show,
         Verb::List,
-        Verb::DepTree,
         Verb::Prime,
         Verb::Sync,
         Verb::Install,
@@ -69,7 +67,6 @@ impl Verb {
             Verb::Close => "close",
             Verb::Show => "show",
             Verb::List => "list",
-            Verb::DepTree => "dep-tree",
             Verb::Prime => "prime",
             Verb::Sync => "sync",
             Verb::Install => "install",
@@ -94,7 +91,6 @@ impl Verb {
             Verb::Close => "deliver the work and archive the task",
             Verb::Show => "show one task in full",
             Verb::List => "list tasks (status, tag, and date filters)",
-            Verb::DepTree => "show the parent/child tree with blocker edges",
             Verb::Prime => "ready this checkout (run at session start)",
             Verb::Sync => "pull the store from the remote",
             Verb::Install => "copy committed config/plugins between branches",
@@ -111,7 +107,6 @@ impl Verb {
             | Verb::Close => OpClass::Mutating,
             Verb::Show
             | Verb::List
-            | Verb::DepTree
             | Verb::Prime
             | Verb::Sync
             | Verb::Install => OpClass::Diffless,
@@ -162,8 +157,8 @@ mod tests {
 
     #[test]
     fn a_verb_serializes_as_its_token_and_round_trips() {
-        let token = toml::Value::try_from(Verb::DepTree).unwrap();
-        assert_eq!(token.as_str(), Some("dep-tree"));
+        let token = toml::Value::try_from(Verb::Unclaim).unwrap();
+        assert_eq!(token.as_str(), Some("unclaim"));
         let back: Verb = toml::Value::String("close".into()).try_into().unwrap();
         assert_eq!(back, Verb::Close);
     }
