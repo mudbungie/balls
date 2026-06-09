@@ -181,11 +181,11 @@ ready    bl-9419  Add login form  p2
 ## 11. Closed tasks reconstruct from history
 
 A closed task is *gone* from the live set (absence = resolved), but `show` and
-`list --closed/--all` reconstruct it from the most recent commit whose tree still
+`list -s closed/--all` reconstruct it from the most recent commit whose tree still
 held it — with its retirement derived from the deletion commit.
 
 ```console
-$ bl list --closed
+$ bl list -s closed
 closed   bl-9f1b  Wire auth backend  p1  @alice
 
 $ bl show bl-9f1b
