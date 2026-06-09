@@ -1,7 +1,8 @@
 +++
 title = "Forge review is a subtask, not a delivery variant: guard stays at stage, PR submission is git-native work"
 created = 1781043781
-updated = 1781043781
+updated = 1781043834
+claimant = "mark"
 priority = 2
 tags = ["design"]
 +++
