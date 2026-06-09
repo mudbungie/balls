@@ -2,6 +2,11 @@
 name = "balls"
 version = "0.4.2"
 edition = "2021"
+# MSRV: bound by `io::ErrorKind::ExecutableFileBusy` (src/plugin.rs),
+# stabilized in 1.83. Declared, not pinned via rust-toolchain — a floor for
+# consumers, not a ceiling on the build toolchain. Verified by clippy's
+# `incompatible_msrv` lint under the `check` gate.
+rust-version = "1.83"
 description = "Git-native task tracker for parallel agent workflows"
 license = "MIT"
 repository = "https://github.com/mudbungie/balls"
