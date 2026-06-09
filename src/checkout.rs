@@ -130,7 +130,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
-/// [`Level`]: the §12-resolved store remote, the `tasks_branch` (the `target`
+/// [`Level`]: the EXPLICIT-tier store remote, the `tasks_branch` (the `target`
 /// override, else the config-named one — §13 `bl sync <branch>`), the two checkout
 /// paths, and the `log_level` threshold (CLI override over config). `cli_remote` is
 /// the parsed `--remote`/`--center` override (prime; `None` for sync/mutate),
@@ -140,30 +140,23 @@ fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, t
     let user_config = edge.xdg.user_config();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
-    let remote = resolve_remote(cli_remote, landing, &user_config);
+    let remote = resolve_remote(cli_remote, &user_config);
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
     let binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);
     Ok((binding, level))
 }
 
-/// Resolve the store remote by the §12 precedence — an explicit CLI override
+/// Resolve the store remote from the EXPLICIT tiers ONLY (§12) — a CLI override
 /// (`--remote` > `--center`, already collapsed by the caller) beats the
-/// per-machine XDG `remote`, which beats auto-discovered `origin`. `None` ⇒ no
-/// remote resolved = stealth (the store stays local). Shared by every op's bind
-/// (prime/sync/mutate) so they agree on ONE upstream for `tasks_branch`.
-pub(crate) fn resolve_remote(cli: Option<String>, landing: &Path, user_config: &Path) -> Option<String> {
+/// per-machine XDG `remote`. Both are plain config reads; core never talks to a
+/// remote (§0). `None` here is NOT necessarily stealth: it means "no explicit
+/// remote", and core hands the tracker `remote: None`. The bottom §12 tier —
+/// implicit `origin` discovery — is the TRACKER's, not core's: it reads a git
+/// remote (`git remote get-url origin` on the PROJECT repo / invocation path),
+/// which is remote-talk, so it cannot live here. Shared by every op's bind
+/// (prime/sync/mutate) so they agree on the explicit upstream for `tasks_branch`.
+pub(crate) fn resolve_remote(cli: Option<String>, user_config: &Path) -> Option<String> {
     cli.or_else(|| crate::config::xdg_remote(user_config))
-        .or_else(|| origin_of(landing))
-}
-
-/// The auto-discovered store remote — `git remote get-url origin` on the landing,
-/// a LOCAL config read (no network). Absent origin (the common stealth case) ⇒
-/// `None`. The bottom of the [`resolve_remote`] precedence.
-fn origin_of(checkout: &Path) -> Option<String> {
-    match git::run(checkout, &["remote", "get-url", "origin"], None) {
-        Ok(url) => Some(url.trim().to_string()),
-        Err(_) => None,
-    }
 }
 
 /// Run the DIFFLESS chain for `op` (§13): resolve the plugin sets from the
