@@ -17,11 +17,10 @@
 "sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
 "install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize worktrees, then settle store content (fetch-ff + push)
-"claim.pre"    = ["bl-delivery"]              # stage the worktree-path field before the seal (§11)
-"claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
-"unclaim.pre"  = ["bl-delivery"]              # clear the worktree-path field in lockstep (§11)
+"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "tracker"]
+"show"         = ["bl-delivery"]              # read-op (§6, single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
 "drop.post"    = ["bl-delivery", "tracker"]

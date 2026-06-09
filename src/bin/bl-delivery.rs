@@ -8,7 +8,6 @@
 //! git seam); `main` only adapts the boundary, the way `bl` does.
 
 use std::env;
-use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 use std::process::exit;
@@ -61,17 +60,6 @@ fn run(args: &[String]) -> io::Result<()> {
     let branch = delivery::work_branch(&id);
     let rolling_back = wire.rolling_back.is_some();
 
-    // `claim.pre`/`unclaim.pre` stage/clear the worktree-path field in the change
-    // worktree's `tasks/<id>.md` so the seal captures it (§11). The read is lazy —
-    // every other hook returns `None` and never touches the file (close.post, e.g.,
-    // runs after the file is deleted).
-    let task_file = cwd.join("tasks").join(format!("{id}.md"));
-    if let Some(rewritten) =
-        delivery::stage_field(op, phase, rolling_back, &worktree, || fs::read_to_string(&task_file))?
-    {
-        fs::write(&task_file, rewritten)?;
-    }
-
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
     let subject = delivery::subject(title, &id);
     let marker = delivery::marker(&id);
@@ -82,22 +70,24 @@ fn run(args: &[String]) -> io::Result<()> {
         marker: &marker,
     };
     delivery::dispatch(op, phase, rolling_back, &repo, &spec)?;
-    // §11 HUMAN hint: on `claim.post` print the materialized worktree path on
-    // stdout, which balls forwards verbatim (§6). The authoritative machine read
-    // is the `delivery-worktree` frontmatter key staged at `claim.pre` (surfaced
-    // by `bl show --json`); this is the convenience companion for a person.
-    if op == "claim" && phase == "post" && !rolling_back {
-        println!("{}", worktree.display());
+    // §11 surfacing on stdout, forwarded/folded by balls (§6): `claim.post`
+    // prints the just-materialized path (the verb's one product); the `show`
+    // read-op prints the worktree field line for the named ball iff the worktree
+    // exists on this machine. Nothing is stored — the path is recomputed here.
+    if let Some(line) = delivery::surfaced(op, phase, rolling_back, &worktree, worktree.is_dir()) {
+        println!("{line}");
     }
     Ok(())
 }
 
 /// `prime.post` re-materialization (§11/§12): for every ball in the store
 /// checkout still claimed by the actor, run the same `materialize` act a
-/// `claim.post` would, behind the dispatch matrix. The claimed set replaces the
-/// single derived id; each worktree is recomputed from `(invocation, id)`, so a
-/// re-prime whose worktrees already exist is a no-op (create-if-absent). The
-/// store is the diffless cwd balls invokes us in (§13), not a wire field.
+/// `claim.post` would, behind the dispatch matrix — then PRINT each worktree's
+/// path (§11: prime is the resume moment, so it re-surfaces what claim printed).
+/// The claimed set replaces the single derived id; each worktree is recomputed
+/// from `(invocation, id)`, so a re-prime whose worktrees already exist is a
+/// no-op (create-if-absent). The store is the diffless cwd balls invokes us in
+/// (§13), not a wire field.
 fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> io::Result<()> {
     let store = env::current_dir()?;
     let rolling_back = wire.rolling_back.is_some();
@@ -106,6 +96,9 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
         let branch = delivery::work_branch(&id);
         let spec = Spec { worktree: &worktree, branch: &branch, subject: "", marker: "" };
         delivery::dispatch("prime", phase, rolling_back, repo, &spec)?;
+        if let Some(line) = delivery::surfaced("prime", phase, rolling_back, &worktree, worktree.is_dir()) {
+            println!("{line}");
+        }
     }
     Ok(())
 }

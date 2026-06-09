@@ -253,14 +253,13 @@ fn task_json_carries_the_machine_contract_fields() {
 #[test]
 fn task_json_round_trips_preserved_extras() {
     // Bedrock is LOSSLESS: a preserved (unknown) frontmatter key — a team's
-    // `state:`, or the delivery plugin's `delivery-worktree` (§11 — the
-    // consumer's authoritative read) — survives into `--json`, not just the
-    // canonical fields (§3, bl-d074).
+    // `state:`, a plugin's namespaced field (§3 seam) — survives into `--json`,
+    // not just the canonical fields (§3, bl-d074).
     let mut t = task("Title", 1_700_000_000);
-    t.extra.insert("delivery-worktree".into(), "/w/bl-1".into());
+    t.extra.insert("review-by".into(), "bob".into());
     t.extra.insert("state".into(), "in-review".into());
     let v = task_json("bl-1", &t);
-    assert_eq!(v["delivery-worktree"], "/w/bl-1");
+    assert_eq!(v["review-by"], "bob");
     assert_eq!(v["state"], "in-review");
     // ...and the canonical fields still ride alongside, uncollided.
     assert_eq!(v["id"], "bl-1");

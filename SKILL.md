@@ -26,10 +26,12 @@ the claim, **all edits go in that worktree**, never on `main` directly. Editing
 captures the worktree's diff, so a stray `main` edit is invisible to it — the
 task closes cleanly while leaving your change behind, undelivered.
 
-`bl claim` does not print the worktree path — read it from the task's stored
-`delivery-worktree` frontmatter key, which `bl show <id> --json` surfaces (bedrock
-`--json` is the lossless mirror of stored frontmatter, so every preserved key
-round-trips), or list it with `git worktree list` (the `work/<id>` line).
+`bl claim` prints the worktree path to **stdout** — the verb's one product, the
+way `create` prints the id — and `bl prime` re-prints the path of every task you
+still hold. `bl show <id>` (human view) also folds a `worktree` line in when the
+worktree exists on this machine. The path is computed, never stored: `bl show
+--json` stays the lossless mirror of stored frontmatter and never carries it (it
+is machine-local). `git worktree list` (the `work/<id>` line) is the git-side read.
 
 ## State lives outside the repo (XDG)
 
@@ -41,8 +43,8 @@ write them for you — but that is where `git log`/`git show` of task history
 lives. Your `work/<id>` code worktree lives in the delivery plugin's territory,
 `$XDG_STATE_HOME/balls/plugins/<delivery>/<project-path>/<id>/` — the project
 path **mirrored** (not percent-encoded) so it carries no `%`, which would break
-`cargo`/`rust-lld` linking in that build dir. Find it with `bl show <id> --json`
-(the `delivery-worktree` field) or `git worktree list`.
+`cargo`/`rust-lld` linking in that build dir. `bl claim`/`bl prime` print it;
+`bl show <id>` (human view) and `git worktree list` read it back.
 
 ## Session start
 
@@ -78,14 +80,14 @@ Have the harness pick a name at session start and pass it as `--as` /
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold. Prints no listing of its own. Run at session start, then `bl list`. |
+| `bl prime [--as ID] [--remote URL] [--install URL]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--to` the landing. Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. |
-| `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. |
+| `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree (prints its path), take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--edit] [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. `--edit` (human-only) sources the whole change from `$EDITOR` instead — see below. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
@@ -98,11 +100,13 @@ Have the harness pick a name at session start and pass it as `--as` /
 > **bedrock** projection (raw stored frontmatter, literal integer timestamps, no
 > derived fields), the supported machine contract.
 >
-> **Output streams:** `create` is the only verb that prints to **stdout** — the
-> minted id, alone, so `id=$(bl create "…")` captures it clean. Every other
-> mutating verb (`claim`/`unclaim`/`update`/`close`/`drop`) prints a terse
-> confirmation to **stderr**; stdout stays empty. The op log (JSON lines) is on
-> stderr too — redirect `2>/dev/null` for clean read-verb output.
+> **Output streams:** stdout carries a verb's one product and nothing else:
+> `create` prints the minted id (so `id=$(bl create "…")` captures it clean),
+> `claim` prints the worktree path, and `prime` prints the path of each
+> still-held task's worktree. Every other mutating verb
+> (`unclaim`/`update`/`close`/`drop`) prints nothing to stdout. The terse
+> confirmations and the op log (JSON lines) are on **stderr** — redirect
+> `2>/dev/null` for clean output.
 
 ## Status is derived, never stored
 

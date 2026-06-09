@@ -160,6 +160,32 @@ impl OpContext {
         }
         p
     }
+
+    /// Stamp the §6 READ-OP payload for `plugin_name`: the §7 wire minus the
+    /// task-op fields — no `command`, no states, no commit pair (a read authors
+    /// and seals nothing) — in the single phase `"read"` (a read has no
+    /// `pre`/`post` split). `metadata` carries the named ball's `bl-id`, the same
+    /// id channel a sealed post wire uses; there is still no return channel —
+    /// balls folds the plugin's stdout into the HUMAN render verbatim and parses
+    /// nothing back (§6/§7).
+    #[must_use]
+    pub fn read_wire<'a>(&'a self, plugin_name: &'a str, op: &'a str, metadata: &'a Metadata) -> Payload<'a> {
+        Payload {
+            protocol: crate::message::PROTOCOL,
+            op,
+            phase: "read",
+            plugin_name,
+            actor: &self.actor,
+            binding: &self.binding,
+            command: None,
+            current_state: None,
+            previous_state: None,
+            commit: None,
+            previous_commit: None,
+            metadata: Some(metadata),
+            rolling_back: None,
+        }
+    }
 }
 
 #[cfg(test)]
