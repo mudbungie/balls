@@ -69,7 +69,7 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
         return Ok(());
     };
     let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
-    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
+    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let log = Log::new(clone.op_log(), level, verb, log::wall);
     // A mutating op takes no `--remote`; core reads only the explicit XDG remote
     // (§0 stays local), and the tracker discovers the project `origin` when it is

@@ -143,7 +143,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
     let user_config = edge.xdg.user_config();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
-    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
+    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let remote = cli_remote.or_else(|| crate::config::xdg_remote(&user_config));
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
     let binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);

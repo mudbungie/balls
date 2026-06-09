@@ -62,7 +62,7 @@ pub fn adopt(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: &st
 /// prime, not `--install`.
 fn fetch_config(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: &str) -> io::Result<()> {
     let cfg = EffectiveConfig::resolve(landing, &edge.xdg.user_config())?;
-    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
+    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let binding = checkout::binding(landing, store, &edge.invocation_path, Some(center.to_string()), LANDING_BRANCH.to_string());
     let pre = Hooks::effective(landing, &edge.xdg.user_config())?
         .resolve(&Registry::at(landing), Verb::Install.token(), "pre");
