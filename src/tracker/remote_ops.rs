@@ -1,8 +1,10 @@
-//! §12/§13 remote ops: `sync` (import) and `push` (publish). The two halves of
-//! "the store syncs every op" — pull the remote balls branch in before an op,
-//! push the sealed result out after. Both are no-ops in a stealth (no-remote)
-//! repo: with no remote there is nothing to talk to, which is the structural
-//! opt-out (§12).
+//! §12/§13 remote ops: `sync` (import) and `push` (publish). `sync` imports on
+//! the explicit `bl sync` (and inside prime); `push` publishes after every
+//! mutating op. Currency is OPTIMISTIC (mutate → push, bl-336a): there is no
+//! pre-pull — a stale store surfaces atomically as the push's non-ff reject
+//! (E5), and recovery is `bl sync` + retry. Both are no-ops in a stealth
+//! (no-remote) repo: with no remote there is nothing to talk to, which is the
+//! structural opt-out (§12).
 
 use super::git::git;
 use super::payload::Binding;
@@ -55,9 +57,10 @@ pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::R
 /// an ESTABLISHED store (founding is `prime`'s alone, §12). A rejected push
 /// (non-ff, perms revoked mid-life, a server-hook reject) means the mutation did
 /// NOT land while the caller believes it is federated, so the non-zero exit
-/// ABORTS the op (the pull → mutate → push contract) — it is NEVER silently
-/// degraded to stealth, which would be split-brain (contrast `prime`'s
-/// founding-miss fallback, where nothing existed to land on).
+/// ABORTS the op (the push IS the optimistic mutate → push contention check;
+/// re-run after `bl sync`) — it is NEVER silently degraded to stealth, which
+/// would be split-brain (contrast `prime`'s founding-miss fallback, where
+/// nothing existed to land on).
 pub fn push(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
