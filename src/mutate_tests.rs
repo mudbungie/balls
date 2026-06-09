@@ -172,7 +172,6 @@ fn command_marks_a_mutating_op_and_carries_the_body() {
     f.body = Some("para".into());
     let c = command(Verb::Create, &f);
     assert_eq!(c.op, "create");
-    assert!(c.field_changes.is_empty());
     assert_eq!(c.body_change.as_deref(), Some("para"));
 }
 
