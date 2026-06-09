@@ -107,10 +107,10 @@ The human-facing output of `list`/`show`/`dep-tree` paints derived columns — t
 | `bl list [--status ready\|blocked\|claimed] [--closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `--closed`/`--all` reconstruct archived tasks from history. |
 | `bl show <id> [--json] [--verbose]` | Task detail. A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
-| `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [--as ID]` | File a task (alias `bl new`). Prints the new id. |
+| `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (alias `bl new`; `--body` sets the markdown body, `-m` the commit note). Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. (Find the worktree with `git worktree list` — the `work/<id>` line.) |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
-| `bl update <id> [--body B] [-p N] [-t TAG] [--needs ID[:OP]] [--no-needs ID] [key=value]` | Edit fields: title/body, priority, add tags, set preserved `key=value`. Edit this task's own blockers: `--needs` adds an edge, `--no-needs` unlinks one (the §10 in-band fix). `--parent` and reciprocal `--blocks` stay **create-only**. |
+| `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl install [PATH] [--from REF] [--to REF]` | Copy a committed config path between branches (adopt/publish plugin config). Bare = `config/` minus `tasks/`. |
@@ -226,7 +226,7 @@ Because state lives in XDG and the two branches are path-derived per checkout, m
 ## Removing or abandoning tasks
 
 - A task you decided against (dupe, stale): `bl drop <id>` if you hold it, else `bl close <id>` to archive without delivering code.
-- `update` **adds** (`-t`, `--needs`) or **sets** (`--body`/`-p`/`key=value`); its one remove flag is `--no-needs`, which unlinks one of this task's own blocker edges — the §10 in-band fix for a mis-wired or cyclic blocker (a blocker really blocks, so it must be removable without store surgery). `--parent` (containment) and reciprocal `--blocks` (an edge naming this task on another) stay create-only, as does clearing a scalar or removing a tag — for those, edit the store's `tasks/<id>.md`, commit on the store branch, and push (or let the next op's tracker push it).
+- `update` overwrites **every** ball field — no create-only split. It sets (`--title`/`--body`/`--parent`/`-p`/`-t`/`key=value`/`--needs`) and clears (`--no-parent`/`--no-priority` blank a scalar, `--no-tag`/`--no-needs` drop a member, a bare `key=` removes an extra) — so a mis-wired or cyclic blocker, a stale parent, or a wrong title is fixed in-band, never with store-file surgery. The lone create-only flag is reciprocal `--blocks` (an edge naming this task on ANOTHER task), since that is not this task's own field.
 
 ---
 

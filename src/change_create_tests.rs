@@ -18,8 +18,8 @@ fn create(id: &str, existing: Vec<String>) -> Create {
         tags: vec![],
         blockers: vec![],
         blocks: vec![],
-        over: None,
         body: None,
+        message: None,
         existing,
     }
 }
@@ -51,6 +51,20 @@ fn create_stages_a_new_ball_from_injected_id_clock_and_fields() {
     // --parent is CONTAINMENT only (§10/§15) — it mints NO reciprocal blocker.
     let parent = read_task(dir, "bl-1000").unwrap();
     assert!(parent.blockers.is_empty());
+}
+
+#[test]
+fn create_writes_the_ball_body_from_the_body_flag() {
+    // `--body` sets the ball's markdown body at create (no longer just a commit
+    // note); an absent `--body` leaves it empty.
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    let c = Create { body: Some("## Plan\nfirst step\n".into()), ..create("bl-bbbb", vec![]) };
+    c.stage(dir).unwrap();
+    assert_eq!(read_task(dir, "bl-bbbb").unwrap().body, "## Plan\nfirst step\n");
+    let bare = create("bl-cccc", vec![]);
+    bare.stage(dir).unwrap();
+    assert_eq!(read_task(dir, "bl-cccc").unwrap().body, "");
 }
 
 #[test]

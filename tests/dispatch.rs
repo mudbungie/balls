@@ -240,3 +240,49 @@ fn update_unlinks_a_blocker_so_a_wedged_claim_succeeds() {
     bl_primed(&project, &home, &state).args(["update", &b, "--no-needs", &a, "--as", "me"]).assert().success();
     bl_primed(&project, &home, &state).args(["claim", &b, "--as", "me"]).assert().success();
 }
+
+#[test]
+fn update_overwrites_every_field_end_to_end() {
+    // The create-only split is gone: title, body, and parent are all editable
+    // after the fact through the real CLI → engine → store round-trip (bl-9703).
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    git(&project, &["init", "-q", "-b", "main"]);
+    git(&project, &["config", "user.name", "test"]);
+    git(&project, &["config", "user.email", "test@example.com"]);
+    std::fs::write(project.join("seed.txt"), "x").unwrap();
+    git(&project, &["add", "-A"]);
+    git(&project, &["commit", "-qm", "seed"]);
+    bl_primed(&project, &home, &state).arg("prime").assert().success();
+
+    // `--body` sets the ball's markdown body at create (not a commit note).
+    let p = created_id(bl_primed(&project, &home, &state).args(["create", "Parent", "--as", "me"]).assert().success());
+    let id = created_id(
+        bl_primed(&project, &home, &state)
+            .args(["create", "Old title", "--body", "first draft", "--as", "me"])
+            .assert()
+            .success(),
+    );
+    bl_primed(&project, &home, &state).args(["show", &id]).assert().success().stdout(contains("first draft"));
+
+    // Retitle, rewrite the body, and reparent — all in one update.
+    bl_primed(&project, &home, &state)
+        .args(["update", &id, "--title", "New title", "--body", "rewritten", "--parent", &p, "--as", "me"])
+        .assert()
+        .success();
+    bl_primed(&project, &home, &state)
+        .args(["show", &id, "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"New title\"").and(contains(format!("\"{p}\""))));
+    bl_primed(&project, &home, &state).args(["show", &id]).assert().success().stdout(contains("rewritten"));
+
+    // `--no-parent` clears the pointer back to null (bedrock always emits the key).
+    bl_primed(&project, &home, &state).args(["update", &id, "--no-parent", "--as", "me"]).assert().success();
+    bl_primed(&project, &home, &state)
+        .args(["show", &id, "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"parent\": null"));
+}
