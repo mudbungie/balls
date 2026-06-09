@@ -93,15 +93,7 @@ $ bl show bl-9419 --json
 }
 ```
 
-## 5. The dependency tree — `bl dep-tree`
-
-```console
-$ bl dep-tree
-blocked  bl-9419  Add login form [needs bl-9f1b]
-ready    bl-9f1b  Wire auth backend
-```
-
-## 6. Core enforces blockers — claiming the blocked task is refused
+## 5. Core enforces blockers — claiming the blocked task is refused
 
 ```console
 $ bl claim bl-9419 --as alice
@@ -112,7 +104,7 @@ $ echo $?
 
 The refusal names the blocker, and nothing was mutated.
 
-## 7. Claim the ready backend — a `work/<id>` worktree appears
+## 6. Claim the ready backend — a `work/<id>` worktree appears
 
 `claim` prints `claim <id>` to stderr; the worktree path is *not* echoed. Find it
 with `git worktree list` — the `work/<id>` line.
@@ -134,7 +126,7 @@ $ bl show bl-9f1b --json | grep claimant
   "claimant": "alice",
 ```
 
-## 8. Do the work *in the worktree*, commit on `work/<id>`
+## 7. Do the work *in the worktree*, commit on `work/<id>`
 
 All edits go in the worktree, never on `main` directly — `bl close` delivers only
 the worktree's diff.
@@ -148,7 +140,7 @@ cbde171 auth backend: authenticate()
 d0a637d Initial commit
 ```
 
-## 9. Close — deliver + archive + tear down, in one move
+## 8. Close — deliver + archive + tear down, in one move
 
 ```console
 $ cd ~/acme            # back to the repo root
@@ -170,7 +162,7 @@ $ git worktree list | grep work/bl-9f1b || echo "(removed)"
 (removed)
 ```
 
-## 10. The dependency resolved — the form is now ready
+## 9. The dependency resolved — the form is now ready
 
 Closing the backend resolved the form's blocker. No status was ever written;
 readiness is recomputed.
@@ -180,7 +172,7 @@ $ bl list
 ready    bl-9419  Add login form  p2
 ```
 
-## 11. Closed tasks reconstruct from history
+## 10. Closed tasks reconstruct from history
 
 A closed task is *gone* from the live set (absence = resolved), but `show` and
 `list -s closed/--all` reconstruct it from the most recent commit whose tree still
@@ -201,7 +193,7 @@ closed   bl-9f1b  Wire auth backend
   tags     backend
 ```
 
-## 12. Release and abandon — `unclaim`, then `close`
+## 11. Release and abandon — `unclaim`, then `close`
 
 `unclaim` releases occupancy and the worktree, returning the task to **ready**.
 Abandoning is the composite: `unclaim` then `close` — the empty deliverable
