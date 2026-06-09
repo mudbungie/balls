@@ -8,6 +8,7 @@
 
 use super::*;
 use crate::edge::Edge;
+use crate::git;
 use crate::layout::Xdg;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
