@@ -22,7 +22,7 @@ fn parse_reads_each_op_phase_list_in_order() {
     assert_eq!(hooks.names("close", "post"), ["bl-delivery", "tracker"]);
     assert_eq!(hooks.names("create", "post"), ["tracker"]);
     // An un-wired op-phase is the empty list (run nothing).
-    assert!(hooks.names("drop", "post").is_empty());
+    assert!(hooks.names("update", "post").is_empty());
 }
 
 #[test]

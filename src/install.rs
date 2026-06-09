@@ -16,7 +16,7 @@
 //!
 //! - **Folder path = MIRROR.** The destination becomes byte-identical to the
 //!   source; entries the source lacks are DELETED (rsync `--delete`, NOT `cp`).
-//!   This is how a close/drop (a file deletion) PROPAGATES through `install tasks`
+//!   This is how a close (a file deletion) PROPAGATES through `install tasks`
 //!   — the resurrection problem dissolves by addressing, no tombstone needed.
 //! - **File / glob path = UNION.** Each source file is copied in, source wins on
 //!   overlap, the destination's other files are untouched. No conflict detection;

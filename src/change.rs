@@ -8,14 +8,14 @@
 //! an op — and the clock and minted id are injected, so authoring is pure and
 //! unit-testable on a plain temp dir.
 //!
-//! `claim`/`unclaim`/`close`/`drop` are NAMED specializations of `update` (§9):
+//! `claim`/`unclaim`/`close` are NAMED specializations of `update` (§9):
 //! [`Occupancy`] fixes `claimant` (claim carries two guards — the already-claimed
 //! refusal here, plus the §10 claim-blocker guard via [`crate::enforce`]),
 //! [`Retire`] stages the file DELETION, [`Update`] applies a generic
 //! [`FieldEdit`] list. Each mutating op runs the SAME op-keyed guard
 //! ([`crate::enforce::gate`], §10/§15) for its own verb — `claim`/`close` via
 //! their named [`crate::enforce::claim`]/[`crate::enforce::close`] spellings, the
-//! rest (`unclaim`/`update`/`drop`) directly — so a blocker on ANY op is honored.
+//! rest (`unclaim`/`update`) directly — so a blocker on ANY op is honored.
 //! They stay distinct ops because the op NAME is the §6 hook-dispatch key.
 //!
 //! The §10 guards run at [`BaseChange::stage`] — before the seal, so a refusal
@@ -195,12 +195,13 @@ impl BaseChange for Update {
 mod field;
 pub use field::FieldEdit;
 
-/// `close`/`drop` (§9): retire a ball — both stage the `tasks/<id>.md` DELETION;
-/// the only difference is intent, carried by the `bl-op` trailer (`verb`). The
+/// `close` (§9): retire a ball — stage the `tasks/<id>.md` DELETION. The
 /// `title` is captured before deletion so [`BaseChange::finalize`] can still
-/// render a §5 subject once the file is gone.
+/// render a §5 subject once the file is gone. Closing is the ONLY retirement:
+/// abandonment is the composite `unclaim` then `close` (the empty deliverable
+/// makes the delivery a no-op), so a `--blocks close` gate guards every way a
+/// ball can die.
 pub struct Retire {
-    pub verb: Verb,
     pub id: String,
     pub title: String,
     pub actor: String,
@@ -209,30 +210,21 @@ pub struct Retire {
 }
 
 impl Retire {
-    /// `close`: retire a delivered ball.
+    /// `close`: retire a ball.
     pub fn close(id: String, title: String, actor: String) -> Self {
-        Self { verb: Verb::Close, id, title, actor, message: None }
-    }
-
-    /// `drop`: abandon a ball.
-    pub fn drop(id: String, title: String, actor: String) -> Self {
-        Self { verb: Verb::Drop, id, title, actor, message: None }
+        Self { id, title, actor, message: None }
     }
 }
 
 impl BaseChange for Retire {
     fn stage(&self, dir: &Path) -> io::Result<()> {
         let task = read_task(dir, &self.id)?;
-        if self.verb == Verb::Close {
-            enforce::close(&task, &self.id, dir)?;
-        } else {
-            enforce::gate(&task, Verb::Drop, &self.id, dir)?;
-        }
+        enforce::close(&task, &self.id, dir)?;
         fs::remove_file(task_path(dir, &self.id))
     }
 
     fn finalize(&self, _dir: &Path) -> io::Result<String> {
-        commit_message(self.verb, &self.actor, &self.id, &self.title, self.message.as_deref())
+        commit_message(Verb::Close, &self.actor, &self.id, &self.title, self.message.as_deref())
     }
 }
 

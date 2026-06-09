@@ -1,5 +1,5 @@
-//! §9 deliverable-verb dispatch — `create`/`claim`/`unclaim`/`update`/`close`/
-//! `drop`, wired to the §8 engine. The MUTATING counterpart to [`crate::checkout`]
+//! §9 deliverable-verb dispatch — `create`/`claim`/`unclaim`/`update`/`close`,
+//! wired to the §8 engine. The MUTATING counterpart to [`crate::checkout`]
 //! (which wires the diffless `prime`/`sync`): these author a `tasks/<id>.md` diff
 //! and SEAL it, so they run the full Author → Pre → Seal → Post → Teardown shape
 //! against a change worktree off the STORE anvil
@@ -104,7 +104,7 @@ type Authored = (Box<dyn BaseChange>, Option<Task>);
 /// Author the verb's [`BaseChange`] from the parsed `flags` (see [`Authored`]).
 /// `now` is injected, so the change stays pure (it never reads a clock); the
 /// `editor` seam serves only `update --edit`. `Ok(None)` is `--edit`'s
-/// unchanged-buffer no-op — there is nothing to author. Only the six mutating
+/// unchanged-buffer no-op — there is nothing to author. Only the five mutating
 /// verbs reach here.
 fn base_change(
     verb: Verb,
@@ -163,11 +163,11 @@ fn base_change(
             let base = Update { id, actor, now, edits, message: flags.message.clone() };
             Ok(Some((Box::new(base), Some(before))))
         }
-        Verb::Close | Verb::Drop => {
+        Verb::Close => {
             build::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
-            let base = Retire { verb, id, title: before.title.clone(), actor, message: flags.message.clone() };
+            let base = Retire { id, title: before.title.clone(), actor, message: flags.message.clone() };
             Ok(Some((Box::new(base), Some(before))))
         }
         // The diffless verbs never reach run()'s mutating branch; reject defensively.
