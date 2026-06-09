@@ -177,7 +177,7 @@ balls/tasks    (the STORE — named by config.tasks_branch, shared, sync-transpo
 No archive directory. Closed/dropped balls **delete** their `tasks/<id>.md`; history lives in
 `git log` (`git log --diff-filter=D -- tasks/<id>.md`). The log is real, searchable CONTENT, always
 read most-recent-down: `bl show <id>` reconstructs a dead ball from history (§9), and `bl list
---closed/--all` reaches the dead set the same way. Closed tasks are older content, not tombstones —
+-s closed/--all` reaches the dead set the same way. Closed tasks are older content, not tombstones —
 the recency-resolution discipline (§ id generation) makes every id→content lookup one walk.
 
 ## §3 Task schema (one node type)
@@ -598,12 +598,14 @@ that carries the derived columns (the status ladder, the tree, ISO-8601 dates).
 It defaults to the live/open set (current `tasks/*.md`) and orders by `priority` ascending (absent
 last), then `created` ascending — the one ordering input (§3) drives every listing, so ready's
 ordering was never special. Filters COMPOSE (AND):
-- `--status ready|blocked|claimed` — the derived 3-state ladder (§3) as a predicate filter (a
-  space-separated value, not a bespoke boolean). `bl list --status ready` IS the old `bl ready`:
-  live + unclaimed + every claim-blocker resolved (§10), in the ordering above.
-- `--closed` / `--all` — reach DEAD balls. Closed/dropped balls are not gone, they are older content
-  (§2): they are reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down.
-  `--closed` = dead only; `--all` = live + dead.
+- `-s` / `--status ready|blocked|claimed|closed` — the §3 status ladder as a single predicate axis (a
+  space-separated value, not a bespoke boolean). The three LIVE rungs filter the live ladder;
+  `bl list -s ready` IS the old `bl ready`: live + unclaimed + every claim-blocker resolved (§10), in
+  the ordering above. The terminal rung `closed` has no live badge, so it INFERS the dead-set reach —
+  the live/history split is an implementation detail, not a second flag idiom.
+- `--all` — reach BOTH sets (live + dead). Closed balls are not gone, they are older content (§2):
+  reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down. `-s closed` = dead
+  only; `--all` = live + dead. (`-s closed` and `--all` both pick the dead set, so they don't combine.)
 - date/range, `--tag`, and text filters — applied uniformly to the (possibly history-served) set;
   date filters read the stored `created`/`updated` (and, for a dead ball, its deletion-commit date).
 
@@ -611,7 +613,7 @@ ordering was never special. Filters COMPOSE (AND):
 first; on a miss it walks `balls/tasks` history newest→oldest and reconstructs from the most recent
 commit whose tree still holds `tasks/<id>.md`, stopping at the FIRST hit (a dead ball renders with its
 retirement derived from the deletion's `bl-op:` trailer, §5). Closed tasks are searchable content, not
-tombstones — the same most-recent-down walk that `list --closed/--all` uses.
+tombstones — the same most-recent-down walk that `list -s closed/--all` uses.
 
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`** (§13, §6).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
@@ -1033,7 +1035,7 @@ create; reassignment is a create-only capability, so during claim/close it rides
 
 **Recency resolution (the unifying discipline).** Every id→content lookup is the same walk: live
 `tasks/<id>.md` first, else the most-recent-in-history incarnation, stop at the first hit (§2, §9 —
-`show` fallthrough, `list --closed/--all`). This DISSOLVES the id-reuse-vs-history concern: at most one
+`show` fallthrough, `list -s closed/--all`). This DISSOLVES the id-reuse-vs-history concern: at most one
 incarnation is ever live (the filesystem guarantees it), so a reused id unambiguously means "the
 current incarnation, or — if none is live — the most recent dead one." The which-version problem is
 solved by construction; the 4-hex space stays fine, no widened ids, no extra collision check.

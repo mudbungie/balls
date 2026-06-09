@@ -3,7 +3,7 @@
 //! `list` is the SINGLE listing verb (§9 — the old `bl ready` folded in as the
 //! `--status ready` filter). It defaults to the live/open set, optionally
 //! narrowed to one §3 status rung by `flags.status`, and reaches the dead set
-//! through `--closed`/`--all` (history-reconstructed, §9). Every row — live or
+//! through `--status closed`/`--all` (history-reconstructed, §9). Every row — live or
 //! dead — is then put through the compose-AND [`filter`]s and ORDERED the §10
 //! way: `priority` ascending (absent LAST), then `created` ascending, with id as
 //! a stable final tiebreak. Ordering is uniform — ready's order was never
