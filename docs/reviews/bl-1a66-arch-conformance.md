@@ -23,21 +23,26 @@ path the design goes to length to stage.
 | C1 | **critical** | §6 / §15 bl-7110 | Recursion cap *suppresses* plugins instead of *abort+rollback* — the exact disposition §15 retired | `src/plugin.rs:140-143,231-243` | ✅ FIXED (bl-abe5) |
 | M1 | **major** | §3 / §9 / §11 / §15 bl-934a,bl-d074 | `--json` bedrock drops `task.extra`; unknown preserved keys are invisible | `src/reads.rs:218-235` | ✅ FIXED upstream (bl-e582) |
 | M2 | **major** | §6 / §11 / §15 bl-934a | Worktree-path consumer surface entirely missing (no stdout print + core nulls plugin stdout) | `src/bin/bl-delivery.rs:20-25`, `src/plugin.rs:203` | ✅ FIXED (bl-abe5) |
-| M3 | **major** | §8 / §14 | Landing-sealing family (`install`) bypasses the engine seal/rollback spine | `src/lib.rs:183-186`, `src/adopt.rs:74-76,121-127` | ⏳ DEFERRED → bl-75f9 (design) |
+| M3 | **major** | §8 / §14 | Landing-sealing family (`install`) bypasses the engine seal/rollback spine | `src/lib.rs:183-186`, `src/adopt.rs:74-76,121-127` | ⏳ TRACKED → bl-f387 (wire `bl install` via Engine seal) |
 | M4 | **major** | §4 / §6 / §15 bl-8540 | `[hooks]` schedule does not layer like other config (no XDG overlay, no `_prepend/_append/_ban`) | `src/hooks.rs:55-68` | ✅ FIXED (bl-abe5) |
-| m1 | minor | §7 | Post-wire `current_state` (sealed after-state) never populated | `src/mutate.rs:71` | ⏳ DEFERRED → bl-667e (design) |
+| m1 | minor | §7 | Post-wire `current_state` (sealed after-state) never populated | `src/mutate.rs:71` | ✅ FIXED (bl-667e, strike) |
 | m2 | minor | §2 / §6 / §15 | Stale doc-comments asserting retired mechanisms as current | `src/plugin.rs:140,22-25`; `src/op.rs:19,23`; `src/lifecycle.rs:17,152,218`; `src/layout.rs:124-136` | ✅ FIXED (bl-abe5) |
 
-> **Resolution (bl-abe5, 2026-06-08).** Five of seven fixed: **C1** (cap now aborts
-> + emits an `error` record; the engine unwinds), **M2** (delivery prints the path
-> on `claim.post`; core forwards plugin stdout via `Stdio::inherit`), **M4**
-> (`Hooks::effective` layers landing ⊕ XDG `plugins.toml` through the shared
-> `config::layer_over`, so `_prepend/_append/_ban` compose), and **m2** (stale
-> doc-comments corrected). **M1** was independently fixed upstream by bl-e582
-> (`task_json` now projects `task.extra`). The two findings needing a design
-> decision are tracked: **M3** → bl-75f9 (install does not fit the Author-first
-> seal shape — fetch precedes the path-copy), **m1** → bl-667e (populate vs strike
-> the §7 field; striking touches the frozen spec).
+> **Resolution (bl-abe5 + bl-667e, 2026-06-08).** Six of seven fixed: **C1** (cap
+> now aborts + emits an `error` record; the engine unwinds), **M2** (delivery
+> prints the path on `claim.post`; core forwards plugin stdout via
+> `Stdio::inherit`), **M4** (`Hooks::effective` layers landing ⊕ XDG `plugins.toml`
+> through the shared `config::layer_over`, so `_prepend/_append/_ban` compose),
+> **m2** (stale doc-comments corrected), and **m1** (STRUCK from §7 by subtraction
+> — a `post` reactor derives the landed ball from git, not the wire; §14
+> derive-don't-store; §15 entry + `OpContext.after` removed). **M1** was
+> independently fixed upstream by bl-e582 (`task_json` now projects `task.extra`).
+> **M3** is tracked by **bl-f387** — wiring the standalone `bl install` verb
+> through the Engine seal (and converging `prime --install` onto it) resolves the
+> install seal/rollback spine; the Author-first ambiguity dissolves because
+> standalone install's `--from` is already synced (no fetch-before-copy), while
+> `prime --install` stays the fetch-then-install composition. (The earlier bl-75f9
+> was dropped as a duplicate of bl-f387.)
 
 ---
 

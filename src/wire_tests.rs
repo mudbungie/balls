@@ -9,7 +9,6 @@ use serde_json::Value;
 
 fn ctx() -> OpContext {
     let before = Task { title: "before".into(), ..Task::default() };
-    let after = Task { title: "after".into(), ..Task::default() };
     OpContext {
         actor: "me@example.com".into(),
         binding: Binding {
@@ -25,7 +24,6 @@ fn ctx() -> OpContext {
             body_change: Some("new body".into()),
         }),
         before: Some(before),
-        after: Some(after),
     }
 }
 
@@ -53,14 +51,15 @@ fn a_pre_payload_is_states_only_with_no_commit_or_id() {
 }
 
 #[test]
-fn a_post_payload_adds_commits_metadata_and_advances_the_state_pair() {
+fn a_post_payload_adds_commits_metadata_and_carries_the_op_start_state() {
     let c = ctx();
     let mut md = Metadata::new();
     md.insert("bl-id".into(), vec!["bl-1234".into()]);
     let facts = SealFacts { commit: "C1", previous_commit: "T0", metadata: Some(&md) };
     let v = json(&c.wire("tracker", "close", "post", Some(facts), None));
-    // post advances: current is the after-state, before slides to previous.
-    assert_eq!(v["current_state"]["title"], "after");
+    // post carries the op-start (before) state as previous_state; there is NO
+    // post current_state — the landed ball is derived from git (§14; bl-667e, §15).
+    assert!(v.get("current_state").is_none(), "post carries no after-state on the wire");
     assert_eq!(v["previous_state"]["title"], "before");
     assert_eq!(v["commit"], "C1");
     assert_eq!(v["previous_commit"], "T0");
