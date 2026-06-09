@@ -43,12 +43,6 @@ impl Git {
     pub fn at(checkout: &Path) -> Self {
         Self { checkout: checkout.to_path_buf() }
     }
-
-    /// Run `git -C <cwd> <args>` against the anvil — every method funnels its
-    /// failure path through the shared [`run`] plumbing.
-    fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
-        run(cwd, args, stdin)
-    }
 }
 
 /// Run `git -C <cwd> <args>`, optionally feeding `stdin`, returning stdout. A
@@ -84,29 +78,29 @@ pub(crate) fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<
 
 impl Anvil for Git {
     fn head(&self) -> io::Result<String> {
-        Ok(Self::run(&self.checkout, &["rev-parse", "HEAD"], None)?.trim().to_string())
+        Ok(run(&self.checkout, &["rev-parse", "HEAD"], None)?.trim().to_string())
     }
 
     fn open(&self, dir: &Path) -> io::Result<()> {
-        Self::run(&self.checkout, &["worktree", "add", "--detach", &dir.to_string_lossy(), "HEAD"], None)?;
+        run(&self.checkout, &["worktree", "add", "--detach", &dir.to_string_lossy(), "HEAD"], None)?;
         Ok(())
     }
 
     fn seal(&self, dir: &Path, message: &str) -> io::Result<String> {
-        Self::run(dir, &["add", "-A"], None)?;
-        Self::run(dir, &["commit", "-F", "-"], Some(message))?;
-        let sha = Self::run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
-        Self::run(&self.checkout, &["merge", "--ff-only", &sha], None)?;
+        run(dir, &["add", "-A"], None)?;
+        run(dir, &["commit", "-F", "-"], Some(message))?;
+        let sha = run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
+        run(&self.checkout, &["merge", "--ff-only", &sha], None)?;
         Ok(sha)
     }
 
     fn unseal(&self, sha: &str) -> io::Result<()> {
-        Self::run(&self.checkout, &["reset", "--hard", sha], None)?;
+        run(&self.checkout, &["reset", "--hard", sha], None)?;
         Ok(())
     }
 
     fn close(&self, dir: &Path) -> io::Result<()> {
-        Self::run(&self.checkout, &["worktree", "remove", "--force", &dir.to_string_lossy()], None)?;
+        run(&self.checkout, &["worktree", "remove", "--force", &dir.to_string_lossy()], None)?;
         Ok(())
     }
 }
