@@ -436,9 +436,11 @@ a list property, not an `NN-` filename convention faking one.
 [hooks]
 "sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
-"prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees + print their paths
+"install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
+"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
 "claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "tracker"]
+"show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
 "drop.post"    = ["bl-delivery", "tracker"]
@@ -513,8 +515,10 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   as a sandbox or trust boundary.
 - **Snapshot:** an op reads the effective `[hooks]` schedule at op-start and uses that frozen set;
   an install landing mid-op affects only the next op.
-- **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key; reads stay
-  plugin-free in PRACTICE only because nothing is listed for them by default.
+- **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key, and the default
+  schedule USES one: `show` lists the delivery plugin (the §11 worktree-path fold into the human
+  render — the bl-0af4 read-op dispatch). The other reads (`list`, `dep-tree`) stay plugin-free in
+  PRACTICE only because nothing is listed for them by default.
 
 ## §7 Plugin wire payloads
 
@@ -610,7 +614,7 @@ The canonical task-op sequence (verb-agnostic):
 Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`, `drop`.**
 There is **no `review` verb** — see "close" below.
 
-Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep tree`.**
+Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep-tree`.**
 (There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10.) They
 author no ball-file diff; their whole contribution is what the hook chain prints (§7). `--json` on any
 read verb is the lossless **bedrock** projection — raw stored fields only, no derived value (the
@@ -675,7 +679,16 @@ reciprocal `--blocks` (an edge naming this task on ANOTHER), since that is not t
 A blocker that really blocks must be removable in-band — no store-file surgery — and the same holds
 for a stale parent, a wrong title, or a leftover scalar. (No status to set — that field doesn't
 exist, §3; a team's opt-in
-`state:` key, being an unknown preserved field, rides through `update` like any other.) balls stages
+`state:` key, being an unknown preserved field, rides through `update` like any other.)
+**`--edit`** is the HUMAN projection of the same update (bl-e196): render the stored `tasks/<id>.md`
+to a temp buffer, block on `$EDITOR` (else `$VISUAL`), parse-validate the saved buffer as a whole
+ball, and hand it to the SAME update seal — never a new verb, never an unvalidated commit (a buffer
+that won't parse re-edits or aborts; an unchanged buffer is a no-op). Mutually exclusive with the
+field flags (they would race over one payload) and interactive-only — a non-tty stdin or an unset
+editor is an ERROR, not a fallback, so agents stay on the flag-driven path. The id is the path and
+`created` is history, so neither is hand-editable; `updated` is restamped by the seal. Both `create`
+and `update` honor a **`--` end-of-options separator** (the getopt convention, bl-d31f), so an
+untrusted `-`-leading positional cannot hijack a flag: `bl create -- "$TITLE"`. balls stages
 the edit; `update.pre` may reject/adjust; seal; `update.post` reactors propagate (the tracker pushes;
 an external-mirror plugin reflects the new title). claim / unclaim / close / drop are NAMED
 specializations of `update` (they fix specific fields and, for close/drop, stage a deletion) — kept
@@ -918,7 +931,14 @@ cannot tell which ran, so re-running prime is never an error (no `--reinit`).
 Core only (a) ensures the landing + store substrate and (b) runs the configured plugin chain, then
 commits — it has zero knowledge of tracker/remotes/stealth. **The local-miss branch SEEDS a fresh
 landing by copying the app-level `default-config/` folder (§1) into `balls/config`** (`git init` if no
-repo; one commit). The seed is where the tracker + delivery + builtin plugin wiring comes from — so
+repo; one commit). The copy is not byte-blind: `balls.toml` travels verbatim, but the seeded
+`plugins.toml` is written with each named plugin BOUND to its sibling binary beside `bl` and every
+entry whose binary is absent PRUNED (`src/seed.rs`) — so a tracker-less or test box seeds a schedule
+it can actually run instead of aborting on first dispatch. The prune is seed-time only: §6's dangling
+`bin/<name>` "referenced but not installed here" clean error still governs an ESTABLISHED landing
+whose schedule names an uninstalled plugin (e.g. wiring that arrived by `install`); re-prime never
+prunes a committed schedule, it only re-derives the gitignored `bin/` symlinks. The seed is where the
+tracker + delivery + builtin plugin wiring comes from — so
 `prime`'s `prime/pre`/`prime/post` run the plugins NOW IN THE LANDING LIST (there are no run-time
 defaults, §0/§4); on an established landing the seed step is a no-op (config already present). **The
 store is NOT founded with the landing — it is materialized LAZILY inside `prime`'s fixpoint (bl-0a23,
@@ -1145,8 +1165,13 @@ converging predicate.
   foreign config or activates third-party code. Adopting is the deliberate `install` (§6).
   **`prime --install <center>`** is the one-command first-contact / re-adopt: prime ensures the local
   substrate, `install` copies the center's config + plugin wiring into the landing (§6, consent-gated),
-  and a final prime brings the just-adopted `tasks_branch` to readiness. It is a SINGLE hop, not a
-  walk: a center's config is self-contained — it names its own `tasks_branch` (the one config→store
+  and a final prime brings the just-adopted `tasks_branch` to readiness. The center's config gets here
+  the way all remote bytes do — the TRACKER, never core, does the fetch, wired on the default
+  schedule's `install.pre` hook (§6 table): it fetches the center's `balls/config` into the landing's
+  `FETCH_HEAD` (a git-standard ref, no invented core↔plugin convention), where the install path-copy
+  reads it. A READ only — never a push to the center (publishing is `install --to`); stealth (no
+  remote) is a no-op. Remote-talk stays plugin-exclusive (§0) even inside the fused verb. It is a
+  SINGLE hop, not a walk: a center's config is self-contained — it names its own `tasks_branch` (the one config→store
   indirection, §4), never another config to chase — so there is no chain to recurse. (The older
   recursive multi-hop form was a config-*trail* artifact, retired with config-shadowing: §4/§12 —
   config crosses a checkout boundary exactly ONCE, by explicit install.) Each install is idempotent,
@@ -1289,6 +1314,46 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **spec drift sweep — the CODE is the conformant side throughout (2026-06-09, bl-3911 —
+  post-freeze).** A doc-only audit of places where shipped code and this spec had silently diverged;
+  every correction re-derives the spec text from the build (`default-config/plugins.toml`,
+  `src/seed.rs`, `src/verb.rs`). (1) §6's default hooks table had drifted from the seed by THREE rows:
+  `prime.post` is `[bl-delivery, tracker]` — §12's own "prime/post settles the CONTENT (fetch-ff +
+  push)" (bl-0a23) REQUIRES the tracker there, but bl-0a23's entry touched §12/§13 and never the
+  table; `install.pre = [tracker]` (the §13 config fetch) was missing entirely; `show = [bl-delivery]`
+  (the bl-0af4 read-op dispatch) was missing. Table now mirrors the seed verbatim. (2) §6's "reads
+  stay plugin-free in PRACTICE only because nothing is listed for them by default" was FALSE since the
+  `show` wiring shipped — reworded: the default schedule uses the `show` key; `list`/`dep-tree` are
+  the ones nothing lists. (3) §12 specced seeding as a pure copy of `default-config/`, but
+  `src/seed.rs` PRUNES hook entries whose binary is absent beside `bl` before committing (a
+  tracker-less/test box never aborts) — defensible, now specced, with the boundary drawn: the prune is
+  seed-time only; §6's dangling-`bin/` clean error still governs an established landing, and re-prime
+  rebinds symlinks but never rewrites the committed schedule. (4) §13's `prime --install` prose never
+  said HOW the center's config is fetched — added: the tracker's `install.pre` hook fetches
+  `balls/config` into the landing's `FETCH_HEAD`, a read only, stealth no-op (matching
+  `src/tracker/remote_ops.rs::fetch_config`). (5) Cosmetic: §9 spelled the verb `dep tree`; the token
+  is `dep-tree` (`src/verb.rs`). And two §15 entries now carry the SUPERSEDED markers later entries
+  had earned: bl-7d46(5)'s "`NN-` prefix is already the structural lever" (retired by bl-8540's list
+  ordering) and the config/store split's "recursive `prime --install`" (retired by bl-7d46(1)'s
+  single hop). Touched §6 (table + reads bullet), §9 (verb spelling; the bl-e196/bl-d31f entries below
+  are this sweep's too), §12 (seed prune), §13 (install.pre fetch), §15 (two markers). Doc only — no
+  code follow-up. Tracked under bl-72a8.
+- **`update --edit` — the $EDITOR-sourced whole-buffer update; no new verb (2026-06-09, bl-e196,
+  commit f5a92250 — post-freeze; shipped silent, recorded by bl-3911).** §9 gained the HUMAN
+  projection of `update`: `--edit` renders the stored `tasks/<id>.md` to a temp buffer, blocks on
+  `$EDITOR` (else `$VISUAL`), parse-validates the saved buffer as a whole ball (re-edit or abort on a
+  parse failure — garbage is never committed; an unchanged buffer is a no-op), and hands it to the
+  EXISTING update seal — never a new verb, never an unvalidated commit. Mutually exclusive with the
+  field flags (they would race over one payload); interactive-only — non-tty stdin or unset editor is
+  an ERROR, not a fallback, so agents keep the flag-driven path. The id is the path and `created` is
+  history (neither hand-editable); `updated` is restamped by the seal. Touched §9 (update prose).
+  Code: `src/mutate_edit.rs` (+ `mutate`/`mutate_build`/`change_field`). Tracked under bl-72a8.
+- **`--` end-of-options separator on create/update (2026-06-09, bl-d31f, commit 087ac06f —
+  post-freeze; shipped silent, recorded by bl-3911).** The §9 front-door parser honors the getopt
+  `--` convention: everything after it is positional, so a caller passing an untrusted `-`-leading
+  title cannot have it parsed as a flag — `bl create -- "$TITLE"`. Glued-short expansion (bl-d165)
+  stops at the separator too: beyond it nothing is a flag, so nothing unglues. Touched §9 (update
+  prose, alongside `--edit`). Code: `src/mutate_args.rs`. Tracked under bl-72a8.
 - **`command` carries no `field_changes` — strike the never-populated changeset (2026-06-09, bl-3bfd —
   post-freeze, surfaced by the bl-004c minimalism review, cross-referenced by the bl-1a66 arch
   review).** §7's pre payload described `command` as `op` + intended `field_changes` + `body_change`,
@@ -1584,7 +1649,9 @@ RESOLVED (folded into the body, no longer open):
   (5) Soft spots made structural where cheap: landing single-owner is now "balls cannot publish it"
   (only the tracker pushes, only `tasks_branch`; raw `git push` by hand is the only residue, §4);
   `install`'s folder=wipe blast radius is mitigated by an `N added/M deleted` summary + git-recoverable
-  commit, not a flag (§6); §14 sort-last left as-is (the `NN-` prefix is already the structural lever).
+  commit, not a flag (§6); §14 sort-last left as-is (the `NN-` prefix is already the structural lever)
+  [SUPERSEDED 2026-06-07 by bl-8540, entry above — the `NN-` filename registry retired into the
+  `[hooks]` list; sort-last's structural lever is now LIST POSITION (the last name runs last)].
   (6) §3/§10 blocker model — generalized + de-conflated (the late-subtask "gap" was a mis-frame, not a
   missing invariant). `on` is now ANY op (claim/close sugared, §3), and **containment is fully separate
   from blocking**: `--parent` sets the tree pointer ONLY and gates nothing; blocking is always explicit
@@ -1620,7 +1687,9 @@ RESOLVED (folded into the body, no longer open):
   (§1), so tracker/delivery/builtin plugins are ordinary landing entries — swap the folder to swap the
   default set (policy in config, not core code). (6) standard case (seeded default `origin` +
   `balls/tasks`) works `prime; list` out of the box; non-default needs `install` (or recursive
-  `prime --install`, stop-on-revisit); a tracker WARNING (not silence) fires when landing is on the
+  `prime --install`, stop-on-revisit) [SUPERSEDED 2026-06-06 by bl-7d46(1), entry above —
+  `prime --install` is a SINGLE hop (prime → install → prime), never recursive; a center's config is
+  self-contained, no chain to walk]; a tracker WARNING (not silence) fires when landing is on the
   seeded default but `origin:balls/config` names another store. (7) implicit founding is fine (bare
   prime create+push; `--stealth` opts out; no-perms → stealth fallback). Footprint cost = +1 (cheap,
   local) ref; mechanism deleted >> ref added. Reuse of one branch for both roles is legal
