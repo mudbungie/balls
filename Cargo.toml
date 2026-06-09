@@ -13,7 +13,7 @@ repository = "https://github.com/mudbungie/balls"
 readme = "README.md"
 keywords = ["git", "task-tracking", "agent", "workflow", "cli"]
 categories = ["development-tools", "command-line-utilities"]
-exclude = [".balls", "scripts", "tests"]
+exclude = ["scripts", "tests"]
 
 [lib]
 name = "balls"
@@ -45,7 +45,7 @@ serde_json = "1"
 # dep, NOT std-replaceable: std exposes no portable entropy source, and a
 # SystemTime/PID substitute is predictable + collision-prone, defeating the
 # unbiased rejection-sampling id mint. Demarcated, not removed (footprint rule).
-getrandom = "0.2"
+getrandom = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
