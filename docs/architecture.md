@@ -1260,8 +1260,11 @@ RESOLVED (folded into the body, no longer open):
   discovers `origin` from the invocation path as its single shared fallback (not re-probed per handler).
   Folded into §12 (the "standard case" bullet gains the origin-source + ownership clarification). The
   code drift predates bl-0a23 (came in with `resolve_remote`, bl-cd21). The move into the tracker LANDED
-  (bl-a476): `checkout::resolve_remote` dropped its `origin` tier + landing param (core resolves the
-  explicit tiers ALONE, hands `remote: None` otherwise); the tracker discovers `origin` in ONE place —
+  (bl-a476, cleanup bl-e060): core's `resolve_remote` is GONE — with the `origin` tier removed it was a
+  bare explicit-config read, so it dissolved to the call sites (`bind` reads `cli.or(xdg_remote)`, a
+  mutate op reads `xdg_remote` directly), making "core only reads explicit config, never resolves a
+  remote" structural; core hands the tracker `remote: None` otherwise. The tracker discovers `origin` in
+  ONE place —
   its `handle` dispatch point resolves the effective remote once (explicit binding `remote`, else
   `git remote get-url origin` on `invocation_path`) and writes it back onto the binding, so every handler
   reads `binding.remote` unchanged and the stealth gate ("no remote ⇒ no-op") now means "no explicit
