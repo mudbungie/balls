@@ -1,9 +1,11 @@
 +++
 title = "github-issues adoption: stamp the [bl-xxxx] marker, not a per-machine join store (fix bl-2a81 federation hole)"
 created = 1780965724
-updated = 1780965724
+updated = 1780966680
+claimant = "Strictly"
 parent = "bl-1280"
 priority = 4
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-0ef9"
 +++
 Rework github-issues legacy-adoption (bl-2a81, plugin main 64a76b4) to stamp the `[bl-xxxx]` issue-title MARKER instead of seeding a per-machine join store.
 
