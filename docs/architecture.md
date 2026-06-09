@@ -1600,12 +1600,15 @@ local gitignored `bin/<name>`, and each `config_file`'s content → `config/plug
 
 **Plugin state (the per-plugin half).** Legacy plugin state lived inline in core
 (`external.<plugin>.*`, `synced_at.<plugin>`). The base migrator DROPS it; the plugin's greenfield
-port re-adopts. Worked example — **github-issues**: it keyed task↔issue ONLY by core
-`external.github-issues.issue.number`, so a naive drop would unmatch on the next sync. Its port's
-one-time adoption seeds `plugins/github-issues/<id>/` (§14 scratch) from the old number, so the next
-`sync` re-adopts the existing issue with ZERO dup. Skip the adoption and the cost is bounded — ONE
-dup per task on first sync (the plugin re-records and stabilizes; never runaway) — which is the
-accepted floor of migrate-clean-or-delink, not a failure.
+port re-adopts. Worked example — **github-issues**: its greenfield join SSOT is the `[bl-xxxx]`
+marker on the issue *title* (its territory base is only a rebuildable sync-cache), but legacy issues
+carry no marker, so a naive drop would unmatch on the next sync. Its port's one-time adoption amends
+the SSOT directly: online, it appends `[bl-id]` to each legacy issue's title from the old
+`external.github-issues.issue.number` (one PATCH per issue), so the next `sync` re-adopts via the
+marker with ZERO dup. Because the marker is on GitHub, EVERY clone joins from it — federation needs no
+per-machine state, and a clone that never ran the adoption still re-adopts with no dup. Skip the
+adoption entirely and the cost is bounded — ONE dup per task on first sync (the plugin re-records and
+stabilizes; never runaway) — the accepted floor of migrate-clean-or-delink, not a failure.
 
 **Branch & history.** Greenfield uses TWO branches — `balls/config` (landing) + `balls/tasks` (store);
 legacy used `balls/tasks` for the JSON store, so the store branch NAME collides. The script writes a
