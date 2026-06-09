@@ -1,9 +1,11 @@
 +++
 title = "Amend §11/§15: worktree path computed-not-stored — delete delivery-worktree field; delivery compute-and-prints + read-op dispatch; plugins may run on read ops"
 created = 1781030304
-updated = 1781030320
+updated = 1781030321
+claimant = "Sultans"
 priority = 1
 tags = ["design"]
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-0af4"
 +++
 Supersedes the 2026-06-07 bl-934a(1) decision (stage delivery-worktree as a frontmatter field, read via show --json).
 
