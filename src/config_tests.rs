@@ -149,3 +149,20 @@ fn list_directive_splits_known_suffixes_only() {
     assert!(list_directive("tags").is_none()); // plain key
     assert!(list_directive("_append").is_none()); // bare suffix, empty field
 }
+
+#[test]
+fn xdg_remote_reads_the_user_layer_remote_else_none() {
+    // The §12 EXPLICIT remote tier core reads (over which the tracker discovers
+    // `origin`): the per-machine XDG user layer's `remote` key, or `None`.
+    let tmp = TempDir::new().unwrap();
+    // A user layer naming a remote → Some.
+    let with = tmp.path().join("with.toml");
+    fs::write(&with, "remote = \"git@hub:xdg\"\n").unwrap();
+    assert_eq!(xdg_remote(&with).as_deref(), Some("git@hub:xdg"));
+    // A user layer present but with no `remote` key → None.
+    let without = tmp.path().join("without.toml");
+    fs::write(&without, "log_level = \"info\"\n").unwrap();
+    assert_eq!(xdg_remote(&without), None);
+    // No user layer file at all → None.
+    assert_eq!(xdg_remote(&tmp.path().join("absent.toml")), None);
+}

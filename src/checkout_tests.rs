@@ -119,25 +119,6 @@ fn prime_accepts_the_remote_override_flags() {
 }
 
 #[test]
-fn resolve_remote_prefers_cli_then_xdg_then_none() {
-    // Core resolves only the EXPLICIT tiers (§12): `--remote`/`--center` (CLI) >
-    // XDG `remote`. Implicit `origin` discovery is the TRACKER's, not core's (§0)
-    // — so `None` here means "no explicit remote", and core hands the tracker a
-    // `remote: None` binding for it to discover the project origin off.
-    let tmp = TempDir::new().unwrap();
-    let xdg = tmp.path().join("config.toml");
-    std::fs::write(&xdg, "remote = \"git@hub:xdg\"\n").unwrap();
-
-    // CLI override beats XDG.
-    assert_eq!(resolve_remote(Some("git@hub:cli".into()), &xdg).as_deref(), Some("git@hub:cli"));
-    // No CLI → XDG.
-    assert_eq!(resolve_remote(None, &xdg).as_deref(), Some("git@hub:xdg"));
-    // No CLI, no XDG file → None (core resolves no implicit origin).
-    let none = tmp.path().join("absent.toml");
-    assert_eq!(resolve_remote(None, &none), None);
-}
-
-#[test]
 fn sync_rejects_unknown_flags_and_a_second_branch() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
