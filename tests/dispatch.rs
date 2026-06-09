@@ -1,6 +1,6 @@
 //! End-to-end harness: build the `bl` binary and run it from a throwaway temp
 //! directory, never against the dev repo's own task list. The read verbs
-//! (`show`/`list`/`ready`/`dep-tree`, §9) render the store; the
+//! (`show`/`list`, §9) render the store; the
 //! checkout-lifecycle verbs (`prime`/`sync`/`install`, §6/§12/§13) and the
 //! deliverable verbs (`create`/`claim`/`close`, §9) run the real engine + the
 //! shipped `tracker` sibling end to end.
@@ -73,7 +73,7 @@ fn an_unknown_verb_exits_with_a_usage_error() {
 #[test]
 fn help_prints_the_command_directory_to_stdout() {
     // `bl help` → the terse directory (verb tokens) on stdout, exit 0.
-    let dir = contains("create").and(contains("dep-tree")).and(contains("skill")).and(contains("usage: bl"));
+    let dir = contains("create").and(contains("unclaim")).and(contains("skill")).and(contains("usage: bl"));
     bl(&TempDir::new().unwrap()).arg("help").assert().success().stdout(dir);
 }
 
