@@ -149,14 +149,18 @@ pub(super) fn forbid_removals_on_create(flags: &Flags) -> io::Result<()> {
     if flags.no_parent || flags.no_priority || !flags.no_tags.is_empty() || !flags.no_needs.is_empty() {
         return Err(other("create: --no-* removal flags are only for update — a fresh ball has nothing to remove"));
     }
+    if flags.edit {
+        return Err(other("create: --edit is update-only — a fresh ball has no stored buffer to edit"));
+    }
     Ok(())
 }
 
-/// The occupancy/retire verbs (`claim`/`unclaim`/`close`/`drop`) shape no ball
-/// fields: reject every field-edit flag. Only the id, `--as`, and the `-m`
-/// commit narration are accepted.
-pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
-    let shaping = flags.title.is_some()
+/// Does any field-setting flag carry a value? The shared predicate behind
+/// [`forbid_shaping`] (verbs that shape nothing) and [`forbid_fields_with_edit`]
+/// (`--edit` shapes everything at once); `--edit` itself is deliberately not in
+/// here — it is the OTHER side of the either/or.
+fn shapes(flags: &Flags) -> bool {
+    flags.title.is_some()
         || flags.body.is_some()
         || flags.parent.is_some()
         || flags.no_parent
@@ -166,9 +170,25 @@ pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
         || !flags.needs.is_empty()
         || !flags.no_needs.is_empty()
         || !flags.tags.is_empty()
-        || !flags.no_tags.is_empty();
-    if shaping {
+        || !flags.no_tags.is_empty()
+}
+
+/// The occupancy/retire verbs (`claim`/`unclaim`/`close`/`drop`) shape no ball
+/// fields: reject every field-edit flag — `--edit` (the whole-buffer shape)
+/// included. Only the id, `--as`, and the `-m` commit narration are accepted.
+pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
+    if shapes(flags) || flags.edit {
         return Err(other(format!("{}: takes no field edits — only the id, --as, and -m", verb.token())));
+    }
+    Ok(())
+}
+
+/// `update --edit` and the field-setting flags would race over the same payload
+/// (the buffer vs the flag values), so they are a clean either/or (§9): set
+/// fields OR hand-edit, never both.
+pub(super) fn forbid_fields_with_edit(flags: &Flags) -> io::Result<()> {
+    if shapes(flags) {
+        return Err(other("update: --edit and the field flags are mutually exclusive — hand-edit OR set fields"));
     }
     Ok(())
 }

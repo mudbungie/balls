@@ -17,6 +17,15 @@ fn flags() -> Flags {
     Flags { actor: "me".into(), ..Flags::default() }
 }
 
+/// [`super::base_change`] with a detached editor seam — the flag-driven paths,
+/// which never no-op. Shadows the real fn so the per-verb tests stay
+/// signature-stable; the `--edit` interaction is exercised in
+/// [`crate::mutate::edit`]'s own tests.
+fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<Authored> {
+    super::base_change(verb, store, flags, now, &mut edit::Editor::detached())
+        .map(|authored| authored.expect("flag-driven authoring never no-ops"))
+}
+
 /// Write `tasks/<id>.md` under `dir`.
 fn write(dir: &Path, id: &str, md: &str) {
     let tasks = dir.join("tasks");
@@ -40,6 +49,7 @@ fn parse_collects_every_flag_and_positional() {
             "the-id", "k=v", "--as", "ann", "-m", "note", "--body", "para", "--title", "New",
             "--parent", "bl-p", "--no-parent", "--blocks", "bl-g:close", "--needs", "bl-n",
             "--no-needs", "bl-rm", "-p", "3", "--no-priority", "-t", "x", "--no-tag", "y",
+            "--edit",
         ]),
         "default",
     )
@@ -57,6 +67,7 @@ fn parse_collects_every_flag_and_positional() {
     assert!(f.no_priority);
     assert_eq!(f.tags, ["x"]);
     assert_eq!(f.no_tags, ["y"]);
+    assert!(f.edit);
     assert_eq!(f.positionals, ["the-id", "k=v"]);
     // The default actor applies when --as is absent.
     assert_eq!(parse(&[], "default").unwrap().actor, "default");
@@ -132,6 +143,11 @@ fn an_occupancy_verb_rejects_shaping_flags() {
     let mut narrated = id();
     narrated.message = Some("note".into());
     assert!(base_change(Verb::Claim, d.path(), &narrated, 0).is_ok());
+    // --edit (the whole-buffer shape) bounces like any field edit.
+    let mut edited = id();
+    edited.edit = true;
+    let err = base_change(Verb::Claim, d.path(), &edited, 0).err().unwrap();
+    assert!(err.to_string().contains("no field edits"));
 }
 
 #[test]
