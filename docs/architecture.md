@@ -341,6 +341,44 @@ display plugin, §3). The plugin chain, by contrast, **IS a config list** — `c
 gitignored `bin/<name>` binary symlinks; the *schedule* — which plugin runs in which op-phase, in what
 order — is config, not a directory tree (a list is sortable; a directory needs `NN-` prefixes to fake it).
 
+**The "by you" path has a front door: `bl conf` (§9, bl-c2de).** This section sanctions local edits
+("config changes by you or by `install`") but gave "by you" no surface — hand-editing TOML under
+percent-encoded XDG clone dirs, with no way to even *see* what remote or branch a checkout resolves.
+`conf` is that surface, local-only by construction:
+
+- **Read = resolution + provenance.** `bl conf` dumps every resolved value, the layer it came from
+  (`cli`/`xdg`/`landing`/`origin`/`default`), and the file paths (the XDG config, the landing, the
+  store) — the "where are my files / what remote am I actually using" answer. `bl conf <key>` prints
+  one resolved value (stdout — the verb's one product) with its provenance on stderr. A checkout with
+  no durable remote reads `task-remote (none)`: stealth is VISIBLE, closing the bl-d234 gap where
+  "deliberately stealth" and "meant to federate, nothing set" were indistinguishable.
+- **Write = scope-keyed CRUD on the canonical home.** `bl conf set <key> <value...>` replaces (a
+  scalar, or a hooks key's whole list); `bl conf append|prepend|remove <key> <value>` composes a
+  list. The list verbs are the §4 directive vocabulary APPLIED AT WRITE TIME to the canonical bare
+  list — never stored as `_append`/`_prepend`/`_ban` keys beside it (one fact, one home; the
+  directive keys remain the cross-LAYER compose for a hand-written XDG overlay). Compose converges:
+  appending a name already present or removing one already absent is a no-op, and a list emptied by
+  `remove` drops its key (absent/empty = run nothing).
+
+| key | underlying field | type | `set`/list-op writes to |
+|---|---|---|---|
+| `task-remote` | the per-machine store remote (§12) | scalar | XDG `config.toml` `remote` — its ONLY home: a remote URL is per-machine and must not travel on `install`, so it is NOT a landing field by design |
+| `task-branch` | `tasks_branch` | scalar | landing `config/balls.toml` (committed on `balls/config`) |
+| `log-level` | `log_level` | scalar | landing `config/balls.toml` |
+| `<op>.<pre\|post>`, bare `show`/`list` | the `[hooks]` schedule (§6) | list | landing `config/plugins.toml` |
+
+The KEY implies its home — no `--scope` flag. A landing write is an ordinary commit on `balls/config`
+(`balls: conf set <key> …` — checkout-scoped, §5); an XDG write is a plain file edit; neither seals
+the store nor dispatches a plugin (config never syncs, §12 — a conf edit is purely local, so there is
+nothing to react to and `conf` has no `[hooks]` keys of its own). `conf` cannot cross a checkout
+boundary (that stays `install`'s consent-gated job, §6) and never touches a binary: it writes the
+*schedule*; the `bin/<name>` adjacency stays the RCE gate, and a schedule entry with no local binary
+stays the §6 dangling-ref error / §12 seed-time prune, exactly as today. `conf set task-branch`
+carries §12's re-home discipline unchanged — move the store BEFORE the name; the provenance read is
+what makes a mispoint visible. Per-repo remote durability stays git-native (`git remote add origin
+<hub>`, read as the ladder's bottom tier): `conf` does not wrap `git remote` — bl writes bl's files,
+git owns `origin`.
+
 ## §5 Commit-message protocol
 
 Every change-attempt commit is `subject / body / trailer-block`, where the trailer block is a
@@ -366,7 +404,7 @@ bl-actor: orionriver@gmail.com
   emit `bl-*`); plugins prefix with their own name (`jira-id`, `github-url`).
 - balls always writes `bl-protocol`, `bl-op`, `bl-actor`; `bl-id` on every per-task op
   (`create`/`claim`/`unclaim`/`update`/`close`), absent on the checkout-scoped ops
-  (`prime`/`sync`/`install`/`config`) which name no single ball. **No `bl-from-state`/`bl-to-state`
+  (`prime`/`sync`/`install`/`conf`) which name no single ball. **No `bl-from-state`/`bl-to-state`
   trailers** (bl-4778) — there is no status field to transition; `bl-op` already names the op,
   and the `claimant` change
   rides as an ordinary frontmatter diff.
@@ -647,12 +685,28 @@ commit whose tree still holds `tasks/<id>.md`, stopping at the FIRST hit (a dead
 retirement derived from the deletion's `bl-op:` trailer, §5). Closed tasks are searchable content, not
 tombstones — the same most-recent-down walk that `list -s closed/--all` uses.
 
-Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`** (§13, §6).
+Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`, `conf`**
+(§13, §6, §4).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
 bootstrap-on-miss path. `prime` makes the checkout ready (substrate + onboarding + worktree
 re-materialization, seeding a fresh landing from the app `default-config/` folder — §12); `sync` keeps
 it current (data only); `install` copies a committed path between branches (§6 — config/plugins adopt
-or publish; the recommended bundle is `config/` minus `tasks/`).
+or publish; the recommended bundle is `config/` minus `tasks/`); `conf` reads and writes THIS
+checkout's local config (§4 — the "by you" path).
+
+**`conf`** (local config CRUD — the §4 "by you" surface, bl-c2de): READ — `bl conf` dumps every
+resolved value, its source layer, and the file paths; `bl conf <key>` prints one resolved value
+(stdout, the verb's one product) with provenance on stderr. WRITE — `bl conf set <key> <value...>`
+(scalar replace, or whole-list replace on a hooks key), `bl conf append|prepend|remove <key> <value>`
+(list compose, applied at write to the canonical bare list — §4). Keys: `task-remote` (per-machine,
+XDG `config.toml`), `task-branch`/`log-level` (landing `balls.toml`), `<op>.<pre|post>` and the bare
+read keys `show`/`list` (landing `plugins.toml` `[hooks]`); the key implies its home, there is no
+`--scope` flag. A landing write commits on `balls/config` (the no-change write converges on the
+existing tip, §13 idempotence); an XDG write is a plain file edit. Diffless (§8) and CHAINLESS: conf
+authors no ball diff, seals nothing to the store, and dispatches no plugin — config never syncs
+(§12), so a conf edit is purely local and there is nothing to react to. It edits only this checkout's
+local config: crossing a checkout boundary stays `install`'s (§6), and it never touches `bin/` (§4 —
+the RCE gate is unchanged).
 
 **`create`** (op `create`; no prior state): balls generates a default-scheme id (§ id generation)
 and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p`)/`tags`, plus any
@@ -957,7 +1011,8 @@ still-claimed tasks rides the same chain (the delivery plugin's `prime.post`, id
 create-if-absent, §11).
 
 **Tracker's prime — two slots, one per axis (bl-0a23).** With no remote it is STEALTH (store stays
-local, a self-lock written). With a remote (`--remote` > `--center` > XDG > `origin`):
+local, a self-lock written). With a remote (the one §12 ladder below — `--remote`/`--center` > XDG
+`task-remote` > `origin`):
 - **`prime/pre` settles the NAME and clones the store in.** It WARNS when the store sits elsewhere (a
   default-named clone of a repo whose canonical store is a non-default branch — diagnostic only; it
   NEVER rewrites `tasks_branch`, because config crosses into a landing solely by `install`, §0/§12).
@@ -997,7 +1052,8 @@ branch: it is just whatever `tasks_branch` a set of checkouts have agreed to sha
 remote. Federating is two edits, both consented:
 - **`tasks_branch` names the store** (a §4 config field on the landing). Point it at a shared,
   remote-backed branch and your checkout reads/writes that store; point it local and you are stealth.
-  Changing it is an ordinary config edit — and config changes only by you or by `install` (§6), never
+  Changing it is an ordinary config edit (`bl conf set task-branch`, §4) — and config changes only by
+  you or by `install` (§6), never
   silently.
 - **`bl install --from <center>` adopts the center's config + plugins**, with consent — how a checkout
   learns a non-default `tasks_branch` and gains the team's tooling. **The STANDARD case needs no
@@ -1013,11 +1069,37 @@ remote. Federating is two edits, both consented:
   user cloned, whose `origin` is the real remote the code rides and where `balls/tasks` sits alongside
   it. It is NEVER read off the landing: the landing is local-only (§2 install-transport), founded by a
   bare `git init`, and carries no origin — reading origin there is meaningless. And like all
-  remote-talk it is the **tracker's** job, not core's (§0): core resolves only the EXPLICIT tiers
-  (`--remote`/`--center`/XDG `remote` — config reads) and hands the tracker `remote: None` when none is
+  remote-talk it is the **tracker's** job, not core's (§0): core resolves only the EXPLICIT tiers —
+  two tiers with different lifetimes, not one set: the per-op `--remote`/`--center` flag (argv,
+  ephemeral) over the XDG `task-remote` (per-machine config, durable) — and hands the tracker
+  `remote: None` when neither is
   set; the tracker then discovers `origin` from the invocation path as its single fallback, in ONE
   place all its handlers share (not re-probed per op). This is what makes "a fresh clone, `bl prime`,
   works out of the box" true without a flag.
+
+**ONE remote ladder, every op (bl-c2de).** The store remote resolves IDENTICALLY on every
+store-touching verb: `--remote`/`--center` (a PER-OP override, accepted by the deliverable verbs and
+`sync` exactly as by `prime`) > the XDG `task-remote` (per-machine, durable — `bl conf set
+task-remote`) > discovered `origin` (per-repo, durable, git-native). prime is not special — the old
+prime-only flags were the missing reframe (bl-d234): `--remote` shaped one invocation's binding and
+persisted NOTHING, while every other op resolved `XDG > origin` alone, so founding a satellite via
+`--remote` left no durable pointer and the next op silently went stealth — invisible, because
+no-remote is itself a legitimate mode. The flags stay per-op and ephemeral BY DESIGN: an override is
+not a pointer write, and durability is an explicit act (set `origin`, or `bl conf set task-remote`);
+what changed is that the override exists uniformly and the seam between the ephemeral tier and the
+durable tiers is named. (`install` resolves the same durable ladder for its binding; its SOURCE is
+`--from` — a ref, the bl-66e7 seal-target axis, not a remote tier.) `bl conf`'s provenance read
+REPORTS this whole ladder, `origin` tier included, via a local `git remote get-url` — naming the
+remote is a local config fact; *contacting* one stays the tracker's alone (§0), and the resolution
+the dump shows is exactly the one the tracker will act on.
+
+**prime WARNS when its remote is ephemeral.** When prime founds/joins on an explicit
+`--remote`/`--center` that the durable ladder (XDG > `origin`) does not reproduce, the tracker warns
+(W2): *"primed on `<hub>` via an explicit remote; the durable ladder (XDG > origin) resolves
+`<other>`/nothing — set `origin` or `bl conf set task-remote` to federate durably."* The same §12
+pattern as the non-default-store warning below — diagnostic, never authority — applied to the remote
+axis; it would have caught the bl-d234 failure live. A one-shot explicit remote over a deliberately
+stealth checkout may be exactly what you meant, so it warns and proceeds.
 
 **Non-default store, no install → a WARNING, not silence.** The one ergonomic gap: clone a repo whose
 store is on a NON-default branch and `bl prime; bl list` shows nothing (the seeded default points
@@ -1038,7 +1120,8 @@ never declared by a flag.
 verb**. "Stealth vs federated" is just whether `tasks_branch` is local or remote-backed, and re-homing
 is the two directions of one invariant — *the store moves to its new home BEFORE its name changes* —
 decomposed onto two scopes of two verbs that already own the halves:
-- **The name is config's.** Repoint `tasks_branch` (a §4 config edit on the landing); the tracker
+- **The name is config's.** Repoint `tasks_branch` (a §4 config edit on the landing — `bl conf set
+  task-branch`); the tracker
   syncs the new branch on the next `prime`/`sync` (established-vs-fresh stays the read-from-remote
   sync-or-bootstrap fork above, never a flag).
 - **The store is `install`'s.** Merge the store into its new home with `bl install tasks/* --from <old>
@@ -1081,7 +1164,9 @@ Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store re
 remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an ESTABLISHED remote store
 (non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts per the §13
 pull→mutate→push contract, NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
-prime, rolled back K prior; W1 [tracker] store is stealth (local), not auto-syncing. (Retired by idempotent prime: E2
+prime, rolled back K prior; W1 [tracker] store is stealth (local), not auto-syncing; W2 [tracker]
+prime ran on an ephemeral explicit remote the durable ladder (XDG > origin) does not reproduce —
+plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
 "already initialized" — re-running prime is a no-op-converge; E3 "remote already established" —
 established vs absent is the adopt-vs-bootstrap fork, not an error. Retired by the trail's removal: N3
 downstream-layer-introduces-plugins — there is no downstream layer.)
@@ -1132,7 +1217,7 @@ not a consent breach, because consent governs config + executable plugins, never
   it is single-owner, has no upstream to fetch, and holds no task state to move (tasks live on
   `tasks_branch`). The general rule "fetch a branch's upstream, if any" yields nothing on an
   upstream-less branch, and the landing is upstream-less by construction (§4 — it is never a sync
-  target). The landing changes only by `install`, never by sync.
+  target). The landing changes only by `install` or your own `bl conf` edit (§4), never by sync.
 - **No separate contention probe.** The tracker's hook is a single `git fetch` + **fast-forward-only**
   integration; that one operation is atomically detect-and-act — a non-ff IS the contention signal,
   surfaced as the tracker's non-zero exit ("remote wins, re-run"). A distinct `sync/pre` "has the

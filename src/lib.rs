@@ -96,6 +96,7 @@ pub mod adopt;
 pub mod change;
 pub mod checkout;
 pub mod civil;
+pub mod conf;
 pub mod config;
 pub mod delivery;
 pub mod delivery_prune;
@@ -199,6 +200,7 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         Verb::Sync => checkout::sync(edge, &rest[1..]),
         Verb::Show | Verb::List => reads::run(edge, verb, &rest[1..]),
         Verb::Install => install::run(edge, &rest[1..]),
+        Verb::Conf => conf::run(edge, &rest[1..]),
         // Everything left is a deliverable verb (§9); mutate's own dispatch
         // still rejects a non-mutating verb defensively.
         v => mutate::run(edge, v, &rest[1..]),

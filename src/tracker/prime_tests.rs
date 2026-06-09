@@ -117,6 +117,31 @@ fn prime_post_in_stealth_is_a_no_op() {
 }
 
 #[test]
+fn the_ephemeral_gap_compares_the_acting_remote_to_the_durable_ladder() {
+    // W2 (bl-c2de): warn iff the remote prime acts on is NOT what the durable
+    // ladder (XDG `task-remote` > `origin`) resolves — a per-op `--remote` that
+    // plain commands will silently not reproduce (the bl-d234 failure).
+    let tmp = TempDir::new().unwrap();
+    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+    let repo = landing_repo(tmp.path()); // no origin remote
+    let b = binding(None, &repo); // invocation_path = repo
+    // No durable tier at all → the gap names stealth.
+    assert_eq!(
+        ephemeral_gap(&b, &env, "git@hub:r").as_deref(),
+        Some("nothing (plain commands run stealth)")
+    );
+    // An `origin` matching the acting remote → no gap (the flag was redundant).
+    git(&repo, &["remote", "add", "origin", "git@hub:r"]).unwrap();
+    assert_eq!(ephemeral_gap(&b, &env, "git@hub:r"), None);
+    // The XDG tier outranks origin; a DIFFERENT durable remote is the gap.
+    let cfg = env.xdg.user_config();
+    fs::create_dir_all(cfg.parent().unwrap()).unwrap();
+    fs::write(&cfg, "remote = \"git@hub:durable\"\n").unwrap();
+    assert_eq!(ephemeral_gap(&b, &env, "git@hub:r").as_deref(), Some("`git@hub:durable`"));
+    assert_eq!(ephemeral_gap(&b, &env, "git@hub:durable"), None);
+}
+
+#[test]
 fn store_elsewhere_reports_a_differently_configured_origin() {
     let tmp = TempDir::new().unwrap();
     let remote = remote_with_config(tmp.path(), "balls/work");

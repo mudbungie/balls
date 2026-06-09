@@ -35,6 +35,11 @@ pub(super) struct Flags {
     /// `update --edit` (§9): source the change from $EDITOR instead of the field
     /// flags — mutually exclusive with them (they would race over the payload).
     pub edit: bool,
+    /// The per-op `--remote`/`--center` store-remote override — the top tier of
+    /// the ONE §12 ladder, accepted by every mutating verb exactly as by
+    /// `prime`/`sync` (bl-c2de). Ephemeral: it shapes this invocation's binding
+    /// and persists nothing (durability is `origin` or the XDG `task-remote`).
+    pub remote: Option<String>,
     pub positionals: Vec<String>,
 }
 
@@ -101,6 +106,13 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
             "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
             "--edit" => f.edit = true,
+            // Both name the store remote (§12); `--remote` always assigns,
+            // `--center` fills only an empty slot — prime's exact precedence.
+            "--remote" => f.remote = Some(value(args, &mut i, "--remote")?),
+            "--center" => {
+                let center = value(args, &mut i, "--center")?;
+                f.remote.get_or_insert(center);
+            }
             flag if flag.starts_with('-') => return Err(other(format!("unexpected flag '{flag}'"))),
             _ => f.positionals.push(args[i].clone()),
         }
