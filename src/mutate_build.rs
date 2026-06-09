@@ -173,7 +173,7 @@ fn shapes(flags: &Flags) -> bool {
         || !flags.no_tags.is_empty()
 }
 
-/// The occupancy/retire verbs (`claim`/`unclaim`/`close`/`drop`) shape no ball
+/// The occupancy/retire verbs (`claim`/`unclaim`/`close`) shape no ball
 /// fields: reject every field-edit flag — `--edit` (the whole-buffer shape)
 /// included. Only the id, `--as`, and the `-m` commit narration are accepted.
 pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {

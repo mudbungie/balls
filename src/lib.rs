@@ -23,7 +23,7 @@
 //! commit + ff-integrate, un-seal); [`lifecycle`] is the [`lifecycle::Engine`]
 //! that runs the shape and unwinds it in reverse on any abort (§14). [`change`]
 //! implements the verb diff ([`lifecycle::BaseChange`]) for each §9 deliverable
-//! verb (create/claim/unclaim/update/close/drop); the plugin chain
+//! verb (create/claim/unclaim/update/close); the plugin chain
 //! ([`lifecycle::Plugins`]) is filled by [`plugin::Subprocess`] over the §7 wire
 //! ([`wire`]). [`run`] dispatches the checkout-lifecycle verbs (`prime`/`sync`,
 //! §12/§13) to the engine via [`checkout`], the deliverable verbs via
