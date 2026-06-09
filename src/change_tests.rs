@@ -101,6 +101,32 @@ fn update_applies_every_field_edit_and_bumps_updated() {
 }
 
 #[test]
+fn update_replace_overwrites_the_whole_ball_but_preserves_created() {
+    // The `--edit` whole-buffer edit: every field comes from the buffer, except
+    // `created` (history, not hand-editable) and `updated` (seal-restamped).
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1", RICH);
+    let original_created = read_task(dir, "bl-1").unwrap().created;
+    let buffer = Task { title: "Hand-edited".into(), created: 999, updated: 999, body: "rewritten\n".into(), ..Task::default() };
+    let u = Update {
+        id: "bl-1".into(),
+        actor: "me".into(),
+        now: 7,
+        message: None,
+        edits: vec![FieldEdit::Replace(Box::new(buffer))],
+    };
+    u.stage(dir).unwrap();
+    let t = read_task(dir, "bl-1").unwrap();
+    assert_eq!(t.title, "Hand-edited");
+    assert_eq!(t.body, "rewritten\n");
+    assert_eq!(t.created, original_created, "created is preserved");
+    assert_eq!(t.updated, 7, "updated is seal-restamped, never the hand-typed 999");
+    // RICH's parent/priority/tags/blockers are gone — the buffer replaced them.
+    assert!(t.parent.is_none() && t.priority.is_none() && t.tags.is_empty() && t.blockers.is_empty());
+}
+
+#[test]
 fn update_is_refused_while_an_on_update_blocker_is_open() {
     // A third `on` (neither claim nor close) is enforced by core (§10/§15): the
     // update op is staged behind enforce::gate, so an open on=update edge blocks.

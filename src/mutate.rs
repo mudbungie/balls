@@ -19,7 +19,7 @@ use std::io;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::change::{Create, Occupancy, Retire, Update};
+use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
 use crate::checkout;
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
@@ -37,6 +37,8 @@ use crate::wire::{Command, OpContext};
 
 #[path = "mutate_build.rs"]
 mod build;
+#[path = "mutate_edit.rs"]
+mod edit;
 #[path = "mutate_report.rs"]
 mod report;
 
@@ -46,7 +48,16 @@ mod report;
 /// `[hooks]` schedule, §2/§6). The
 /// checkout must already be a landing (`bl prime` founds it, §12) — a mutating op
 /// never bootstraps. `verb` is guaranteed mutating by the [`crate::run`] dispatch.
+/// The one host seam read here is the [`edit::Editor`] (`--edit`'s env + tty +
+/// prompt input), so [`dispatch`] below stays fully injectable for tests.
 pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
+    dispatch(edge, verb, args, &mut edit::Editor::live())
+}
+
+/// [`run`] with the `--edit` host seam injected. An authored change is sealed;
+/// a `None` from [`base_change`] (`--edit` returned an unchanged buffer) is the
+/// idempotent no-op — announced there, nothing to seal here.
+fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor) -> io::Result<()> {
     let flags = parse(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
@@ -54,7 +65,9 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
         return Err(other("no balls checkout here — run `bl prime` first"));
     }
 
-    let (base, before) = base_change(verb, &store, &flags, now())?;
+    let Some((base, before)) = base_change(verb, &store, &flags, now(), editor)? else {
+        return Ok(());
+    };
     let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
     let log = Log::new(clone.op_log(), level, verb, log::wall);
@@ -83,11 +96,23 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     report::emit(verb, &store, &sha)
 }
 
-/// Author the verb's [`BaseChange`] from the parsed `flags`, plus the ball's
-/// op-start state (`before`, the §7 `current_state` a `pre` plugin sees — `None`
-/// on `create`, which has no prior ball). `now` is injected, so the change stays
-/// pure (it never reads a clock). Only the six mutating verbs reach here.
-fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<(Box<dyn BaseChange>, Option<Task>)> {
+/// A verb's authored change plus the ball's op-start state (the §7
+/// `current_state` a `pre` plugin sees — `None` on `create`, which has no prior
+/// ball).
+type Authored = (Box<dyn BaseChange>, Option<Task>);
+
+/// Author the verb's [`BaseChange`] from the parsed `flags` (see [`Authored`]).
+/// `now` is injected, so the change stays pure (it never reads a clock); the
+/// `editor` seam serves only `update --edit`. `Ok(None)` is `--edit`'s
+/// unchanged-buffer no-op — there is nothing to author. Only the six mutating
+/// verbs reach here.
+fn base_change(
+    verb: Verb,
+    store: &Path,
+    flags: &Flags,
+    now: i64,
+    editor: &mut edit::Editor,
+) -> io::Result<Option<Authored>> {
     let actor = flags.actor.clone();
     match verb {
         Verb::Create => {
@@ -107,7 +132,7 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
                 message: flags.message.clone(),
                 existing: task_ids(store)?,
             };
-            Ok((Box::new(base), None))
+            Ok(Some((Box::new(base), None)))
         }
         Verb::Claim | Verb::Unclaim => {
             build::forbid_shaping(flags, verb)?;
@@ -115,7 +140,7 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
             let base = Occupancy { verb, id, claimant, actor, now, message: flags.message.clone() };
-            Ok((Box::new(base), Some(before)))
+            Ok(Some((Box::new(base), Some(before))))
         }
         Verb::Update => {
             build::forbid_foreign_blocks(flags, verb)?;
@@ -123,16 +148,27 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
             let mut positionals = flags.positionals.iter();
             let id = positionals.next().ok_or_else(|| other("update: needs a task id"))?.clone();
             let before = read_task(store, &id)?;
-            let edits = build::edits(positionals, flags)?;
+            let edits = if flags.edit {
+                // `--edit`: the buffer IS the payload — field flags and key=value
+                // extras would race over it, so they are mutually exclusive (§9).
+                build::forbid_fields_with_edit(flags)?;
+                if positionals.next().is_some() {
+                    return Err(other("update: --edit and key=value extras are mutually exclusive — the buffer is the payload"));
+                }
+                let Some(after) = editor.edited(&before, &id)? else { return Ok(None) };
+                vec![FieldEdit::Replace(Box::new(after))]
+            } else {
+                build::edits(positionals, flags)?
+            };
             let base = Update { id, actor, now, edits, message: flags.message.clone() };
-            Ok((Box::new(base), Some(before)))
+            Ok(Some((Box::new(base), Some(before))))
         }
         Verb::Close | Verb::Drop => {
             build::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
             let base = Retire { verb, id, title: before.title.clone(), actor, message: flags.message.clone() };
-            Ok((Box::new(base), Some(before)))
+            Ok(Some((Box::new(base), Some(before))))
         }
         // The diffless verbs never reach run()'s mutating branch; reject defensively.
         _ => Err(other(format!("{}: not a mutating verb", verb.token()))),
@@ -180,6 +216,9 @@ struct Flags {
     no_priority: bool,
     tags: Vec<String>,
     no_tags: Vec<String>,
+    /// `update --edit` (§9): source the change from $EDITOR instead of the field
+    /// flags — mutually exclusive with them (they would race over the payload).
+    edit: bool,
     positionals: Vec<String>,
 }
 
@@ -206,6 +245,7 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "--no-priority" => f.no_priority = true,
             "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
             "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
+            "--edit" => f.edit = true,
             flag if flag.starts_with('-') => return Err(other(format!("unexpected flag '{flag}'"))),
             _ => f.positionals.push(args[i].clone()),
         }
