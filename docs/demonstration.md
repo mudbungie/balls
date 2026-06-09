@@ -201,20 +201,20 @@ closed   bl-9f1b  Wire auth backend
   tags     backend
 ```
 
-## 12. Release and abandon — `unclaim`, `drop`
+## 12. Release and abandon — `unclaim`, then `close`
 
 `unclaim` releases occupancy and the worktree, returning the task to **ready**.
-`drop` abandons a task: it archives like close but delivers no code, so `main` is
-untouched.
+Abandoning is the composite: `unclaim` then `close` — the empty deliverable
+makes the delivery a no-op, so `main` is untouched.
 
 ```console
 $ bl claim bl-9419 --as alice && bl unclaim bl-9419 --as alice
 $ bl list
 ready    bl-9419  Add login form  p2
 
-$ bl claim bl-9419 --as alice && bl drop bl-9419 --as alice
+$ bl close bl-9419 --as alice
 $ bl list                       # live set now empty (exit 0)
-$ git log --oneline main        # the drop delivered nothing
+$ git log --oneline main        # the empty close delivered nothing
 b7a8a23 Wire auth backend [bl-9f1b]
 d0a637d Initial commit
 ```
@@ -236,7 +236,7 @@ d0a637d Initial commit
 | Delivery lands one `[bl-xxxx]`-tagged commit; `main` is a changelog | §9 |
 | Resolving a dependency makes the dependent claimable | §10 |
 | Closed tasks reconstruct from history | §11 |
-| `unclaim` / `drop` release without delivering | §12 |
+| `unclaim` + empty `close` release without delivering | §12 |
 
 Every core story from `docs/architecture.md` survives the cutover, end to end,
 against the shipped binary.

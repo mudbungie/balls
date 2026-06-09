@@ -202,16 +202,6 @@ fn close_removes_the_file_and_emits_a_close_message() {
 }
 
 #[test]
-fn drop_removes_the_file_and_emits_a_drop_message() {
-    let d = tempdir().unwrap();
-    let dir = d.path();
-    write(dir, "bl-1", TASK);
-    let r = Retire::drop("bl-1".into(), "A task".into(), "me".into());
-    r.stage(dir).unwrap();
-    assert_eq!(parse(&r.finalize(dir).unwrap()).unwrap()["bl-op"], ["drop"]);
-}
-
-#[test]
 fn retire_errors_when_the_ball_is_absent() {
     let d = tempdir().unwrap();
     let r = Retire::close("bl-gone".into(), "t".into(), "me".into());

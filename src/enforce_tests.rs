@@ -111,12 +111,12 @@ fn gate_refuses_the_op_its_blocker_names() {
 #[test]
 fn gate_ignores_a_blocker_naming_a_different_op() {
     let d = tempdir().unwrap();
-    touch(d.path(), "bl-dep"); // open, but it gates claim, not drop
-    gate(&task(vec![claim_blocker("bl-dep")]), Verb::Drop, "bl-1", d.path()).unwrap();
+    touch(d.path(), "bl-dep"); // open, but it gates claim, not unclaim
+    gate(&task(vec![claim_blocker("bl-dep")]), Verb::Unclaim, "bl-1", d.path()).unwrap();
 }
 
 #[test]
 fn gate_allows_once_the_blocker_resolves() {
     let d = tempdir().unwrap(); // bl-x absent ⇒ resolved
-    gate(&task(vec![op_blocker("bl-x", Verb::Drop)]), Verb::Drop, "bl-1", d.path()).unwrap();
+    gate(&task(vec![op_blocker("bl-x", Verb::Unclaim)]), Verb::Unclaim, "bl-1", d.path()).unwrap();
 }

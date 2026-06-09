@@ -48,7 +48,7 @@ pub struct Env {
 /// deliverable verbs (it pushes on their `post`), `sync`/`prime`, and `install`
 /// (it fetches the center's config on `install/pre`, §13).
 const OPS: &[&str] = &[
-    "create", "claim", "unclaim", "update", "close", "drop", "sync", "prime", "install",
+    "create", "claim", "unclaim", "update", "close", "sync", "prime", "install",
 ];
 
 /// The §6 self-description emitted by `tracker protocol`. balls never persists

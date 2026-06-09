@@ -49,7 +49,7 @@ Load-bearing principles (each enforced structurally, not by discipline):
   both disciplines, so the split is what makes each safe — enforced structurally, not by discipline.
 - **Unopinionated about workflow; no status field.** There is no `state`/`status` field at
   all (§3, bl-4778): status is a DERIVED view, not stored — `claimant` set ⇒ claimed, an unresolved
-  claim-blocker ⇒ blocked (§10), a deleted file ⇒ closed/dropped (§9). Core enforces only the MEANING of its primitives, never a particular
+  claim-blocker ⇒ blocked (§10), a deleted file ⇒ closed (§9). Core enforces only the MEANING of its primitives, never a particular
 sequence: `claim` refuses an already-claimed ball or an open claim-blocker (`!ready()`), `close` an
 open close-blocker (`!closeable()`, §10), all reading structured fields. balls ships workflow
 PRIMITIVES (occupancy + blockers), not a workflow; users, agents, and plugins compose them into
@@ -174,7 +174,7 @@ balls/tasks    (the STORE — named by config.tasks_branch, shared, sync-transpo
   unrelated-histories bug (bl-fa00): a fresh local root an established remote could not fast-forward
   onto. Materializing after the clone-in means that divergence is never CREATED.
 
-No archive directory. Closed/dropped balls **delete** their `tasks/<id>.md`; history lives in
+No archive directory. Closed balls **delete** their `tasks/<id>.md`; history lives in
 `git log` (`git log --diff-filter=D -- tasks/<id>.md`). The log is real, searchable CONTENT, always
 read most-recent-down: `bl show <id>` reconstructs a dead ball from history (§9), and `bl list
 -s closed/--all` reaches the dead set the same way. Closed tasks are older content, not tombstones —
@@ -231,8 +231,7 @@ comments).
   3. else ⇒ **ready** — claimable now. This is exactly the `ready()` predicate (§10); "ready" is the
      question we ask of a ball, so it is the word shown, not "open".
 
-  Exactly THREE live-ball states (closed/dropped are not states — the file is gone; `bl-op` in the
-  log says which, §9). **"blocked" means claim-blockers ONLY.** A close-blocker (gate/PR) yields NO
+  Exactly THREE live-ball states (closed is not a state — the file is gone, §9). **"blocked" means claim-blockers ONLY.** A close-blocker (gate/PR) yields NO
   status — a claimed ball with an open close-gate is just **claimed**. This is the same insight that
   abolished `review`: "in review" was never a functional state, only "claimed, with a close-blocker that core enforces at close" (§9/§10). A stored status field would have ZERO core behavior (no
   transition matrix; `ready()` never reads it), making it indistinguishable from a single-valued tag
@@ -252,7 +251,7 @@ comments).
 - **`claimant`** — the OCCUPANCY field and its SOLE source of truth: absent ⇒ unclaimed, present ⇒
   claimed. The one hardcoded guard (§0 — claim refuses an already-claimed ball) reads `claimant`,
   the structured field, so claim-correctness needs no status vocabulary at all. `claim` sets it,
-  `unclaim`/`drop`/`close` clear it (close/drop by deleting the whole file).
+  `unclaim`/`close` clear it (close by deleting the whole file).
 - **`parent`** — containment/tree pointer only; scanned for display (`bl show` tree), never for
   enforcement. Arbitrary depth.
 - **`priority`** (optional int) — the one ordering input. Unlike `status` (folded because `ready()`
@@ -261,7 +260,7 @@ comments).
   stays a core field. Lower = higher priority; **absent sorts LAST** (a no-priority ball is lower
   than any priority). Ordering is display-only — never part of the `ready()` predicate (§10).
 - **`blockers: [{id, on}]`** — the relational primitive (§10), stored on the BLOCKED task. `on` is
-  ANY op name (`claim`/`close`/`update`/`drop`/…): the op of *this* task whose `.pre` is rejected
+  ANY op name (`claim`/`close`/`update`/`unclaim`/…): the op of *this* task whose `.pre` is rejected
   while `id` is unresolved (`.pre` is implicit — blocking is always a pre-op rejection). NOT an enum —
   `claim` (dependency) and `close` (gate) are merely the two cases with create-time sugar (§10); the
   primitive itself gates any op. Subsumes the old `deps`/`gates` link types — they were one edge
@@ -366,10 +365,10 @@ bl-actor: orionriver@gmail.com
 - **Namespacing:** every key is namespaced by owner. `bl-` is RESERVED to core (plugins may not
   emit `bl-*`); plugins prefix with their own name (`jira-id`, `github-url`).
 - balls always writes `bl-protocol`, `bl-op`, `bl-actor`; `bl-id` on every per-task op
-  (`create`/`claim`/`unclaim`/`update`/`close`/`drop`), absent on the checkout-scoped ops
+  (`create`/`claim`/`unclaim`/`update`/`close`), absent on the checkout-scoped ops
   (`prime`/`sync`/`install`/`config`) which name no single ball. **No `bl-from-state`/`bl-to-state`
-  trailers** (bl-4778) — there is no status field to transition; `bl-op` already names the op
-  (`close` vs `drop` distinguishes the two terminal flavors in the log), and the `claimant` change
+  trailers** (bl-4778) — there is no status field to transition; `bl-op` already names the op,
+  and the `claimant` change
   rides as an ordinary frontmatter diff.
 - Repeated key → list (git-native; no comma-splitting). Unknown keys are never dropped — parsed
   into `metadata` and forwarded to plugins on the invoke wire (§7).
@@ -445,7 +444,6 @@ a list property, not an `NN-` filename convention faking one.
 "show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
-"drop.post"    = ["bl-delivery", "tracker"]
 "create.post"  = ["tracker"]
 "update.post"  = ["tracker"]
 ```
@@ -467,7 +465,7 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
 - **Folder path = MIRROR (deletions propagate).** `bl install tasks` makes the destination's `tasks/`
   identical to the source's — entries the source lacks are REMOVED (wipe-and-replace, rsync-`--delete`,
   NOT `cp` semantics). `install config` / `install plugins.toml` / `install plugins/<name>` each
-  replace exactly that subtree or file. This is how a close/drop (a file deletion) PROPAGATES through `install tasks` —
+  replace exactly that subtree or file. This is how a close (a file deletion) PROPAGATES through `install tasks` —
   the resurrection problem is dissolved by addressing, no tombstone mechanism needed.
 - **File / glob path = UNION (additive, source-wins on overlap).** `bl install tasks/*` copies each
   source file in and leaves the destination's other files alone; `bl install tasks/bl-1234.md` ports
@@ -560,7 +558,7 @@ balls runs TWO families of op, and they are deliberately NOT forced into one sha
 sequence below as universal — it is the **task-op** shape; the rest inherit what generalizes and no
 more.
 
-**Task ops — the symmetric family** (`create`/`claim`/`update`/`close`/`drop`): **balls authors a base
+**Task ops — the symmetric family** (`create`/`claim`/`update`/`close`): **balls authors a base
 change, an ordered plugin chain acts on it, balls seals it, plugins react.** The boundary is the SEAL —
 `commit + integrate`, atomic: **pre** modifiers shape what gets sealed (the record isn't fixed yet);
 **post** reactors act on the now-landed record and MUST NOT mutate the ball (it is sealed). One commit
@@ -613,7 +611,7 @@ The canonical task-op sequence (verb-agnostic):
 
 ## §9 Verbs
 
-Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`, `drop`.**
+Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`.**
 There is **no `review` verb** — see "close" below.
 
 Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep-tree`.**
@@ -692,8 +690,8 @@ editor is an ERROR, not a fallback, so agents stay on the flag-driven path. The 
 and `update` honor a **`--` end-of-options separator** (the getopt convention, bl-d31f), so an
 untrusted `-`-leading positional cannot hijack a flag: `bl create -- "$TITLE"`. balls stages
 the edit; `update.pre` may reject/adjust; seal; `update.post` reactors propagate (the tracker pushes;
-an external-mirror plugin reflects the new title). claim / unclaim / close / drop are NAMED
-specializations of `update` (they fix specific fields and, for close/drop, stage a deletion) — kept
+an external-mirror plugin reflects the new title). claim / unclaim / close are NAMED
+specializations of `update` (they fix specific fields and, for close, stage a deletion) — kept
 as distinct ops because the op NAME is the §6 hook-dispatch key, so a plugin wires into `claim.post`
 rather than sniffing "an update that set `claimant`."
 
@@ -715,10 +713,11 @@ a mode** — it is the ordinary close plus an approval gate child the forge plug
 (§10/§11), enforced by core's close-blocker guard (§10). "Close is related to remotes" = the tracker
 pushes the *balls* branch, nothing more.
 
-**`drop`** (abandon a ball — terminal) is identical mechanics to close: it clears occupancy and seals
-a `tasks/<id>.md` DELETION, the only difference being intent, carried by `bl-op: drop` (which is also
-what the log uses to tell an abandoned ball from a completed one — §5, no status field needed). Its
-`drop.post` releases the code worktree (and, for forge, tears down the PR/branch — §11).
+**There is no `drop` verb** (deleted 2026-06-09, bl-65e0 — §15). Closing is the ONLY retirement, so
+a `--blocks close` gate guards every way a ball can die. Abandonment is the composite spelled out:
+`unclaim` (clears occupancy, releases the worktree — uncommitted work dies with it) then `close` (the
+empty deliverable makes §11's delivery a no-op). A legacy `bl-op: drop` deletion in store history
+stays valid bedrock — it reads as closed, like every retirement (§3/§5).
 
 ## §10 Blocker & gating model
 
@@ -740,12 +739,12 @@ late-add gaps. Now every edge is explicit and says exactly what it gates.
   (their `parent:` simply dangles — display-only, §3 — never corruption). The presumptive pattern is
   a skill-doc hint, not a core rule.
 
-**ready(A)** = A is live (file exists — not closed/dropped) + unclaimed + every CLAIM-blocker
+**ready(A)** = A is live (file exists — not closed) + unclaimed + every CLAIM-blocker
 resolved. ready(A) true is exactly the **ready** display state (§3); claimed and blocked are the
 other two. `bl list` orders the ready set — and every listing — by `priority` ascending (lower =
 higher; absent last), then `created` ascending; ordering is display-only, never part of the predicate
 (§3). The old `bl ready` is now `bl list --status ready` (§9). (A gate child is a live child that does NOT affect readiness — it's a close-blocker, so it
-never shows as a status either.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker is closed OR dropped.
+never shows as a status either.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker's file is gone.
 
 **Deadlock avoidance is now structural-by-default.** Because no edge is ever auto-minted (containment
 implies none), the reciprocal edge that would deadlock is simply never created unless you spell out
@@ -765,7 +764,7 @@ blocker (the `.pre` of the named `on` op rejects while unresolved), joining the 
 and `close` are the two with their own predicates:
 - `claim` refuses an unresolved claim-blocker (`ready()` false).
 - `close` refuses an unresolved close-blocker (`closeable()` false).
-Both read `blockers` against file-existence ("resolved" = closed/dropped = file gone) — the same
+Both read `blockers` against file-existence ("resolved" = closed = file gone) — the same
 `ready()`/`closeable()` predicates core already computes, so enforcement costs a rejection, not a
 mechanism.
 
@@ -830,7 +829,7 @@ branch                                   = work/<key>          # <key> = <id>, o
 `claimant` an ordinary frontmatter field — so the plugin RECOMPUTES its resource each op and checks
 the filesystem; it needs no id-keyed scratch, and every hook is idempotent by construction. Keying on
 `claimant` as well as `id` keeps the pure-function/stateless property (claimant is already on the
-wire) while disambiguating a drop-and-reclaim by a different actor and naming forge branches by owner.
+wire) while disambiguating an unclaim-and-reclaim by a different actor and naming forge branches by owner.
 
 **Core never computes this path, and nothing stores it.** The path has an authoritative home already:
 it is a pure function of `(binding, id, claimant)` AND a standing local git fact — `git worktree list`
@@ -862,7 +861,7 @@ XDG territory, not the project tree; its existence is git's to know, never a bal
 there is no field that can drift out of sync with whether the worktree exists.
 
 **Hooks:** `claim.post` materialize (create-if-absent) + print the path; `prime.post` re-materialize
-each still-claimed worktree + print its path; `unclaim.post` + `drop.post` release (remove-if-present);
+each still-claimed worktree + print its path; `unclaim.post` releases (remove-if-present);
 **`close.pre` deliver** (sorts last); **`close.post` teardown**; **`show` (read-op)** print the path for
 the named ball (§6 read dispatch). balls does not guard against tearing a
 worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
@@ -909,8 +908,8 @@ property AND the disambiguation. (A cross-clone miss is reported honestly or res
 by the change-worktree/store un-seal). `rollback claim.post` = remove the worktree + delete
 `work/<id>` (forge: also drop the just-created gate child); `rollback close.pre` direct = `git reset
 --hard HEAD~1` un-squash (reversible — nothing pushed); forge = **no-op** — a pushed branch + open PR
-is the correct in-review state, never undone (abandon is `bl drop`, whose `drop.post` tears down the
-PR/branch). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
+is the correct in-review state, never undone (abandon is `bl unclaim`, whose `unclaim.post` tears
+down the PR/branch). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
 is rollback-safe); deleting `work/<id>` is deferred, non-transactional cleanup (`prime`).
 The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
 And because a rollback is best-effort (§14), deliver itself is RETRY-IDEMPOTENT (bl-430e): a squash
@@ -1093,7 +1092,7 @@ string-safety**, not an arbitrary charset: `^[A-Za-z0-9][A-Za-z0-9_-]*$` (no `/`
 whitespace/metacharacters, no leading `-`). The default alphabet is lowercase to sidestep
 case-insensitive-FS collisions. **Collision** is checked against LIVE files only: auto-gen → retry
 (bounded); plugin-assigned → abort (an explicit choice is authoritative). A regenerated id that matches
-a DEAD (closed/dropped) incarnation is LEGAL — no history scan to prevent reuse. id is IMMUTABLE after
+a DEAD (closed) incarnation is LEGAL — no history scan to prevent reuse. id is IMMUTABLE after
 create; reassignment is a create-only capability, so during claim/close it rides the wire with no skew.
 
 **Recency resolution (the unifying discipline).** Every id→content lookup is the same walk: live
@@ -1240,7 +1239,7 @@ tells the plugin which of ITS OWN phases is unwinding.
 Core always calls rollback on every prior plugin; whether a side-effect survives the abort is decided
 by that plugin's rollback, by the side-effect's semantics:
 - the forge plugin's `close.pre` rollback is a **no-op** — a pushed branch + open PR is the correct
-  "in review" state, never something to undo (abandon is `bl drop`);
+  "in review" state, never something to undo (abandon is `bl unclaim`);
 - the jira plugin's `create.pre` rollback **deletes** the issue — an orphan ticket for a ball that
   never sealed is wrong.
 
@@ -1316,6 +1315,24 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`drop` verb DELETED — it was `unclaim ∘ close`, and a close-gate bypass (2026-06-09, bl-65e0 —
+  post-freeze).** drop was a composite, not a primitive: identical `Retire` mechanics to close,
+  differing only in which §10 guard ran — and that difference was an enforcement hole: a `--blocks
+  close` gate was unenforceable while drop existed, because dropping deleted the file exactly like
+  closing it, gate unchecked. The §9 "kept as distinct ops because the op NAME is the hook-dispatch
+  key" rationale never applied to drop's other half either — every plugin wired `drop.post`
+  identically to `unclaim.post`/`close.post` (release/teardown), so the distinct name bought no
+  distinct dispatch. RESOLVED by SUBTRACTION: the verb is gone; abandonment is the composite spelled
+  out — `unclaim` then `close`, the empty deliverable making the delivery a no-op. Deliberate delta:
+  work COMMITTED on `work/<id>` survives unclaim (branch deletion is deferred to prime, §14) and a
+  later close DELIVERS it where drop discarded it — that is close honoring its contract; discard is
+  an explicit `git branch -D work/<id>`. Legacy `bl-op: drop` deletions stay valid bedrock (read as
+  closed; the deleting op was never reconstructed, §5). The forge contract's abandon-teardown moves
+  `drop.post` → `unclaim.post` (spec-level only — no shipped plugin ever dispatched on drop). Touched §0/§2/§3 (closed is the one absence), §5 (op lists,
+  no two terminal flavors), §6 (hooks table), §8 (symmetric family), §9 (five deliverable verbs;
+  drop paragraph replaced), §10 (resolved = file gone), §11/§14 (forge abandon = unclaim). Code:
+  `src/verb.rs`, `src/change.rs` (`Retire` is close-only), `src/mutate.rs`, `src/delivery.rs`,
+  `src/tracker.rs`, `default-config/plugins.toml`. Tracked under bl-72a8.
 - **`bl plugin <name> <op> <phase>` — strike the never-built dispatch verb (2026-06-09, bl-587f —
   post-freeze).** §6 claimed the verb "is the canonical dispatch and balls dogfoods it"; neither half
   was ever real. No such verb exists (`Verb::ALL`, `src/verb.rs` — `bl plugin` is an unknown command,

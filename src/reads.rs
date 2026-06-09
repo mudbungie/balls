@@ -194,8 +194,8 @@ impl Style {
 
     /// The badge for a dead (history-served) ball: a dim `✓` glyph in rich mode,
     /// the padded `closed` word in plain mode — the dead counterpart of
-    /// [`Self::badge`] (§9). Every retirement reads as **closed**: a `drop` is a
-    /// close without delivery, so the two collapse in projection; the distinguishing
+    /// [`Self::badge`] (§9). Every retirement reads as **closed** — including a
+    /// legacy `drop` deletion (the verb is gone, its history is not); the
     /// `bl-op:` trailer survives only as git bedrock (§5), never as a status word.
     pub(crate) fn retired_badge(&self) -> String {
         if self.plain {

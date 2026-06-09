@@ -166,7 +166,7 @@ fn an_occupancy_verb_rejects_shaping_flags() {
     // whole guard to evaluate, and it still bounces (no field edits on retire).
     let mut last = id();
     last.no_tags = vec!["x".into()];
-    let err = base_change(Verb::Drop, d.path(), &last, 0).err().unwrap();
+    let err = base_change(Verb::Unclaim, d.path(), &last, 0).err().unwrap();
     assert!(err.to_string().contains("no field edits"));
     // -m (commit narration) and --as are the only flags an occupancy verb takes.
     let mut narrated = id();
@@ -189,20 +189,18 @@ fn create_rejects_title_flag_and_uses_the_positional() {
 }
 
 #[test]
-fn close_and_drop_retire_the_ball() {
-    for verb in [Verb::Close, Verb::Drop] {
-        let d = tempdir().unwrap();
-        let dir = d.path();
-        write(dir, "bl-1", TASK);
-        let mut f = flags();
-        f.positionals = vec!["bl-1".into()];
-        let (base, before) = base_change(verb, dir, &f, 0).unwrap();
-        assert_eq!(before.unwrap().title, "A task");
-        base.stage(dir).unwrap();
-        assert!(!dir.join("tasks/bl-1.md").exists());
-        // finalize still renders the captured title once the file is gone.
-        assert!(base.finalize(dir).unwrap().starts_with("A task"));
-    }
+fn close_retires_the_ball() {
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1", TASK);
+    let mut f = flags();
+    f.positionals = vec!["bl-1".into()];
+    let (base, before) = base_change(Verb::Close, dir, &f, 0).unwrap();
+    assert_eq!(before.unwrap().title, "A task");
+    base.stage(dir).unwrap();
+    assert!(!dir.join("tasks/bl-1.md").exists());
+    // finalize still renders the captured title once the file is gone.
+    assert!(base.finalize(dir).unwrap().starts_with("A task"));
 }
 
 #[test]
