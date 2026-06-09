@@ -70,6 +70,12 @@ fn parse_reads_the_two_flags_and_one_positional() {
 fn parse_reads_the_list_status_filter() {
     let f = parse(Verb::List, &["--status".into(), "blocked".into()]).unwrap();
     assert_eq!(f.status, Some(Status::Blocked));
+    // `-s` is the short alias for `--status`.
+    let f = parse(Verb::List, &["-s".into(), "claimed".into()]).unwrap();
+    assert_eq!(f.status, Some(Status::Claimed));
+    // The `closed` rung carries no live predicate — it only steers the reach.
+    let f = parse(Verb::List, &["-s".into(), "closed".into()]).unwrap();
+    assert!(f.status.is_none() && f.reach == Reach::Dead);
 }
 
 #[test]
@@ -90,16 +96,20 @@ fn list(args: &[&str]) -> io::Result<Flags> {
 #[test]
 fn parse_reads_the_history_reach_flags() {
     assert_eq!(list(&[]).unwrap().reach, Reach::Live); // default
-    assert_eq!(list(&["--closed"]).unwrap().reach, Reach::Dead);
+    // `--status closed` INFERS the dead reach — no separate `--closed` flag.
+    assert_eq!(list(&["--status", "closed"]).unwrap().reach, Reach::Dead);
+    assert_eq!(list(&["-s", "closed"]).unwrap().reach, Reach::Dead); // -s alias
     assert_eq!(list(&["--all"]).unwrap().reach, Reach::All);
+    // A live rung leaves the reach at its live default.
+    assert_eq!(list(&["-s", "ready"]).unwrap().reach, Reach::Live);
 }
 
 #[test]
 fn parse_rejects_two_reach_flags() {
-    assert!(list(&["--closed", "--all"]).is_err());
-    assert!(list(&["--all", "--closed"]).is_err());
-    // The reach flags are list-only.
-    assert!(parse(Verb::Show, &["bl-1".into(), "--closed".into()]).is_err());
+    assert!(list(&["--status", "closed", "--all"]).is_err());
+    assert!(list(&["--all", "--status", "closed"]).is_err());
+    // The reach axis is list-only.
+    assert!(parse(Verb::Show, &["bl-1".into(), "--all".into()]).is_err());
 }
 
 #[test]
@@ -152,8 +162,8 @@ fn run_lists_and_shows_dead_balls_from_history() {
     let gs = test_support::git_store_at(&store);
     gs.create("bl-dead", &task("Gone", 1), 1).retire("bl-dead", "close", 9);
 
-    // --closed / --all reach the dead set, and show falls through to it.
-    run(&edge, Verb::List, &["--closed".into()]).unwrap();
+    // --status closed / --all reach the dead set, and show falls through to it.
+    run(&edge, Verb::List, &["--status".into(), "closed".into()]).unwrap();
     run(&edge, Verb::List, &["--all".into()]).unwrap();
     run(&edge, Verb::Show, &["bl-dead".into()]).unwrap();
 }
