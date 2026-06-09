@@ -85,7 +85,7 @@ fn deliver_captures_pending_work_and_squashes_it_onto_integration() {
     // Uncommitted work in the code worktree — deliver must capture it.
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
 
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
 
     assert_eq!(tip(&root), "Add feature [bl-x]");
     // The squash landed as ONE commit on main, parented on the seed.
@@ -104,7 +104,7 @@ fn deliver_with_no_pending_work_but_a_committed_branch_still_squashes() {
 
     // Nothing pending now (already committed) — capture is a clean no-op, the
     // squash still delivers the committed branch state.
-    p.deliver(&wt, "work/bl-x", "main", "Land it [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Land it [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Land it [bl-x]");
 }
 
@@ -114,7 +114,7 @@ fn deliver_is_a_no_op_for_an_empty_deliverable() {
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap(); // claimed, never worked → no diff
 
-    p.deliver(&wt, "work/bl-x", "main", "nothing [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "nothing [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "seed"); // integration untouched
 }
 
@@ -122,7 +122,7 @@ fn deliver_is_a_no_op_for_an_empty_deliverable() {
 fn deliver_is_a_no_op_when_the_branch_was_never_made() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt"); // never materialized
-    p.deliver(&wt, "work/bl-z", "main", "nothing [bl-z]").unwrap();
+    p.deliver(&wt, "work/bl-z", "main", "nothing [bl-z]", "[bl-z]").unwrap();
     assert_eq!(tip(&root), "seed");
 }
 
@@ -137,7 +137,7 @@ fn deliver_surfaces_a_conflict_as_an_error() {
     fs::write(root.join("seed.txt"), "from main\n").unwrap();
     Project::run(&root, &["commit", "-qam", "main edit"]).unwrap();
 
-    let err = p.deliver(&wt, "work/bl-x", "main", "clash [bl-x]").unwrap_err();
+    let err = p.deliver(&wt, "work/bl-x", "main", "clash [bl-x]", "[bl-x]").unwrap_err();
     assert!(err.to_string().contains("delivery conflict"));
     // The half-merge was aborted: no MERGE_HEAD pending, the worktree is clean
     // for the agent to reintegrate by hand.
@@ -146,12 +146,62 @@ fn deliver_surfaces_a_conflict_as_an_error() {
 }
 
 #[test]
+fn deliver_skips_when_this_incarnations_delivery_already_landed() {
+    // The bl-430e retry: a close squash-delivered, then aborted after the seal
+    // (push race) without the un-squash landing — main keeps the delivery and
+    // the branch survives. The re-close must not mint a duplicate.
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+    // Commit under a DIFFERENT subject so the squash deterministically mints a
+    // distinct sha (capture + squash of the same tree/parent/message in the
+    // same second collide — the is-ancestor guard's case, tested below).
+    Project::run(&wt, &["add", "-A"]).unwrap();
+    Project::run(&wt, &["commit", "-qm", "wip"]).unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
+    // A concurrent agent lands on main AFTER the delivery, so main and the
+    // branch differ again — the empty-deliverable guard alone would re-squash,
+    // and `merge-tree` of already-merged work yields main's own tree: an EMPTY
+    // duplicate delivery commit (the bl-3bfd outcome).
+    fs::write(root.join("other.txt"), "other\n").unwrap();
+    Project::run(&root, &["add", "-A"]).unwrap();
+    Project::run(&root, &["commit", "-qm", "concurrent work"]).unwrap();
+
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
+    assert_eq!(p.delivered_in("main", "[bl-x]").unwrap().len(), 1); // one delivery, no dup
+    assert_eq!(tip(&root), "concurrent work"); // the retry minted nothing
+}
+
+#[test]
+fn deliver_skips_a_branch_already_fully_merged_into_integration() {
+    // The sha-collision shape of the bl-430e retry: capture then squash can mint
+    // the SAME commit (same parent/tree/message/second), so the surviving
+    // delivery IS the branch tip. Every branch commit on integration = nothing
+    // to deliver, even once integration moves on (trees differ again).
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+    Project::run(&wt, &["add", "-A"]).unwrap();
+    Project::run(&wt, &["commit", "-qm", "Add feature [bl-x]"]).unwrap();
+    Project::run(&root, &["merge", "-q", "--ff-only", "work/bl-x"]).unwrap(); // the collided delivery
+    fs::write(root.join("other.txt"), "other\n").unwrap();
+    Project::run(&root, &["add", "-A"]).unwrap();
+    Project::run(&root, &["commit", "-qm", "concurrent work"]).unwrap();
+
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
+    assert_eq!(p.delivered_in("main", "[bl-x]").unwrap().len(), 1);
+    assert_eq!(tip(&root), "concurrent work");
+}
+
+#[test]
 fn unsquash_resets_integration_only_when_its_tip_is_the_delivery_commit() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Add feature [bl-x]");
 
     // Tip carries the marker → reset to the parent (un-squash).
@@ -171,14 +221,17 @@ fn delivered_in_returns_the_marked_commits_newest_first() {
     // First incarnation of bl-x: deliver onto main, then close it out (discard).
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("a.txt"), "1\n").unwrap();
-    p.deliver(&wt, "work/bl-x", "main", "first [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "first [bl-x]", "[bl-x]").unwrap();
     p.discard(&wt, "work/bl-x").unwrap();
 
     // A reused id only begins after the prior closed, so its delivery lands
-    // LATER — deliveries are monotonic with incarnations (§11).
+    // LATER — deliveries are monotonic with incarnations (§11). The second
+    // deliver MUST land despite the first `[bl-x]` in history: the
+    // retry-idempotence skip (bl-430e) is scoped to commits since this
+    // branch forked, and the prior delivery predates the fork.
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("b.txt"), "2\n").unwrap();
-    p.deliver(&wt, "work/bl-x", "main", "second [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "second [bl-x]", "[bl-x]").unwrap();
 
     let shas = p.delivered_in("main", "[bl-x]").unwrap();
     let subject = |sha: &str| Project::run(&root, &["log", "-1", "--format=%s", sha]).unwrap().trim().to_string();

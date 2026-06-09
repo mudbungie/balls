@@ -48,9 +48,10 @@ fn a_diffless_abort_unwinds_only_its_plugins() {
 }
 
 #[test]
-fn a_diffless_post_abort_hands_the_moved_facts_to_post_rollback() {
-    // Post "c" lands, "d" fails — only succeeded runs unwind (§14), so "c"'s post
-    // rollback sees the AFTER tip ("T1") and "a"'s pre rollback sees none (§7/§13).
+fn a_diffless_post_abort_hands_the_moved_facts_to_every_rollback() {
+    // Post "c" lands, "d" fails — only succeeded runs unwind (§14). Once the op
+    // moved the checkout, EVERY rollback gets the moved facts ("T1"), pre-phase
+    // "a" included — the same no-phase-split rule as a sealing op (bl-430e).
     let jrn = journal();
     let anvil = FakeAnvil::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn.clone(), Some("d"));
@@ -59,7 +60,7 @@ fn a_diffless_post_abort_hands_the_moved_facts_to_post_rollback() {
     let _ = Engine::new(&anvil, &plugins, &test_log()).diffless(Verb::Sync, Path::new("/op"), &pre, &post);
     let seen = plugins.seen.borrow().clone();
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:c").unwrap().1, Some("T1".into()));
-    assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, None);
+    assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, Some("T1".into()));
 }
 
 /// Run a `prime` fixpoint through the engine (bl-0a23). `passes` = how many `pre`

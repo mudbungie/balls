@@ -137,8 +137,15 @@ impl Project {
     /// a regex. Empty when `<id>` was never delivered. (`git log`'s default order
     /// IS recency, so this is "do not reverse it", not extra sorting.)
     pub fn delivered_in(&self, integration: &str, marker: &str) -> io::Result<Vec<String>> {
+        self.marked(integration, marker)
+    }
+
+    /// The `marker`-tagged commits reachable from `revs` (a ref or a range),
+    /// newest first — the one tag-scan both [`Project::delivered_in`] and
+    /// `deliver`'s retry-idempotence check read through.
+    fn marked(&self, revs: &str, marker: &str) -> io::Result<Vec<String>> {
         let grep = format!("--grep={marker}");
-        let out = Self::run(&self.root, &["log", "--format=%H", "--fixed-strings", &grep, integration])?;
+        let out = Self::run(&self.root, &["log", "--format=%H", "--fixed-strings", &grep, revs])?;
         Ok(out.lines().map(str::to_string).collect())
     }
 }
@@ -177,13 +184,30 @@ impl Repo for Project {
         Ok(Self::run(&self.root, &["symbolic-ref", "--short", "HEAD"])?.trim().to_string())
     }
 
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str) -> io::Result<()> {
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
         if path.exists() {
             Self::capture(path, subject)?;
         }
-        // Nothing to deliver: branch never made, or no changes vs integration
-        // (the empty deliverable — a claimed non-deliverable, §11).
-        if !self.branch_exists(branch)? || Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
+        // Nothing to deliver: branch never made, every branch commit already on
+        // integration (`--is-ancestor` — covers the claimed non-deliverable AND
+        // a surviving delivery whose squash minted the very same sha as the
+        // branch tip: same parent/tree/message/second), or no tree change.
+        if !self.branch_exists(branch)?
+            || Self::ok(&self.root, &["merge-base", "--is-ancestor", branch, integration])?
+            || Self::ok(&self.root, &["diff", "--quiet", integration, branch])?
+        {
+            return Ok(());
+        }
+        // Already delivered: an aborted close can leave its squash on
+        // `integration` (the §14 un-squash is best-effort), and re-squashing on
+        // retry mints an EMPTY duplicate delivery commit (bl-430e). A `marker`
+        // commit since `branch` forked means THIS incarnation delivered, so the
+        // retry skips to the bookkeeping. Scoped to `merge-base..integration`
+        // because a reused id's prior delivery is always an ancestor of the
+        // fork point (§11 recency) — a full-history scan would false-positive
+        // and silently swallow the new incarnation's delivery.
+        let base = Self::run(&self.root, &["merge-base", integration, branch])?.trim().to_string();
+        if !self.marked(&format!("{base}..{integration}"), marker)?.is_empty() {
             return Ok(());
         }
         // Reintegration and the gate both act in the worktree; a close on a box

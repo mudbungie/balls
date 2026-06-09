@@ -58,6 +58,22 @@ fn prime(actor: &str, invocation: &str) -> String {
     format!(r#"{{"actor":"{actor}","binding":{{"invocation_path":"{invocation}"}}}}"#)
 }
 
+/// A change worktree named `name` with `tasks/bl-x.md` seeded then deleted —
+/// the close.pre cwd, the staged deletion being how the pre hook derives the id.
+fn change_dir(tmp: &Path, name: &str) -> std::path::PathBuf {
+    let change = tmp.join(name);
+    fs::create_dir(&change).unwrap();
+    git(&change, &["init", "-q", "-b", "balls"]);
+    git(&change, &["config", "user.name", "test"]);
+    git(&change, &["config", "user.email", "test@example.com"]);
+    fs::create_dir(change.join("tasks")).unwrap();
+    fs::write(change.join("tasks/bl-x.md"), "x\n").unwrap();
+    git(&change, &["add", "-A"]);
+    git(&change, &["commit", "-qm", "seed"]);
+    fs::remove_file(change.join("tasks/bl-x.md")).unwrap();
+    change
+}
+
 /// Write a `tasks/<id>.md` ball with `claimant` into the store checkout `store`.
 fn claimed_ball(store: &Path, id: &str, claimant: &str) {
     let tasks = store.join("tasks");
@@ -161,16 +177,7 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
 
     // close.pre — id recovered from the change worktree's deleted task file.
-    let change = tmp.path().join("change");
-    fs::create_dir(&change).unwrap();
-    git(&change, &["init", "-q", "-b", "balls"]);
-    git(&change, &["config", "user.name", "test"]);
-    git(&change, &["config", "user.email", "test@example.com"]);
-    fs::create_dir(change.join("tasks")).unwrap();
-    fs::write(change.join("tasks/bl-x.md"), "x\n").unwrap();
-    git(&change, &["add", "-A"]);
-    git(&change, &["commit", "-qm", "seed"]);
-    fs::remove_file(change.join("tasks/bl-x.md")).unwrap();
+    let change = change_dir(tmp.path(), "change");
     delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
 
     assert_eq!(
@@ -183,6 +190,52 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
     // close.post — teardown removes the worktree.
     delivery(&root, &home, "close", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     assert!(!wt.exists());
+}
+
+/// The §7 wire of a post-abort rollback of `close.pre` (§14): the op SEALED, so
+/// the payload carries the `bl-id` trailer in `metadata` plus the
+/// `rolling_back` tag — the cwd change worktree is clean by then.
+fn rollback_pre(invocation: &str, id: &str, title: &str) -> String {
+    format!(
+        r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}},"metadata":{{"bl-id":["{id}"]}},"rolling_back":"pre"}}"#
+    )
+}
+
+#[test]
+fn a_post_abort_unwind_unsquashes_off_the_sealed_trailer_then_a_retry_redelivers_once() {
+    // bl-430e: the §14 unwind reaches close.pre's rollback AFTER the seal, when
+    // the change worktree is CLEAN — the id must come off the sealed trailer the
+    // rollback wire carries, or the un-squash silently no-ops ("found 0") and
+    // the delivery survives the abort (then a retry minted an empty duplicate).
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let root = project(tmp.path());
+    let inv = root.to_str().unwrap();
+    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
+    let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
+
+    delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "Add feature")).assert().success();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+
+    // Forward close.pre delivers (id off the staged deletion, as in a real close).
+    let change = change_dir(tmp.path(), "change");
+    delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
+    git(&change, &["add", "-A"]);
+    git(&change, &["commit", "-qm", "the seal"]); // the change dir is clean now
+
+    // A later post plugin fails; the unwind rolls close.pre back post-seal.
+    delivery(&change, &home, "close", "pre", &rollback_pre(inv, "bl-x", "Add feature")).assert().success();
+    let tip = |args: &[&str]| {
+        String::from_utf8(Command::new("git").current_dir(&root).args(args).output().unwrap().stdout).unwrap().trim().to_string()
+    };
+    assert_eq!(tip(&["log", "-1", "--format=%s", "main"]), "seed"); // the squash was unwound
+
+    // The sanctioned recovery is retrying the close: it re-delivers exactly once.
+    let change2 = change_dir(tmp.path(), "change2");
+    delivery(&change2, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
+    assert_eq!(tip(&["log", "-1", "--format=%s", "main"]), "Add feature [bl-x]");
+    assert_eq!(tip(&["rev-list", "--count", "--fixed-strings", "--grep=[bl-x]", "main"]), "1");
 }
 
 #[test]
