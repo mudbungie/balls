@@ -21,7 +21,7 @@ pub enum Verb {
     Unclaim,
     Update,
     Close,
-    // Reads (§9): author no diff; hook dirs only.
+    // Reads (§9): author no diff; their hook keys run against the checkouts.
     Show,
     List,
     // Checkout lifecycle (§9/§13): act on the checkout, not a ball.

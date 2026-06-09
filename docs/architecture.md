@@ -21,8 +21,9 @@ spec describes the greenfield target, not what ships today.
 the trail/terminus/`operating` model are RETIRED. Config and tasks now ride SEPARATE branches —
 `balls/config` (the landing) + `balls/tasks` (the store) — with `config/` and `tasks/` as top-level
 folders always (reuse-safe, §2). Config NAMES the store via `tasks_branch` (§4); there is no trail,
-no terminus, no `operating/` symlink, no config layering down a chain. **Landing config is the sole
-authority** for what runs + where it syncs; ALL config is potential RCE and crosses only by `install`,
+no terminus, no `operating/` symlink, no config layering down a chain. **The LOCAL config stack
+(landing ⊕ XDG ⊕ CLI, §4) is the sole authority** for what runs + where it syncs — no remote is ever
+authoritative (bl-7d46(2)); ALL config is potential RCE and crosses only by `install`,
 a **pure path-copy** (folder = mirror, file/glob = union — §6); a fresh landing is SEEDED at prime from
 the app `default-config/` folder (no run-time defaults — §1); `sync` moves only the store. Touched
 §0/§1/§2/§4/§6/§7/§8/§12/§13/§16. Corrections to already-built phases are tracked under bl-72a8.
@@ -45,7 +46,7 @@ Load-bearing principles (each enforced structurally, not by discipline):
   never on `main` or any project branch. "Nothing on main" is STRUCTURAL: base balls never opens
   the project repo, so core *cannot* leave a commit there. Config and tasks ride SEPARATE branches
   because they have OPPOSITE transport disciplines (§2/§6): config is single-owner, install-replaced
-  (destructive, no merge); the store is shared, sync-merged (union, ff-only). One ref cannot carry
+  (destructive, no merge); the store is shared, sync-moved (fetch + ff-only). One ref cannot carry
   both disciplines, so the split is what makes each safe — enforced structurally, not by discipline.
 - **Unopinionated about workflow; no status field.** There is no `state`/`status` field at
   all (§3, bl-4778): status is a DERIVED view, not stored — `claimant` set ⇒ claimed, an unresolved
@@ -562,7 +563,8 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
 
 Plugins get meaning directly on the wire — content + intent, not hashes to reverse-engineer.
 **There is no return channel:** a plugin contributes by EDITING THE CHANGE WORKTREE (the ball file,
-frontmatter, a `git mv`), never by printing values for balls to merge. stdout is diagnostics. Two
+frontmatter, a `git mv`), never by printing values for balls to merge. stdout is the §6 user-facing
+channel (forwarded verbatim, parsed never); diagnostics are stderr (§6). Two
 plugins writing the same field is two filesystem writes — last writer wins, where "last" is the
 hook-list order; balls neither arbitrates nor tracks ownership.
 
@@ -596,7 +598,7 @@ balls runs TWO families of op, and they are deliberately NOT forced into one sha
 sequence below as universal — it is the **task-op** shape; the rest inherit what generalizes and no
 more.
 
-**Task ops — the symmetric family** (`create`/`claim`/`update`/`close`): **balls authors a base
+**Task ops — the symmetric family** (`create`/`claim`/`unclaim`/`update`/`close`): **balls authors a base
 change, an ordered plugin chain acts on it, balls seals it, plugins react.** The boundary is the SEAL —
 `commit + integrate`, atomic: **pre** modifiers shape what gets sealed (the record isn't fixed yet);
 **post** reactors act on the now-landed record and MUST NOT mutate the ball (it is sealed). One commit
@@ -655,7 +657,8 @@ The canonical task-op sequence (verb-agnostic):
 Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`.**
 There is **no `review` verb** — see "close" below.
 
-Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`.**
+Read verbs (no seal, no change worktree — their hook keys run against the checkouts directly, §13):
+**`show`, `list`.**
 (There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10. There is
 **no `dep-tree` verb** — its `--json` was a duplicate of `list --json`, so it owned no machine
 contract; retired 2026-06-09, see §15 bl-ffaf.) They
@@ -1020,8 +1023,9 @@ ref) then `materialize(tasks_branch)` (check the cloned-in ref out, or found a f
 exists) until the configured name stops moving, THEN runs `prime/post`. Founding the orphan eagerly,
 before the tracker could clone the remote in, was the unrelated-histories divergence bl-fa00 had to
 reset away; lazy materialize means it is never created. Per-session worktree re-materialization for
-still-claimed tasks rides the same chain (the delivery plugin's `prime.post`, idempotent
-create-if-absent, §11).
+still-claimed tasks — and the prune of settled `work/<id>` branches whose delivery already landed —
+rides the same chain (the delivery plugin's `prime.post`, idempotent create-if-absent /
+delete-if-settled, §11/§13).
 
 **Tracker's prime — two slots, one per axis (bl-0a23).** With no remote it is STEALTH (store stays
 local, a self-lock written). With a remote (the one §12 ladder below — `--remote`/`--center` > XDG
@@ -1187,7 +1191,8 @@ prime ran on an ephemeral explicit remote the durable ladder (XDG > origin) does
 plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
 "already initialized" — re-running prime is a no-op-converge; E3 "remote already established" —
 established vs absent is the adopt-vs-bootstrap fork, not an error. Retired by the trail's removal: N3
-downstream-layer-introduces-plugins — there is no downstream layer.)
+downstream-layer-introduces-plugins — there is no downstream layer. E6 was never assigned — the
+catalog arrived from the bl-2e26 extraction with the gap; codes are stable, never renumbered.)
 
 ## § id generation
 
@@ -1223,7 +1228,7 @@ is the cwd for `prime/post`, bl-0a23.) Core commits nothing of its own; the only
 remote-authored commits a plugin imports, or external/derived caches it refreshes.
 
 **`bl sync` — the synchronization primitive.** Low-level, run often: it makes state consistent and is
-mostly a verb for plugins to hook. `bl sync` (no arg) syncs the **store** — fast-forwards/unions
+mostly a verb for plugins to hook. `bl sync` (no arg) syncs the **store** — fast-forwards
 `tasks_branch` with its configured remote; `bl sync <branch>` syncs a named branch. It moves **task
 state only**: config is landing-local and changes only by `install` (§6), so sync *structurally
 cannot* re-home your config or activate code — it touches the store branch and nothing else. The store
@@ -1250,7 +1255,10 @@ not a consent breach, because consent governs config + executable plugins, never
 **`bl prime` — readiness, built FROM sync.** prime is not a hook-superset of sync; it is an
 **orchestrator of syncs** (§12): found the landing, run the `prime` FIXPOINT to materialize the store,
 then `bl sync` it. "Ready to start the engine" = substrate exists + store synced + claimed-task
-worktrees re-materialized (delivery's `prime.post`, §11). Idempotent: on an established checkout every
+worktrees re-materialized + settled `work/<id>` branches pruned (both delivery's `prime.post`, §11 —
+the prune deletes a branch whose delivery already landed on integration and KEEPS one carrying
+committed undelivered work, so a later claim + close still delivers it; this is the §11 "deferred,
+non-transactional cleanup" made concrete). Idempotent: on an established checkout every
 step is create-if-absent/already-current, so re-running converges to a no-op. The whole verb is the §12
 converging predicate.
 
@@ -1425,6 +1433,26 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **spec drift sweep #2 — propagate logged §15 decisions the body missed (2026-06-09, bl-6672 —
+  post-freeze; the bl-3911 discipline re-run).** An internal-consistency audit found that nearly every
+  defect was a REVISION SHADOW: a §15 resolution lists the sections it touched, and the contradictions
+  sat exactly where a revision needed to touch a section it didn't. Propagated: (1) §7 said "stdout is
+  diagnostics", contradicting §6's channel split (stdout = user-facing product, stderr = diagnostics)
+  that bl-0af4's case (c) leans on — §7 now matches §6. (2) §8's task-op family omitted `unclaim`
+  while claiming "fully symmetric across the five verbs" (§5/§9 list it; with `drop` gone, bl-65e0,
+  adding it makes five true again). (3) The 2026-06-05 REVISED header still read "Landing config is
+  the sole authority" — bl-7d46(2) corrected §0/§4 to the LOCAL-stack form but missed the header.
+  (4) §9's "hook dirs only" (and `src/verb.rs`'s enum comment) was registry-era vocabulary bl-8540
+  retired. (5) §0's "sync-merged (union, ff-only)" and §13's "fast-forwards/unions" — "union" was
+  vestigial; `remote_ops::sync` is strictly fetch + ff-only, a non-ff aborts, no union path exists.
+  (6) The §12 error catalog jumped E5→E7 with no note while E2/E3/N3 carry retirement notes; history
+  holds no E6 anywhere (never assigned — the gap arrived with the bl-2e26 extraction), now said
+  in-catalog. (7) §11 defers `work/<id>` deletion to prime as "deferred, non-transactional cleanup",
+  but §12/§13's enumeration of prime's jobs never claimed it — both now name the settled-branch prune
+  the build performs (delete a branch whose delivery landed; KEEP one carrying committed undelivered
+  work). Deliberately untouched: the unnumbered "§ id generation" stays unnumbered (renumbering churns
+  every cross-ref for zero meaning); §16's force-rewrite note stays (historical, cutover done). Doc +
+  comment-only. Tracked under bl-72a8.
 - **mutating ops are optimistic — the unbuilt pull half of "pull → mutate → push" is struck
   (2026-06-09, bl-336a — post-freeze).** §12 stated "each op runs against an up-to-date store
   (pull → mutate → push)" and E5 cited "the §13 pull→mutate→push contract" — but §13 defines no such
