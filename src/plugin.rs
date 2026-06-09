@@ -26,7 +26,7 @@
 //! plugins on a nested call — that would let a runaway defeat its own backstop.
 //! `rollback` cannot spawn at the cap either, so it no-ops (best-effort, §14).
 
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -223,13 +223,32 @@ impl<'a> Subprocess<'a> {
     }
 
     /// Envelope a plugin's piped stderr into the unified log, one record per line
-    /// (`src=<name>`, `lvl=info`). The final non-newline-terminated blob, if any,
-    /// is read to EOF as one line ([`BufRead::lines`] yields it). A read error
-    /// just ends the relay — logging is best-effort and must not abort the op.
+    /// (`src=<name>`, `lvl=info`). Each line is read through [`capped_lines`] so a
+    /// plugin emitting a blob with no newline cannot make the relay buffer
+    /// unbounded memory (bl-2d6d) — `log` trims each record further still. A read
+    /// error just ends the relay — logging is best-effort and must not abort the op.
     fn relay(&self, name: &str, phase: Phase, stderr: std::process::ChildStderr) {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            self.log.record(Level::Info, name, Some(phase), &line);
+        capped_lines(BufReader::new(stderr), RELAY_LINE_MAX, |line| {
+            self.log.record(Level::Info, name, Some(phase), line);
+        });
+    }
+}
+
+/// A very generous per-line ceiling on enveloped plugin stderr (1 MiB): far above
+/// any real diagnostic, but bounded, so a no-newline flood cannot OOM the parent.
+const RELAY_LINE_MAX: u64 = 1 << 20;
+
+/// Hand `reader`'s lines to `sink`, never buffering more than `cap` bytes at once:
+/// a line longer than `cap` is flushed in `cap`-sized pieces rather than grown
+/// without bound. The trailing newline is trimmed; a read error ends the relay.
+fn capped_lines(mut reader: impl BufRead, cap: u64, mut sink: impl FnMut(&str)) {
+    let mut buf = Vec::new();
+    while reader.by_ref().take(cap).read_until(b'\n', &mut buf).unwrap_or(0) != 0 {
+        if buf.last() == Some(&b'\n') {
+            buf.pop();
         }
+        sink(&String::from_utf8_lossy(&buf));
+        buf.clear();
     }
 }
 
