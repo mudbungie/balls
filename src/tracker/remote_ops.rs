@@ -10,21 +10,45 @@ use crate::safegit::reject_option_like;
 use std::io;
 use std::path::Path;
 
-/// §13 `sync/pre`: import the remote balls branch by `fetch` + **fast-forward
-/// only**. That one op is atomically detect-and-act — a non-ff IS the contention
-/// signal (git's non-zero exit becomes ours: "remote wins, re-run"), so there is
-/// no separate contention probe. Nothing is pushed, so a partial sync leaves
-/// the store at the old or the new tip, never wedged (§13 rollback).
+/// §13 `sync/pre`: the general rule — fetch the branch's UPSTREAM, **if any**,
+/// then **fast-forward** THAT branch. "If any" is read from the remote
+/// ([`remote_has_branch`], the same ls-remote that decides prime's
+/// adopt-vs-found): an upstream-less branch — the landing by construction (§4),
+/// any local-only branch — yields a no-op *for free*, no name special-cased.
+/// The ff target is the branch the binding NAMES, never whatever the store
+/// checkout happens to have checked out: the store's own branch integrates by
+/// `merge --ff-only FETCH_HEAD` (the working tree moves with it); any other
+/// branch is a pure ref move via the `<branch>:<branch>` refspec (ff-only by
+/// git's own default). Either way the ff is atomically detect-and-act — a
+/// non-ff IS the contention signal (git's non-zero exit becomes ours: "remote
+/// wins, re-run"), so there is no separate contention probe. Nothing is pushed,
+/// so a partial sync leaves the branch at the old or the new tip, never wedged
+/// (§13 rollback).
 pub fn sync(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
     let store = Path::new(&b.store);
+    let branch = b.tasks_branch.as_str();
     reject_option_like(remote)?;
-    reject_option_like(&b.tasks_branch)?;
-    git(store, &["fetch", remote, &b.tasks_branch])?;
-    git(store, &["merge", "--ff-only", "FETCH_HEAD"])?;
+    reject_option_like(branch)?;
+    if !remote_has_branch(store, remote, branch)? {
+        return Ok(()); // no upstream — the §13 no-op, for free
+    }
+    if git(store, &["symbolic-ref", "--short", "HEAD"]).ok().as_deref() == Some(branch) {
+        git(store, &["fetch", remote, branch])?;
+        git(store, &["merge", "--ff-only", "FETCH_HEAD"])?;
+    } else {
+        git(store, &["fetch", remote, &format!("{branch}:{branch}")])?;
+    }
     Ok(())
+}
+
+/// Does `remote` already carry `branch`? `git ls-remote --heads` is the one
+/// round-trip that answers "an upstream, if any" — sync's no-op gate and
+/// prime's adopt-vs-found / clone-vs-bootstrap signal (§12/§13).
+pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::Result<bool> {
+    Ok(!git(cwd, &["ls-remote", "--heads", remote, branch])?.is_empty())
 }
 
 /// §12 `*/post`: publish the just-sealed balls branch to the remote — always to
@@ -83,6 +107,45 @@ mod tests {
 
         sync(&binding(Some(&remote), &store)).unwrap();
         assert_eq!(tip(&store, "HEAD"), moved);
+    }
+
+    #[test]
+    fn sync_of_an_upstream_less_branch_is_a_no_op_the_landing_for_free() {
+        // §13: "fetch a branch's upstream, if any" — the remote carries no
+        // `balls/config`, so syncing the landing BY ITS REAL NAME fetches
+        // nothing and ff's nothing. No token is special-cased; any local-only
+        // branch takes the same no-op path.
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_branch(tmp.path());
+        let store = store_clone(tmp.path(), &remote);
+        let before = tip(&store, "HEAD");
+        for upstream_less in [crate::LANDING_BRANCH, "work/bl-0000"] {
+            let mut b = binding(Some(&remote), &store);
+            b.tasks_branch = upstream_less.into();
+            sync(&b).unwrap();
+            assert_eq!(tip(&store, "HEAD"), before);
+        }
+    }
+
+    #[test]
+    fn sync_of_a_non_checked_out_branch_ffs_that_branch_not_the_checkout() {
+        // §13: the ff target is the branch the binding NAMES. The store sits on
+        // `balls`; syncing `other` moves refs/heads/other (a pure ref move) and
+        // leaves the checked-out branch where it was.
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_branch(tmp.path());
+        let store = store_clone(tmp.path(), &remote);
+        let seat = checkout(tmp.path(), &remote, "seat");
+        git(&seat, &["checkout", "-q", "-b", "other"]).unwrap();
+        let moved = commit(&seat, "other.txt", "other");
+        git(&seat, &["push", "-q", "origin", "other"]).unwrap();
+
+        let head = tip(&store, "HEAD");
+        let mut b = binding(Some(&remote), &store);
+        b.tasks_branch = "other".into();
+        sync(&b).unwrap();
+        assert_eq!(tip(&store, "other"), moved); // the named branch moved…
+        assert_eq!(tip(&store, "HEAD"), head); // …the checkout did not
     }
 
     #[test]
