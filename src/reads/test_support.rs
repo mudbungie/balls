@@ -2,14 +2,67 @@
 //! balls without a git checkout, and a throwaway git store carrying real
 //! create/retire history for the dead-ball reconstruction tests (§9).
 
+use std::fs;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use tempfile::TempDir;
 
 use super::Catalog;
+use crate::edge::Edge;
+use crate::layout::Xdg;
+use crate::log::{self, Level, Log};
+use crate::registry::Registry;
 use crate::task::{Blocker, On, Task};
+use crate::verb::Verb;
+
+/// An [`Edge`] rooted in `tmp`: XDG state under `tmp/state`, the project at
+/// `tmp/proj`, no colour, top-level depth unless overridden.
+pub(crate) fn edge(tmp: &Path, depth: u32) -> Edge {
+    Edge {
+        xdg: Xdg::with(&tmp.join("home"), None, Some(tmp.join("state").to_str().unwrap())),
+        invocation_path: tmp.join("proj"),
+        default_actor: "me".into(),
+        depth,
+        exe_dir: None,
+        color: false,
+        log_level: None,
+    }
+}
+
+/// The landing dir for `edge`'s project, with `config/plugins.toml` written.
+pub(crate) fn landing_with(edge: &Edge, plugins_toml: &str) -> PathBuf {
+    let landing = edge.xdg.clone_dir(&edge.invocation_path).landing();
+    fs::create_dir_all(landing.join("config")).unwrap();
+    fs::write(landing.join("config").join("plugins.toml"), plugins_toml).unwrap();
+    landing
+}
+
+/// Drop an executable `script` named `name` in `tmp` and bind it on `landing`.
+pub(crate) fn bind_script(tmp: &Path, landing: &Path, name: &str, script: &str) {
+    let bin = tmp.join(name);
+    fs::write(&bin, script).unwrap();
+    fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+    Registry::at(landing).bind(name, &bin).unwrap();
+}
+
+/// A [`Log`] sink at `tmp/oplog` with the given threshold — read its records
+/// back with [`log_lines`].
+pub(crate) fn log_at(tmp: &Path, level: Level, verb: Verb) -> Log {
+    Log::new(tmp.join("oplog"), level, verb, log::wall)
+}
+
+/// The records [`log_at`]'s sink wrote — `""` when nothing was emitted.
+pub(crate) fn log_lines(tmp: &Path) -> String {
+    fs::read_to_string(tmp.join("oplog")).unwrap_or_default()
+}
+
+/// The op-log contents for `edge`'s clone — `""` when no record was emitted.
+pub(crate) fn op_log(edge: &Edge) -> String {
+    fs::read_to_string(edge.xdg.clone_dir(&edge.invocation_path).op_log()).unwrap_or_default()
+}
 
 /// A minimal ready ball: a title and a timestamp, everything else default.
 pub(crate) fn task(title: &str, created: i64) -> Task {

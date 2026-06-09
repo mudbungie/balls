@@ -1,12 +1,10 @@
 //! Tests for the read-verb core: catalog loading, the §3 status resolver, flag
-//! parsing, the diffless dispatch, and the shared rendering helpers.
+//! parsing, and the shared rendering helpers. The `run` lifecycle (narration +
+//! the §6 read dispatch) is covered by the sibling [`super::run_tests`].
 
 use super::test_support::{blocker, catalog, task};
 use super::*;
-use crate::edge::Edge;
-use crate::layout::Xdg;
 use crate::task::On;
-use tempfile::TempDir;
 
 /// A claimed ball.
 fn claimed(title: &str, created: i64, by: &str) -> Task {
@@ -153,56 +151,6 @@ fn every_retirement_reads_as_closed() {
     let rich = Style { plain: false };
     assert!(rich.retired_badge().contains('\u{2713}')); // ✓
     assert!(!rich.retired_badge().contains('\u{2717}')); // never a drop ✗
-}
-
-#[test]
-fn run_lists_and_shows_dead_balls_from_history() {
-    let tmp = TempDir::new().unwrap();
-    let edge = edge_with(&tmp, &[]);
-    let store = edge.xdg.clone_dir(&edge.invocation_path).store();
-    let gs = test_support::git_store_at(&store);
-    gs.create("bl-dead", &task("Gone", 1), 1).retire("bl-dead", "close", 9);
-
-    // --status closed / --all reach the dead set, and show falls through to it.
-    run(&edge, Verb::List, &["--status".into(), "closed".into()]).unwrap();
-    run(&edge, Verb::List, &["--all".into()]).unwrap();
-    run(&edge, Verb::Show, &["bl-dead".into()]).unwrap();
-}
-
-/// An edge whose store is seeded with `tasks`.
-fn edge_with(tmp: &TempDir, tasks: &[(&str, Task)]) -> Edge {
-    let xdg = Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy()));
-    let edge = Edge {
-        xdg,
-        invocation_path: tmp.path().join("proj"),
-        default_actor: "t".into(),
-        depth: 0,
-        exe_dir: None,
-        color: false,
-        log_level: None,
-    };
-    let store = edge.xdg.clone_dir(&edge.invocation_path).store();
-    for (id, t) in tasks {
-        crate::taskfile::write_task(&store, id, t).unwrap();
-    }
-    edge
-}
-
-#[test]
-fn run_dispatches_each_read_verb() {
-    let tmp = TempDir::new().unwrap();
-    let edge = edge_with(&tmp, &[("bl-1", task("One", 1))]);
-    run(&edge, Verb::List, &[]).unwrap();
-    run(&edge, Verb::List, &["--status".into(), "ready".into()]).unwrap();
-    run(&edge, Verb::Show, &["bl-1".into()]).unwrap();
-}
-
-#[test]
-fn run_errors_on_a_missing_ball_and_a_non_read_verb() {
-    let tmp = TempDir::new().unwrap();
-    let edge = edge_with(&tmp, &[]);
-    assert!(run(&edge, Verb::Show, &["bl-x".into()]).is_err());
-    assert!(run(&edge, Verb::Create, &[]).is_err()); // not a read verb
 }
 
 #[test]
