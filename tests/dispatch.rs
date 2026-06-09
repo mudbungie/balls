@@ -96,6 +96,32 @@ fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
 }
 
 #[test]
+fn prime_stealth_opts_out_of_founding_on_a_pushable_origin() {
+    // §12 `bl prime --stealth` end to end, through the real bl + tracker: in a
+    // clone with a pushable `origin`, a plain prime FOUNDS balls/tasks on the
+    // remote; `--stealth` takes the inferred no-remote path instead — the
+    // self-lock is written and the origin is never touched.
+    let tmp = TempDir::new().unwrap();
+    let (home, state) = (tmp.path().join("h"), tmp.path().join("s"));
+    let origin = tmp.path().join("origin.git");
+    git(tmp.path(), &["init", "--bare", "-q", "-b", "main", &origin.to_string_lossy()]);
+    let project = tmp.path().join("p");
+    git(tmp.path(), &["clone", "-q", &origin.to_string_lossy(), &project.to_string_lossy()]);
+
+    bl_primed(&project, &home, &state).args(["prime", "--stealth"]).assert().success();
+    assert!(stealth_lock(&state, &project).is_file()); // locked local
+    let founded = std::process::Command::new("git")
+        .args(["-C", &origin.to_string_lossy(), "rev-parse", "--verify", "refs/heads/balls/tasks"])
+        .status().unwrap().success();
+    assert!(!founded, "--stealth must not found balls/tasks on origin");
+
+    // The contradiction is refused loud (§12: stealth means no store remote).
+    bl_primed(&project, &home, &state)
+        .args(["prime", "--stealth", "--remote", "git@hub:r"])
+        .assert().failure().stderr(contains("--stealth contradicts"));
+}
+
+#[test]
 fn create_seals_a_ball_and_runs_the_mutating_post_chain() {
     let tmp = TempDir::new().unwrap();
     let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));

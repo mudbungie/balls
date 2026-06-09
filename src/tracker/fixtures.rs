@@ -144,6 +144,7 @@ pub fn env(home: &Path, state: &Path) -> super::Env {
 pub fn binding(remote: Option<&Path>, store: &Path) -> Binding {
     Binding {
         remote: remote.map(|r| r.to_string_lossy().into_owned()),
+        stealth: false,
         tasks_branch: BRANCH.to_string(),
         store: store.to_string_lossy().into_owned(),
         landing: String::new(),

@@ -13,7 +13,10 @@ use std::io::{self, Read};
 
 /// §7 binding — where the op is happening, from the tracker's seat. `remote` is
 /// absent in a stealth (no-remote) repo, which is the tracker's whole branch
-/// point: no remote ⇒ nothing to talk to. `store` is the STORE checkout it
+/// point: no remote ⇒ nothing to talk to. `stealth` is `bl prime --stealth`'s
+/// explicit §12 opt-out: it makes the no-remote read DECLARED rather than
+/// inferred, suppressing even `origin` discovery (absent on every ordinary
+/// payload, so it defaults `false`). `store` is the STORE checkout it
 /// fetches/pushes `tasks_branch` against (§2); `landing` is the `balls/config`
 /// checkout the `install/pre` config fetch targets (§6/§13 — every other handler
 /// ignores it, so it defaults empty); `invocation_path` locates this checkout's
@@ -22,6 +25,8 @@ use std::io::{self, Read};
 pub struct Binding {
     #[serde(default)]
     pub remote: Option<String>,
+    #[serde(default)]
+    pub stealth: bool,
     pub tasks_branch: String,
     pub store: String,
     #[serde(default)]
@@ -66,6 +71,7 @@ mod tests {
         assert_eq!(b.store, "/store");
         assert_eq!(b.landing, "/landing");
         assert_eq!(b.invocation_path, "/proj");
+        assert!(!b.stealth); // absent on an ordinary payload — defaults false
     }
 
     #[test]
@@ -77,6 +83,17 @@ mod tests {
         .unwrap();
         assert_eq!(b.remote, None);
         assert_eq!(b.landing, "");
+    }
+
+    #[test]
+    fn an_explicit_stealth_flag_rides_the_binding() {
+        // `bl prime --stealth` (§12): the declared opt-out arrives as a field.
+        let b = read(
+            r#"{"binding":{"stealth":true,"tasks_branch":"balls/tasks","store":"/store","invocation_path":"/p"}}"#,
+        )
+        .unwrap();
+        assert!(b.stealth);
+        assert_eq!(b.remote, None);
     }
 
     #[test]

@@ -21,7 +21,8 @@
 //! config tiers — §0 keeps it local-only), the tracker discovers the project-repo
 //! `origin` as its single fallback ([`effective_remote`], resolved once at the
 //! [`handle`] dispatch point). Each handler no-ops in a stealth repo — no explicit
-//! remote AND no discoverable origin — the structural opt-out (§12).
+//! remote AND no discoverable origin, or a binding DECLARED stealth by `bl prime
+//! --stealth` — the structural opt-out (§12).
 
 mod git;
 mod payload;
@@ -119,8 +120,13 @@ fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result
 /// dispatch point and written back onto `binding.remote`, so every handler shares
 /// this one fallback and reads `binding.remote` as before — the stealth gate
 /// ("no remote ⇒ no-op") thus means "no explicit remote AND no discoverable
-/// origin", with no per-handler re-probe.
+/// origin", with no per-handler re-probe. A binding carrying `stealth` — `bl
+/// prime --stealth`, the §12 consent opt-out — is DECLARED stealth: resolve no
+/// remote at all, so even a discoverable `origin` is never founded or pushed.
 fn effective_remote(b: &Binding) -> Option<String> {
+    if b.stealth {
+        return None;
+    }
     b.remote.clone().or_else(|| origin_of(Path::new(&b.invocation_path)))
 }
 

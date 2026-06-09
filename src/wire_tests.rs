@@ -13,6 +13,7 @@ fn ctx() -> OpContext {
         actor: "me@example.com".into(),
         binding: Binding {
             remote: Some("origin".into()),
+            stealth: false,
             tasks_branch: "balls/tasks".into(),
             store: "/store".into(),
             landing: "/landing".into(),
@@ -118,4 +119,19 @@ fn a_stealth_binding_omits_the_remote() {
     let v = json(&c.wire("tracker", "sync", "pre", None, None));
     assert!(v["binding"].get("remote").is_none());
     assert_eq!(v["binding"]["tasks_branch"], "balls/tasks");
+}
+
+#[test]
+fn an_explicit_stealth_binding_carries_the_flag_a_tracked_one_omits_it() {
+    // §12 `bl prime --stealth`: the declared opt-out rides the wire as
+    // `stealth: true`; the ordinary false never serializes, so every
+    // pre-existing payload shape is byte-identical.
+    let c = ctx();
+    let v = json(&c.wire("tracker", "prime", "pre", None, None));
+    assert!(v["binding"].get("stealth").is_none(), "tracked binding must omit stealth");
+    let mut c = ctx();
+    c.binding.remote = None;
+    c.binding.stealth = true;
+    let v = json(&c.wire("tracker", "prime", "pre", None, None));
+    assert_eq!(v["binding"]["stealth"], true);
 }
