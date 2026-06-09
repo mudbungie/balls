@@ -115,6 +115,7 @@ pub mod op;
 pub mod plugin;
 pub mod reads;
 pub mod registry;
+pub(crate) mod safegit;
 pub mod seed;
 pub mod substrate;
 pub mod task;

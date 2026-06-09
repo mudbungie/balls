@@ -39,6 +39,7 @@ fn run(args: &[String]) -> io::Result<()> {
     let mut stdin = String::new();
     io::stdin().read_to_string(&mut stdin)?;
     let wire: Wire = serde_json::from_str(&stdin).map_err(io::Error::other)?;
+    delivery::ensure_safe_invocation_path(&wire.binding.invocation_path)?;
 
     let plugin = var("BALLS_PLUGIN_NAME")?;
     let home = var("HOME")?;
