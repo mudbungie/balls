@@ -1,7 +1,8 @@
 +++
 title = "gh-plugin: harden shellback bl-create against arg-injection from GitHub titles"
 created = 1780996134
-updated = 1780996673
+updated = 1781033637
+claimant = "Quill"
 parent = "bl-10a4"
 priority = 2
 tags = ["gh-plugin"]
