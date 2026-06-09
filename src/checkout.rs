@@ -55,8 +55,8 @@ use std::path::Path;
 /// THEN this same call's prime+sync chains bring the just-adopted `tasks_branch`
 /// to readiness. It is a SINGLE hop, not a walk: a center's config names its own
 /// `tasks_branch` (the one config→store indirection, §4), never another config to
-/// chase. The center also seeds the store remote (top of the [`resolve_remote`]
-/// precedence) unless an explicit `--remote` overrides it. Plain prime (no
+/// chase. The center also seeds the store remote (the explicit remote used for
+/// the binding) unless an explicit `--remote` overrides it. Plain prime (no
 /// `--install`) never adopts foreign config nor activates code — the auto-safe
 /// every-session path holds.
 pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
@@ -130,33 +130,24 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
-/// [`Level`]: the EXPLICIT-tier store remote, the `tasks_branch` (the `target`
+/// [`Level`]: the EXPLICIT store remote, the `tasks_branch` (the `target`
 /// override, else the config-named one — §13 `bl sync <branch>`), the two checkout
 /// paths, and the `log_level` threshold (CLI override over config). `cli_remote` is
-/// the parsed `--remote`/`--center` override (prime; `None` for sync/mutate),
-/// seeding the [`resolve_remote`] precedence. One landing config read serves both.
-/// The single construction point [`binding`] does the binding assembly.
+/// the parsed `--remote`/`--center` override (prime; `None` for sync/mutate); when
+/// absent it falls back to the per-machine XDG `remote`. That is the WHOLE of
+/// core's remote handling — both are plain config reads; core never resolves an
+/// implicit remote (§0). `None` here is NOT stealth: it means "no EXPLICIT remote",
+/// and the binding carries `remote: None` to the tracker, which discovers the
+/// project-repo `origin` (the bottom §12 tier — remote-talk, so the tracker's
+/// alone). One landing config read serves both fields; [`binding`] assembles it.
 fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
     let user_config = edge.xdg.user_config();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
-    let remote = resolve_remote(cli_remote, &user_config);
+    let remote = cli_remote.or_else(|| crate::config::xdg_remote(&user_config));
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
     let binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);
     Ok((binding, level))
-}
-
-/// Resolve the store remote from the EXPLICIT tiers ONLY (§12) — a CLI override
-/// (`--remote` > `--center`, already collapsed by the caller) beats the
-/// per-machine XDG `remote`. Both are plain config reads; core never talks to a
-/// remote (§0). `None` here is NOT necessarily stealth: it means "no explicit
-/// remote", and core hands the tracker `remote: None`. The bottom §12 tier —
-/// implicit `origin` discovery — is the TRACKER's, not core's: it reads a git
-/// remote (`git remote get-url origin` on the PROJECT repo / invocation path),
-/// which is remote-talk, so it cannot live here. Shared by every op's bind
-/// (prime/sync/mutate) so they agree on the explicit upstream for `tasks_branch`.
-pub(crate) fn resolve_remote(cli: Option<String>, user_config: &Path) -> Option<String> {
-    cli.or_else(|| crate::config::xdg_remote(user_config))
 }
 
 /// Run the DIFFLESS chain for `op` (§13): resolve the plugin sets from the
@@ -203,7 +194,7 @@ struct SyncOpts {
 }
 
 /// Parsed `bl prime` flags: the resolved actor, the optional store-remote
-/// override that seeds the top of the [`resolve_remote`] precedence (§12), and the
+/// override that becomes the binding's explicit remote (over XDG, §12), and the
 /// optional `--install CENTER` that triggers config adoption (§13). `install`
 /// also seeds the remote when `remote` is unset (the center is where the adopted
 /// `tasks_branch` lives), resolved in [`prime`].
