@@ -66,8 +66,11 @@ bl prime --as YOUR_IDENTITY
 `prime` is idempotent: on first run it **founds** the local substrate (there is
 no separate `bl init`) — seeding `config/` from the install defaults and creating
 the store — then syncs with the remote and re-materializes the worktrees of any
-tasks you still hold. It prints no listing of its own; once primed, read the two
-sets you care about with `bl list` (the single listing verb):
+tasks you still hold. It also prunes the settled `work/<id>` branches that
+delivered closes leave behind (a branch carrying committed, undelivered work —
+e.g. after an unclaim — is kept; a later claim + close delivers it). It prints
+no listing of its own; once primed, read the two sets you care about with
+`bl list` (the single listing verb):
 
 - **ready** (open, unblocked, unclaimed, highest priority first): `bl list`, or
   `bl list -s ready` for that rung alone.

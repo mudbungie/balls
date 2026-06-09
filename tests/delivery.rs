@@ -187,9 +187,21 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
         "Add feature [bl-x]"
     );
 
-    // close.post — teardown removes the worktree.
+    // close.post — teardown removes the worktree but KEEPS the branch (§11:
+    // rollback-safe; the §14 unwind can still un-squash and re-create from it).
     delivery(&root, &home, "close", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     assert!(!wt.exists());
+    let branch_exists = || {
+        Command::new("git").current_dir(&root).args(["rev-parse", "--verify", "--quiet", "refs/heads/work/bl-x"]).output().unwrap().status.success()
+    };
+    assert!(branch_exists());
+
+    // prime.post is the deferred cleanup site (§11): the delivered branch is
+    // settled, so the prune deletes it — the bl-292d leak, closed.
+    let store = tmp.path().join("store");
+    fs::create_dir_all(store.join("tasks")).unwrap();
+    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success();
+    assert!(!branch_exists());
 }
 
 /// The §7 wire of a post-abort rollback of `close.pre` (§14): the op SEALED, so

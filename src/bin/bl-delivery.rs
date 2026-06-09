@@ -87,7 +87,10 @@ fn run(args: &[String]) -> io::Result<()> {
 /// The claimed set replaces the single derived id; each worktree is recomputed
 /// from `(invocation, id)`, so a re-prime whose worktrees already exist is a
 /// no-op (create-if-absent). The store is the diffless cwd balls invokes us in
-/// (§13), not a wire field.
+/// (§13), not a wire field. Once the claimed set is re-materialized (their
+/// branches now checked out, so the prune cannot touch them) prime PRUNES the
+/// settled `work/<id>` branches close/unclaim teardown left behind — the §11
+/// deferred, non-transactional branch cleanup ([`Project::prune`]).
 fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> io::Result<()> {
     let store = env::current_dir()?;
     let rolling_back = wire.rolling_back.is_some();
@@ -99,6 +102,9 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
         if let Some(line) = delivery::surfaced("prime", phase, rolling_back, &worktree, worktree.is_dir()) {
             println!("{line}");
         }
+    }
+    if phase == "post" && !rolling_back {
+        repo.prune()?;
     }
     Ok(())
 }
