@@ -85,10 +85,9 @@ prime founds, pushes, and discovers nothing. It contradicts
 ## Identity
 
 Every claim/close/prime is stamped with a worker identity from `--as ID`, else
-`$BALLS_IDENTITY`, else `$USER`. Don't let an LLM invent its own name — models
-collapse to the same few names across sessions and step on each other's claims.
-Have the harness pick a name at session start and pass it as `--as` /
-`$BALLS_IDENTITY`.
+`$USER`, else the literal `"unknown"`. Don't let an LLM invent its own name —
+models collapse to the same few names across sessions and step on each other's
+claims. Have the harness pick a name at session start and pass it as `--as`.
 
 ## Commands
 
