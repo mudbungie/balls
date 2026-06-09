@@ -87,9 +87,10 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
-| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
+| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
-| `bl skill` | Print this guide. |
+| `bl skill` | Print this guide (the full manual). |
+| `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
 > **For agents:** the human-facing output of `list`/`show`/`dep-tree` uses status
 > glyphs and color on a tty. Always prefer `--json` for parsing — it is the
@@ -154,9 +155,7 @@ Then:
 - `git status` at the bare root is fatal by design (`must be run in a work
   tree`), not a broken repo. For task state use `bl list`; for code state run
   `git status`/`git diff` inside your `work/<id>` worktree.
-- All `bl` verbs run from the bare root. `bl close` does too — and **must not be
-  run from inside the worktree it deletes**: `cd` to the repo root first, or your
-  shell's working directory is removed underneath you.
+- All `bl` verbs run from the bare root.
 
 ## Removing or abandoning tasks
 

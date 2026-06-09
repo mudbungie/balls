@@ -150,8 +150,6 @@ d0a637d Initial commit
 
 ## 9. Close — deliver + archive + tear down, in one move
 
-Run from the repo root (never inside the worktree it deletes).
-
 ```console
 $ cd ~/acme            # back to the repo root
 $ bl close bl-9f1b -m "deliver auth backend" --as alice    # prints "close bl-9f1b" on stderr
