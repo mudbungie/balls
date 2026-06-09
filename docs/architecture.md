@@ -1054,8 +1054,9 @@ adopt-vs-found:
 - **Rejected push to an ESTABLISHED remote** (branch PRESENT — non-ff, perms revoked mid-life, a
   server-hook reject): this is the opposite and is an **ERROR (E5)**. Your mutation did NOT land while
   you believe you are federated; silently degrading to stealth here is a split-brain (the local store
-  diverges from the remote everyone else reads). The non-zero exit aborts the op (the §13 pull → mutate
-  → push contract), surfaced, never swallowed. `prime/post`'s OWN established publish (fetch-ff + push,
+  diverges from the remote everyone else reads). The non-zero exit aborts the op — the push IS the
+  contention check (optimistic mutate → push, above; bl-336a), re-run after `bl sync` — surfaced,
+  never swallowed. `prime/post`'s OWN established publish (fetch-ff + push,
   bl-0a23) takes this same E5 path — it is exactly every op's `*/post` publish (the tracker's
   `remote_ops::push`); only the founding push, where nothing existed to land on, degrades silently.
 
@@ -1156,9 +1157,13 @@ config + plugin set; the committed `plugins.toml` schedule travels on install, t
 never does, so a center can never make your box run a binary you didn't opt into.
 
 **Sync is two-tier (bl-62bc revised; verb mechanics → §13).**
-- **The store** (`tasks_branch`) syncs **every op, default ON** — you push mutations (claim/close) to
-  the remote store branch, so each op runs against an up-to-date store (pull → mutate → push). A
-  tracked store that isn't current is a surprise; an offline knob exists but the default is synced.
+- **The store** (`tasks_branch`) publishes **every op, default ON** — every mutation (claim/close)
+  pushes to the remote store branch. Currency is OPTIMISTIC (mutate → push, bl-336a §15): an op seals
+  against the local store, and a stale store surfaces ATOMICALLY at the push — the non-ff reject (E5)
+  is the one-step detect-and-act contention check, recovery is `bl sync` + retry. There is
+  deliberately NO pre-pull: it would add a remote round-trip to every op plus a TOCTOU window the
+  ff-push reject closes anyway (the same one-step argument §13 makes against a separate sync
+  contention probe), and the losing mutation never reaches the remote.
 - **Config never syncs.** It is landing-local and changes only by `install` (consent, §6). `sync`
   moves the store ONLY — it structurally cannot re-home your config or activate code. There is no
   topology to refresh beyond the `tasks_branch` value itself, which is config.
@@ -1175,8 +1180,8 @@ physical realization is §1 (`config/` and `tasks/` are two checkouts; the store
 Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store remote resolved
 (stealth/no-tracker is fine — this fires only when a remote was named but unresolvable); E4 [tracker]
 remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an ESTABLISHED remote store
-(non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts per the §13
-pull→mutate→push contract, NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
+(non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts — the push is
+the contention check, re-run after `bl sync` (bl-336a) — NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
 prime, rolled back K prior; W1 [tracker] store is stealth (local), not auto-syncing; W2 [tracker]
 prime ran on an ephemeral explicit remote the durable ladder (XDG > origin) does not reproduce —
 plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
@@ -1420,6 +1425,21 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **mutating ops are optimistic — the unbuilt pull half of "pull → mutate → push" is struck
+  (2026-06-09, bl-336a — post-freeze).** §12 stated "each op runs against an up-to-date store
+  (pull → mutate → push)" and E5 cited "the §13 pull→mutate→push contract" — but §13 defines no such
+  contract and the pull half was never built: mutating ops wire the tracker only into `*.post`
+  (`remote_ops::push`; the tracker dispatch's `(_, "post")` arm), and nothing in `mutate.rs` syncs
+  first. The familiar fork — POPULATE (wire a pre-pull) or STRIKE — and the same resolution, by
+  SUBTRACTION: the contract is **mutate → push, optimistic**. An op seals against the local store; a
+  stale store surfaces ATOMICALLY at the push — the non-ff reject (E5) is the one-step detect-and-act
+  contention check, recovery is `bl sync` + retry. A pre-pull would add a remote round-trip to every
+  claim/close plus a TOCTOU window the ff-push reject closes anyway — the same argument §13 already
+  makes against a separate sync contention probe. Concurrency stays safe: the losing mutation seals
+  locally, its push rejects, the op rolls back, and the remote store never sees it. Touched §12 (the
+  two-tier sync bullet; the E5 paragraph + catalog entry; bl-9857's own §15 entry stays as written —
+  history). Code: comment-only (`src/tracker/remote_ops.rs` module header + `push()` doc), no
+  behavior change.
 - **forge review is a subtask, not a delivery variant — the close guard stays at stage; PR submission
   is git-native work (2026-06-09, bl-7bfe — post-freeze).** The spec contradicted itself on close
   ordering, and the contradiction hid a deadlock. §9 numbered `close.pre` "(1) delivery DELIVERS …
