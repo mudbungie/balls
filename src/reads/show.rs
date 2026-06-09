@@ -53,9 +53,9 @@ fn render_dead(d: &Dead, flags: &Flags, style: &Style) -> String {
     if flags.json {
         return json_line(&task_json(&d.id, &d.task));
     }
-    let badge = style.retired_badge(d.retired);
+    let badge = style.retired_badge();
     let mut out = header(&badge, &d.id, &d.task);
-    field(&mut out, "status", d.retired.word());
+    field(&mut out, "status", "closed");
     field(&mut out, "retired", &iso8601(d.retired_at));
     body_block(&mut out, &d.task, |_| {}); // dead balls render no children rollup
     out

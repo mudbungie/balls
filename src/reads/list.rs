@@ -89,11 +89,11 @@ fn render(cat: &Catalog, rows: &[Row], flags: &Flags, style: &Style) -> String {
     out
 }
 
-/// The badge for a row: the live status ladder, or the dead retirement word/glyph.
+/// The badge for a row: the live status ladder, or the dead `closed` word/glyph.
 fn badge(cat: &Catalog, r: &Row, style: &Style) -> String {
     match r {
         Row::Live(e) => style.badge(cat.status(e)),
-        Row::Dead(d) => style.retired_badge(d.retired),
+        Row::Dead(_) => style.retired_badge(),
     }
 }
 
