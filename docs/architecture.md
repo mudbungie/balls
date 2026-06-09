@@ -378,8 +378,10 @@ bl-actor: orionriver@gmail.com
 
 A plugin is a single binary, dispatched **subprocess-uniform** — no in-process path, no privileged
 plugins. The shipped `tracker` and delivery plugins are fully separate binaries, in-repo only as
-default capabilities + reference implementations, invoked identically to any third party. `bl
-plugin <name> <op> <phase>` is the canonical dispatch and balls dogfoods it.
+default capabilities + reference implementations, invoked identically to any third party. Core
+spawns every plugin directly as `<bin> <op> <phase>` — uniformity is carried by that spawn
+contract, not by a dispatch verb (there is none; bl-587f, §15). Hand-testing a wiring is just
+running the binary by hand with the same argv.
 
 ```
 <bin> protocol
@@ -1314,6 +1316,17 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`bl plugin <name> <op> <phase>` — strike the never-built dispatch verb (2026-06-09, bl-587f —
+  post-freeze).** §6 claimed the verb "is the canonical dispatch and balls dogfoods it"; neither half
+  was ever real. No such verb exists (`Verb::ALL`, `src/verb.rs` — `bl plugin` is an unknown command,
+  exit 2), and core has always spawned plugins DIRECTLY as `<bin> <op> <phase>` (`src/plugin.rs`),
+  through no verb. The load-bearing property — subprocess uniformity — DOES hold, but it is carried by
+  the SPAWN CONTRACT (one argv/env/stdin shape for every plugin, shipped or third-party), never by a
+  user-invocable verb. The familiar fork — IMPLEMENT or STRIKE — resolves by SUBTRACTION: STRIKE. No
+  concrete consumer exists, and the spec carries no aspirational verbs; hand-testing a wiring needs no
+  dispatcher — it is just running the plugin binary by hand with the contract's argv. If a real
+  consumer ever materializes, that is a fresh design, not a revival. Touched §6 (the dispatch
+  paragraph now states the spawn contract). Doc only — no code change. Tracked under bl-72a8.
 - **spec drift sweep — the CODE is the conformant side throughout (2026-06-09, bl-3911 —
   post-freeze).** A doc-only audit of places where shipped code and this spec had silently diverged;
   every correction re-derives the spec text from the build (`default-config/plugins.toml`,
