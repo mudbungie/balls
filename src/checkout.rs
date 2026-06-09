@@ -140,7 +140,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// and the binding carries `remote: None` to the tracker, which discovers the
 /// project-repo `origin` (the bottom §12 tier — remote-talk, so the tracker's
 /// alone). One landing config read serves both fields; [`binding`] assembles it.
-fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
+pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
     let user_config = edge.xdg.user_config();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level));
@@ -250,8 +250,9 @@ fn parse_sync(args: &[String], default_actor: &str) -> io::Result<SyncOpts> {
 }
 
 /// The value following a `--flag`, advancing the cursor; missing value is an
-/// error (the shared parse step for `--as`).
-fn value(args: &[String], i: &mut usize, flag: &str) -> io::Result<String> {
+/// error — the parse step the checkout-lifecycle verbs (and `bl install`,
+/// [`crate::install::run`]) share.
+pub(crate) fn value(args: &[String], i: &mut usize, flag: &str) -> io::Result<String> {
     *i += 1;
     args.get(*i)
         .cloned()

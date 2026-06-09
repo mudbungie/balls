@@ -23,7 +23,7 @@ path the design goes to length to stage.
 | C1 | **critical** | §6 / §15 bl-7110 | Recursion cap *suppresses* plugins instead of *abort+rollback* — the exact disposition §15 retired | `src/plugin.rs:140-143,231-243` | ✅ FIXED (bl-abe5) |
 | M1 | **major** | §3 / §9 / §11 / §15 bl-934a,bl-d074 | `--json` bedrock drops `task.extra`; unknown preserved keys are invisible | `src/reads.rs:218-235` | ✅ FIXED upstream (bl-e582) |
 | M2 | **major** | §6 / §11 / §15 bl-934a | Worktree-path consumer surface entirely missing (no stdout print + core nulls plugin stdout) | `src/bin/bl-delivery.rs:20-25`, `src/plugin.rs:203` | ✅ FIXED (bl-abe5) |
-| M3 | **major** | §8 / §14 | Landing-sealing family (`install`) bypasses the engine seal/rollback spine | `src/lib.rs:183-186`, `src/adopt.rs:74-76,121-127` | ⏳ TRACKED → bl-f387 (wire `bl install` via Engine seal) |
+| M3 | **major** | §8 / §14 | Landing-sealing family (`install`) bypasses the engine seal/rollback spine | `src/lib.rs:183-186`, `src/adopt.rs:74-76,121-127` | ✅ FIXED (bl-f387: `install::run` + `seal_copy` seal via the Engine; `prime --install` converges on the same spine — only its pre-materialize tracker fetch stays outside the §14 trace) |
 | M4 | **major** | §4 / §6 / §15 bl-8540 | `[hooks]` schedule does not layer like other config (no XDG overlay, no `_prepend/_append/_ban`) | `src/hooks.rs:55-68` | ✅ FIXED (bl-abe5) |
 | m1 | minor | §7 | Post-wire `current_state` (sealed after-state) never populated | `src/mutate.rs:71` | ✅ FIXED (bl-667e, strike) |
 | m2 | minor | §2 / §6 / §15 | Stale doc-comments asserting retired mechanisms as current | `src/plugin.rs:140,22-25`; `src/op.rs:19,23`; `src/lifecycle.rs:17,152,218`; `src/layout.rs:124-136` | ✅ FIXED (bl-abe5) |

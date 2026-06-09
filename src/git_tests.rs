@@ -63,6 +63,18 @@ fn unseal_resets_the_anvil_back_to_a_prior_tip() {
 }
 
 #[test]
+fn sealing_an_unchanged_tree_converges_on_the_existing_tip() {
+    // The no-op seal: identical content stages nothing, so no empty commit
+    // lands and the anvil tip stands (§13 idempotence — re-install).
+    let (tmp, _checkout, g) = repo();
+    let before = g.head().unwrap();
+    let change = tmp.path().join("change");
+    g.open(&change).unwrap();
+    let sealed = g.seal(&change, "would-be empty\n").unwrap();
+    assert_eq!(sealed, before);
+}
+
+#[test]
 fn close_removes_the_change_worktree() {
     let (tmp, _op, g) = repo();
     let change = tmp.path().join("change");

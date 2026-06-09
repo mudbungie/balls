@@ -25,9 +25,11 @@ fn run_in(tmp: &TempDir, args: &[&str]) -> i32 {
 }
 
 #[test]
-fn a_skeleton_verb_reports_its_op_plan() {
-    // install is still unwired, so it prints its §8 op plan and exits 0.
-    assert_eq!(run_in(&TempDir::new().unwrap(), &["install"]), 0);
+fn install_dispatches_to_its_run_wiring() {
+    // The verb is wired (§6): before prime it reports the missing checkout
+    // (exit 1, like any op), not a placeholder plan. The full seal path is
+    // covered in `install_run_tests` / `tests/dispatch.rs`.
+    assert_eq!(run_in(&TempDir::new().unwrap(), &["install", "--from", "balls/tasks"]), 1);
 }
 
 #[test]
