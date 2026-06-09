@@ -89,11 +89,11 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// dial held — so the loop is core's, never driven by a plugin's return (§7).
 fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
-    let hooks = Hooks::load(landing)?;
+    let user_config = edge.xdg.user_config();
+    let hooks = Hooks::effective(landing, &user_config)?;
     let reg = Registry::at(landing);
     let pre = hooks.resolve(&reg, Verb::Prime.token(), "pre");
     let post = hooks.resolve(&reg, Verb::Prime.token(), "post");
-    let user_config = edge.xdg.user_config();
     let mut last = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
     let mut step = || -> io::Result<bool> {
         let name = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
@@ -155,7 +155,7 @@ fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, t
 /// cwd = the STORE checkout and the anvil bracketing the store-branch HEAD.
 fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
-    let hooks = Hooks::load(landing)?;
+    let hooks = Hooks::effective(landing, &edge.xdg.user_config())?;
     let reg = Registry::at(landing);
     let pre = hooks.resolve(&reg, op.token(), "pre");
     let post = hooks.resolve(&reg, op.token(), "post");

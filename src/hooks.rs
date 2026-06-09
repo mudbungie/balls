@@ -37,19 +37,48 @@ impl Hooks {
     /// here.
     pub fn parse(body: &str) -> io::Result<Hooks> {
         let root: toml::Table = toml::from_str(body).map_err(io::Error::other)?;
+        Ok(match root.get("hooks") {
+            Some(toml::Value::Table(hooks)) => Hooks::from_hooks_table(hooks),
+            _ => Hooks::default(),
+        })
+    }
+
+    /// Build the schedule from an already-extracted `[hooks]` sub-table — the
+    /// shared tail of [`Hooks::parse`] and the layered [`Hooks::effective`]. A
+    /// value that is not a string array contributes no names.
+    fn from_hooks_table(hooks: &toml::Table) -> Hooks {
         let mut table = BTreeMap::new();
-        if let Some(toml::Value::Table(hooks)) = root.get("hooks") {
-            for (key, value) in hooks {
-                let names = value
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|e| e.as_str().map(str::to_string))
-                    .collect();
-                table.insert(key.clone(), names);
-            }
+        for (key, value) in hooks {
+            let names = value
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e.as_str().map(str::to_string))
+                .collect();
+            table.insert(key.clone(), names);
         }
-        Ok(Hooks { table })
+        Hooks { table }
+    }
+
+    /// The EFFECTIVE dispatch schedule (§4/§6, bl-8540): the landing's `[hooks]`
+    /// overlaid by the per-machine XDG `plugins.toml`'s `[hooks]`, merged like
+    /// every other config list — a bare `<op>.<phase>` REPLACES, and
+    /// `_prepend`/`_append`/`_ban` COMPOSE ([`crate::config::layer_over`]), XDG
+    /// (innermost) winning. So a box composes a center's committed schedule with
+    /// its own machine-local one, the §4 ONE-layering-mechanism rather than a
+    /// second registry. An absent layer contributes nothing. This is the DISPATCH
+    /// read; the seed and `install` read the committed landing schedule alone via
+    /// [`Hooks::load`]/[`Hooks::load_from`] (the XDG overlay is dispatch-only — it
+    /// must not redirect what the seed prunes or `install` binds).
+    pub fn effective(landing: &Path, user_config: &Path) -> io::Result<Hooks> {
+        let mut merged = toml::value::Table::new();
+        if let Some(hooks) = hooks_layer(&landing.join("config").join("plugins.toml"))? {
+            crate::config::layer_over(&mut merged, hooks);
+        }
+        if let Some(hooks) = hooks_layer(&user_config.with_file_name("plugins.toml"))? {
+            crate::config::layer_over(&mut merged, hooks);
+        }
+        Ok(Hooks::from_hooks_table(&merged))
     }
 
     /// Load the `[hooks]` schedule from `plugins.toml` at `path`. An absent file
@@ -129,6 +158,25 @@ impl Hooks {
         let mut root = toml::value::Table::new();
         root.insert("hooks".to_string(), toml::Value::Table(hooks));
         toml::to_string(&toml::Value::Table(root)).expect("a hooks table always serializes")
+    }
+}
+
+/// Read one `plugins.toml` layer's `[hooks]` sub-table for [`Hooks::effective`].
+/// An absent file ⇒ `None` (the layer contributes nothing); a present file with a
+/// missing or non-table `[hooks]` ⇒ an empty table (also nothing, but distinct
+/// from absent); a malformed document ⇒ an error naming the file.
+fn hooks_layer(path: &Path) -> io::Result<Option<toml::Table>> {
+    match std::fs::read_to_string(path) {
+        Ok(body) => {
+            let root: toml::Table =
+                toml::from_str(&body).map_err(|e| io::Error::other(format!("{}: {e}", path.display())))?;
+            Ok(Some(match root.get("hooks") {
+                Some(toml::Value::Table(hooks)) => hooks.clone(),
+                _ => toml::Table::new(),
+            }))
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
     }
 }
 

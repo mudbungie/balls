@@ -18,11 +18,13 @@
 //! the recursion `depth` balls is running at. The engine hands it the per-phase
 //! post-seal [`Sealed`] facts.
 //!
-//! **Recursion guard (§6).** A plugin may shell back to `bl`; every nested call
-//! bumps `BALLS_PLUGIN_DEPTH`. Once balls is itself running at [`DEPTH_CAP`] it
-//! runs the op PLUGIN-FREE — suppressed, not refused — so a chain can never
-//! cascade without bound. A plugin that wants nested plugins re-enables them on
-//! its own nested call.
+//! **Recursion guard (§6, bl-7110).** A plugin may shell back to `bl`; every
+//! nested call bumps `BALLS_PLUGIN_DEPTH`. Crossing [`DEPTH_CAP`] ABORTS the op —
+//! fail, not silent: [`Subprocess::run`] returns an error naming the op/phase that
+//! overran, so the [`crate::lifecycle`] engine rolls the prior plugins back in
+//! reverse (§8/§14) and the runaway SURFACES. There is no hatch to re-enable
+//! plugins on a nested call — that would let a runaway defeat its own backstop.
+//! `rollback` cannot spawn at the cap either, so it no-ops (best-effort, §14).
 
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
@@ -38,7 +40,7 @@ use crate::registry::PluginRef;
 use crate::verb::Verb;
 use crate::wire::{OpContext, SealFacts};
 
-/// The built-in recursion cap (§6): at this depth, nested ops run plugin-free.
+/// The built-in recursion cap (§6, bl-7110): reaching this depth ABORTS the op.
 pub const DEPTH_CAP: u32 = 8;
 
 /// Bounded retries for a transient `ETXTBSY` when exec'ing a plugin binary —
@@ -137,8 +139,10 @@ impl<'a> Subprocess<'a> {
         Self { ctx, log, depth }
     }
 
-    /// At the cap, the whole op runs plugin-free (§6) — `run`/`rollback` no-op.
-    fn suppressed(&self) -> bool {
+    /// True once balls is running AT the §6 invocation-tree cap: no further
+    /// nested plugin may spawn. `run` ABORTS the op here (bl-7110); `rollback`
+    /// no-ops (it cannot spawn either — best-effort, §14).
+    fn at_cap(&self) -> bool {
         self.depth >= DEPTH_CAP
     }
 
@@ -176,10 +180,13 @@ impl<'a> Subprocess<'a> {
     }
 
     /// Spawn `<bin> <op> <phase>`: cwd `dir`, §6 env, `payload` on stdin, stdout
-    /// discarded (no return channel, §7), stderr PIPED and enveloped into the
-    /// unified log line-by-line (`src=<name>`, `lvl=info`). Core logs an `invoke`
-    /// record first. A non-zero exit yields an `error` record (the failure locus,
-    /// surviving any threshold — §6) and an [`io::Error`] that aborts the op.
+    /// INHERITED — forwarded to the invoker's stdout verbatim (§6, the plugin's
+    /// user-facing channel: "claim prints the worktree path" is the plugin
+    /// printing here); core PARSES NOTHING back (no return channel, §7). stderr is
+    /// PIPED and enveloped into the unified log line-by-line (`src=<name>`,
+    /// `lvl=info`). Core logs an `invoke` record first. A non-zero exit yields an
+    /// `error` record (the failure locus, surviving any threshold — §6) and an
+    /// [`io::Error`] that aborts the op.
     fn spawn(
         &self,
         bin: &Path,
@@ -200,7 +207,7 @@ impl<'a> Subprocess<'a> {
                 .env("BALLS_PLUGIN_NAME", name)
                 .env("BALLS_PLUGIN_DEPTH", &depth)
                 .stdin(Stdio::piped())
-                .stdout(Stdio::null())
+                .stdout(Stdio::inherit())
                 .stderr(Stdio::piped())
                 .spawn()
         })?;
@@ -228,14 +235,21 @@ impl<'a> Subprocess<'a> {
 
 impl Plugins for Subprocess<'_> {
     fn run(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path, sealed: Option<&Sealed>) -> io::Result<()> {
-        if self.suppressed() {
-            return Ok(());
+        if self.at_cap() {
+            let msg = format!(
+                "invocation-tree depth cap ({DEPTH_CAP}) reached at {}.{} — aborting before plugin {} (§6)",
+                op.token(),
+                phase.token(),
+                plugin.name
+            );
+            self.log.record(Level::Error, "core", Some(phase), &msg);
+            return Err(io::Error::other(msg));
         }
         self.invoke(plugin, op, phase, dir, sealed, None)
     }
 
     fn rollback(&self, plugin: &PluginRef, op: Verb, phase: Phase, dir: &Path, sealed: Option<&Sealed>) {
-        if self.suppressed() {
+        if self.at_cap() {
             return;
         }
         // The undone phase IS the `rolling_back` tag (§7); exit is ignored (§14).
