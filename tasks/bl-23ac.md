@@ -1,10 +1,12 @@
 +++
 title = "github-issues/forge: host-bind the GitHub token + close token.json chmod TOCTOU [bl-2d6d]"
 created = 1780978934
-updated = 1780979754
+updated = 1780980148
+claimant = "Liveried"
 parent = "bl-72a8"
 priority = 1
 tags = ["security"]
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-23ac"
 +++
 BLOCKED — needs human direction on target. The sibling repo /home/mark/dev/balls-github-plugin is mid-migration: it is bare but its on-disk working tree is STALE (matches commit ceea3e3 'Port github-issues to §6/§7 [bl-613d]', whose commands/ structure a later main commit restructured away), so on-disk files != main's tree; and its tracker is OLD-balls (.balls/config.json with require_remote_on_review) which the current greenfield bl cannot prime. Landing a patch safely needs the user to confirm WHICH tree/branch is live (main's current auth module path) before editing — guessing risks clobbering an in-flight migration (possibly a peer agent's work).
 
