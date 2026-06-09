@@ -139,12 +139,14 @@ docs and intuitions:
   list` (the `work/<id>` line). The path is also recorded in the task's stored
   `delivery-worktree` frontmatter key, but the bedrock `--json` projection emits
   only canonical fields, so it is not surfaced there yet.
-- **Relational edges are create-time only.** `bl update` edits title/body,
-  priority, tags, and preserved `key=value` fields — not `--parent`/`--needs`/
-  `--blocks`. Re-wire edges by editing `tasks/<id>.md` on the store branch.
-- **`update` has no remove flag** (no `--note`/`--untag`): it only adds (`-t`,
-  edges at create) or sets (`--body`, `-p`, `key=value`). Clear a field by
-  editing the store file directly.
+- **A task edits its own blocker edges.** `bl update` adds one with
+  `--needs B[:OP]` and unlinks one with `--no-needs B` — the in-band fix for a
+  mis-wired or cyclic blocker (a blocker really blocks, so it must be removable
+  without store surgery). `--parent` (containment) and reciprocal `--blocks` (an
+  edge naming this task on another) stay create-only.
+- **`--no-needs` is `update`'s only remove flag** (no `--note`/`--untag`): tags,
+  priority, and `key=value` fields are add/set-only. Clear a scalar or drop a tag
+  by editing the store file directly.
 - **No `bl reopen`.** A closed task's history is the record; to revive one, revert
   the archive commit on the store branch (and, if a forge/issues plugin is wired,
   reopen the upstream issue first, or the plugin re-closes it).
