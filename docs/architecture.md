@@ -523,8 +523,11 @@ hook-list order; balls neither arbitrates nor tracks ownership.
 **pre payload (stdin):** `protocol`, `op`/`phase`, `plugin_name`, `actor`, `binding`
 (`{ remote, tasks_branch, store, landing, invocation_path }` — `store`/`landing` are the two checkout
 paths (§1), `tasks_branch` names the store branch (§4), `invocation_path` is where `bl` was invoked,
-the project-repo root the delivery plugin needs, §11), `command` (`op` + intended `field_changes` +
-`body_change`), `current_state` (`null` on create). The id is NOT on the pre wire (it is not sealed
+the project-repo root the delivery plugin needs, §11), `command` (`op` + intended `body_change`),
+`current_state` (`null` on create). There is **no wire-carried field changeset**: the op's field-level
+diff has one authoritative home — the change worktree plus the op-start state to diff against — and a
+plugin reads it there, never from a second wire description (derive-don't-store, §14; bl-3bfd, §15).
+The id is NOT on the pre wire (it is not sealed
 yet — a reassigning plugin reads it from the single staged `tasks/*.md`).
 
 **post payload (stdin):** same plus `commit`/`previous_commit`, the final `command`, `metadata`
@@ -553,7 +556,7 @@ the five verbs — they differ only in which fields the base change stages.
 **Everything else inherits partially — a spectrum, not the same shape:**
 - **`config` / `install`** keep the sealing shape but seal to the LANDING, not the store; `install`'s
   "base change" is a path-copy (§6), not a staged frontmatter edit, and it carries none of the
-  task-shaped wire fields (`current_state`, `field_changes`). Symmetric in skeleton, different in
+  task-shaped wire fields (`current_state`, `body_change`). Symmetric in skeleton, different in
   target and mechanics.
 - **`sync` / `prime`** (§13) author NO diff at all, so there is no change worktree and
   no core seal. They inherit only what generalizes — the `pre`→`post` hook spine in hook-list order,
@@ -1134,7 +1137,7 @@ converging predicate.
 - **pre stdin:** `{ protocol, op, phase, plugin_name, actor, binding }`. `binding =
   { remote, tasks_branch, store, landing, invocation_path }` is the load-bearing payload — exactly
   what a fetcher needs (`remote` + `tasks_branch` + the `store` checkout path). **Absent:** `command`
-  (nothing is authored — no `field_changes`/`body_change`) and `current_state`/`previous_state`
+  (nothing is authored — no `body_change`) and `current_state`/`previous_state`
   (sync/prime are not per-task transitions).
 - **post stdin:** the same plus `previous_commit`/`commit` — the store branch HEAD before and
   after the op, bracketing what was integrated. `previous_commit` is the one datum a plugin cannot
@@ -1261,6 +1264,23 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`command` carries no `field_changes` — strike the never-populated changeset (2026-06-09, bl-3bfd —
+  post-freeze, surfaced by the bl-004c minimalism review, cross-referenced by the bl-1a66 arch
+  review).** §7's pre payload described `command` as `op` + intended `field_changes` + `body_change`,
+  and the code defined the matching `FieldChange { field, value }` — but the only construction site
+  (`src/mutate.rs`) always passed `Vec::new()`, so under the serde empty-skip the key never appeared on
+  any real wire. The bl-667e fork again — POPULATE or STRIKE — and the same resolution, by SUBTRACTION:
+  STRIKE it. The op's field-level diff already has a single authoritative home — the change worktree a
+  `pre` plugin edits, plus the wire's op-start state (`current_state`/`previous_state`) to diff
+  against — so a wire-carried changeset is a second representation of one fact, guaranteed to drift
+  (§0 single source of truth). Populating it instead would have forced every verb to author a parallel
+  diff description plugins can already derive. No plugin consumes it: the in-tree plugins (tracker,
+  bl-delivery) and the github forge/issues plugins were grepped — no reader. `command` is now `op` +
+  `body_change` (`body_change` stays: it is populated, authored intent). If a future plugin genuinely
+  needs a core-computed changeset, that is a separate design, not a revival. Touched §7 (pre payload:
+  struck `field_changes`, added the no-wire-changeset rule), §8 (the config/install task-shaped-fields
+  aside), §13 (the absent-`command` aside). Code: `src/wire.rs` (`FieldChange` + `Command.field_changes`
+  removed), `src/mutate.rs` (construction site). Tracked under bl-72a8.
 - **post wire carries no `current_state` — strike, not populate (2026-06-08, bl-667e —
   post-freeze, surfaced by the bl-1a66 conformance review).** §7's post payload listed
   `previous_state`/`current_state`, but the build never populated the post `current_state` (the sealed

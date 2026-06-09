@@ -141,12 +141,12 @@ fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<
 
 /// The §7 `command` — the op plus its body intent. `body_change` is the new
 /// markdown ball body (`--body`) when the op rewrites it (§7). Field-level
-/// changes are NOT duplicated here (single source of truth): a plugin reads them
-/// from the change worktree / the `before`/`after` states, not a second diff
-/// description. Its presence (vs the diffless `None`) marks this a ball-mutating
-/// op (§7).
+/// changes are NOT carried here (single source of truth, bl-3bfd §15): a plugin
+/// reads them from the change worktree / the `before`/`after` states, not a
+/// second diff description. Its presence (vs the diffless `None`) marks this a
+/// ball-mutating op (§7).
 fn command(verb: Verb, flags: &Flags) -> Command {
-    Command { op: verb.token().to_string(), field_changes: Vec::new(), body_change: flags.body.clone() }
+    Command { op: verb.token().to_string(), body_change: flags.body.clone() }
 }
 
 /// The single positional `verb` expects (a `create` title, else a task id).
