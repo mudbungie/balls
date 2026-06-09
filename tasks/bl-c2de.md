@@ -1,7 +1,8 @@
 +++
 title = "bl conf — local config read/write (scalars + plugin-schedule lists); unify the store-remote ladder to one per-op tier"
 created = 1781039831
-updated = 1781039831
+updated = 1781041751
+claimant = "Unstuck"
 priority = 2
 tags = ["design"]
 +++
