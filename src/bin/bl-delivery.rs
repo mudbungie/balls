@@ -80,7 +80,15 @@ fn run(args: &[String]) -> io::Result<()> {
         subject: &subject,
         marker: &marker,
     };
-    delivery::dispatch(op, phase, rolling_back, &repo, &spec)
+    delivery::dispatch(op, phase, rolling_back, &repo, &spec)?;
+    // §11 HUMAN hint: on `claim.post` print the materialized worktree path on
+    // stdout, which balls forwards verbatim (§6). The authoritative machine read
+    // is the `delivery-worktree` frontmatter key staged at `claim.pre` (surfaced
+    // by `bl show --json`); this is the convenience companion for a person.
+    if op == "claim" && phase == "post" && !rolling_back {
+        println!("{}", worktree.display());
+    }
+    Ok(())
 }
 
 /// `prime.post` re-materialization (§11/§12): for every ball in the store

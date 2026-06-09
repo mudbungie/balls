@@ -201,15 +201,21 @@ fn a_busy_binary_retries_then_surfaces_the_error() {
 }
 
 #[test]
-fn the_depth_cap_runs_plugin_free() {
+fn the_depth_cap_aborts_the_op() {
     let e = Env::new();
-    // A plugin that would abort if it ran — proves suppression skips the spawn.
-    let bin = script(&e.at("bin"), "fail", "exit 7\n");
+    // A plugin that records its stdin if it runs — proves the cap aborts BEFORE
+    // the spawn (bl-7110: fail, not silent), never executing the plugin.
+    let bin = script(&e.at("bin"), "rec", RECORDER);
     let plugin = pref("tracker", Some(bin));
     let d = e.dispatcher(DEPTH_CAP);
-    d.run(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None).unwrap();
+    let err = d.run(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None).unwrap_err();
+    assert!(err.to_string().contains("depth cap"), "the abort names the cap");
+    // rollback at the cap cannot spawn — best-effort no-op.
     d.rollback(&plugin, Verb::Close, Phase::Pre, &e.at("cwd"), None);
-    assert!(!e.log_path().exists(), "suppressed: nothing spawned, nothing logged");
+    assert!(!e.at("cwd").join("stdin.txt").exists(), "the plugin never spawned at the cap");
+    // the abort emitted an `error` record so the runaway surfaces (§6).
+    let log = fs::read_to_string(e.log_path()).unwrap();
+    assert!(log.contains("depth cap") && log.contains("\"lvl\":\"error\""));
 }
 
 #[test]

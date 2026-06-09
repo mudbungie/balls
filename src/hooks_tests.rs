@@ -5,6 +5,7 @@
 use super::*;
 use std::collections::BTreeSet;
 use std::fs;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 const SAMPLE: &str = r#"
@@ -59,6 +60,92 @@ fn load_reads_the_landing_plugins_toml() {
     fs::create_dir_all(&config).unwrap();
     fs::write(config.join("plugins.toml"), SAMPLE).unwrap();
     assert_eq!(Hooks::load(tmp.path()).unwrap().names("create", "post"), ["tracker"]);
+}
+
+/// Lay a landing `config/plugins.toml` and (optionally) an XDG `plugins.toml`
+/// beside a `config.toml`, returning (landing root, user_config path) for
+/// [`Hooks::effective`]. The XDG body is written only when `xdg` is `Some`.
+fn layered(landing_body: &str, xdg: Option<&str>) -> (TempDir, PathBuf) {
+    let tmp = TempDir::new().unwrap();
+    let config = tmp.path().join("config");
+    fs::create_dir_all(&config).unwrap();
+    fs::write(config.join("plugins.toml"), landing_body).unwrap();
+    let xdg_dir = tmp.path().join("xdg");
+    fs::create_dir_all(&xdg_dir).unwrap();
+    if let Some(body) = xdg {
+        fs::write(xdg_dir.join("plugins.toml"), body).unwrap();
+    }
+    let user_config = xdg_dir.join("config.toml"); // sibling of the XDG plugins.toml
+    (tmp, user_config)
+}
+
+#[test]
+fn effective_with_no_xdg_layer_is_the_landing_schedule() {
+    let (tmp, user_config) = layered(SAMPLE, None);
+    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    assert_eq!(hooks.names("close", "post"), ["bl-delivery", "tracker"]);
+}
+
+#[test]
+fn effective_xdg_bare_key_replaces_and_directives_compose() {
+    // XDG fully REPLACES close.post; APPENDS to create.post; PREPENDS the push-free
+    // run before close.pre; BANS bl-delivery from close.post's replacement is moot
+    // (replaced), so ban targets create.post instead.
+    let xdg = r#"
+[hooks]
+"close.post" = ["only-me"]
+"create.post_append" = ["mirror"]
+"close.pre_prepend" = ["lint"]
+"#;
+    let (tmp, user_config) = layered(SAMPLE, Some(xdg));
+    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    assert_eq!(hooks.names("close", "post"), ["only-me"], "bare key replaces");
+    assert_eq!(hooks.names("create", "post"), ["tracker", "mirror"], "_append composes");
+    assert_eq!(hooks.names("close", "pre"), ["lint", "bl-delivery"], "_prepend composes");
+}
+
+#[test]
+fn effective_xdg_ban_removes_a_landing_entry() {
+    let xdg = "[hooks]\n\"close.post_ban\" = [\"bl-delivery\"]\n";
+    let (tmp, user_config) = layered(SAMPLE, Some(xdg));
+    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    assert_eq!(hooks.names("close", "post"), ["tracker"], "_ban drops the named entry");
+}
+
+#[test]
+fn effective_seeds_from_xdg_when_the_landing_has_none() {
+    // No landing plugins.toml at all → the XDG layer alone seeds the schedule.
+    let tmp = TempDir::new().unwrap();
+    let xdg_dir = tmp.path().join("xdg");
+    fs::create_dir_all(&xdg_dir).unwrap();
+    fs::write(xdg_dir.join("plugins.toml"), "[hooks]\n\"sync.pre\" = [\"tracker\"]\n").unwrap();
+    let hooks = Hooks::effective(tmp.path(), &xdg_dir.join("config.toml")).unwrap();
+    assert_eq!(hooks.names("sync", "pre"), ["tracker"]);
+}
+
+#[test]
+fn effective_treats_a_layer_without_a_hooks_table_as_empty() {
+    // A present landing plugins.toml with no [hooks] contributes nothing (the
+    // present-but-empty branch, distinct from an absent file); the XDG schedule stands.
+    let (tmp, user_config) = layered("# nothing wired here\n", Some("[hooks]\n\"sync.pre\" = [\"tracker\"]\n"));
+    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    assert_eq!(hooks.names("sync", "pre"), ["tracker"]);
+    assert!(hooks.names("close", "post").is_empty());
+}
+
+#[test]
+fn effective_rejects_a_malformed_layer() {
+    let (tmp, user_config) = layered("[hooks", None);
+    assert!(Hooks::effective(tmp.path(), &user_config).is_err());
+}
+
+#[test]
+fn effective_propagates_a_non_not_found_read_error() {
+    // A directory where a layer file is expected errors with a kind other than
+    // NotFound — surfaced, not swallowed (only an absent file is the empty case).
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("config").join("plugins.toml")).unwrap();
+    assert!(Hooks::effective(tmp.path(), &tmp.path().join("xdg").join("config.toml")).is_err());
 }
 
 #[test]
