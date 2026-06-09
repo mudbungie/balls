@@ -62,7 +62,7 @@ impl IdScheme {
     pub fn generate(&self) -> String {
         self.generate_with(&mut || {
             let mut byte = [0u8; 1];
-            getrandom::getrandom(&mut byte).expect("system entropy unavailable");
+            getrandom::fill(&mut byte).expect("system entropy unavailable");
             byte[0]
         })
     }
