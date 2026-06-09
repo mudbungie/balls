@@ -110,8 +110,8 @@ PLUGIN-FREE, "suppressed, not refused." The post-freeze decision **bl-7110**
 
 The decision log records "No code follow-up filed; enforcement lives in core
 dispatch/run" — so the spec moved and the code did not. The security edge: a
-suppressed plugin can be a **control**, e.g. the forge gated-delivery plugin
-(`docs/SPEC-forge-gated-delivery.md`). Reaching depth 8 makes `close` deliver
+suppressed plugin can be a **control**, e.g. a forge gated-delivery plugin
+(gating model: `docs/architecture.md` §10). Reaching depth 8 makes `close` deliver
 **without** the gate, silently — a control bypass, not just a missing feature.
 
 **Severity: MEDIUM.** Reaching the cap accidentally is hard (legit shell-backs go
