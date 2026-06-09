@@ -282,3 +282,16 @@ fn wire_tolerates_a_minimal_pre_payload_and_a_rollback_tag() {
     assert!(wire.metadata.is_none());
     assert!(wire.current_state.is_none());
 }
+
+#[test]
+fn ensure_safe_invocation_path_admits_clean_absolute_paths() {
+    assert!(ensure_safe_invocation_path("/home/mark/dev/balls").is_ok());
+    // A literal `..`-prefixed filename (no separator) is fine — it cannot escape.
+    assert!(ensure_safe_invocation_path("/home/mark/..foo").is_ok());
+}
+
+#[test]
+fn ensure_safe_invocation_path_rejects_relative_and_dotdot() {
+    assert!(ensure_safe_invocation_path("home/mark/dev").is_err()); // not absolute
+    assert!(ensure_safe_invocation_path("/home/../../etc").is_err()); // `..` traversal
+}

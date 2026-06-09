@@ -29,7 +29,7 @@
 //! without a temp repo per case.
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::Deserialize;
 
@@ -160,6 +160,22 @@ pub fn stage_field(
 #[must_use]
 pub fn binding_territory(xdg: &Xdg, plugin: &str, invocation_path: &str) -> PathBuf {
     xdg.plugin_territory(plugin).join(invocation_path.trim_start_matches('/'))
+}
+
+/// Reject an `invocation_path` that is not a clean absolute path, BEFORE it is
+/// mirrored by [`binding_territory`] (bl-2d6d). The mirror joins the path
+/// verbatim — it gives up the `..`-neutralization percent-encoding gives the
+/// clone layout — so a relative path or a `..` component would let the worktree
+/// escape plugin territory. The delivery edge calls this once, at wire ingress,
+/// before any worktree path is derived.
+pub fn ensure_safe_invocation_path(p: &str) -> io::Result<()> {
+    let path = Path::new(p);
+    if !path.is_absolute() || path.components().any(|c| c == Component::ParentDir) {
+        return Err(io::Error::other(format!(
+            "unsafe invocation path (must be absolute, no '..'): {p:?}"
+        )));
+    }
+    Ok(())
 }
 
 /// The derived code-worktree path (§11): the `<id>/` child of this binding's

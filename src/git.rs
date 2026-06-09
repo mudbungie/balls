@@ -15,7 +15,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 /// The git acts the §8 seal needs, behind a seam so the lifecycle can be tested
 /// without a real repo. Each method is one atomic git act on the anvil.
@@ -54,8 +54,8 @@ impl Git {
 /// READS a center's config to copy in (§0 — "config crosses into a landing only
 /// by the explicit copy `install` performs"), never a push, never the store.
 pub(crate) fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
-    let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(cwd).args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut cmd = crate::safegit::at(cwd);
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
     if stdin.is_some() {
         cmd.stdin(Stdio::piped());
     }
