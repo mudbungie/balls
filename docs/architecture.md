@@ -681,7 +681,9 @@ rather than sniffing "an update that set `claimant`."
 **`close`** (retire a claimed ball) — **deliver + retire across the seal boundary; this is what `review`
 used to gesture at.** A task's deliverable life is claim → write code → DELIVER → RETIRE; in the
 self-merge default DELIVER and RETIRE are one act:
-- `close.pre`: (1) the delivery plugin DELIVERS — direct: squashes `work/<id>` → integration (conflicts
+- `close.pre`: (1) the delivery plugin DELIVERS — direct: folds integration into `work/<id>`, runs the
+  project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
+  close here, pre-seal), then squashes `work/<id>` → integration (conflicts
   surface HERE), sorting LAST so its un-squash rollback is rare; forge: idempotently pushes `work/<id>`
   + opens/updates the PR (rollback is a no-op — a pushed branch + open PR is the correct in-review
   state, §11). (2) core rejects if any close-blocker is open — `closeable()` false (§10) — for forge that is the claim-time approval gate child, so an unmerged PR simply leaves close blocked. The check is abort-safe: evaluated before delivery and the seal, a blocked or failed close aborts BEFORE the ball-deletion seals, so the task stays alive.
@@ -848,7 +850,16 @@ worktree down from inside it — the agent SHOULD `cd` out of the worktree befor
 cwd is not deleted underneath it (a recommendation in the skill guide, not an enforced precondition).
 
 **Two variants** (only "what's wired into the delivery hooks" differs; both kind-blind and idempotent):
-- DIRECT (default, local-squash): `close.pre` squashes `work/<id>` → integration as one commit
+- DIRECT (default, local-squash): `close.pre` delivers in four acts, the first three in the code
+  worktree (re-materialized if absent): CAPTURE any pending work onto `work/<id>` (`--no-verify` —
+  the gate runs once, below, not per-capture); FOLD integration into the branch (a real merge, so
+  the tree gated next IS the tree that lands even when integration moved since claim; a conflict
+  aborts the half-merge and the close); GATE — run the project repo's own **pre-commit hook**
+  (bl-ee85: the squash is plumbing, so without this a close bypasses the hook every porcelain
+  commit runs; resolved as git resolves it — `core.hooksPath` honored — and skipped as git skips
+  it — absent or non-executable hook = ungated project, delivers as before; a failure aborts the
+  close BEFORE the seal, leaving claim and worktree up for the fix); then SQUASH `work/<id>` →
+  integration as one commit
   whose subject carries the `[bl-id]` delivery tag (the plugin's analog of the §5 trailer; this tag
   is delivery ground truth). Integration branch is the delivery plugin's own config (default
   `HEAD@project-repo`); a per-task override, if ever needed, rides as a preserved frontmatter key
