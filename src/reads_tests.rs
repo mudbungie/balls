@@ -194,6 +194,7 @@ fn run_dispatches_each_read_verb() {
     let edge = edge_with(&tmp, &[("bl-1", task("One", 1))]);
     run(&edge, Verb::List, &[]).unwrap();
     run(&edge, Verb::List, &["--status".into(), "ready".into()]).unwrap();
+    run(&edge, Verb::DepTree, &[]).unwrap();
     run(&edge, Verb::Show, &["bl-1".into()]).unwrap();
 }
 
