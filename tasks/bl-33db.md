@@ -1,7 +1,8 @@
 +++
 title = "Bound the prime fixpoint for real — §8/§13 claim 'bounded by the §6 invocation-tree cap'; no bound exists"
 created = 1781036077
-updated = 1781036077
+updated = 1781038936
+claimant = "Redress"
 parent = "bl-72a8"
 priority = 2
 +++
