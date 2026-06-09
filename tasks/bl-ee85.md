@@ -1,7 +1,8 @@
 +++
 title = "bl close bypasses the pre-commit gate — clean delivery depends on remembering to run it by hand"
 created = 1780984562
-updated = 1780984562
+updated = 1781034918
+claimant = "Beneficent"
 priority = 2
 tags = ["bug"]
 +++
