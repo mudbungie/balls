@@ -1,10 +1,12 @@
 +++
 title = "Subtract unpopulated §7 wire field field_changes/FieldChange (P1)"
 created = 1780973876
-updated = 1780973876
+updated = 1781031781
+claimant = "Sickle"
 parent = "bl-72a8"
 priority = 1
 tags = ["review"]
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-3bfd"
 +++
 Subtract the §7 wire field `Command.field_changes` + the `FieldChange` type (src/wire.rs): core NEVER populates it (always Vec::new()) because the op's single source of truth for the diff is the worktree, not a wire-carried changeset. It is a second representation of one fact — the SSOT smell. Surfaced by the minimalism review (bl-004c, P1); cross-referenced by the arch review (bl-1a66).
 
