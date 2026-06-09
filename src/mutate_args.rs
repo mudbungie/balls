@@ -46,10 +46,17 @@ const SHORT_VALUED: [&str; 3] = ["-m", "-p", "-t"];
 /// Expand a glued short flag (`-p1`) to its split form (`-p 1`) — the getopt
 /// convention every git/ls-shaped CLI honors. Only the [`SHORT_VALUED`] shorts
 /// glue: `--long=value` is not a form this parser speaks, and an unknown `-x1`
-/// still falls through to [`parse`]'s unexpected-flag error.
+/// still falls through to [`parse`]'s unexpected-flag error. Expansion stops at
+/// the `--` end-of-options separator — beyond it nothing is a flag, so nothing
+/// glues.
 fn unglue(args: &[String]) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
-    for arg in args {
+    let mut rest = args.iter();
+    for arg in rest.by_ref() {
+        if arg == "--" {
+            out.push(arg.clone());
+            break;
+        }
         match arg.split_at_checked(2) {
             Some((flag, glued)) if SHORT_VALUED.contains(&flag) && !glued.is_empty() => {
                 out.push(flag.to_string());
@@ -58,18 +65,25 @@ fn unglue(args: &[String]) -> Vec<String> {
             _ => out.push(arg.clone()),
         }
     }
+    out.extend(rest.cloned());
     out
 }
 
 /// Parse argv into [`Flags`]. A leading-`-` token that is not a known flag is an
 /// error; everything else is a positional. `--as` defaults to `default_actor`.
-/// Glued short flags (`-p1`) are accepted as their split form (`-p 1`).
+/// Glued short flags (`-p1`) are accepted as their split form (`-p 1`); a `--`
+/// ends option parsing (getopt), so every later token is a positional however
+/// `-`-leading — the seam for shelling an untrusted title (`bl create -- "$T"`).
 pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
     let args = &unglue(args);
     let mut f = Flags { actor: default_actor.to_string(), ..Flags::default() };
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
+            "--" => {
+                f.positionals.extend(args[i + 1..].iter().cloned());
+                break;
+            }
             "--as" => f.actor = value(args, &mut i, "--as")?,
             "-m" | "--message" => f.message = Some(value(args, &mut i, "-m")?),
             "--body" => f.body = Some(value(args, &mut i, "--body")?),
