@@ -1,7 +1,8 @@
 +++
 title = "Release & cutover readiness (0.5.0 bump)"
 created = 1780970020
-updated = 1781036142
+updated = 1781041092
+claimant = "Redress"
 parent = "bl-72a8"
 priority = 1
 tags = ["review"]
