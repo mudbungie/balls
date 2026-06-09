@@ -111,10 +111,11 @@ The human-facing output of `list`/`show`/`dep-tree` paints derived columns — t
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. (Find the worktree with `git worktree list` — the `work/<id>` line.) |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
-| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
+| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl install [PATH] [--from REF] [--to REF]` | Copy a committed config path between branches (adopt/publish plugin config); bare = `config/` minus `tasks/`. **Not yet wired standalone** — the verb prints its op plan; `prime --install` is the wired adoption route today. |
-| `bl skill` | Print the agent guide (`SKILL.md`). |
+| `bl skill` | Print the agent guide (`SKILL.md`) — the full manual. |
+| `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
 There is **no `init`** (folded into `prime`), **no `review`** (folded into `close`), **no `ready`** (it is `bl list --status ready`), and no `remaster`/`resolve`/`reopen`. Subtraction is the design discipline: a new verb is a smell.
 
@@ -217,7 +218,7 @@ Don't confuse a forge plugin with an **issue-tracker plugin** (Jira, Linear, Git
 A common deployment is a **bare** project repo (no working tree at the root) — the worktree/merge model makes a direct commit to the working branch a git-level impossibility rather than a discouraged convention. Then:
 
 - `git status` at the bare root is fatal *by design* (`must be run in a work tree`), not a broken repo. For task state use `bl list`; for code state run `git status`/`git diff` inside your `work/<id>` worktree.
-- All `bl` verbs run from the bare root, **including `bl close`** — which must not be run from inside the worktree it deletes (`cd` to the repo root first, or your shell's cwd is removed underneath you).
+- All `bl` verbs run from the bare root.
 
 Because state lives in XDG and the two branches are path-derived per checkout, multiple clones of one project share a store by naming the same `tasks_branch` remote — federation is many landings pointing at one store branch. The landing is never shared (it has no merge); only the store is.
 
