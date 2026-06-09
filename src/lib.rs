@@ -147,7 +147,7 @@ const SKILL: &str = include_str!("../SKILL.md");
 
 /// The §8 dispatch entrypoint: resolve argv to its verb and run it. `prime`/
 /// `sync` (§12/§13) wire to the engine via [`checkout`]; the deliverable verbs
-/// (§9) via [`mutate`]; the read verbs (`show`/`list`/`dep-tree`, §9) via
+/// (§9) via [`mutate`]; the read verbs (`show`/`list`, §9) via
 /// [`reads`] — they author no diff and print the store view; `install` (§6)
 /// seals its path-copy onto the landing or store via [`install::run`]. `skill`
 /// prints the embedded agent guide and `help` (also `--help`/`-h`) the terse
@@ -196,7 +196,7 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
     let result = match verb {
         Verb::Prime => checkout::prime(edge, &rest[1..]),
         Verb::Sync => checkout::sync(edge, &rest[1..]),
-        Verb::Show | Verb::List | Verb::DepTree => reads::run(edge, verb, &rest[1..]),
+        Verb::Show | Verb::List => reads::run(edge, verb, &rest[1..]),
         Verb::Install => install::run(edge, &rest[1..]),
         // Everything left is a deliverable verb (§9); mutate's own dispatch
         // still rejects a non-mutating verb defensively.
