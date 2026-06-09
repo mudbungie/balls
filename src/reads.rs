@@ -90,13 +90,15 @@ impl Catalog {
 pub(crate) struct Flags {
     pub json: bool,
     pub plain: bool,
-    /// `bl list --status ready|blocked|claimed` — the derived ladder (§3) as a
-    /// predicate. `None` ⇒ no filter (every live ball). Only `list` accepts it;
-    /// it filters the LIVE rung alone (dead balls left no ladder behind).
+    /// `bl list --status|-s ready|blocked|claimed` — the derived ladder (§3) as
+    /// a predicate. `None` ⇒ no live filter (every live ball). Only `list`
+    /// accepts it; it filters the LIVE rung alone (dead balls left no ladder
+    /// behind). The fourth rung, `closed`, carries no live predicate — it steers
+    /// `reach` to `Dead` instead (see [`super::flags`]).
     pub status: Option<Status>,
-    /// `bl list --closed|--all` — how far into history a listing reaches (§9).
-    /// `Live` (default) is the current `tasks/`; `Dead`/`All` reconstruct dead
-    /// balls most-recent-down. `list`-only.
+    /// How far into history a listing reaches (§9). `Live` (default) is the
+    /// current `tasks/`; `Dead` (`--status closed`) / `All` (`--all`)
+    /// reconstruct dead balls most-recent-down. `list`-only.
     pub reach: Reach,
     /// `bl list --tag T` (repeatable): every named tag must be present (AND).
     pub tags: Vec<String>,
@@ -117,7 +119,7 @@ pub(crate) enum Reach {
     /// Only the live/open set — the current `tasks/*.md` (the default).
     #[default]
     Live,
-    /// Only the dead set, reconstructed from history (`--closed`).
+    /// Only the dead set, reconstructed from history (`--status closed`).
     Dead,
     /// Live and dead together (`--all`).
     All,

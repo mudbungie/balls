@@ -3,7 +3,7 @@
 //! `tasks/<id>.md` (§2, no archive dir); the deletion is not a tombstone but
 //! older CONTENT, recoverable most-recent-down from `git log`.
 //!
-//! Both `bl show <id>` (a live miss) and `bl list --closed/--all` reach the dead
+//! Both `bl show <id>` (a live miss) and `bl list --status closed/--all` reach the dead
 //! set through here, so the discipline is factored once: for one id, find the
 //! NEWEST commit that deleted it, reconstruct its frontmatter from that
 //! deletion's PARENT (the last tree that still held the file), and derive the
@@ -57,7 +57,7 @@ pub(crate) fn resolve_dead(store: &Path, id: &str) -> io::Result<Option<Dead>> {
     Ok(Some(Dead { id: id.to_string(), task, retired_at }))
 }
 
-/// Every currently-dead ball, newest-deletion first — the `list --closed/--all`
+/// Every currently-dead ball, newest-deletion first — the `list --status closed/--all`
 /// set (§9). Enumerates each id ever deleted on `balls/tasks`, drops the ones
 /// live again (a reused id resolves live, §9), and reconstructs the rest through
 /// the same [`resolve_dead`] walk so there is one reconstruction path.

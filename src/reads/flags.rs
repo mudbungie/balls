@@ -1,5 +1,6 @@
 //! Read-verb flag parsing — `[--json] [--plain]` for every read, plus the
-//! `list`-only filters (§9): `--status`, the `--closed`/`--all` reach, and the
+//! `list`-only filters (§9): `--status`/`-s` (one axis over every §3 rung,
+//! `closed` included — it INFERS the dead-set reach), the `--all` reach, and the
 //! compose-AND `--tag`/`--since`/`--until` history filters. Every `list` filter
 //! is gated on `verb == List`; on any other read it falls through to the
 //! unknown-flag arm, so `show`/`dep-tree` reject them.
@@ -21,8 +22,7 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
         match arg.as_str() {
             "--json" => f.json = true,
             "--plain" => f.plain = true,
-            "--status" if verb == Verb::List => f.status = Some(parse_status(value(&mut args, "--status")?)?),
-            "--closed" if verb == Verb::List => set_reach(&mut f, Reach::Dead)?,
+            "--status" | "-s" if verb == Verb::List => apply_status(&mut f, value(&mut args, "--status")?)?,
             "--all" if verb == Verb::List => set_reach(&mut f, Reach::All)?,
             "--tag" if verb == Verb::List => f.tags.push(value(&mut args, "--tag")?.clone()),
             "--since" if verb == Verb::List => f.since = Some(date(value(&mut args, "--since")?)?),
@@ -49,11 +49,12 @@ fn value<'a>(args: &mut std::slice::Iter<'a, String>, flag: &str) -> io::Result<
     args.next().ok_or_else(|| io::Error::other(format!("list: {flag} needs a value")))
 }
 
-/// Set the history reach, rejecting a second reach flag — `--closed` and `--all`
-/// name one set apiece, so combining them is a contradiction, not a last-wins.
+/// Steer the history reach off its live default, rejecting a second reach
+/// request — `--status closed` and `--all` each name one set, so combining them
+/// is a contradiction, not a last-wins.
 fn set_reach(f: &mut Flags, reach: Reach) -> io::Result<()> {
     if f.reach != Reach::Live {
-        return Err(io::Error::other("list: choose one of --closed / --all"));
+        return Err(io::Error::other("list: choose one of --status closed / --all"));
     }
     f.reach = reach;
     Ok(())
@@ -64,15 +65,24 @@ fn date(value: &str) -> io::Result<i64> {
     start_of_day(value).ok_or_else(|| io::Error::other(format!("list: bad date '{value}' (want YYYY-MM-DD)")))
 }
 
-/// Parse a `--status` value into its §3 ladder rung — the inverse of
-/// [`super::status_word`], so the filter token matches the rendered badge word.
-fn parse_status(value: &str) -> io::Result<Status> {
-    match value {
-        "ready" => Ok(Status::Ready),
-        "blocked" => Ok(Status::Blocked),
-        "claimed" => Ok(Status::Claimed),
-        other => Err(io::Error::other(format!(
-            "list: unknown --status '{other}' (want ready|blocked|claimed)"
-        ))),
-    }
+/// Apply a `--status`/`-s` rung onto the flags. The three live rungs
+/// (`ready|blocked|claimed`) narrow the live ladder via [`Flags::status`] — the
+/// inverse of [`super::status_word`], so the token matches the rendered badge.
+/// The terminal rung `closed` has no live badge (the file is gone, §2), so it
+/// instead INFERS the dead-set reach (§9), folding the retired `--closed` flag
+/// into this one status axis.
+fn apply_status(f: &mut Flags, value: &str) -> io::Result<()> {
+    let rung = match value {
+        "ready" => Status::Ready,
+        "blocked" => Status::Blocked,
+        "claimed" => Status::Claimed,
+        "closed" => return set_reach(f, Reach::Dead),
+        other => {
+            return Err(io::Error::other(format!(
+                "list: unknown --status '{other}' (want ready|blocked|claimed|closed)"
+            )))
+        }
+    };
+    f.status = Some(rung);
+    Ok(())
 }

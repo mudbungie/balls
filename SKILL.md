@@ -77,7 +77,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 |---------|-------------|
 | `bl prime [--as ID] [--remote URL] [--install URL]` | Sync + show ready/claimed. Founds the substrate on first run. Run at session start. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
-| `bl list [--status ready\|blocked\|claimed] [--closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `--closed`/`--all` reconstruct archived tasks from history. |
+| `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json] [--verbose]` | Task detail. A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. |

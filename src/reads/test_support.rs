@@ -32,7 +32,7 @@ pub(crate) fn catalog(tasks: &[(&str, Task)]) -> Catalog {
 }
 
 /// A throwaway git store carrying real `balls/tasks`-style history — the fixture
-/// the dead-ball reconstruction tests walk (`show` fallthrough, `list --closed`).
+/// the dead-ball reconstruction tests walk (`show` fallthrough, `list --status closed`).
 /// Commits go through the §5 trailer protocol so `bl-op:` reads back as the
 /// retirement; commit dates are pinned so a deletion's `retired_at` is exact.
 pub(crate) struct GitStore {

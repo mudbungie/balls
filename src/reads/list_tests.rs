@@ -1,5 +1,5 @@
 //! Tests for `bl list` rendering, the §10 ordering, the `--status` filter, the
-//! `--closed`/`--all` reach, and the compose-AND history filters.
+//! `--status closed`/`--all` reach, and the compose-AND history filters.
 
 use super::*;
 use crate::reads::history::Dead;
