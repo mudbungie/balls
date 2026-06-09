@@ -35,7 +35,11 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 # §7 plugin wire: payloads are serialized to plugin stdin as JSON.
 serde_json = "1"
-# § id generation: system entropy for the one shipped (random) generator.
+# § id generation: system entropy for the one shipped (random) generator, and
+# the change-worktree token (src/mutate.rs reuses the same IdScheme). DELIBERATE
+# dep, NOT std-replaceable: std exposes no portable entropy source, and a
+# SystemTime/PID substitute is predictable + collision-prone, defeating the
+# unbiased rejection-sampling id mint. Demarcated, not removed (footprint rule).
 getrandom = "0.2"
 
 [dev-dependencies]
