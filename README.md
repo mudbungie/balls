@@ -105,15 +105,15 @@ The human-facing output of `list`/`show`/`dep-tree` paints derived columns — t
 | `bl prime [--as ID] [--remote URL] [--install URL]` | Sync + show ready/claimed. **Founds the substrate on first run** (no separate `init`). Run at session start. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
-| `bl show <id> [--json] [--verbose]` | Task detail. A closed id still resolves (reconstructed from history). |
+| `bl show <id> [--json]` | Task detail. A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
-| `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (alias `bl new`; `--body` sets the markdown body, `-m` the commit note). Prints the new id. |
+| `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body, `-m` the commit note). Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. (Find the worktree with `git worktree list` — the `work/<id>` line.) |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. **Run from the repo root, not inside the worktree.** |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
-| `bl install [PATH] [--from REF] [--to REF]` | Copy a committed config path between branches (adopt/publish plugin config). Bare = `config/` minus `tasks/`. |
+| `bl install [PATH] [--from REF] [--to REF]` | Copy a committed config path between branches (adopt/publish plugin config); bare = `config/` minus `tasks/`. **Not yet wired standalone** — the verb prints its op plan; `prime --install` is the wired adoption route today. |
 | `bl skill` | Print the agent guide (`SKILL.md`). |
 
 There is **no `init`** (folded into `prime`), **no `review`** (folded into `close`), **no `ready`** (it is `bl list --status ready`), and no `remaster`/`resolve`/`reopen`. Subtraction is the design discipline: a new verb is a smell.

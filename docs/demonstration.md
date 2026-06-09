@@ -120,8 +120,12 @@ with `git worktree list` — the `work/<id>` line.
 ```console
 $ bl claim bl-9f1b --as alice          # prints "claim bl-9f1b" on stderr
 $ git worktree list | grep work/bl-9f1b
-/home/.../.local/state/balls/plugins/bl-delivery/%2Ftmp%2F.../bl-9f1b  d0a637d [work/bl-9f1b]
+/home/.../.local/state/balls/plugins/bl-delivery/tmp/.../bl-9f1b  d0a637d [work/bl-9f1b]
 ```
+
+The project path is **mirrored** into the worktree dir, not percent-encoded (a
+cargo build dir cannot carry `%` — it breaks `rust-lld` linking), so the leading
+`/` is dropped and the path nests literally.
 
 The task is now **claimed** (occupancy = the `claimant` field):
 

@@ -584,7 +584,7 @@ The canonical task-op sequence (verb-agnostic):
 
 ## §9 Verbs
 
-Deliverable lifecycle verbs: **`create` (`bl new`), `claim`, `unclaim`, `update`, `close`, `drop`.**
+Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`, `drop`.**
 There is **no `review` verb** — see "close" below.
 
 Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep tree`.**
@@ -1248,6 +1248,14 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **status filtering unified under one axis — `--closed` subtracted (2026-06-08, bl-7218 —
+  post-freeze, refines bl-d7a5 below).** bl-d7a5 had given `bl list` a standalone `--closed` flag
+  alongside `--status`/`--all`. Two flags for one axis is the smell: `--closed` IS `--status closed`.
+  RESOLVED by subtraction — `--closed` is gone; the §3 ladder is one predicate axis,
+  `-s`/`--status {ready|blocked|claimed|closed}`, with `closed` INFERRING the dead-set reach (a short
+  `-s` alias added for the common case). `--all` survives as the one orthogonal selector — live + dead,
+  which no single `--status` value names (so `-s closed` and `--all` don't combine). Touched §9 (the
+  `bl list` flag surface); the bl-d7a5 entry's `--closed` mention is superseded.
 - **implicit `origin` discovery is the tracker's, from the project repo — not core's, off the landing
   (2026-06-08, bl-976b — post-freeze; code follow-up bl-a476).** Surfaced smoke-testing bl-0a23:
   federation only worked with an explicit `--remote`/XDG `remote`; a plain `git clone <proj>; bl prime`
