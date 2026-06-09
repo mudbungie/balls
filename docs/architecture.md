@@ -635,8 +635,9 @@ new `tasks/*.md`; regex-valid; no collision) and commits.
 "claimed" is the derived view of `claimant` (§3), so claim stores the one occupancy fact in the one
 field (the only field CORE writes). `claim.pre`: the delivery plugin STAGES the worktree path into a
 preserved frontmatter key so the seal captures it and `bl show --json` reads it authoritatively (§11).
-`claim.post`: the delivery plugin materializes the code worktree AND prints the path on stdout — the
-human hint (§11 — the plugin owns the path, core forwards, never computes it).
+`claim.post`: the delivery plugin materializes the code worktree. The path is NOT printed (a plugin has
+no return channel — §7 discards plugin stdout); the consumer's authoritative read is the
+`delivery-worktree` key via `bl show --json` (§11 — the plugin owns the path, core never computes it).
 
 **`unclaim`** (release occupancy): clear `claimant` (symmetric with claim — the only CORE field
 touched); `unclaim.pre`, the delivery plugin clears its worktree-path key in lockstep (§11).

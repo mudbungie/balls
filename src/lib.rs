@@ -188,7 +188,10 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
     match result {
         Ok(()) => 0,
         Err(e) => {
-            eprintln!("bl {}: {e}", verb.token());
+            // `e` already names the verb where it adds clarity (`claim: … blocked
+            // by …`, `show: needs a ball id`); the wrapper just tags it as a bl
+            // error, so the verb is named ONCE — not the doubled `bl show: show:`.
+            eprintln!("bl: {e}");
             1
         }
     }
