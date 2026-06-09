@@ -93,6 +93,19 @@ fn the_refusal_names_every_open_blocker() {
     assert_eq!(err.to_string(), "claim: bl-1 blocked by unresolved bl-a, bl-b");
 }
 
+#[test]
+fn the_refusal_names_only_blockers_open_on_this_op() {
+    // The message filter is the same `on == verb AND unresolved` conjunction the
+    // gate applies: a RESOLVED claim blocker and an open CLOSE blocker are both
+    // excluded from a claim refusal — only the blocker that actually gates shows.
+    let d = tempdir().unwrap();
+    touch(d.path(), "bl-open");
+    touch(d.path(), "bl-gate"); // open, but it gates close, not this claim
+    let blockers = vec![claim_blocker("bl-open"), claim_blocker("bl-done"), close_blocker("bl-gate")];
+    let err = claim(&task(blockers), "bl-1", d.path()).unwrap_err();
+    assert_eq!(err.to_string(), "claim: bl-1 blocked by unresolved bl-open");
+}
+
 /// A blocker on an op that is neither claim nor close.
 fn op_blocker(id: &str, on: Verb) -> Blocker {
     Blocker { id: id.into(), on }
