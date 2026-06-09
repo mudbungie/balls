@@ -84,6 +84,27 @@ impl Verb {
         Verb::ALL.into_iter().find(|v| v.token() == token)
     }
 
+    /// A terse one-line description for the `bl help` command directory (the
+    /// "what" alone). The how and why live in the fuller `bl skill` guide; this
+    /// is generated from [`Self::ALL`], so the directory can never drift from the
+    /// verb set.
+    pub fn summary(self) -> &'static str {
+        match self {
+            Verb::Create => "file a new task; prints its id",
+            Verb::Claim => "take a task and materialize its work worktree",
+            Verb::Unclaim => "release a claim",
+            Verb::Update => "overwrite any field of a task",
+            Verb::Close => "deliver the work and archive the task",
+            Verb::Drop => "abandon a task without delivering",
+            Verb::Show => "show one task in full",
+            Verb::List => "list tasks (status, tag, and date filters)",
+            Verb::DepTree => "show the parent/child tree with blocker edges",
+            Verb::Prime => "ready this checkout (run at session start)",
+            Verb::Sync => "pull the store from the remote",
+            Verb::Install => "copy committed config/plugins between branches",
+        }
+    }
+
     /// The §8 op class: only the deliverable verbs author and seal a diff.
     pub fn class(self) -> OpClass {
         match self {
@@ -134,6 +155,14 @@ mod tests {
     #[test]
     fn unknown_token_does_not_parse() {
         assert_eq!(Verb::parse("frobnicate"), None);
+    }
+
+    #[test]
+    fn every_verb_has_a_nonempty_summary() {
+        // The `bl help` directory is generated from these, so each must speak.
+        for v in Verb::ALL {
+            assert!(!v.summary().is_empty(), "{} has no summary", v.token());
+        }
     }
 
     #[test]

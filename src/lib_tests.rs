@@ -96,6 +96,15 @@ fn skill_prints_the_guide_and_exits_zero() {
 }
 
 #[test]
+fn help_prints_the_directory_and_exits_zero() {
+    // `help` (and its conventional `--help`/`-h` aliases) is a pre-verb help
+    // affordance like `skill`: no landing, not a Verb, works anywhere.
+    for a in [&["help"][..], &["--help"], &["-h"]] {
+        assert_eq!(run_in(&TempDir::new().unwrap(), a), 0);
+    }
+}
+
+#[test]
 fn run_rejects_an_unknown_verb() {
     assert_eq!(run_in(&TempDir::new().unwrap(), &["frobnicate"]), 2);
 }

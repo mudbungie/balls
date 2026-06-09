@@ -198,7 +198,7 @@ close bl-7b55
 ```
 
 One move: squash-deliver the worktree to `main`, archive the task, tear the
-worktree down. Run from the repo root, never inside the worktree it deletes.
+worktree down.
 
 ```console
 ===== 7a. main carries ONE [bl-xxxx]-tagged delivery commit =====
