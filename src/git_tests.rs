@@ -11,7 +11,7 @@ fn repo() -> (TempDir, PathBuf, Git) {
     let tmp = TempDir::new().unwrap();
     let checkout = tmp.path().join("checkout");
     fs::create_dir(&checkout).unwrap();
-    let git = |args: &[&str]| Git::run(&checkout, args, None).unwrap();
+    let git = |args: &[&str]| run(&checkout, args, None).unwrap();
     git(&["init", "-q"]);
     git(&["config", "user.name", "test"]);
     git(&["config", "user.email", "test@example.com"]);
@@ -95,8 +95,8 @@ fn seal_fails_when_the_anvil_cannot_fast_forward() {
 
     // Advance the anvil independently so the change no longer fast-forwards.
     fs::write(checkout.join("other.txt"), "diverge\n").unwrap();
-    Git::run(&checkout, &["add", "-A"], None).unwrap();
-    Git::run(&checkout, &["commit", "-q", "-m", "diverge"], None).unwrap();
+    run(&checkout, &["add", "-A"], None).unwrap();
+    run(&checkout, &["commit", "-q", "-m", "diverge"], None).unwrap();
 
     fs::write(change.join("tasks.md"), "y\n").unwrap();
     let err = g.seal(&change, "wont ff\n").unwrap_err();
