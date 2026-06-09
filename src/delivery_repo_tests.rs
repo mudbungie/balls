@@ -6,8 +6,9 @@ use std::fs;
 use tempfile::TempDir;
 
 /// A throwaway project repo on `main` with one seed commit. Returns the tempdir
-/// (kept alive), its root, and a [`Project`].
-fn project() -> (TempDir, PathBuf, Project) {
+/// (kept alive), its root, and a [`Project`]. Shared with the sibling
+/// `gate_tests` module.
+pub fn project() -> (TempDir, PathBuf, Project) {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("proj");
     fs::create_dir(&root).unwrap();
@@ -22,7 +23,7 @@ fn project() -> (TempDir, PathBuf, Project) {
 }
 
 /// `main`'s tip subject — the delivery assertion surface.
-fn tip(root: &Path) -> String {
+pub fn tip(root: &Path) -> String {
     Project::run(root, &["log", "-1", "--format=%s", "main"]).unwrap().trim().to_string()
 }
 
@@ -138,6 +139,10 @@ fn deliver_surfaces_a_conflict_as_an_error() {
 
     let err = p.deliver(&wt, "work/bl-x", "main", "clash [bl-x]").unwrap_err();
     assert!(err.to_string().contains("delivery conflict"));
+    // The half-merge was aborted: no MERGE_HEAD pending, the worktree is clean
+    // for the agent to reintegrate by hand.
+    assert!(!Project::ok(&wt, &["rev-parse", "--verify", "--quiet", "MERGE_HEAD"]).unwrap());
+    assert!(Project::ok(&wt, &["diff", "--quiet", "HEAD"]).unwrap());
 }
 
 #[test]

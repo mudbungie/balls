@@ -5,12 +5,15 @@
 //! worktree and the direct (local-squash) delivery onto the integration branch.
 //! Every act is idempotent — it recomputes from `(path, branch)` and checks the
 //! filesystem/refs first, so a re-run is a no-op rather than an error (§11). The
-//! delivery itself is plumbing-only (`merge-tree` + `commit-tree` + `update-ref`)
-//! so it never disturbs a checked-out integration working tree, and the
-//! un-squash is a derived reset (no stored state) keyed on the delivery tag.
+//! squash itself is plumbing (`commit-tree` + `update-ref`) so it never disturbs
+//! a checked-out integration working tree — the work happens in the code
+//! worktree, where delivery folds integration in and runs the repo's own
+//! pre-commit gate before anything lands (bl-ee85). The un-squash is a derived
+//! reset (no stored state) keyed on the delivery tag.
 
 use std::fs;
 use std::io;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -71,13 +74,56 @@ impl Project {
 
     /// Capture any pending worktree work onto `branch` as a commit (squashed
     /// away later), so an uncommitted change is never lost at delivery.
+    /// `--no-verify`: the delivery gate ([`Self::gate`]) runs ONCE, later, on
+    /// the final delivered tree — not here, where it would fire only when the
+    /// worktree happened to be dirty (the bl-ee85 asymmetry).
     fn capture(path: &Path, subject: &str) -> io::Result<()> {
         Self::run(path, &["add", "-A"])?;
         if Self::ok(path, &["diff", "--cached", "--quiet"])? {
             return Ok(()); // nothing staged — the worktree is clean
         }
-        Self::run(path, &["commit", "-m", subject])?;
+        Self::run(path, &["commit", "--no-verify", "-m", subject])?;
         Ok(())
+    }
+
+    /// Fold `integration` into the work branch IN the worktree, so the tree the
+    /// gate checks IS the tree the squash delivers even when integration moved
+    /// since claim. Already-up-to-date is a commitless no-op; a conflict aborts
+    /// the half-merge (the worktree stays clean for the agent to merge by hand)
+    /// and surfaces as the delivery-conflict error.
+    fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
+        if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", integration]) {
+            let _ = Self::run(path, &["merge", "--abort"]); // best-effort: a never-started merge has nothing to abort
+            return Err(io::Error::other(format!("delivery conflict merging {integration} into the work branch: {e}")));
+        }
+        Ok(())
+    }
+
+    /// The delivery gate (bl-ee85): run the project repo's own `pre-commit`
+    /// hook — resolved exactly as git resolves it (`--git-path` honors
+    /// `core.hooksPath`), skipped exactly as git skips it (absent or
+    /// non-executable) — against the worktree holding the to-be-delivered tree.
+    /// The squash is plumbing and would silently bypass the hook every porcelain
+    /// commit runs; this restores that gate at the one moment it is
+    /// representative: after capture + reintegration. A failure aborts the
+    /// close BEFORE the seal, so the task stays claimed and the worktree stays
+    /// up for the fix. The hook's stdout joins stderr — diagnostics, never the
+    /// product channel (§6).
+    fn gate(path: &Path) -> io::Result<()> {
+        let printed = Self::run(path, &["rev-parse", "--git-path", "hooks/pre-commit"])?;
+        let hook = path.join(printed.trim());
+        let Ok(meta) = fs::metadata(&hook) else {
+            return Ok(()); // no hook → an ungated project delivers as before
+        };
+        if meta.permissions().mode() & 0o111 == 0 {
+            return Ok(()); // git's rule: a non-executable hook is ignored
+        }
+        let status = Command::new(&hook).current_dir(path).stdout(Stdio::from(io::stderr())).status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!("delivery gate {} failed: {status}", hook.display())))
+        }
     }
 
     /// `delivered_in` (§11): the delivery commits carrying `marker` (`[<id>]`) on
@@ -140,11 +186,20 @@ impl Repo for Project {
         if !self.branch_exists(branch)? || Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
             return Ok(());
         }
-        let tree = Self::run(&self.root, &["merge-tree", "--write-tree", integration, branch])
-            .map_err(|e| io::Error::other(format!("delivery conflict squashing {branch} → {integration}: {e}")))?;
-        let tree = tree.trim();
+        // Reintegration and the gate both act in the worktree; a close on a box
+        // that never materialized it recreates it (create-if-absent).
+        self.materialize(path, branch)?;
+        Self::reintegrate(path, integration)?;
+        if Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
+            return Ok(()); // reintegration dissolved the diff — already delivered
+        }
+        Self::gate(path)?;
+        // After reintegration the branch tree IS the merged tree — the squash
+        // is pure plumbing on it, never touching integration's checkout.
+        let tree = format!("{branch}^{{tree}}");
+        let tree = Self::run(&self.root, &["rev-parse", &tree])?.trim().to_string();
         let parent = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
-        let commit = Self::run(&self.root, &["commit-tree", tree, "-p", &parent, "-m", subject])?
+        let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &parent, "-m", subject])?
             .trim()
             .to_string();
         Self::run(&self.root, &["update-ref", &format!("refs/heads/{integration}"), &commit])?;
@@ -194,3 +249,7 @@ pub fn changed_task_paths(cwd: &Path) -> io::Result<Vec<String>> {
 #[cfg(test)]
 #[path = "delivery_repo_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "delivery_repo_gate_tests.rs"]
+mod gate_tests;
