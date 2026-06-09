@@ -17,6 +17,15 @@ claims and walks away has not finished its job.
 If you want a split submit/approve flow, wire a `close.pre` approval gate
 explicitly. The default is solo: the agent that claims also closes.
 
+**Close is gated by the project's own pre-commit hook.** Delivery first folds
+`main` into your work branch (so what gets checked is what actually lands, even
+if `main` moved while you worked), then runs the repo's `pre-commit` hook on the
+result and aborts the close if it fails — the task stays claimed and the
+worktree stays up for the fix. A repo with no executable `pre-commit` hook is
+ungated: close delivers unchecked. A merge conflict with `main` also aborts the
+close (cleanly — no half-merge is left behind); merge `main` into the worktree
+by hand, resolve, and close again.
+
 ## The worktree is the unit of work
 
 `bl` tracks the code change a task delivers, not just the task. `bl claim`
@@ -90,7 +99,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree (prints its path), take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--edit] [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. `--edit` (human-only) sources the whole change from `$EDITOR` instead — see below. |
-| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
+| `bl close <id> [-m MSG] [--as ID]` | Deliver (fold `main` in, run the repo's pre-commit hook — a failure aborts the close — then squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl skill` | Print this guide (the full manual). |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
