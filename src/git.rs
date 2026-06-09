@@ -90,7 +90,16 @@ impl Anvil for Git {
         run(dir, &["add", "-A"], None)?;
         run(dir, &["commit", "-F", "-"], Some(message))?;
         let sha = run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
-        run(&self.checkout, &["merge", "--ff-only", &sha], None)?;
+        if let Err(e) = run(&self.checkout, &["merge", "--ff-only", &sha], None) {
+            // A lost merge (e.g. the ref-lock race two simultaneous claims run,
+            // bl-07d6) can strand the loser's tree STAGED in the checkout
+            // index/worktree while HEAD never moved — wedging every later op
+            // ("Your local changes ... would be overwritten") and reading as a
+            // phantom claim. The seal is atomic: restore the unmoved HEAD
+            // (best-effort, like the §14 un-seal) before reporting the failure.
+            let _ = run(&self.checkout, &["reset", "--hard", "HEAD"], None);
+            return Err(e);
+        }
         Ok(sha)
     }
 
