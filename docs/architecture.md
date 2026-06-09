@@ -431,7 +431,7 @@ running the binary by hand with the same argv.
   stdin:  payload (§7)
   stdout: the plugin's USER-FACING channel — balls forwards it to the invoker's stdout verbatim
           and PARSES NOTHING back into state (no return channel; see §7). A plugin that produces a
-          user-relevant value (the delivery plugin's worktree path, a forge PR URL) PRINTS IT HERE;
+          user-relevant value (the delivery plugin's worktree path, a minted gate child's id) PRINTS IT HERE;
           core neither computes nor consumes it. "claim prints the worktree path" is exactly this —
           the delivery plugin printing, not core knowing the path.
   stderr: the plugin's diagnostic channel. The plugin stays DUMB — it writes raw stderr and is told
@@ -757,20 +757,28 @@ rather than sniffing "an update that set `claimant`."
 **`close`** (retire a claimed ball) — **deliver + retire across the seal boundary; this is what `review`
 used to gesture at.** A task's deliverable life is claim → write code → DELIVER → RETIRE; in the
 self-merge default DELIVER and RETIRE are one act:
-- `close.pre`: (1) the delivery plugin DELIVERS — direct: folds integration into `work/<id>`, runs the
+- core rejects FIRST, at stage — before any plugin runs (bl-7bfe, §15): an open close-blocker
+  (`closeable()` false, §10) aborts the close with nothing to unwind. For forge that blocker is the
+  review gate child minted at claim (§10/§11), so a close before the PR merges is refused naming the
+  gate — cheap and plugin-free. The reject is abort-safe by construction: nothing ran, nothing sealed,
+  the task stays alive.
+- `close.pre`: the delivery plugin DELIVERS — folds integration into `work/<id>`, runs the
   project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
   close here, pre-seal), then squashes `work/<id>` → integration (conflicts
-  surface HERE), sorting LAST so its un-squash rollback is rare; forge: idempotently pushes `work/<id>`
-  + opens/updates the PR (rollback is a no-op — a pushed branch + open PR is the correct in-review
-  state, §11). (2) core rejects if any close-blocker is open — `closeable()` false (§10) — for forge that is the claim-time approval gate child, so an unmerged PR simply leaves close blocked. The check is abort-safe: evaluated before delivery and the seal, a blocked or failed close aborts BEFORE the ball-deletion seals, so the task stays alive.
+  surface HERE), sorting LAST so its un-squash rollback is rare. One path, no forge variant: a
+  deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
+  already-delivered check (§11) — delivery is retry-idempotent whoever performed the merge.
 - balls seals the `tasks/<id>.md` DELETION (`bl-op: close`).
 - `close.post`: the delivery plugin tears down the code worktree (§11); the tracker pushes the
   balls-state deletion commit (NEVER the project code branch).
 
 Core close ships no code, pushes no project remote, runs no source-state check. Forge review is **not
-a mode** — it is the ordinary close plus an approval gate child the forge plugin adds at claim
-(§10/§11), enforced by core's close-blocker guard (§10). "Close is related to remotes" = the tracker
-pushes the *balls* branch, nothing more.
+a mode** — it is the ordinary close plus an approval gate child the forge plugin mints at claim
+(§10/§11), enforced by core's close-blocker guard (§10). Submission is GIT-NATIVE WORK, not a close
+phase (bl-7bfe): the worker pushes `work/<id>` and opens the PR (the `[bl-id]` tag in its title, §11);
+a forge `sync` closes the gate on merge; the next close retires the parent. `bl close` is purely
+retire — it never submits. "Close is related to remotes" = the tracker pushes the *balls* branch,
+nothing more.
 
 **There is no `drop` verb** (deleted 2026-06-09, bl-65e0 — §15). Closing is the ONLY retirement, so
 a `--blocks close` gate guards every way a ball can die. Abandonment is the composite spelled out:
@@ -926,8 +934,8 @@ the named ball (§6 read dispatch). balls does not guard against tearing a
 worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
 cwd is not deleted underneath it (a recommendation in the skill guide, not an enforced precondition).
 
-**Two variants** (only "what's wired into the delivery hooks" differs; both kind-blind and idempotent):
-- DIRECT (default, local-squash): `close.pre` delivers in four acts, the first three in the code
+**One delivery path** (kind-blind and idempotent; forge changes WHO merges, never the path — bl-7bfe, §15):
+- `close.pre` delivers in four acts, the first three in the code
   worktree (re-materialized if absent): CAPTURE any pending work onto `work/<id>` (`--no-verify` —
   the gate runs once, below, not per-capture); FOLD integration into the branch (a real merge, so
   the tree gated next IS the tree that lands even when integration moved since claim; a conflict
@@ -940,13 +948,19 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   whose subject carries the `[bl-id]` delivery tag (the plugin's analog of the §5 trailer; this tag
   is delivery ground truth). Integration branch is the delivery plugin's own config (default
   `HEAD@project-repo`); a per-task override, if ever needed, rides as a preserved frontmatter key
-  (§3 seam), NEVER a core field — core opens no project repo, so it has no integration branch to name. No gate child.
-- FORGE (opt-in): the forge plugin adds an **approval gate child** at `claim.post` (a normal
-  close-blocker, §10 — NOT a special mechanism; identical to a build or audit gate), and at `close.pre`
-  idempotently pushes `work/<id>` + opens/updates the PR. The forge produces the squash (the merge), so
-  `close.pre` does NOT squash locally. A forge `sync` closes the gate child on merge → the next close
-  unblocks. Core enforces the block (the close-blocker guard, §10), not a bundle-private check. An empty deliverable's gate is auto-resolved (the plugin closes its own gate
-  child at `close.pre` when `work/<id>` has no changes — nothing to review), preserving kind-blindness.
+  (§3 seam), NEVER a core field — core opens no project repo, so it has no integration branch to name.
+- FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. The forge plugin mints an
+  **approval gate child** at `claim.post` (a normal close-blocker, §10 — NOT a special mechanism;
+  identical to a build or audit gate; it skips minting on its own gate children, so no gates-for-gates)
+  and resolves it at `sync` (PR merged ⇒ close the gate child → the next close unblocks). Core enforces
+  the block (the close-blocker guard, §10), not a bundle-private check. SUBMISSION IS GIT-NATIVE WORK:
+  the worker pushes `work/<id>` and opens the PR themselves, the `[bl-id]` tag in the PR title — which
+  is what the bl-430e already-delivered check (below) greps, so the close that follows the merge SKIPS
+  the local squash (a squash-merge rewrites commits, so only the tag arm can fire) and the one delivery
+  path serves both flows. An empty deliverable's review gate has no auto-resolve moment (there is no
+  forge `close.pre`): its claimant closes it by hand — nothing to review. Abandoning a forge-gated
+  task (unclaim, then close — bl-65e0) requires the same: close or `--no-needs`-unlink the open gate
+  first.
 
 **`delivered_in` is a derived query, not a field** — "delivery IS the tag, not a field." The plugin
 answers "where was `<id>` delivered?" by tag-scanning (`git log --grep [bl-id]`) the integration
@@ -965,10 +979,9 @@ property AND the disambiguation. (A cross-clone miss is reported honestly or res
 
 **Rollback** (specifics; general rule §14): project-repo commits are tier-2 (`git reset`, not covered
 by the change-worktree/store un-seal). `rollback claim.post` = remove the worktree + delete
-`work/<id>` (forge: also drop the just-created gate child); `rollback close.pre` direct = `git reset
---hard HEAD~1` un-squash (reversible — nothing pushed); forge = **no-op** — a pushed branch + open PR
-is the correct in-review state, never undone (abandon is `bl unclaim`, whose `unclaim.post` tears
-down the PR/branch). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
+`work/<id>` (forge: also remove the just-minted gate child); `rollback close.pre` = `git reset
+--hard HEAD~1` un-squash (reversible — nothing pushed; a skipped squash staged nothing, so the
+derive-and-check no-ops). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
 is rollback-safe); deleting `work/<id>` is deferred, non-transactional cleanup (`prime`).
 The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
 And because a rollback is best-effort (§14), deliver itself is RETRY-IDEMPOTENT (bl-430e): a squash
@@ -1329,16 +1342,17 @@ tells the plugin which of ITS OWN phases is unwinding.
 **Persistence-through-abort is the plugin's own rollback choosing a no-op — never a core carve-out.**
 Core always calls rollback on every prior plugin; whether a side-effect survives the abort is decided
 by that plugin's rollback, by the side-effect's semantics:
-- the forge plugin's `close.pre` rollback is a **no-op** — a pushed branch + open PR is the correct
-  "in review" state, never something to undo (abandon is `bl unclaim`);
 - the jira plugin's `create.pre` rollback **deletes** the issue — an orphan ticket for a ball that
-  never sealed is wrong.
+  never sealed is wrong;
+- a plugin whose effect is the correct standing state either way (an idempotent cache refresh, a
+  re-materialized worktree) **declines** — undoing it would be the wrong state.
 
 So an effect persists through a stop IFF the plugin that made it declines to undo it; you can never
-accidentally strand another plugin's effect. This dissolves any need for a special "deferred" or
-"blocked-close keeps its setup" mode: a blocked forge close is just core rejecting on the claim-time approval gate (`closeable()` false, §10/§11), and the push/PR persist because their rollback no-ops. Two stop
-shapes, one rule:
-- **blocked** (any gate open: dependency / approval / build / audit) — core rejects before the seal; priors roll back; idempotent delivery effects survive via no-op rollbacks.
+accidentally strand another plugin's effect. Two stop shapes, one rule:
+- **blocked** (any gate open: dependency / approval / build / audit) — core rejects AT STAGE, before
+  any plugin runs (§8/§9, bl-7bfe): nothing ran, so there is nothing to unwind. A blocked forge close
+  keeps its pushed branch + open PR trivially — they were never op side-effects; submission is
+  git-native work (§11), outside the op entirely.
 - **failed** (jira down, squash conflict, push fails) — priors roll back; each undoes its own (jira
   deletes the issue, the squash `git reset`s).
 
@@ -1406,6 +1420,32 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **forge review is a subtask, not a delivery variant — the close guard stays at stage; PR submission
+  is git-native work (2026-06-09, bl-7bfe — post-freeze).** The spec contradicted itself on close
+  ordering, and the contradiction hid a deadlock. §9 numbered `close.pre` "(1) delivery DELIVERS …
+  (2) core rejects on an open close-blocker" yet called the check "evaluated before delivery"; §14's
+  blocked-shape ("priors roll back; idempotent delivery effects survive via no-op rollbacks") required
+  the guard to run AFTER the pre chain. The build runs `closeable()` at STAGE, before any plugin
+  (`src/enforce.rs`, called at stage) — and under guard-at-stage §11's FORGE variant deadlocked: the
+  PR was only opened by forge's `close.pre`, which never runs while the gate is open, so the gate
+  could never resolve. RESOLVED in the CODE's favor (guard at stage — the cheap, plugin-free reject),
+  by relocating the PR moment out of balls entirely. The review gate is an ORDINARY close-blocker gate
+  child the forge plugin mints at `claim.post` (claim, not create: create-time minting clutters
+  non-deliverables and recurses on the plugin's own gate children — §10's "creation rides claim.post,
+  the deliverable signal" reasoning stands) and resolves at `sync` on PR merge. SUBMISSION IS
+  GIT-NATIVE WORK: the worker pushes `work/<id>` and opens the PR themselves, the `[bl-id]` tag in the
+  PR title; `bl close` stops being the submit verb and is purely retire. The forge delivery variant
+  DISSOLVES — the parent's close retires through the one direct path, whose bl-430e already-delivered
+  check greps the `[bl-id]` tag on integration and skips the squash: a GitHub squash-merge is
+  indistinguishable from a prior aborted close's delivery (the tag arm is the one that fires; a
+  squash-merge rewrites commits, so the ancestry arm cannot — hence the title convention is
+  load-bearing). Costs accepted, named: an empty deliverable's review gate has no auto-resolve moment
+  (its claimant closes it by hand — nothing to review); abandoning a forge-gated task (unclaim ∘
+  close, bl-65e0) first closes/unlinks the gate; the merged-PR→gate join is plugin design. Touched §7
+  (the stdout example), §9 (close ordering + the not-a-mode paragraph), §11 (one delivery path; forge
+  = mint + resolve; rollback), §14 (blocked-shape: nothing ran, nothing unwinds; persistence
+  examples). Code: none in core — the guard already sits at stage; the plugin rewrite is bl-c6fa
+  (balls-github-plugin repo).
 - **sync's landing no-op now falls out of the general rule — the literal-token special case is
   deleted (2026-06-09, bl-6916 — post-freeze).** §13 promised the no-op "for free, not by
   special-case", but core keyed on the literal TOKEN `landing` (`src/checkout.rs`), not the actual

@@ -14,8 +14,12 @@ worktree, and `bl close` delivers it (squashes your work to `main`) and tears th
 worktree down in one move. Do not stop after the work is written; an agent that
 claims and walks away has not finished its job.
 
-If you want a split submit/approve flow, wire a `close.pre` approval gate
-explicitly. The default is solo: the agent that claims also closes.
+If you want a split submit/approve flow, add a review gate as an ordinary
+close-blocker subtask (`bl create "review X" --parent X --blocks close`, or a
+forge plugin that mints one at claim). Submission is git-native — push the work
+branch and open the PR yourself, with the `[bl-id]` tag in the PR title so the
+merge is recognized as the delivery. The default is solo: the agent that claims
+also closes.
 
 **Close is gated by the project's own pre-commit hook.** Delivery first folds
 `main` into your work branch (so what gets checked is what actually lands, even
