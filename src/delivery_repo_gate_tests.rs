@@ -23,7 +23,7 @@ fn a_passing_gate_delivers_and_runs_in_the_worktree() {
     // The hook proves where it ran: it requires the work's own file in $PWD.
     install_hook(&root, "#!/bin/sh\ntest -f feature.txt\n", 0o755);
 
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Add feature [bl-x]");
 }
 
@@ -35,7 +35,7 @@ fn a_failing_gate_aborts_the_delivery_before_integration_moves() {
     fs::write(wt.join("feature.txt"), "broken\n").unwrap();
     install_hook(&root, "#!/bin/sh\nexit 1\n", 0o755);
 
-    let err = p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap_err();
+    let err = p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap_err();
     assert!(err.to_string().contains("delivery gate"), "{err}");
     assert_eq!(tip(&root), "seed"); // integration untouched
     // The work survives the abort: captured on the branch (--no-verify, so the
@@ -52,7 +52,7 @@ fn a_non_executable_hook_is_ignored_gits_rule() {
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
     install_hook(&root, "#!/bin/sh\nexit 1\n", 0o644); // would fail, but is not a hook
 
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Add feature [bl-x]");
 }
 
@@ -69,7 +69,7 @@ fn the_gate_checks_the_reintegrated_tree_when_integration_moved() {
     Project::run(&root, &["commit", "-qm", "late main edit"]).unwrap();
     install_hook(&root, "#!/bin/sh\ntest -f feature.txt && test -f late.txt\n", 0o755);
 
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Add feature [bl-x]");
     // Still ONE squash commit, parented on the moved integration tip.
     assert_eq!(Project::run(&root, &["show", "main:late.txt"]).unwrap(), "landed meanwhile\n");
@@ -93,7 +93,7 @@ fn a_reintegration_that_dissolves_the_diff_skips_gate_and_squash() {
     Project::run(&root, &["commit", "-qm", "already landed"]).unwrap();
     install_hook(&root, "#!/bin/sh\nexit 1\n", 0o755); // must never run
 
-    p.deliver(&wt, "work/bl-x", "main", "dup [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "dup [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "already landed"); // no delivery commit minted
 }
 
@@ -108,7 +108,7 @@ fn deliver_rematerializes_an_absent_worktree_to_gate_in() {
     p.release(&wt).unwrap(); // committed branch, no worktree on this box
     install_hook(&root, "#!/bin/sh\ntest -f feature.txt\n", 0o755);
 
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]").unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Add feature [bl-x]");
     assert!(wt.exists()); // recreated for the gate; close.post releases it
 }

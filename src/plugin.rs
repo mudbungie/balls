@@ -177,7 +177,22 @@ impl<'a> Subprocess<'a> {
         });
         let payload = self.ctx.wire(&plugin.name, op.token(), phase.token(), facts, rolling_back);
         let json = serde_json::to_string(&payload).map_err(io::Error::other)?;
-        self.spawn(bin, &plugin.name, op, phase, dir, &json)
+        let status = self.spawn(bin, &plugin.name, op, phase, dir, &json)?;
+        if status.success() {
+            return Ok(());
+        }
+        // A non-zero exit yields an `error` record (the failure locus, surviving
+        // any threshold — §6) and an [`io::Error`] that aborts the op. On a
+        // rollback the record says what that failure MEANS instead — side effects
+        // may not be unwound. §14 ignores the exit, so this record is the only
+        // trace (a quiet surviving delivery squash is how bl-430e stayed hidden).
+        let (name, o, p) = (&plugin.name, op.token(), phase.token());
+        let msg = match rolling_back {
+            Some(_) => format!("plugin {name} rollback failed ({status}) — its {o}.{p} side effects may not be unwound"),
+            None => format!("plugin {name} aborted the op ({status})"),
+        };
+        self.log.record(Level::Error, "core", Some(phase), &msg);
+        Err(io::Error::other(msg))
     }
 
     /// Spawn `<bin> <op> <phase>`: cwd `dir`, §6 env, `payload` on stdin, stdout
@@ -185,9 +200,9 @@ impl<'a> Subprocess<'a> {
     /// user-facing channel: "claim prints the worktree path" is the plugin
     /// printing here); core PARSES NOTHING back (no return channel, §7). stderr is
     /// PIPED and enveloped into the unified log line-by-line (`src=<name>`,
-    /// `lvl=info`). Core logs an `invoke` record first. A non-zero exit yields an
-    /// `error` record (the failure locus, surviving any threshold — §6) and an
-    /// [`io::Error`] that aborts the op.
+    /// `lvl=info`). Core logs an `invoke` record first. Pure process mechanics:
+    /// the exit status is returned for [`Subprocess::invoke`] to interpret (a
+    /// forward abort and a failed rollback warrant different records).
     fn spawn(
         &self,
         bin: &Path,
@@ -196,7 +211,7 @@ impl<'a> Subprocess<'a> {
         phase: Phase,
         dir: &Path,
         payload: &str,
-    ) -> io::Result<()> {
+    ) -> io::Result<std::process::ExitStatus> {
         self.log.record(Level::Info, "core", Some(phase), &format!("invoke {name}"));
         let depth = (self.depth + 1).to_string();
         let mut child = retry_busy(|| {
@@ -214,13 +229,7 @@ impl<'a> Subprocess<'a> {
         })?;
         child.stdin.take().expect("stdin was configured as a pipe").write_all(payload.as_bytes())?;
         self.relay(name, phase, child.stderr.take().expect("stderr was configured as a pipe"));
-        let status = child.wait()?;
-        if status.success() {
-            Ok(())
-        } else {
-            self.log.record(Level::Error, "core", Some(phase), &format!("plugin {name} aborted the op ({status})"));
-            Err(io::Error::other(format!("plugin {name} aborted the op ({status})")))
-        }
+        child.wait()
     }
 
     /// Envelope a plugin's piped stderr into the unified log, one record per line
