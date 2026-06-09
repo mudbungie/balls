@@ -79,6 +79,17 @@ fn parse_rejects_an_unknown_flag() {
 }
 
 #[test]
+fn parse_resolves_the_per_op_remote_override() {
+    // The §12 ladder's top tier on every mutating verb (bl-c2de): `--remote`
+    // always assigns, `--center` fills only an empty slot — prime's precedence.
+    assert_eq!(parse(&strs(&["--remote", "r"]), "me").unwrap().remote.as_deref(), Some("r"));
+    assert_eq!(parse(&strs(&["--center", "c"]), "me").unwrap().remote.as_deref(), Some("c"));
+    for order in [["--center", "c", "--remote", "r"], ["--remote", "r", "--center", "c"]] {
+        assert_eq!(parse(&strs(&order), "me").unwrap().remote.as_deref(), Some("r"));
+    }
+}
+
+#[test]
 fn parse_accepts_glued_short_flags() {
     // -p1 == -p 1 (the getopt convention); -t and -m glue the same way.
     let f = parse(&strs(&["a title", "-p1", "-turgent", "-mglued note"]), "me").unwrap();

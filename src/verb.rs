@@ -28,6 +28,7 @@ pub enum Verb {
     Prime,
     Sync,
     Install,
+    Conf,
 }
 
 /// How §8 runs an op: whether it authors and seals a ball-file change.
@@ -44,7 +45,7 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 10] = [
+    pub const ALL: [Verb; 11] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
@@ -55,6 +56,7 @@ impl Verb {
         Verb::Prime,
         Verb::Sync,
         Verb::Install,
+        Verb::Conf,
     ];
 
     /// The canonical lower-case token — the inverse of [`Verb::parse`].
@@ -70,6 +72,7 @@ impl Verb {
             Verb::Prime => "prime",
             Verb::Sync => "sync",
             Verb::Install => "install",
+            Verb::Conf => "conf",
         }
     }
 
@@ -94,6 +97,7 @@ impl Verb {
             Verb::Prime => "ready this checkout (run at session start)",
             Verb::Sync => "pull the store from the remote",
             Verb::Install => "copy committed config/plugins between branches",
+            Verb::Conf => "read or write this checkout's local config (with provenance)",
         }
     }
 
@@ -109,7 +113,8 @@ impl Verb {
             | Verb::List
             | Verb::Prime
             | Verb::Sync
-            | Verb::Install => OpClass::Diffless,
+            | Verb::Install
+            | Verb::Conf => OpClass::Diffless,
         }
     }
 }

@@ -120,11 +120,14 @@ fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Bin
         .map_err(|e| io::Error::other(e.to_string()))
 }
 
-/// `bl sync [BRANCH] [--as ID]` — make state consistent (§13): run the `sync`
+/// `bl sync [BRANCH] [--as ID] [--remote URL] [--center URL]` — make state
+/// consistent (§13): run the `sync`
 /// chain against the store (the tracker's `sync/pre` fetches + ff-only). With no
 /// arg it syncs the config-named `tasks_branch`; `bl sync <branch>` PULLS that
 /// named branch instead — the positional substitutes `tasks_branch` in the §7
-/// binding, the one datum the tracker fetches/ff's against. The landing is
+/// binding, the one datum the tracker fetches/ff's against. `--remote`/`--center`
+/// are the per-op override tier of the ONE §12 ladder (bl-c2de), resolved here
+/// exactly as on prime and the mutating verbs. The landing is
 /// never a sync target, but core special-cases no name: the landing is
 /// upstream-less by construction (§4), so the tracker's general rule — fetch
 /// the branch's upstream, if any — no-ops on it for free (§2/§13).
@@ -135,14 +138,15 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     if !is_landing(&landing) {
         return Err(io::Error::other("no balls checkout here — run `bl prime` first"));
     }
-    let (binding, level) = bind(edge, &landing, &store, None, opts.branch, false)?;
+    let (binding, level) = bind(edge, &landing, &store, opts.remote, opts.branch, false)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
 /// [`Level`]: the EXPLICIT store remote, the `tasks_branch` (the `target`
 /// override, else the config-named one — §13 `bl sync <branch>`), the two checkout
 /// paths, and the `log_level` threshold (CLI override over config). `cli_remote` is
-/// the parsed `--remote`/`--center` override (prime; `None` for sync/mutate); when
+/// the parsed `--remote`/`--center` per-op override — the top tier of the ONE §12
+/// ladder, accepted by every store-touching verb alike (bl-c2de); when
 /// absent it falls back to the per-machine XDG `remote`. That is the WHOLE of
 /// core's remote handling — both are plain config reads; core never resolves an
 /// implicit remote (§0). `None` here is NOT stealth: it means "no EXPLICIT remote",
@@ -202,89 +206,12 @@ pub(crate) fn binding(landing: &Path, store: &Path, invocation: &Path, remote: O
     }
 }
 
-/// Parsed `bl sync` flags: an optional positional branch + `--as`.
-struct SyncOpts {
-    actor: String,
-    branch: Option<String>,
-}
-
-/// Parsed `bl prime` flags: the resolved actor, the optional store-remote
-/// override that becomes the binding's explicit remote (over XDG, §12), the
-/// optional `--install CENTER` that triggers config adoption (§13), and
-/// `--stealth` — the §12 consent opt-out (no remote is founded, pushed, or even
-/// discovered; the tracker writes the self-lock instead). `install` also seeds
-/// the remote when `remote` is unset (the center is where the adopted
-/// `tasks_branch` lives), resolved in [`prime`].
-struct PrimeOpts {
-    actor: String,
-    remote: Option<String>,
-    install: Option<String>,
-    stealth: bool,
-}
-
-/// Parse `bl prime [--as ID] [--remote URL] [--center URL] [--install CENTER]
-/// [--stealth]`. `--remote` and `--center` both name the store remote (the
-/// federation framing differs, the effect is one URL); `--remote` wins if both
-/// are given, whatever the order (`get_or_insert` lets a later `--center` fill an
-/// empty slot but never overwrite a `--remote`, which always assigns).
-/// `--install` names the center to adopt config from (§13). `--stealth` opts out
-/// of any store remote (§12) and so CONTRADICTS every flag that names one —
-/// fail loud, never pick a winner silently. An unknown flag or positional is an
-/// error.
-fn parse_prime(args: &[String], default_actor: &str) -> io::Result<PrimeOpts> {
-    let mut o = PrimeOpts { actor: default_actor.to_string(), remote: None, install: None, stealth: false };
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--as" => o.actor = value(args, &mut i, "--as")?,
-            "--remote" => o.remote = Some(value(args, &mut i, "--remote")?),
-            "--center" => {
-                let center = value(args, &mut i, "--center")?;
-                o.remote.get_or_insert(center);
-            }
-            "--install" => o.install = Some(value(args, &mut i, "--install")?),
-            "--stealth" => o.stealth = true,
-            other => return Err(io::Error::other(format!("prime: unexpected argument '{other}'"))),
-        }
-        i += 1;
-    }
-    if o.stealth && (o.remote.is_some() || o.install.is_some()) {
-        return Err(io::Error::other(
-            "prime: --stealth contradicts --remote/--center/--install — stealth opts out of any store remote",
-        ));
-    }
-    Ok(o)
-}
-
-fn parse_sync(args: &[String], default_actor: &str) -> io::Result<SyncOpts> {
-    let mut o = SyncOpts { actor: default_actor.to_string(), branch: None };
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--as" => o.actor = value(args, &mut i, "--as")?,
-            flag if flag.starts_with('-') => {
-                return Err(io::Error::other(format!("sync: unexpected flag '{flag}'")));
-            }
-            _ => {
-                if o.branch.replace(args[i].clone()).is_some() {
-                    return Err(io::Error::other("sync: at most one branch"));
-                }
-            }
-        }
-        i += 1;
-    }
-    Ok(o)
-}
-
-/// The value following a `--flag`, advancing the cursor; missing value is an
-/// error — the parse step the checkout-lifecycle verbs (and `bl install`,
-/// [`crate::install::run`]) share.
-pub(crate) fn value(args: &[String], i: &mut usize, flag: &str) -> io::Result<String> {
-    *i += 1;
-    args.get(*i)
-        .cloned()
-        .ok_or_else(|| io::Error::other(format!("{flag} needs a value")))
-}
+// The argv parsers live in a sibling module (the §9 mutate_args convention);
+// `value` is re-exported because `bl install`'s parse shares it.
+#[path = "checkout_args.rs"]
+mod args;
+use args::{parse_prime, parse_sync};
+pub(crate) use args::value;
 
 #[cfg(test)]
 #[path = "checkout_tests.rs"]

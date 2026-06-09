@@ -102,6 +102,12 @@ impl Hooks {
         self.table.get(key).map_or(&[], Vec::as_slice)
     }
 
+    /// Every `(key, names)` entry of the schedule, in [`BTreeMap`] order — the
+    /// `bl conf` dump's iteration over the effective `[hooks]` table (§4).
+    pub fn entries(&self) -> impl Iterator<Item = (&String, &Vec<String>)> {
+        self.table.iter()
+    }
+
     /// The ordered plugin names wired for `<op>.<phase>` (empty when un-wired).
     #[must_use]
     pub fn names(&self, op: &str, phase: &str) -> &[String] {

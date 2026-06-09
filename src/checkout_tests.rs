@@ -169,3 +169,15 @@ fn sync_rejects_unknown_flags_and_a_second_branch() {
     assert!(sync(&e, &argv(&["-x"])).is_err()); // single-dash unknown is a flag, not a branch
     assert!(sync(&e, &argv(&["a", "b"])).is_err());
 }
+
+#[test]
+fn sync_accepts_the_per_op_remote_override() {
+    // The ONE §12 ladder (bl-c2de): sync takes `--remote`/`--center` exactly as
+    // prime does; the plugin-less chain ignores it, so this proves parse+bind.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    prime(&e, &[]).unwrap();
+    sync(&e, &argv(&["--remote", "git@hub:r"])).unwrap();
+    sync(&e, &argv(&["--center", "git@hub:c", "--remote", "git@hub:r"])).unwrap();
+    assert!(sync(&e, &argv(&["--remote"])).is_err()); // flag with no value
+}

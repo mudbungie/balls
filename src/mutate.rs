@@ -71,10 +71,11 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let log = Log::new(clone.op_log(), level, verb, log::wall);
-    // A mutating op takes no `--remote`; core reads only the explicit XDG remote
-    // (§0 stays local), and the tracker discovers the project `origin` when it is
-    // `None` (the bottom §12 tier — remote-talk, the tracker's alone).
-    let remote = crate::config::xdg_remote(&edge.xdg.user_config());
+    // The ONE §12 ladder, identical on every op (bl-c2de): the per-op
+    // `--remote`/`--center` override, else the XDG `task-remote` — both explicit
+    // config reads (§0 stays local); the tracker discovers the project `origin`
+    // when it is `None` (the bottom tier — remote-talk, the tracker's alone).
+    let remote = flags.remote.clone().or_else(|| crate::config::xdg_remote(&edge.xdg.user_config()));
     let binding = checkout::binding(&landing, &store, &edge.invocation_path, remote, cfg.tasks_branch);
     let ctx = OpContext {
         actor: flags.actor.clone(),

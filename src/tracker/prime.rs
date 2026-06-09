@@ -32,7 +32,8 @@ use std::path::Path;
 
 /// `prime/pre`: settle the store NAME and clone an established store in (§12).
 /// Stealth (no remote) writes the self-lock and stops. Otherwise warn on a
-/// store-elsewhere mismatch (diagnostic, never fatal), then [`clone_in`] the
+/// store-elsewhere mismatch and on an ephemeral remote (both diagnostic, never
+/// fatal), then [`clone_in`] the
 /// remote store branch if it is established and absent locally. Idempotent: a
 /// re-prime finds the local branch present and clones nothing.
 pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
@@ -40,10 +41,29 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
         return stealth_lock(b, env);
     };
     let landing = Path::new(&b.landing);
+    if let Some(durable) = ephemeral_gap(b, env, &remote) {
+        eprintln!("tracker: primed on `{remote}` via an explicit remote; the durable ladder (XDG > origin) resolves {durable} — set `origin` or `bl conf set task-remote` to federate durably");
+    }
     if let Some(named) = store_elsewhere(b, landing, &remote) {
         eprintln!("tracker: this repo's tasks are on `{named}` — run `bl install` / `bl prime --install`");
     }
     clone_in(landing, &remote, &b.tasks_branch)
+}
+
+/// The §12 ephemeral-remote gap (W2, bl-c2de): prime is acting on `remote`, but
+/// the DURABLE ladder (XDG `task-remote` > `origin`) resolves to something else
+/// — so it arrived via a per-op `--remote`/`--center` and plain commands will
+/// not reproduce it (the bl-d234 silent-stealth failure). Returns what durable
+/// resolution yields, rendered for the warning; `None` = no gap (the remote in
+/// use IS the durable one, however it was spelled).
+fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
+    let durable = crate::config::xdg_remote(&env.xdg.user_config())
+        .or_else(|| super::origin_of(Path::new(&b.invocation_path)));
+    match durable {
+        Some(d) if d == remote => None,
+        Some(d) => Some(format!("`{d}`")),
+        None => Some("nothing (plain commands run stealth)".to_string()),
+    }
 }
 
 /// `prime/post`: settle the store CONTENT (§12). An ESTABLISHED remote branch is
