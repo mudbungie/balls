@@ -180,6 +180,33 @@ fn an_occupancy_verb_rejects_shaping_flags() {
 }
 
 #[test]
+fn each_shaping_flag_bounces_an_occupancy_verb_on_its_own() {
+    // shapes() is a pure disjunction: EVERY field flag must trip the guard
+    // ALONE (an && slipped into the chain would let a lone flag through).
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    let solo: &[fn(&mut Flags)] = &[
+        |f| f.title = Some("t".into()),
+        |f| f.body = Some("b".into()),
+        |f| f.parent = Some("bl-p".into()),
+        |f| f.no_parent = true,
+        |f| f.no_priority = true,
+        |f| f.priority = Some(1),
+        |f| f.blocks = vec!["close".into()],
+        |f| f.needs = vec!["bl-n".into()],
+        |f| f.no_needs = vec!["bl-n".into()],
+        |f| f.tags = vec!["x".into()],
+        |f| f.no_tags = vec!["x".into()],
+    ];
+    for (i, set) in solo.iter().enumerate() {
+        let mut f = flags();
+        f.positionals = vec!["bl-1".into()];
+        set(&mut f);
+        assert!(base_change(Verb::Claim, d.path(), &f, 0).is_err(), "solo flag #{i} slipped through");
+    }
+}
+
+#[test]
 fn create_rejects_title_flag_and_uses_the_positional() {
     let mut f = flags();
     f.positionals = vec!["the title".into()];
