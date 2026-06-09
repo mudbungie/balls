@@ -87,7 +87,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
-| `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
+| `bl update <id> [--edit] [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. `--edit` (human-only) sources the whole change from `$EDITOR` instead — see below. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
 | `bl skill` | Print this guide (the full manual). |
@@ -169,3 +169,14 @@ Then:
   add or unlink one of this task's own blockers (the §10 in-band fix for a
   mis-wired or cyclic blocker). The lone create-only flag is reciprocal `--blocks`
   (an edge naming this task on ANOTHER), since that is not this task's own field.
+- `bl update <id> --edit` is the **human projection** of the same update: it
+  opens the stored `tasks/<id>.md` (frontmatter + body) in `$EDITOR` (else
+  `$VISUAL`), blocking, then runs the saved buffer through the normal update
+  seal. It is mutually exclusive with the field flags and `key=value` extras
+  (they would race over the payload) — set fields OR hand-edit. A non-tty stdin
+  or an unset editor is an **error**, so agents keep using flag-driven update.
+  The buffer is parse-validated on save (bad TOML / a missing required field is
+  rejected with the parse error, then re-edit or abort — garbage is never
+  committed); an unchanged buffer is a no-op. The id is the path and `created`
+  is history, so neither is hand-editable; `updated` is always restamped by the
+  seal.

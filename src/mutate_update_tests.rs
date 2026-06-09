@@ -111,6 +111,53 @@ fn update_rejects_contradictory_set_and_clear() {
 }
 
 #[test]
+fn update_rejects_edit_combined_with_field_flags() {
+    // --edit and the field-setting flags would race over the payload (§9): a
+    // clean either/or, set fields OR hand-edit.
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    let mut f = flags();
+    f.positionals = vec!["bl-1".into()];
+    f.edit = true;
+    f.title = Some("New".into());
+    let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("mutually exclusive"));
+}
+
+#[test]
+fn update_rejects_edit_combined_with_key_value_extras() {
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    let mut f = flags();
+    f.positionals = vec!["bl-1".into(), "state=doing".into()];
+    f.edit = true;
+    let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("the buffer is the payload"));
+}
+
+#[test]
+fn update_edit_refuses_a_non_tty_so_agents_keep_field_flags() {
+    // The detached seam (no tty) is exactly the agent invocation: --edit errors
+    // instead of blocking on an editor that can never appear.
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    let mut f = flags();
+    f.positionals = vec!["bl-1".into()];
+    f.edit = true;
+    let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("not a tty"));
+}
+
+#[test]
+fn create_rejects_the_update_only_edit_flag() {
+    let mut f = flags();
+    f.positionals = vec!["a title".into()];
+    f.edit = true;
+    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("--edit is update-only"));
+}
+
+#[test]
 fn update_adds_and_drops_its_own_blockers() {
     let d = tempdir().unwrap();
     let dir = d.path();
