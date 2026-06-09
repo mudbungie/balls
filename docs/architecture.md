@@ -939,6 +939,16 @@ remote. Federating is two edits, both consented:
   `install` (§0/§4). `prime` is auto-safe (it seeds the LOCAL default and syncs what landing already
   names); it CANNOT adopt a foreign config or activate third-party code — that power lives only in the
   deliberate `install` (and `prime --install`, §13).
+- **The implicit `origin` is the PROJECT repo's, discovered by the tracker.** The bottom precedence
+  tier (`origin`) means `git remote get-url origin` on the **invocation path** — the project repo the
+  user cloned, whose `origin` is the real remote the code rides and where `balls/tasks` sits alongside
+  it. It is NEVER read off the landing: the landing is local-only (§2 install-transport), founded by a
+  bare `git init`, and carries no origin — reading origin there is meaningless. And like all
+  remote-talk it is the **tracker's** job, not core's (§0): core resolves only the EXPLICIT tiers
+  (`--remote`/`--center`/XDG `remote` — config reads) and hands the tracker `remote: None` when none is
+  set; the tracker then discovers `origin` from the invocation path as its single fallback, in ONE
+  place all its handlers share (not re-probed per op). This is what makes "a fresh clone, `bl prime`,
+  works out of the box" true without a flag.
 
 **Non-default store, no install → a WARNING, not silence.** The one ergonomic gap: clone a repo whose
 store is on a NON-default branch and `bl prime; bl list` shows nothing (the seeded default points
@@ -1236,6 +1246,22 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **implicit `origin` discovery is the tracker's, from the project repo — not core's, off the landing
+  (2026-06-08, bl-976b — post-freeze; code follow-up bl-a476).** Surfaced smoke-testing bl-0a23:
+  federation only worked with an explicit `--remote`/XDG `remote`; a plain `git clone <proj>; bl prime`
+  went stealth. Cause — `checkout::resolve_remote`'s bottom tier ran `git remote get-url origin` on the
+  **landing**, which is local-only (§2 install-transport), founded by a bare `git init`, and never
+  carries an origin (no production path `remote add`s one) — so the `origin` tier was DEAD, and §12's
+  "standard case needs no install … out of the box" could not fire. Two corrections: (1) the implicit
+  `origin` is the PROJECT repo's — `git remote get-url origin` on the **invocation path** (the cloned
+  repo whose `origin` is the real remote, where `balls/tasks` sits alongside the code), NEVER the
+  landing; (2) discovery belongs to the TRACKER, not core — core resolves only the explicit
+  `--remote`/`--center`/XDG tiers (config reads) and hands the tracker `remote: None`, and the tracker
+  discovers `origin` from the invocation path as its single shared fallback (not re-probed per handler).
+  Folded into §12 (the "standard case" bullet gains the origin-source + ownership clarification). The
+  code drift predates bl-0a23 (came in with `resolve_remote`, bl-cd21); the move into the tracker —
+  with the stealth-gate ripple (every handler's "no remote ⇒ stealth" becomes "no explicit remote AND
+  no discoverable origin") — is tracked under bl-a476 (still a design topic). Tracked under bl-72a8.
 - **prime materializes the store LAZILY via a core fixpoint — supersedes the bl-fa00 reset (2026-06-08,
   bl-0a23 — post-freeze).** bl-fa00 had founded a throwaway orphan store EAGERLY (before any remote was
   resolved), so a fresh clone's local store had history UNRELATED to an established remote and the
