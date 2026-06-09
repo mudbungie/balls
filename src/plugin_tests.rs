@@ -43,7 +43,6 @@ fn ctx() -> OpContext {
         },
         command: Some(Command { op: "close".into(), field_changes: vec![], body_change: None }),
         before: None,
-        after: None,
     }
 }
 

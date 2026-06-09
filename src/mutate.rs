@@ -68,7 +68,6 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
         binding,
         command: Some(command(verb, &flags)),
         before,
-        after: None,
     };
 
     let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
