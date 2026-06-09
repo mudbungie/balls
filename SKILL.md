@@ -105,8 +105,11 @@ Have the harness pick a name at session start and pass it as `--as` /
 > `claim` prints the worktree path, and `prime` prints the path of each
 > still-held task's worktree. Every other mutating verb
 > (`unclaim`/`update`/`close`/`drop`) prints nothing to stdout. The terse
-> confirmations and the op log (JSON lines) are on **stderr** — redirect
-> `2>/dev/null` for clean output.
+> confirmations and the op log (JSON lines) are on **stderr** — for clean
+> scripting without losing the confirmations, silence the op log with the global
+> `bl --log-level error <verb>` (levels `debug`/`info`/`error`; there is no
+> `warn`, and an unknown value reads as `info`) instead of redirecting
+> `2>/dev/null`.
 
 ## Status is derived, never stored
 
