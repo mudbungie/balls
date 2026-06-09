@@ -71,7 +71,7 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
         after: None,
     };
 
-    let hooks = Hooks::load(&landing)?;
+    let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
     let reg = Registry::at(&landing);
     let pre = hooks.resolve(&reg, verb.token(), "pre");
     let post = hooks.resolve(&reg, verb.token(), "post");
