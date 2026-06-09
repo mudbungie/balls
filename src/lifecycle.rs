@@ -258,6 +258,7 @@ fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)
 /// `run_phase`/`unwind`/`SealRecord` seams.
 #[path = "lifecycle_diffless.rs"]
 mod diffless;
+pub use diffless::FIXPOINT_CAP;
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
