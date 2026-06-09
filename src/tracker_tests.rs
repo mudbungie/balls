@@ -95,6 +95,7 @@ fn effective_remote_prefers_explicit_then_discovers_the_project_origin() {
     super::git::git(&proj, &["remote", "add", "origin", "git@hub:proj"]).unwrap();
     let discover = Binding {
         remote: None,
+        stealth: false,
         tasks_branch: "balls/tasks".into(),
         store: "/nope".into(),
         landing: String::new(),
@@ -105,9 +106,40 @@ fn effective_remote_prefers_explicit_then_discovers_the_project_origin() {
     // An explicit remote wins, never probed.
     let explicit = Binding { remote: Some("git@hub:explicit".into()), ..discover.clone() };
     assert_eq!(effective_remote(&explicit).as_deref(), Some("git@hub:explicit"));
+    // A DECLARED stealth binding (`bl prime --stealth`, §12) resolves no remote
+    // at all — the opt-out beats even a discoverable origin.
+    let opted_out = Binding { stealth: true, ..discover.clone() };
+    assert_eq!(effective_remote(&opted_out), None);
     // A path with no origin (or no repo) → None = stealth.
     let stealth = Binding { invocation_path: "/p".into(), ..discover };
     assert_eq!(effective_remote(&stealth), None);
+}
+
+#[test]
+fn an_explicit_stealth_prime_locks_local_and_founds_nothing_on_origin() {
+    // §12 `bl prime --stealth`: the binding's `stealth` forces the same path the
+    // inferred no-remote case takes, even though the project's `origin` IS
+    // discoverable — `prime/pre` writes the self-lock, `prime/post` founds and
+    // pushes NOTHING.
+    let (tmp, env) = env();
+    let remote = super::fixtures::empty_remote(tmp.path());
+    let store = super::fixtures::local_unpushed(tmp.path());
+    let proj = tmp.path().join("proj");
+    std::fs::create_dir(&proj).unwrap();
+    super::git::git(&proj, &["init", "-q"]).unwrap();
+    super::git::git(&proj, &["remote", "add", "origin", &remote.to_string_lossy()]).unwrap();
+    let payload = format!(
+        r#"{{"binding":{{"stealth":true,"tasks_branch":"{}","store":"{}","invocation_path":"{}"}}}}"#,
+        super::fixtures::BRANCH,
+        store.display(),
+        proj.display(),
+    );
+    assert_eq!(invoke("prime", "pre", &payload, &env), 0);
+    let lock = env.xdg.clone_dir(&proj).root().join("stealth.lock");
+    assert!(lock.is_file()); // the self-lock — the store is locked local
+    assert_eq!(invoke("prime", "post", &payload, &env), 0);
+    // The origin still carries no store branch: nothing was founded or pushed.
+    assert!(super::git::git(&remote, &["rev-parse", super::fixtures::BRANCH]).is_err());
 }
 
 #[test]
