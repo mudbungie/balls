@@ -76,14 +76,47 @@ no listing of its own; once primed, read the two sets you care about with
   `bl list -s ready` for that rung alone.
 - **claimed** (tasks you already own — resume in their worktrees): `bl list -s claimed`.
 
-To point a fresh checkout at a shared project, pass the remote once:
-`bl prime --as ID --remote <git-url>` (or `--install <git-url>` to also adopt
-that center's `config/`). Re-running plain `bl prime` later converges to a no-op.
+The store remote resolves the same way on **every** command: `--remote URL` (a
+per-op override — it is **not** remembered) > the per-machine `task-remote`
+(`bl conf set task-remote <url>`) > the project repo's `origin`. A fresh clone
+whose `origin` carries the store just works: `bl prime; bl list`. To point a
+checkout with no such `origin` at a shared project, set a durable pointer —
+`git remote add origin <hub>` or `bl conf set task-remote <hub>` — then
+`bl prime` (add `--install <hub>` to also adopt that center's `config/`).
+`--remote` alone shapes only that one invocation; prime warns when nothing
+durable backs it, because every later plain command would silently run
+stealth. Re-running plain `bl prime` converges to a no-op, and `bl conf` shows
+the remote/branch a checkout actually resolves.
 
 In a repo with a pushable `origin`, prime founds a `balls/tasks` branch there
 and pushes it. `bl prime --stealth` is the opt-out: the store stays local and
 prime founds, pushes, and discovers nothing. It contradicts
 `--remote`/`--center`/`--install` (each names a remote), refused at parse.
+
+## Local config (`bl conf`)
+
+`bl conf` dumps every resolved config value, the layer it came from
+(`cli`/`xdg`/`landing`/`origin`/`default`), and the paths of the files behind
+them; `bl conf <key>` prints one value (stdout) with its provenance (stderr).
+A checkout with no durable remote shows `task-remote (none)` — that checkout
+is stealth. Writes are scope-keyed — the key implies the file, there is no
+`--scope` flag:
+
+- `bl conf set task-remote <url>` — per-machine store remote (XDG config).
+- `bl conf set task-branch <name>` / `bl conf set log-level <level>` — landing
+  `balls.toml`, committed on `balls/config`. Re-pointing `task-branch` strands
+  the store unless you move it first (see the spec's re-home discipline).
+- `bl conf set|append|prepend|remove <op>.<pre|post> <name...>` — the
+  `[hooks]` plugin schedule (`show`/`list` are bare keys: `bl conf append list
+  <name>`). `set` replaces the whole list; `append`/`prepend`/`remove` compose
+  one name and converge (a present name re-appended, or an absent one removed,
+  is a no-op). Naming a plugin whose binary isn't installed beside `bl` leaves
+  a dangling entry — pruned at seed, a clean error at dispatch — never code
+  execution; `conf` writes the schedule, never a binary.
+
+`conf` is local-only: it never crosses a checkout boundary (adopting another
+checkout's config is `install`'s consent-gated job) and runs no plugins —
+config never syncs.
 
 ## Identity
 
@@ -97,7 +130,8 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 | Command | What it does |
 |---------|-------------|
 | `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. `--stealth` opts out of any store remote (store stays local). Run at session start, then `bl list`. |
-| `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
+| `bl sync [BRANCH] [--as ID] [--remote URL]` | Pull the store from the remote (fetch + fast-forward; the remote resolves `--remote` > `task-remote` > `origin`, like every op). No arg syncs the configured store branch. |
+| `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-machine XDG), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--to` the landing. Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). |
