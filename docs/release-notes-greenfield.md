@@ -59,8 +59,11 @@ There is **no `bl init`**. `bl prime` founds the substrate on its first run
 (seeding a fresh landing from the install-default `default-config/` folder) and
 then syncs; re-running converges to a no-op. With no remote, founding is
 **local-only / "stealth"** and just works. Point a checkout at a shared project
-once with `bl prime --remote <url>` (or `--install <url>` to also adopt that
-center's `config/`); `prime --install` recursively fuses prime + install + prime.
+once with `bl prime --remote <url>` (`--center <url>` names the same store
+remote in federation framing; `--remote` wins if both are given), or
+`--install <url>` to also adopt that center's `config/` — `prime --install`
+fuses prime + install + prime in one call. It is a **single hop**, not a walk:
+a center's config names its own store branch, never another config to chase.
 
 ### `install` is a path-copy where *shape decides* (§6)
 
@@ -78,10 +81,12 @@ between "adopt the center wholesale" and "graft one capability in."
 ### Plugins: `[hooks]`, sibling binaries, pruned if absent (§6)
 
 `config/plugins.toml` has a single `[hooks]` table: each `<op>.<phase>` →
-ordered list of plugin names, position = run order. There is **no symlink
-registry**. A name resolves to a sibling binary beside `bl`; `bl prime` prunes
-any wired plugin whose binary is missing, so a remote-less or plugin-less box
-never aborts. Two ship by default and are seeded:
+ordered list of plugin names, position = run order. The legacy registry is
+retired; a name now resolves through a **local, gitignored**
+`config/plugins/bin/<name>` symlink that `bl prime`/`bl install` bind to the
+binary installed beside `bl`. A scheduled name whose binary is missing at
+founding is pruned from the seed, so a remote-less or plugin-less box never
+aborts. Two ship by default and are seeded:
 
 - **tracker** — the only remote-talker: fetch + ff on sync, push after each op,
   found/adopt on prime. (The tracker — never core — does the remote fetch on
@@ -132,13 +137,19 @@ Full field map and runbook are in the script header and `architecture.md` §16.
 For anyone scripting against the binary, a few specifics that differ from older
 docs and intuitions:
 
-- **`create` is the only stdout-printing verb** (the minted id, alone). Other
-  mutating verbs print a terse confirmation to **stderr**; stdout stays empty.
-  The op log (JSON lines) is on stderr too.
-- **`bl claim` does not echo the worktree path.** Find it with `git worktree
-  list` (the `work/<id>` line). The path is also recorded in the task's stored
-  `delivery-worktree` frontmatter key, but the bedrock `--json` projection emits
-  only canonical fields, so it is not surfaced there yet.
+- **Core keeps stdout machine-clean; plugins own the user-facing prints.** Of
+  core's own emissions, `create` is the only mutating verb that prints to
+  stdout (the minted id, alone); the others print a terse confirmation to
+  **stderr**, and the op log is on stderr too. A plugin's stdout, though, is
+  forwarded verbatim to the invoker (§6) — that is where the worktree paths
+  below come from.
+- **`bl claim` prints the worktree path** (bl-delivery printing on
+  `claim.post`); `bl prime` re-prints the path of every task you still hold,
+  and `bl show <id>` folds a `worktree` line into the human render when the
+  worktree exists on this machine. The path is **computed, never stored** —
+  the bedrock `--json` projection carries only stored frontmatter, so it never
+  appears there. `git worktree list` (the `work/<id>` line) is the git-side
+  read.
 - **`bl update` overwrites every ball field** — no create-only split. Retitle
   (`--title`), rewrite the markdown body (`--body`), set or clear the `--parent`
   and `-p` scalars (`--no-parent`/`--no-priority`), add or drop a tag
@@ -164,5 +175,6 @@ The greenfield core and the two shipped plugins (`tracker`, `bl-delivery`) are
 live; the legacy→greenfield cutover has been executed and dogfooded end to end
 (see `docs/demonstration.md`). Forge-gated delivery and the github-issues plugin
 port are downstream follow-ups (separate, per-forge, not bundled here). The
-standalone `bl install` verb path is partially wired — `prime --install` is the
-supported adoption route today.
+standalone `bl install` verb is fully wired (`bl install [<path>] --from <ref>
+[--to <ref>]`); `prime --install` remains the one-call adoption route for a
+fresh checkout.
