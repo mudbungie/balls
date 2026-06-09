@@ -1,10 +1,12 @@
 +++
 title = "Harden git invocation env + arg-injection guard; depth-cap fail+rollback; bounded plugin stderr; mirror-path traversal guard [bl-2d6d]"
 created = 1780978931
-updated = 1780978931
+updated = 1780978941
+claimant = "Liveried"
 parent = "bl-72a8"
 priority = 1
 tags = ["security"]
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-74ef"
 +++
 Remediations from the bl-2d6d security review (docs/security-review-subprocess-git-paths.md), core only:
 
