@@ -28,7 +28,7 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
             "--since" if verb == Verb::List => f.since = Some(date(value(&mut args, "--since")?)?),
             // `--until` bounds the whole named day: its last second is inclusive.
             "--until" if verb == Verb::List => f.until = Some(date(value(&mut args, "--until")?)? + 86_399),
-            flag if flag.starts_with("--") => {
+            flag if flag.starts_with('-') => {
                 return Err(io::Error::other(format!("{}: unexpected flag '{flag}'", verb.token())));
             }
             _ => {

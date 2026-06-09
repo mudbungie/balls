@@ -26,10 +26,10 @@ the claim, **all edits go in that worktree**, never on `main` directly. Editing
 captures the worktree's diff, so a stray `main` edit is invisible to it — the
 task closes cleanly while leaving your change behind, undelivered.
 
-`bl claim` does not print the worktree path — find it with `git worktree list`
-(the `work/<id>` line). (The path is also recorded in the task's stored
-`delivery-worktree` frontmatter key, but `bl show --json` emits only canonical
-fields, so it is not surfaced there.)
+`bl claim` does not print the worktree path — read it from the task's stored
+`delivery-worktree` frontmatter key, which `bl show <id> --json` surfaces (bedrock
+`--json` is the lossless mirror of stored frontmatter, so every preserved key
+round-trips), or list it with `git worktree list` (the `work/<id>` line).
 
 ## State lives outside the repo (XDG)
 
@@ -54,10 +54,13 @@ bl prime --as YOUR_IDENTITY
 
 `prime` is idempotent: on first run it **founds** the local substrate (there is
 no separate `bl init`) — seeding `config/` from the install defaults and creating
-the store — then syncs with the remote. It returns:
+the store — then syncs with the remote and re-materializes the worktrees of any
+tasks you still hold. It prints no listing of its own; once primed, read the two
+sets you care about with `bl list` (the single listing verb):
 
-- **claimed**: tasks you already own — resume in their worktrees.
-- **ready**: open, unblocked, unclaimed tasks, highest priority first.
+- **ready** (open, unblocked, unclaimed, highest priority first): `bl list`, or
+  `bl list -s ready` for that rung alone.
+- **claimed** (tasks you already own — resume in their worktrees): `bl list -s claimed`.
 
 To point a fresh checkout at a shared project, pass the remote once:
 `bl prime --as ID --remote <git-url>` (or `--install <git-url>` to also adopt
@@ -75,10 +78,10 @@ Have the harness pick a name at session start and pass it as `--as` /
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL]` | Sync + show ready/claimed. Founds the substrate on first run. Run at session start. |
+| `bl prime [--as ID] [--remote URL] [--install URL]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold. Prints no listing of its own. Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
-| `bl show <id> [--json]` | Task detail. A closed id still resolves (reconstructed from history). |
+| `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. |

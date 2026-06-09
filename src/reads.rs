@@ -210,28 +210,41 @@ pub(crate) fn on_word(on: On) -> &'static str {
 
 /// One ball as the **bedrock** JSON record — the single shape every read verb's
 /// `--json` emits (§9). It is the lossless mirror of stored frontmatter ONLY:
-/// every field round-trips back to the file, and NOTHING derived appears — no
-/// `status` ladder, no ISO dates (timestamps stay the literal stored i64), no
+/// every stored field round-trips back to the file, and NOTHING derived appears —
+/// no `status` ladder, no ISO dates (timestamps stay the literal stored i64), no
 /// inverse-derived `children`, no tree nesting. The derived columns live on the
 /// orthogonal HUMAN render alone (§3, bl-d074). `id` is the filename identity
 /// (the round-trip key), not a frontmatter field.
+///
+/// Preserved `extra` keys (§3 seam — a team's `state:` field, the delivery
+/// plugin's `delivery-worktree`) ride through too: lossless means EVERY stored
+/// key, and `bl show --json` is the consumer's authoritative read for
+/// `delivery-worktree` (architecture §11). Extras are UNKNOWN keys, so none can
+/// collide with the canonical fields layered over them; the canonical set is
+/// always present (a cleared scalar emits `null`), unlike the file's
+/// skip-if-absent frontmatter.
 pub(crate) fn task_json(id: &str, task: &Task) -> Value {
     let blockers: Vec<Value> = task
         .blockers
         .iter()
         .map(|b| json!({ "id": b.id, "on": on_word(b.on) }))
         .collect();
-    json!({
-        "id": id,
-        "title": task.title,
-        "claimant": task.claimant,
-        "priority": task.priority,
-        "parent": task.parent,
-        "tags": task.tags,
-        "blockers": blockers,
-        "created": task.created,
-        "updated": task.updated,
-    })
+    let mut record = serde_json::to_value(&task.extra).expect("a toml table serializes to a json object");
+    let map = record.as_object_mut().expect("a toml table is a json object");
+    for (key, value) in [
+        ("id", json!(id)),
+        ("title", json!(task.title)),
+        ("claimant", json!(task.claimant)),
+        ("priority", json!(task.priority)),
+        ("parent", json!(task.parent)),
+        ("tags", json!(task.tags)),
+        ("blockers", json!(blockers)),
+        ("created", json!(task.created)),
+        ("updated", json!(task.updated)),
+    ] {
+        map.insert(key.to_string(), value);
+    }
+    record
 }
 
 /// Serialise a JSON value to a trailing-newline string — the one place every

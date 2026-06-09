@@ -235,7 +235,7 @@ fn parse_sync(args: &[String], default_actor: &str) -> io::Result<SyncOpts> {
     while i < args.len() {
         match args[i].as_str() {
             "--as" => o.actor = value(args, &mut i, "--as")?,
-            flag if flag.starts_with("--") => {
+            flag if flag.starts_with('-') => {
                 return Err(io::Error::other(format!("sync: unexpected flag '{flag}'")));
             }
             _ => {
