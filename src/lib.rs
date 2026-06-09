@@ -26,8 +26,9 @@
 //! verb (create/claim/unclaim/update/close/drop); the plugin chain
 //! ([`lifecycle::Plugins`]) is filled by [`plugin::Subprocess`] over the §7 wire
 //! ([`wire`]). [`run`] dispatches the checkout-lifecycle verbs (`prime`/`sync`,
-//! §12/§13) to the engine via [`checkout`]; the deliverable verbs are not wired
-//! yet, so they still print their [`op::Op`] plan.
+//! §12/§13) to the engine via [`checkout`], the deliverable verbs via
+//! [`mutate`], and `install` — the op that seals to the LANDING (§6/§8) — via
+//! [`install::run`]; every verb is wired.
 //!
 //! # §12/§13 — readiness & synchronization
 //!
@@ -125,8 +126,7 @@ pub mod verb;
 pub mod wire;
 
 use edge::Edge;
-use op::Op;
-use verb::{OpClass, Verb};
+use verb::Verb;
 
 /// The LANDING branch — path-derived, single-owner, holds `config/` (§2). It is
 /// never named by config (you read config FROM it, so it cannot name where it
@@ -148,8 +148,8 @@ const SKILL: &str = include_str!("../SKILL.md");
 /// The §8 dispatch entrypoint: resolve argv to its verb and run it. `prime`/
 /// `sync` (§12/§13) wire to the engine via [`checkout`]; the deliverable verbs
 /// (§9) via [`mutate`]; the read verbs (`show`/`list`/`dep-tree`, §9) via
-/// [`reads`] — they author no diff and print the store view. The remaining
-/// diffless verb (`install`) is unwired, so it reports its §8 op plan; `skill`
+/// [`reads`] — they author no diff and print the store view; `install` (§6)
+/// seals its path-copy onto the landing or store via [`install::run`]. `skill`
 /// prints the embedded agent guide and `help` (also `--help`/`-h`) the terse
 /// command directory ([`help::directory`]). `edge` carries the host inputs `main`
 /// resolved.
@@ -197,11 +197,10 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         Verb::Prime => checkout::prime(edge, &rest[1..]),
         Verb::Sync => checkout::sync(edge, &rest[1..]),
         Verb::Show | Verb::List | Verb::DepTree => reads::run(edge, verb, &rest[1..]),
-        v if v.class() == OpClass::Mutating => mutate::run(edge, v, &rest[1..]),
-        other => {
-            println!("{}", Op::new(other).plan());
-            Ok(())
-        }
+        Verb::Install => install::run(edge, &rest[1..]),
+        // Everything left is a deliverable verb (§9); mutate's own dispatch
+        // still rejects a non-mutating verb defensively.
+        v => mutate::run(edge, v, &rest[1..]),
     };
     match result {
         Ok(()) => 0,
