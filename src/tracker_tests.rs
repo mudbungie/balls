@@ -85,6 +85,50 @@ fn prime_pre_dispatches_to_the_prime_handler() {
 }
 
 #[test]
+fn prime_post_dispatches_to_the_content_handler() {
+    // A tracked prime/post FOUNDS the absent remote branch (the founding push) —
+    // proof the (prime, post) arm reaches prime_post, not the sync/prime/install
+    // catch-all no-op right below it.
+    let (tmp, env) = env();
+    let remote = super::fixtures::empty_remote(tmp.path());
+    let store = super::fixtures::local_unpushed(tmp.path());
+    let payload = format!(
+        r#"{{"binding":{{"remote":"{}","tasks_branch":"{}","store":"{}","invocation_path":"/p"}}}}"#,
+        remote.display(),
+        super::fixtures::BRANCH,
+        store.display(),
+    );
+    assert_eq!(invoke("prime", "post", &payload, &env), 0);
+    assert_eq!(
+        super::fixtures::tip(&remote, super::fixtures::BRANCH),
+        super::fixtures::tip(&store, "HEAD")
+    );
+}
+
+#[test]
+fn sync_and_install_post_never_push_a_tracked_store() {
+    // The (sync|prime|install, _) catch-all keeps the non-deliverable ops off
+    // the generic `post` push: a tracked store sitting AHEAD of its remote stays
+    // unpushed through sync/post and install/post — in particular `install`
+    // adopts config INTO the landing and must NEVER push it back out (§6/§13).
+    let (tmp, env) = env();
+    let remote = super::fixtures::remote_with_branch(tmp.path());
+    let store = super::fixtures::store_clone(tmp.path(), &remote);
+    let before = super::fixtures::tip(&remote, super::fixtures::BRANCH);
+    super::fixtures::commit(&store, "local.txt", "local"); // the undelivered tip
+    let payload = format!(
+        r#"{{"binding":{{"remote":"{}","tasks_branch":"{}","store":"{}","invocation_path":"/p"}}}}"#,
+        remote.display(),
+        super::fixtures::BRANCH,
+        store.display(),
+    );
+    for op in ["sync", "install"] {
+        assert_eq!(invoke(op, "post", &payload, &env), 0, "{op} post");
+        assert_eq!(super::fixtures::tip(&remote, super::fixtures::BRANCH), before, "{op} post pushed");
+    }
+}
+
+#[test]
 fn effective_remote_prefers_explicit_then_discovers_the_project_origin() {
     // §12 precedence FROM THE TRACKER's seat: explicit binding `remote` (core
     // resolved --remote/--center/XDG) > the discovered project `origin`.
