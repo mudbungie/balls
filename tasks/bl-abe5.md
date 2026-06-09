@@ -1,10 +1,12 @@
 +++
 title = "Fix arch-conformance gaps from bl-1a66 review"
 created = 1780973916
-updated = 1780973916
+updated = 1780973923
+claimant = "Ciphered"
 parent = "bl-72a8"
 priority = 1
 tags = ["fix"]
+delivery-worktree = "/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-abe5"
 +++
 Corrections for the gaps found in the §0–§17 conformance review (docs/reviews/bl-1a66-arch-conformance.md):
 
