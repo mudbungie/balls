@@ -124,5 +124,6 @@ fn sync_rejects_unknown_flags_and_a_second_branch() {
     let e = edge(&tmp, None);
     prime(&e, &[]).unwrap();
     assert!(sync(&e, &argv(&["--bogus"])).is_err());
+    assert!(sync(&e, &argv(&["-x"])).is_err()); // single-dash unknown is a flag, not a branch
     assert!(sync(&e, &argv(&["a", "b"])).is_err());
 }

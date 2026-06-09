@@ -81,6 +81,7 @@ fn parse_reads_the_list_status_filter() {
 #[test]
 fn parse_rejects_bad_input() {
     assert!(parse(Verb::List, &["--nope".into()]).is_err()); // unknown flag
+    assert!(parse(Verb::Show, &["-h".into()]).is_err()); // single-dash unknown is a flag, not an id
     assert!(parse(Verb::List, &["a".into(), "b".into()]).is_err()); // two positionals
     assert!(parse(Verb::Show, &[]).is_err()); // show needs an id
     assert!(parse(Verb::List, &["--status".into(), "bogus".into()]).is_err()); // bad rung
@@ -247,6 +248,23 @@ fn task_json_carries_the_machine_contract_fields() {
     assert_eq!(v["blockers"][0]["on"], "close");
     // Bedrock carries NO derived field — the status ladder is human-only (§9).
     assert!(v.get("status").is_none());
+}
+
+#[test]
+fn task_json_round_trips_preserved_extras() {
+    // Bedrock is LOSSLESS: a preserved (unknown) frontmatter key — a team's
+    // `state:`, or the delivery plugin's `delivery-worktree` (§11 — the
+    // consumer's authoritative read) — survives into `--json`, not just the
+    // canonical fields (§3, bl-d074).
+    let mut t = task("Title", 1_700_000_000);
+    t.extra.insert("delivery-worktree".into(), "/w/bl-1".into());
+    t.extra.insert("state".into(), "in-review".into());
+    let v = task_json("bl-1", &t);
+    assert_eq!(v["delivery-worktree"], "/w/bl-1");
+    assert_eq!(v["state"], "in-review");
+    // ...and the canonical fields still ride alongside, uncollided.
+    assert_eq!(v["id"], "bl-1");
+    assert_eq!(v["title"], "Title");
 }
 
 #[test]
