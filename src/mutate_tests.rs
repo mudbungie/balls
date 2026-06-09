@@ -94,6 +94,20 @@ fn parse_accepts_glued_short_flags() {
 }
 
 #[test]
+fn parse_honors_the_end_of_options_separator() {
+    // Everything after `--` is a positional, however `-`-leading — the seam a
+    // caller shelling an untrusted title uses (`bl create -- "$TITLE"`).
+    let f = parse(&strs(&["-p", "1", "--", "--title", "-p2", "--"]), "me").unwrap();
+    assert_eq!(f.priority, Some(1));
+    assert!(f.title.is_none());
+    assert_eq!(f.positionals, ["--title", "-p2", "--"]);
+    // Gluing stops at the separator too: a `-p1` title survives whole.
+    assert_eq!(parse(&strs(&["--", "-p1"]), "me").unwrap().positionals, ["-p1"]);
+    // A trailing bare `--` adds nothing.
+    assert!(parse(&strs(&["--"]), "me").unwrap().positionals.is_empty());
+}
+
+#[test]
 fn parse_errors_on_a_flag_missing_its_value() {
     let err = parse(&strs(&["--as"]), "me").unwrap_err();
     assert!(err.to_string().contains("--as needs a value"));
