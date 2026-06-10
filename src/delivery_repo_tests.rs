@@ -50,6 +50,21 @@ fn materialize_creates_then_is_idempotent_then_reattaches_an_existing_branch() {
 }
 
 #[test]
+fn materialize_recovers_a_deleted_dir_with_a_stale_registration() {
+    // The ordinary form of "absent" (bl-b404): the dir was rm -rf'd, not
+    // `worktree remove`d, so git still holds a registration. A bare
+    // `worktree add` aborts with "missing but already registered worktree";
+    // materialize must prune the stale registration and re-materialize.
+    let (tmp, _root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::remove_dir_all(&wt).unwrap(); // crash / tmp cleaner / human
+
+    p.materialize(&wt, "work/bl-x").unwrap();
+    assert!(wt.join("seed.txt").exists());
+}
+
+#[test]
 fn release_removes_a_present_worktree_and_no_ops_when_absent() {
     let (tmp, _root, p) = project();
     let wt = tmp.path().join("wt");

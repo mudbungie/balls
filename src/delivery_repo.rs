@@ -164,6 +164,12 @@ impl Repo for Project {
         if path.exists() {
             return Ok(()); // create-if-absent: already materialized
         }
+        // A deleted dir is the ordinary form of "absent" (crashes, tmp
+        // cleaners, humans), and git may still hold its registration — a bare
+        // `worktree add` then aborts as "missing but already registered"
+        // (bl-b404). Prune clears exactly those stale registrations and
+        // nothing else, so an unregistered absence stays a no-op.
+        Self::run(&self.root, &["worktree", "prune"])?;
         let dst = path.to_string_lossy();
         if self.branch_exists(branch)? {
             Self::run(&self.root, &["worktree", "add", &dst, branch])?;
