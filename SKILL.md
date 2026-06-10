@@ -247,6 +247,18 @@ rejected non-fast-forward. Recoverable (`bl sync` resurrects the seal from the
 remote, then retry) but surprising. Same shape in `close.pre`: anything
 appended after bl-delivery runs after the squash.
 
+**A dangling plugin in `install`'s own chain can't be repaired by `install`
+alone.** Binding runs after the copy seals (the schedule is committed text;
+binding is this box's resolution of it), so a schedule wiring a not-yet-bound
+plugin into `install.pre`/`install.post` aborts every retry at dispatch, before
+`--bin` can act. `bl conf` runs no plugins, so the escape is always in-band:
+`bl conf remove install.pre <name>`, then `bl install --bin <name>=<path>` to
+bind, then `bl conf prepend install.pre <name>`. If that chain entry was the
+plugin's ONLY reference, the `--bin` is refused (unreferenced names never bind
+silently) — park a temporary reference on a read hook first (`bl conf append
+list <name>`, harmless: a failed read dispatch is non-fatal) and drop it after
+the bind.
+
 A plugin whose binary is not installed beside `bl` is pruned at prime, so a
 remote-less or plugin-less box still works.
 
