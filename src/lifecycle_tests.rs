@@ -256,9 +256,12 @@ fn post_sees_the_sealed_commit_while_pre_sees_none() {
 }
 
 #[test]
-fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
-    // Post "c" lands, then "d" fails — only SUCCEEDED runs unwind (§14), so "c"'s
-    // post rollback sees its C1 facts and "a"'s pre rollback sees none (§7).
+fn a_post_abort_hands_the_sealed_facts_to_every_rollback() {
+    // Post "c" lands, then "d" fails — only SUCCEEDED runs unwind (§14). The op
+    // sealed, so EVERY rollback gets the C1 facts, pre-phase "a" included: §14's
+    // id rule is "post/rollback from the sealed §5 trailer", and post-seal the
+    // change worktree is clean — a starved pre rollback (the delivery un-squash)
+    // could not re-derive its id and silently no-oped (bl-430e).
     let jrn = journal();
     let anvil = FakeAnvil::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn.clone(), Some("d"));
@@ -268,7 +271,7 @@ fn a_post_abort_hands_the_sealed_facts_to_the_post_rollback() {
     let _ = Engine::new(&anvil, &plugins, &test_log()).seal(&base, Verb::Close, Path::new("/c"), &pre, &post);
     let seen = plugins.seen.borrow().clone();
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:c").unwrap().1, Some("C1".into()));
-    assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, None);
+    assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, Some("C1".into()));
 }
 
 #[test]

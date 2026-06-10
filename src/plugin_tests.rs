@@ -229,6 +229,7 @@ fn rollback_tags_the_payload_and_ignores_the_exit() {
         serde_json::from_str(&fs::read_to_string(e.at("cwd").join("stdin.txt")).unwrap()).unwrap();
     assert_eq!(v["rolling_back"], "post");
     assert_eq!(v["commit"], "C1");
+    assert!(fs::read_to_string(e.log_path()).unwrap().contains("rollback failed (exit status: 3) — its close.post side effects may not be unwound"));
 }
 
 const PROTO: &str =
