@@ -1,7 +1,8 @@
 +++
 title = "bl install unusable on a standard federated checkout: install.pre fetch hard-aborts when the remote lacks balls/config"
 created = 1781067145
-updated = 1781067145
+updated = 1781067407
+claimant = "Rebut"
 parent = "bl-72a8"
 priority = 1
 tags = ["bug"]
