@@ -264,9 +264,10 @@ fn run_phase(
 /// EVERY rollback gets the [`Sealed`] facts once the seal landed — §14's id
 /// rule ("post/rollback from the sealed §5 trailer") makes no phase split, and
 /// a post-abort leaves the change worktree CLEAN, so a pre-phase rollback
-/// (the delivery un-squash) starved of the trailer cannot re-derive its id
-/// from changed task files and silently no-ops (bl-430e). On a pre-abort there
-/// is no seal: `sealed` is `None` and the worktree is still dirty to read.
+/// starved of the trailer could not re-derive its id from changed task files
+/// and silently no-oped (bl-430e, in the days of the delivery un-squash). On a
+/// pre-abort there is no seal: `sealed` is `None` and the worktree is still
+/// dirty to read.
 fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)], seal: Option<&SealRecord>) {
     let sealed = seal.map(SealRecord::facts);
     for (plugin, phase) in ran.iter().rev() {

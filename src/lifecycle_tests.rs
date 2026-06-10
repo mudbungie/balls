@@ -260,8 +260,9 @@ fn a_post_abort_hands_the_sealed_facts_to_every_rollback() {
     // Post "c" lands, then "d" fails — only SUCCEEDED runs unwind (§14). The op
     // sealed, so EVERY rollback gets the C1 facts, pre-phase "a" included: §14's
     // id rule is "post/rollback from the sealed §5 trailer", and post-seal the
-    // change worktree is clean — a starved pre rollback (the delivery un-squash)
-    // could not re-derive its id and silently no-oped (bl-430e).
+    // change worktree is clean — a starved pre rollback (historically the
+    // delivery un-squash) could not re-derive its id and silently no-oped
+    // (bl-430e).
     let jrn = journal();
     let anvil = FakeAnvil::new(jrn.clone(), None);
     let plugins = FakePlugins::new(jrn.clone(), Some("d"));
