@@ -1,7 +1,8 @@
 +++
 title = 'conf set <hooks-key> with an empty value writes [""] and dispatch fails with Permission denied'
 created = 1781067252
-updated = 1781067252
+updated = 1781068981
+claimant = "Rebut"
 parent = "bl-72a8"
 priority = 3
 tags = ["bug"]
