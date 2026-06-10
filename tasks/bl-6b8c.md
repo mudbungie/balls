@@ -1,7 +1,8 @@
 +++
 title = "design: front-door edge flags require a LIVE target (refuse nonexistent and dead ids)"
 created = 1781077560
-updated = 1781077560
+updated = 1781078835
+claimant = "Pencilling"
 priority = 2
 tags = ["design"]
 +++
