@@ -652,7 +652,11 @@ The canonical task-op sequence (verb-agnostic):
 3. **balls SEALS — commit + integrate, atomically** — validate, commit the worktree with the §5
    trailer (re-reading the tree to learn the final id/state), and integrate it onto its target branch
    (the STORE for task ops, the landing for `config`/`install`) as ONE act. *This is the pre/post
-   boundary; after it the record is durably on that branch.*
+   boundary; after it the record is durably on that branch.* A tree identical to the tip seals
+   NOTHING — the no-op seal, §13's idempotent converge — UNLESS the op carries `-m` narration, whose
+   only home is the commit's §5 free body: rather than silently drop the note, the op ABORTS and
+   unwinds like any seal failure (bl-cf93; only `update` can stage a byte-identical tree, and its
+   `updated` restamp ticks in seconds, so a retried pure-note update seals one second later).
 4. **post reactors run in hook-list order** — the §7 wire with the sealed `bl-id`/state. They act on the
    landed record (tracker pushes the store; the delivery plugin acts on the project repo) but DO NOT edit
    the ball — anything that had to live on the ball was written in pre; post-only values are DERIVED,
@@ -755,6 +759,10 @@ A blocker that really blocks must be removable in-band — no store-file surgery
 for a stale parent, a wrong title, or a leftover scalar. (No status to set — that field doesn't
 exist, §3; a team's opt-in
 `state:` key, being an unknown preserved field, rides through `update` like any other.)
+**A zero-edit `update <id> -m NOTE` is the note-append** (bl-cf93): the narration rides the §5
+commit's free body — the journal is the store branch's git history, never a ball field or a second
+verb — and the seal still commits via the `updated` restamp. When even the restamp lands on the same
+second (a truly byte-identical tree), the op ABORTS instead of converging note-less (§8 step 3).
 **`--edit`** is the HUMAN projection of the same update (bl-e196): render the stored `tasks/<id>.md`
 to a temp buffer, block on `$EDITOR` (else `$VISUAL`), parse-validate the saved buffer as a whole
 ball, and hand it to the SAME update seal — never a new verb, never an unvalidated commit (a buffer
@@ -1464,6 +1472,17 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`-m` narration refuses the no-op seal; notes-via-`-m` is the comment mechanism (2026-06-09,
+  bl-cf93 — post-freeze).** The §5 free body lives only in the sealed commit, and a zero-diff op (a
+  pure-note `update` whose second-granular `updated` restamp landed on the same second as the ball's
+  last write) converged on the tip — sealing nothing and silently dropping the note while still
+  confirming `update <id>`. Appending a comment is NOT a missing feature: the body is the living
+  document, the journal is store-branch git history (one fact, one home — no `comment` verb, no
+  body-append flag), so `-m` is the blessed note path and its loss must be loud. The engine now
+  ABORTS a converged seal when the base change carries narration (`BaseChange::narrated`, overridden
+  only by `update` — every other base always stages a real diff), unwinding like any seal failure;
+  §13 idempotent converge is untouched for every `-m`-less op. Touched §8 (step 3), §9 (update
+  prose).
 - **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
   post-freeze).** §10's explicit-edge model (bl-7d46(6)) is correct — containment never mints a
   blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
