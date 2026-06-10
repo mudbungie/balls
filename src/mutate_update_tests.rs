@@ -31,6 +31,23 @@ fn update_requires_a_task_id() {
 }
 
 #[test]
+fn update_refuses_reserved_keys_in_the_extra_seam() {
+    // `id` is the filename, `body` is the markdown (--body), created/updated
+    // are the seal's stamps — none is a preserved extra. A stored shadow would
+    // make the bedrock round-trip lossy (§3/§9), so the seam refuses by name;
+    // the clear form (`id=`) is refused identically — there is never a
+    // reserved-named extra to remove.
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    for kv in ["id=bl-feed", "body=shadow", "created=999", "updated=999", "id="] {
+        let mut f = flags();
+        f.positionals = vec!["bl-1".into(), kv.into()];
+        let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
+        assert!(err.to_string().contains("reserved"), "{kv}: {err}");
+    }
+}
+
+#[test]
 fn update_rejects_a_non_key_value_positional() {
     let d = tempdir().unwrap();
     write(d.path(), "bl-1", TASK);
