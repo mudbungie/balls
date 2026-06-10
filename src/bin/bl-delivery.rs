@@ -92,18 +92,25 @@ fn run(args: &[String]) -> io::Result<()> {
 /// settled `work/<id>` branches close/unclaim teardown left behind — the §11
 /// deferred, non-transactional branch cleanup ([`Project::prune`]).
 fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> io::Result<()> {
+    // §14: prime is an idempotent refresher — a re-materialized worktree is
+    // exactly the state a re-prime converges to, so its rollback DECLINES
+    // before touching anything (bl-62eb). Declining first also matters
+    // mechanically: the unwind invokes rollbacks with cwd = the LANDING, which
+    // has no tasks/, so the claimed-set scan below would die with ENOENT.
+    if wire.rolling_back.is_some() {
+        return Ok(());
+    }
     let store = env::current_dir()?;
-    let rolling_back = wire.rolling_back.is_some();
     for id in claimed_ids(&store, &wire.actor)? {
         let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
         let branch = delivery::work_branch(&id);
         let spec = Spec { worktree: &worktree, branch: &branch, subject: "", marker: "" };
-        delivery::dispatch("prime", phase, rolling_back, repo, &spec)?;
-        if let Some(line) = delivery::surfaced("prime", phase, rolling_back, &worktree, worktree.is_dir()) {
+        delivery::dispatch("prime", phase, false, repo, &spec)?;
+        if let Some(line) = delivery::surfaced("prime", phase, false, &worktree, worktree.is_dir()) {
             println!("{line}");
         }
     }
-    if phase == "post" && !rolling_back {
+    if phase == "post" {
         repo.prune()?;
     }
     Ok(())
