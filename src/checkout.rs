@@ -86,7 +86,8 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// runs with cwd = the LANDING (the store is not laid down until materialize, so
 /// it cannot be the cwd on a first prime); `post` with cwd = the store. The `step`
 /// closure is core's between-phase work — materialize, then report whether the
-/// dial held — so the loop is core's, never driven by a plugin's return (§7).
+/// dial held — so the loop is core's, never driven by a plugin's return (§7),
+/// and bounded by the engine's [`crate::lifecycle::FIXPOINT_CAP`] pass cap (bl-33db).
 fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let user_config = edge.xdg.user_config();
@@ -95,12 +96,12 @@ fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Bin
     let pre = hooks.resolve(&reg, Verb::Prime.token(), "pre");
     let post = hooks.resolve(&reg, Verb::Prime.token(), "post");
     let mut last = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
-    let mut step = || -> io::Result<bool> {
+    let mut step = || -> io::Result<Option<String>> {
         let name = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
         substrate::materialize(landing, store, &name)?;
-        let converged = name == last;
+        let moved = (name != last).then(|| name.clone());
         last = name;
-        Ok(converged)
+        Ok(moved)
     };
     let log = Log::new(clone.op_log(), level, Verb::Prime, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth);

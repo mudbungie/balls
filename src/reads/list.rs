@@ -112,8 +112,8 @@ fn line(badge: &str, id: &str, task: &Task) -> String {
 }
 
 impl Catalog {
-    /// The parsed balls, id-sorted at load — the row source for `list` and
-    /// `show`'s children scan.
+    /// The parsed balls, id-sorted at load — the shared row source for `list`,
+    /// `ready`, and `dep-tree`.
     pub(crate) fn entries(&self) -> &[Entry] {
         &self.entries
     }
