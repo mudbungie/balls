@@ -63,11 +63,12 @@ use std::path::Path;
 /// `--install`) never adopts foreign config nor activates code — the auto-safe
 /// every-session path holds.
 ///
-/// `--stealth` is the §12 consent opt-out: the binding rides with `stealth` set
-/// and no remote (even the XDG one), so the tracker takes the same path the
-/// inferred no-remote case already takes — write the self-lock, found and push
-/// nothing. It contradicts `--remote`/`--center`/`--install` (each names a
-/// remote), refused at parse.
+/// `--stealth` is the §12 consent opt-out, and it is DURABLE: sugar for
+/// `bl conf set task-remote none` — one committed landing-config write of the
+/// stealth sentinel (an explicit flag you typed is the §4 "by you" path), which
+/// every later op's [`bind`] derives its stealth from. Consent withheld binds
+/// the CHECKOUT, not one prime invocation (bl-9df0). It contradicts
+/// `--remote`/`--center`/`--install` (each names a remote), refused at parse.
 pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_prime(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -78,11 +79,14 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     } else {
         substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref(), &opts.actor)?;
     }
+    if opts.stealth {
+        crate::conf::declare_stealth(&landing, &opts.actor)?;
+    }
     if let Some(center) = &opts.install {
         adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
     }
     let remote = opts.remote.or(opts.install);
-    let (binding, level) = bind(edge, &landing, &store, remote, None, opts.stealth)?;
+    let (binding, level) = bind(edge, &landing, &store, remote, None)?;
     prime_chain(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
@@ -139,7 +143,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     if !is_landing(&landing) {
         return Err(io::Error::other("no balls checkout here — run `bl prime` first"));
     }
-    let (binding, level) = bind(edge, &landing, &store, opts.remote, opts.branch, false)?;
+    let (binding, level) = bind(edge, &landing, &store, opts.remote, opts.branch)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
@@ -147,26 +151,24 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// override, else the config-named one — §13 `bl sync <branch>`), the two checkout
 /// paths, and the `log_level` threshold (CLI override over config). `cli_remote` is
 /// the parsed `--remote`/`--center` per-op override — the top tier of the ONE §12
-/// ladder, accepted by every store-touching verb alike (bl-c2de); when
-/// absent it falls back to the per-machine XDG `remote`. That is the WHOLE of
-/// core's remote handling — both are plain config reads; core never resolves an
+/// ladder, accepted by every store-touching verb alike (bl-c2de). The rest of
+/// core's remote handling is [`crate::config::remote_ladder`] — the landing
+/// `task_remote` policy rung (the stealth sentinel, bl-9df0) over the
+/// per-machine XDG `remote`, all plain config reads; core never resolves an
 /// implicit remote (§0). `None` here is NOT stealth: it means "no EXPLICIT remote",
 /// and the binding carries `remote: None` to the tracker, which discovers the
 /// project-repo `origin` (the bottom §12 tier — remote-talk, so the tracker's
-/// alone). `stealth` is `bl prime --stealth`'s explicit §12 opt-out: it rides the
-/// binding so the tracker skips that discovery, and — the CLI layer outranking
-/// config, §4 — drops even the XDG `remote` (the parse already forbids combining
-/// it with an explicit remote flag). One landing config read serves both fields;
-/// [`binding`] assembles it.
-pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>, stealth: bool) -> io::Result<(Binding, Level)> {
+/// alone). The `stealth` bit is DERIVED from the resolved sentinel — never an
+/// argv fact — and rides the binding so the tracker skips that discovery;
+/// `bind` is the one resolution point every op shares, which is what makes the
+/// opt-out bind the checkout rather than one invocation.
+pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
     let user_config = edge.xdg.user_config();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
-    let remote = cli_remote.or_else(|| crate::config::xdg_remote(&user_config)).filter(|_| !stealth);
+    let (remote, stealth) = crate::config::remote_ladder(cli_remote, landing, &user_config)?;
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
-    let mut binding = binding(landing, store, &edge.invocation_path, remote, tasks_branch);
-    binding.stealth = stealth;
-    Ok((binding, level))
+    Ok((binding(landing, store, &edge.invocation_path, remote, stealth, tasks_branch), level))
 }
 
 /// Run the DIFFLESS chain for `op` (§13): resolve the plugin sets from the
@@ -196,10 +198,10 @@ fn is_landing(landing: &Path) -> bool {
 /// Build the §7 binding for an op over the two checkouts (§7). Shared with
 /// [`crate::mutate`] — a mutating ball-file op binds the same way a diffless
 /// checkout op does. The ONE construction point for the new binding shape.
-pub(crate) fn binding(landing: &Path, store: &Path, invocation: &Path, remote: Option<String>, tasks_branch: String) -> Binding {
+pub(crate) fn binding(landing: &Path, store: &Path, invocation: &Path, remote: Option<String>, stealth: bool, tasks_branch: String) -> Binding {
     Binding {
         remote,
-        stealth: false, // only `bl prime --stealth` sets it, via [`bind`]
+        stealth, // derived from the landing sentinel by the §12 ladder, never argv (bl-9df0)
         tasks_branch,
         store: store.to_string_lossy().into_owned(),
         landing: landing.to_string_lossy().into_owned(),

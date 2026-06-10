@@ -220,3 +220,23 @@ fn the_write_grammar_is_enforced() {
         assert!(err.contains(expect), "{argv:?}: {err}");
     }
 }
+
+#[test]
+fn set_task_remote_sentinel_is_a_landing_policy_write_a_url_clears_it() {
+    // bl-9df0: the key's home routes by VALUE. The stealth sentinel is
+    // per-checkout policy → a sealed landing edit (what `prime --stealth`
+    // sugars to); a URL is per-machine → the XDG file, AND the sentinel is
+    // cleared so the set changes what the ladder actually resolves (the
+    // landing rung outranks XDG — leaving it would be the bl-d234 trap).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    conf(&e, &["set", "task-remote", "none"]).unwrap();
+    assert!(landing_text(&clone, "balls.toml").contains("task_remote = \"none\""));
+    assert_eq!(subject(&clone.landing()), "balls: conf set task-remote none");
+    conf(&e, &["set", "task-remote", "git@hub:r"]).unwrap();
+    assert!(!landing_text(&clone, "balls.toml").contains("task_remote"));
+    assert_eq!(subject(&clone.landing()), "balls: conf set task-remote git@hub:r");
+    let xdg = fs::read_to_string(e.xdg.user_config()).unwrap();
+    assert!(xdg.contains("remote = \"git@hub:r\""), "{xdg}");
+}

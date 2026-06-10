@@ -183,3 +183,35 @@ fn xdg_remote_reads_the_user_layer_remote_else_none() {
     // No user layer file at all → None.
     assert_eq!(xdg_remote(&tmp.path().join("absent.toml")), None);
 }
+
+#[test]
+fn remote_ladder_resolves_cli_over_sentinel_over_xdg() {
+    // §12/bl-9df0: per-op flag > landing `task_remote` (the stealth sentinel —
+    // resolution STOPS above origin) > XDG `remote`.
+    let tmp = TempDir::new().unwrap();
+    let user = tmp.path().join("config.toml");
+    fs::write(&user, "remote = \"git@hub:xdg\"\n").unwrap();
+    // No landing rung → the XDG tier, not declared.
+    let empty = landing(&tmp, "empty", "");
+    assert_eq!(remote_ladder(None, &empty, &user).unwrap(), (Some("git@hub:xdg".into()), false));
+    // The sentinel declares stealth and stops resolution, XDG unread.
+    let stealth = landing(&tmp, "stealth", "task_remote = \"none\"\n");
+    assert_eq!(remote_ladder(None, &stealth, &user).unwrap(), (None, true));
+    // Consent given supersedes withheld — the per-op tier outranks the sentinel.
+    assert_eq!(
+        remote_ladder(Some("git@hub:op".into()), &stealth, &user).unwrap(),
+        (Some("git@hub:op".into()), false)
+    );
+}
+
+#[test]
+fn remote_ladder_refuses_a_url_in_the_landing_rung() {
+    // A URL's home is per-machine (§4/§12 — it must never travel on `install`,
+    // and an installed config silently redirecting your store pushes is exactly
+    // the surprise that rule prevents); the landing rung holds only the
+    // sentinel, anything else refused NAMED.
+    let tmp = TempDir::new().unwrap();
+    let poison = landing(&tmp, "poison", "task_remote = \"git@hub:evil\"\n");
+    let err = remote_ladder(None, &poison, &tmp.path().join("absent.toml")).unwrap_err().to_string();
+    assert!(err.contains("per-machine"), "{err}");
+}
