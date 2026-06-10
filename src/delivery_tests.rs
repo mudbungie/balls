@@ -48,10 +48,6 @@ impl Repo for FakeRepo {
         self.log(format!("deliver {} {branch} -> {integration} : {subject} : {marker}", path.display()));
         Ok(())
     }
-    fn unsquash(&self, integration: &str, marker: &str) -> io::Result<()> {
-        self.log(format!("unsquash {integration} {marker}"));
-        Ok(())
-    }
 }
 
 fn spec() -> Spec<'static> {
@@ -108,12 +104,12 @@ fn claim_post_rollback_discards_worktree_and_branch() {
 }
 
 #[test]
-fn close_pre_rollback_unsquashes_when_marked() {
-    assert_eq!(drive("close", "pre", true), ["integration", "unsquash main [bl-f813]"]);
-}
-
-#[test]
-fn re_creatable_rollbacks_and_unwired_hooks_are_noops() {
+fn declining_rollbacks_and_unwired_hooks_are_noops() {
+    // close.pre rollback DECLINES (§14, bl-c231): the squash is the BINDING
+    // commit point — it stands through an abort and the retried close
+    // converges onto it; un-squash is gone (it raced concurrent integration
+    // movement). The repo is never even consulted.
+    assert!(drive("close", "pre", true).is_empty());
     assert!(drive("close", "post", true).is_empty()); // teardown re-creatable
     assert!(drive("unclaim", "post", true).is_empty()); // release re-creatable
     assert!(drive("create", "post", false).is_empty()); // not our hook
@@ -125,7 +121,6 @@ fn re_creatable_rollbacks_and_unwired_hooks_are_noops() {
 fn an_integration_failure_aborts_a_close() {
     let repo = FakeRepo { fail_integration: true, ..FakeRepo::default() };
     assert!(dispatch("close", "pre", false, &repo, &spec()).is_err());
-    assert!(dispatch("close", "pre", true, &repo, &spec()).is_err());
 }
 
 #[test]

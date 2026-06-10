@@ -188,7 +188,7 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
     );
 
     // close.post — teardown removes the worktree but KEEPS the branch (§11:
-    // rollback-safe; the §14 unwind can still un-squash and re-create from it).
+    // rollback-safe — re-creatable; deletion is prime's deferred cleanup, §14).
     delivery(&root, &home, "close", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     assert!(!wt.exists());
     let branch_exists = || {
@@ -214,11 +214,12 @@ fn rollback_pre(invocation: &str, id: &str, title: &str) -> String {
 }
 
 #[test]
-fn a_post_abort_unwind_unsquashes_off_the_sealed_trailer_then_a_retry_redelivers_once() {
-    // bl-430e: the §14 unwind reaches close.pre's rollback AFTER the seal, when
-    // the change worktree is CLEAN — the id must come off the sealed trailer the
-    // rollback wire carries, or the un-squash silently no-ops ("found 0") and
-    // the delivery survives the abort (then a retry minted an empty duplicate).
+fn a_post_abort_unwind_declines_and_the_retried_close_converges_without_a_duplicate() {
+    // Converge-on-retry (§14, bl-c231): the squash is the delivery's BINDING
+    // commit point, so close.pre's rollback DECLINES — the squash STANDS
+    // through the abort (the old un-squash reset raced concurrent integration
+    // movement) and the sanctioned recovery, retrying the close, detects it by
+    // its [bl-id] tag and skips instead of minting a duplicate (bl-430e).
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
     fs::create_dir_all(&home).unwrap();
@@ -236,14 +237,16 @@ fn a_post_abort_unwind_unsquashes_off_the_sealed_trailer_then_a_retry_redelivers
     git(&change, &["add", "-A"]);
     git(&change, &["commit", "-qm", "the seal"]); // the change dir is clean now
 
-    // A later post plugin fails; the unwind rolls close.pre back post-seal.
+    // A later post plugin fails; the unwind rolls close.pre back post-seal —
+    // and the rollback declines: the delivery stays on main.
     delivery(&change, &home, "close", "pre", &rollback_pre(inv, "bl-x", "Add feature")).assert().success();
     let tip = |args: &[&str]| {
         String::from_utf8(Command::new("git").current_dir(&root).args(args).output().unwrap().stdout).unwrap().trim().to_string()
     };
-    assert_eq!(tip(&["log", "-1", "--format=%s", "main"]), "seed"); // the squash was unwound
+    assert_eq!(tip(&["log", "-1", "--format=%s", "main"]), "Add feature [bl-x]"); // the squash STANDS
 
-    // The sanctioned recovery is retrying the close: it re-delivers exactly once.
+    // The sanctioned recovery is retrying the close: it converges onto the
+    // standing delivery — exactly one [bl-x] commit, no duplicate.
     let change2 = change_dir(tmp.path(), "change2");
     delivery(&change2, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
     assert_eq!(tip(&["log", "-1", "--format=%s", "main"]), "Add feature [bl-x]");
