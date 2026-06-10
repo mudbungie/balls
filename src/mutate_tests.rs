@@ -79,6 +79,21 @@ fn parse_rejects_an_unknown_flag() {
 }
 
 #[test]
+fn parse_accepts_glued_short_flags() {
+    // -p1 == -p 1 (the getopt convention); -t and -m glue the same way.
+    let f = parse(&strs(&["a title", "-p1", "-turgent", "-mglued note"]), "me").unwrap();
+    assert_eq!(f.priority, Some(1));
+    assert_eq!(f.tags, ["urgent"]);
+    assert_eq!(f.message.as_deref(), Some("glued note"));
+    assert_eq!(f.positionals, ["a title"]);
+    // A glued negative priority splits cleanly too (-p-5 → -p -5).
+    assert_eq!(parse(&strs(&["-p-5"]), "me").unwrap().priority, Some(-5));
+    // The split form is untouched, and an unknown short glue still bounces.
+    assert_eq!(parse(&strs(&["-p", "2"]), "me").unwrap().priority, Some(2));
+    assert!(parse(&strs(&["-x1"]), "me").is_err());
+}
+
+#[test]
 fn parse_errors_on_a_flag_missing_its_value() {
     let err = parse(&strs(&["--as"]), "me").unwrap_err();
     assert!(err.to_string().contains("--as needs a value"));
