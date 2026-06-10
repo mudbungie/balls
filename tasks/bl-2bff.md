@@ -1,7 +1,8 @@
 +++
 title = "stdout single-writer is a default-schedule guarantee, not a discipline; reserve the enveloped-stdout seam"
 created = 1781057312
-updated = 1781057312
+updated = 1781057370
+claimant = "Boldface"
 priority = 3
 tags = ["design", "doc"]
 +++
