@@ -4,8 +4,9 @@
 
 use super::*;
 use crate::tracker::fixtures::{
-    binding, checkout, commit, default_binding, empty_remote, env, landing_repo, local_unpushed,
-    remote_with_branch, remote_with_config, store_clone, tip, tracked, unpushable_remote, BRANCH,
+    binding, checkout, commit, default_binding, empty_remote, env, landing_repo, legacy_remote,
+    local_unpushed, remote_with_branch, remote_with_config, store_clone, tip, tracked,
+    unpushable_remote, BRANCH,
 };
 use tempfile::TempDir;
 
@@ -46,6 +47,41 @@ fn prime_pre_skips_clone_in_when_the_local_branch_is_already_present() {
     let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
     prime(&tracked(&remote, &landing, &landing), &env).unwrap();
     assert_eq!(tip(&landing, BRANCH), before); // unchanged — clone-in skipped
+}
+
+#[test]
+fn prime_pre_quarantines_a_legacy_remote_store_instead_of_adopting_it() {
+    // bl-868d: a shared hub still carrying the PRE-greenfield `balls/tasks`
+    // (`.balls/` JSON, no `tasks/`) is NOT an established store — adopting it
+    // wedged every fresh clone (the store checkout had no `tasks/`, the op
+    // aborted, and re-prime hit the same abort). The §12 adopt-vs-found signal
+    // is "an established STORE", read from the tip's shape: a no-`tasks/` tip
+    // is left un-adopted (warn only) so core founds a fresh greenfield orphan,
+    // exactly the runbook's "prime founds, import fills, cutover rewrites".
+    let tmp = TempDir::new().unwrap();
+    let remote = legacy_remote(tmp.path());
+    let landing = landing_repo(tmp.path());
+    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+    prime(&tracked(&remote, &landing, &landing), &env).unwrap();
+    assert!(!local_branch(&landing, BRANCH)); // un-adopted — core founds instead
+}
+
+#[test]
+fn prime_post_over_a_legacy_remote_converges_without_touching_it() {
+    // The composed §12 content settle (sync + publish) over an un-cut-over hub:
+    // both halves see "not a store yet" and keep the work local — no abort, no
+    // stealth degrade, the legacy ref untouched (cutover is the runbook's
+    // explicit force-push, never an implicit overwrite).
+    let tmp = TempDir::new().unwrap();
+    let remote = legacy_remote(tmp.path());
+    let store = local_unpushed(tmp.path()); // the freshly-founded greenfield store
+    let before = tip(&remote, BRANCH);
+    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
+    let b = binding(Some(&remote), &store);
+    prime_post(&b, &env).unwrap();
+    assert_eq!(tip(&remote, BRANCH), before); // the legacy ref was not rewritten
+    let lock = env.xdg.clone_dir(Path::new(&b.invocation_path)).root().join("stealth.lock");
+    assert!(!lock.exists()); // and nothing degraded to stealth
 }
 
 #[test]

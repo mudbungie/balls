@@ -39,11 +39,34 @@ pub fn sync(b: &Binding) -> io::Result<()> {
     }
     if git(store, &["symbolic-ref", "--short", "HEAD"]).ok().as_deref() == Some(branch) {
         git(store, &["fetch", remote, branch])?;
-        git(store, &["merge", "--ff-only", "FETCH_HEAD"])?;
+        if let Err(e) = git(store, &["merge", "--ff-only", "FETCH_HEAD"]) {
+            return not_yet_cut_over(store, remote, branch).then_some(()).ok_or(e);
+        }
     } else {
         git(store, &["fetch", remote, &format!("{branch}:{branch}")])?;
     }
     Ok(())
+}
+
+/// Is `remote`'s `branch` tip NOT a store — no `tasks/` tree at its root? That
+/// is the §16 migration window (bl-868d): a hub still carrying the
+/// PRE-greenfield legacy JSON store on the (colliding, §16) store-branch name,
+/// awaiting the runbook's one-time human cutover. Such a tip is no upstream at
+/// all — every store commit carries `tasks/` by construction (§2, the founding
+/// `.gitkeep`) — so a failed integrate/publish against it is the window, not
+/// contention: warn (the §12 diagnostic-never-authority pattern) and report
+/// `true` so the caller skips, keeping work local and the legacy ref intact
+/// (cutover is the runbook's explicit force-push, never an implicit rewrite).
+/// Identification must be POSITIVE: the tip is re-fetched here (`FETCH_HEAD`),
+/// and any failure to read it reports `false` — the caller's own error stands.
+pub(super) fn not_yet_cut_over(repo: &Path, remote: &str, branch: &str) -> bool {
+    if git(repo, &["fetch", remote, branch]).is_err()
+        || git(repo, &["cat-file", "-e", "FETCH_HEAD:tasks"]).is_ok()
+    {
+        return false;
+    }
+    eprintln!("tracker: `{remote}`'s `{branch}` is not a greenfield store (its tip has no tasks/) — a legacy store awaiting cutover, left intact; this checkout's store stays local until the ref is cut over (docs/migration-runbook.md)");
+    true
 }
 
 /// Does `remote` already carry `branch`? `git ls-remote --heads` is the one
@@ -60,14 +83,20 @@ pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::R
 /// ABORTS the op (the push IS the optimistic mutate → push contention check;
 /// re-run after `bl sync`) — it is NEVER silently degraded to stealth, which
 /// would be split-brain (contrast `prime`'s founding-miss fallback, where
-/// nothing existed to land on).
+/// nothing existed to land on). ONE carve-out, positively identified: a reject
+/// against a remote tip that is NOT a store ([`not_yet_cut_over`], bl-868d) is
+/// the §16 migration window — warn and keep the work local; the legacy ref is
+/// never rewritten (cutover is the runbook's explicit force-push).
 pub fn push(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
     reject_option_like(remote)?;
     reject_option_like(&b.tasks_branch)?;
-    git(Path::new(&b.store), &["push", remote, &b.tasks_branch])?;
+    let store = Path::new(&b.store);
+    if let Err(e) = git(store, &["push", remote, &b.tasks_branch]) {
+        return not_yet_cut_over(store, remote, &b.tasks_branch).then_some(()).ok_or(e);
+    }
     Ok(())
 }
 
@@ -99,176 +128,5 @@ pub fn fetch_config(b: &Binding) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tracker::fixtures::{
-        binding, checkout, commit, empty_remote, local_unpushed, store_clone,
-        remote_with_branch, remote_with_config, tip, BRANCH,
-    };
-    use tempfile::TempDir;
-
-    #[test]
-    fn sync_fast_forwards_store_onto_the_advanced_remote() {
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        // A second checkout advances the remote out from under the store.
-        let other = checkout(tmp.path(), &remote, "other");
-        let moved = commit(&other, "next.txt", "next");
-        git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
-
-        sync(&binding(Some(&remote), &store)).unwrap();
-        assert_eq!(tip(&store, "HEAD"), moved);
-    }
-
-    #[test]
-    fn sync_of_an_upstream_less_branch_is_a_no_op_the_landing_for_free() {
-        // §13: "fetch a branch's upstream, if any" — the remote carries no
-        // `balls/config`, so syncing the landing BY ITS REAL NAME fetches
-        // nothing and ff's nothing. No token is special-cased; any local-only
-        // branch takes the same no-op path.
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        let before = tip(&store, "HEAD");
-        for upstream_less in [crate::LANDING_BRANCH, "work/bl-0000"] {
-            let mut b = binding(Some(&remote), &store);
-            b.tasks_branch = upstream_less.into();
-            sync(&b).unwrap();
-            assert_eq!(tip(&store, "HEAD"), before);
-        }
-    }
-
-    #[test]
-    fn sync_of_a_non_checked_out_branch_ffs_that_branch_not_the_checkout() {
-        // §13: the ff target is the branch the binding NAMES. The store sits on
-        // `balls`; syncing `other` moves refs/heads/other (a pure ref move) and
-        // leaves the checked-out branch where it was.
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        let seat = checkout(tmp.path(), &remote, "seat");
-        git(&seat, &["checkout", "-q", "-b", "other"]).unwrap();
-        let moved = commit(&seat, "other.txt", "other");
-        git(&seat, &["push", "-q", "origin", "other"]).unwrap();
-
-        let head = tip(&store, "HEAD");
-        let mut b = binding(Some(&remote), &store);
-        b.tasks_branch = "other".into();
-        sync(&b).unwrap();
-        assert_eq!(tip(&store, "other"), moved); // the named branch moved…
-        assert_eq!(tip(&store, "HEAD"), head); // …the checkout did not
-    }
-
-    #[test]
-    fn sync_in_stealth_is_a_no_op() {
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        let before = tip(&store, "HEAD");
-        sync(&binding(None, &store)).unwrap();
-        assert_eq!(tip(&store, "HEAD"), before);
-    }
-
-    #[test]
-    fn sync_fails_on_a_non_fast_forward_the_contention_signal() {
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        // Diverge: a local commit AND a remote commit off the same base.
-        commit(&store, "local.txt", "local");
-        let other = checkout(tmp.path(), &remote, "other");
-        commit(&other, "remote.txt", "remote");
-        git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
-
-        let err = sync(&binding(Some(&remote), &store)).unwrap_err();
-        assert!(err.to_string().contains("git merge --ff-only"));
-    }
-
-    #[test]
-    fn push_publishes_the_local_balls_branch_to_the_remote() {
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        let landed = commit(&store, "landed.txt", "landed");
-
-        push(&binding(Some(&remote), &store)).unwrap();
-        assert_eq!(tip(&remote, BRANCH), landed);
-    }
-
-    #[test]
-    fn fetch_config_brings_the_centers_config_to_the_landing_fetch_head() {
-        let tmp = TempDir::new().unwrap();
-        let center = remote_with_config(tmp.path(), "balls/shared");
-        let landing = local_unpushed(tmp.path()); // any local git repo to fetch into
-        let mut b = binding(Some(&center), &landing);
-        b.landing = landing.to_string_lossy().into_owned();
-        fetch_config(&b).unwrap();
-        // FETCH_HEAD in the landing now carries the center's config branch.
-        let cfg = git(&landing, &["show", "FETCH_HEAD:config/balls.toml"]).unwrap();
-        assert!(cfg.contains("balls/shared"), "fetched config: {cfg}");
-    }
-
-    #[test]
-    fn fetch_config_in_stealth_is_a_no_op() {
-        let tmp = TempDir::new().unwrap();
-        let landing = local_unpushed(tmp.path());
-        let mut b = binding(None, &landing);
-        b.landing = landing.to_string_lossy().into_owned();
-        fetch_config(&b).unwrap(); // no remote → nothing fetched, no error
-        assert!(git(&landing, &["rev-parse", "FETCH_HEAD"]).is_err());
-    }
-
-    #[test]
-    fn fetch_config_when_the_remote_lacks_the_landing_is_a_no_op() {
-        // bl-45fd: the landing is never pushed by bl (§4 single-owner), so a
-        // stock hub carries no `balls/config`. A present remote MISSING the
-        // ref is §13's "upstream, if any" no-op — not a fatal abort of a
-        // purely local install. Only an adopt naming the center as --from
-        // needs the fetch, and that fails at point-of-use (no FETCH_HEAD).
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path()); // carries `balls`, no `balls/config`
-        let landing = local_unpushed(tmp.path());
-        let mut b = binding(Some(&remote), &landing);
-        b.landing = landing.to_string_lossy().into_owned();
-        fetch_config(&b).unwrap(); // ref absent → nothing fetched, no error
-        assert!(git(&landing, &["rev-parse", "FETCH_HEAD"]).is_err());
-    }
-
-    #[test]
-    fn push_in_stealth_is_a_no_op() {
-        let tmp = TempDir::new().unwrap();
-        let remote = empty_remote(tmp.path());
-        let store = local_unpushed(tmp.path());
-        push(&binding(None, &store)).unwrap();
-        // The empty remote still has no balls branch.
-        assert!(git(&remote, &["rev-parse", BRANCH]).is_err());
-    }
-
-    #[test]
-    fn push_fails_when_the_remote_rejects_a_non_fast_forward() {
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        // Remote moves ahead; the store's divergent commit can't ff-push.
-        let other = checkout(tmp.path(), &remote, "other");
-        commit(&other, "remote.txt", "remote");
-        git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
-        commit(&store, "local.txt", "local");
-
-        assert!(push(&binding(Some(&remote), &store)).is_err());
-    }
-
-    #[test]
-    fn sync_refuses_an_option_like_branch_before_touching_git() {
-        // A config-sourced branch that begins with `-` (e.g. `--upload-pack=…`)
-        // is refused as option-injection, not handed to `git fetch` (bl-2d6d).
-        let tmp = TempDir::new().unwrap();
-        let remote = remote_with_branch(tmp.path());
-        let store = store_clone(tmp.path(), &remote);
-        let mut b = binding(Some(&remote), &store);
-        b.tasks_branch = "--upload-pack=evil".into();
-        let err = sync(&b).unwrap_err().to_string();
-        assert!(err.contains("looks like an option"), "{err}");
-    }
-}
+#[path = "remote_ops_tests.rs"]
+mod tests;
