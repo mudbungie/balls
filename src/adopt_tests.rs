@@ -23,6 +23,7 @@ fn edge(tmp: &TempDir, exe_dir: Option<PathBuf>) -> Edge {
         default_actor: "tester".into(),
         depth: 0,
         exe_dir,
+        path_dirs: Vec::new(),
         color: false,
         log_level: None,
     }

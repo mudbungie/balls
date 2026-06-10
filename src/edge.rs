@@ -23,7 +23,10 @@ use std::path::PathBuf;
 /// edge (the bl-bfa8 rule), never in the render layer. `log_level` is the §4
 /// layer-1 CLI override (`--log-level`): unlike the other fields it is argv- not
 /// env-derived, so [`crate::run`] strips the flag and stamps it on — `resolve`
-/// leaves it `None` (no override; the config threshold stands).
+/// leaves it `None` (no override; the config threshold stands). `path_dirs`
+/// is `$PATH` split into its directories — the §6 install binary-resolution
+/// lookup ("PATH or explicit `--bin`") — read once here like every other env
+/// fact (the bl-bfa8 rule).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Edge {
     pub xdg: Xdg,
@@ -31,6 +34,7 @@ pub struct Edge {
     pub default_actor: String,
     pub depth: u32,
     pub exe_dir: Option<PathBuf>,
+    pub path_dirs: Vec<PathBuf>,
     pub color: bool,
     pub log_level: Option<String>,
 }
@@ -53,6 +57,7 @@ impl Edge {
         user: Option<String>,
         depth: Option<String>,
         current_exe: Option<PathBuf>,
+        path: Option<std::ffi::OsString>,
         no_color: Option<String>,
         stdout_tty: bool,
     ) -> Self {
@@ -62,6 +67,7 @@ impl Edge {
             default_actor: user.unwrap_or_else(|| "unknown".into()),
             depth: depth.and_then(|d| d.parse().ok()).unwrap_or(0),
             exe_dir: current_exe.and_then(|e| e.parent().map(std::path::Path::to_path_buf)),
+            path_dirs: path.map(|p| std::env::split_paths(&p).collect()).unwrap_or_default(),
             color: stdout_tty && no_color.is_none(),
             log_level: None,
         }
@@ -83,6 +89,7 @@ mod tests {
             depth.map(str::to_string),
             exe,
             None,
+            None,
             true,
         )
     }
@@ -97,10 +104,29 @@ mod tests {
             None,
             None,
             None,
+            None,
             no_color.map(str::to_string),
             stdout_tty,
         )
         .color
+    }
+
+    #[test]
+    fn path_dirs_split_the_path_variable_and_default_empty() {
+        let e = Edge::resolve(
+            PathBuf::from("/h"),
+            None,
+            None,
+            PathBuf::from("/p"),
+            None,
+            None,
+            None,
+            Some("/usr/bin:/opt/bl".into()),
+            None,
+            false,
+        );
+        assert_eq!(e.path_dirs, [PathBuf::from("/usr/bin"), PathBuf::from("/opt/bl")]);
+        assert!(resolve(None, None, None).path_dirs.is_empty()); // no $PATH ⇒ no lookup dirs
     }
 
     #[test]

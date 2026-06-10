@@ -111,7 +111,7 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. |
-| `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `--from` is required; `PATH` defaults to `config/`, `--to` to the landing. A folder source mirrors (deletions propagate), a file/glob source unions. |
+| `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `PATH` defaults to `config/`, `--from` to the configured upstream, `--to` to the landing; `--bin NAME=PATH` names a referenced plugin's local binary explicitly (else beside `bl`, then `$PATH`). A folder source mirrors (deletions propagate), a file/glob source unions. |
 | `bl skill` | Print the agent guide (`SKILL.md`) — the full manual. |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
 

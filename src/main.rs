@@ -21,6 +21,7 @@ fn main() {
         env::var("USER").ok(),
         env::var("BALLS_PLUGIN_DEPTH").ok(),
         env::current_exe().ok(),
+        env::var_os("PATH"),
         env::var("NO_COLOR").ok(),
         std::io::stdout().is_terminal(),
     );

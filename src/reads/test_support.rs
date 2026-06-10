@@ -27,6 +27,7 @@ pub(crate) fn edge(tmp: &Path, depth: u32) -> Edge {
         default_actor: "me".into(),
         depth,
         exe_dir: None,
+        path_dirs: Vec::new(),
         color: false,
         log_level: None,
     }
