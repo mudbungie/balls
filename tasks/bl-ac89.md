@@ -1,7 +1,8 @@
 +++
 title = "tasks_branch = landing is structurally impossible: one branch cannot have two worktrees"
 created = 1781067175
-updated = 1781067175
+updated = 1781067814
+claimant = "Rebut"
 parent = "bl-72a8"
 priority = 2
 tags = ["spec-divergence"]
