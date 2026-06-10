@@ -1,7 +1,8 @@
 +++
 title = "Rewrite the github forge plugin to the subtask model: claim.post mints the review gate, sync resolves it on merge; no close.pre delivery variant"
 created = 1781043825
-updated = 1781058958
+updated = 1781059138
+claimant = "Frontages"
 priority = 3
 tags = ["plugin"]
 
