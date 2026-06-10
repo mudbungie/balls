@@ -27,6 +27,9 @@ pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style
     let id = flags.target.as_deref().expect("parser guarantees show has a target");
     match cat.get(id) {
         Some(e) => Ok(render_live(cat, e, flags, style, folded)),
+        // A `--legacy` miss never falls through to the GREENFIELD store's
+        // history — the legacy set is the whole world the flag names (§16).
+        None if flags.legacy.is_some() => Err(io::Error::other(format!("no such legacy ball: {id}"))),
         None => match resolve_dead(store, id)? {
             Some(dead) => Ok(render_dead(&dead, flags, style, folded)),
             None => Err(io::Error::other(format!("no such ball: {id}"))),
@@ -38,8 +41,9 @@ pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style
 /// block (badge, fields, blockers, children + the folded plugin lines, body).
 fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &str) -> String {
     if flags.json {
-        // `--json` is the bedrock record (§9) — no derived `children`, no body,
-        // identical to a `list` row. The rich view is the human projection.
+        // `--json` is the bedrock record (§9) — the whole stored file (body
+        // included, no derived `children`), identical to a `list` row and
+        // re-ingestable by `bl import`. The rich view is the human projection.
         return json_line(&task_json(&e.id, &e.task));
     }
     let badge = style.badge(cat.status(e));

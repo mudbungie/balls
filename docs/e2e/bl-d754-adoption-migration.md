@@ -1,5 +1,11 @@
 # E2E demo — adoption & §16 legacy migration (bl-d754)
 
+> **Superseded mechanism (bl-e614):** the `migrate-legacy.py` script this
+> transcript drives is deleted — the data step is now `bl import --legacy`
+> (preview: `bl list --legacy`); see `docs/migration-runbook.md`. The §16
+> guarantees demonstrated here (branch collision, epic edges, gh-adopt, the
+> quiesce guard — now a runbook line) still hold; only the vehicle changed.
+
 A captured live run of the legacy→greenfield cutover (architecture.md **§16
 Migration from legacy balls**) plus the github-issues **`adopt`** step, against
 **freshly-built binaries** (`cargo build --release` in the claimed worktree for

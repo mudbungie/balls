@@ -61,13 +61,47 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let flags = parse(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
-    if !landing.join("config").is_dir() {
-        return Err(other("no balls checkout here — run `bl prime` first"));
-    }
+    primed(&landing)?;
 
     let Some((base, before)) = base_change(verb, &store, &flags, now(), editor)? else {
         return Ok(());
     };
+    let ctx = Op {
+        actor: flags.actor.clone(),
+        remote: flags.remote.clone(),
+        command: command(verb, &flags),
+    };
+    let sha = seal_op(edge, verb, &ctx, base.as_ref(), before)?;
+    report::emit(verb, &store, &sha)
+}
+
+/// What an op carries to the seal besides its [`BaseChange`]: the stamped
+/// actor, the per-op §12 remote override, and the §7 `command`.
+pub(crate) struct Op {
+    pub actor: String,
+    pub remote: Option<String>,
+    pub command: Command,
+}
+
+/// A mutating op is refused before `bl prime` founded the landing (§12) — a
+/// deliverable op never bootstraps.
+pub(crate) fn primed(landing: &Path) -> io::Result<()> {
+    if !landing.join("config").is_dir() {
+        return Err(other("no balls checkout here — run `bl prime` first"));
+    }
+    Ok(())
+}
+
+/// Seal an authored [`BaseChange`] onto the store through the §8 engine — the
+/// wiring EVERY mutating verb shares (config + log resolve, the §12 remote
+/// ladder, the §6 `[hooks]` plugin sets, the anvil). The deliverable verbs
+/// reach it via [`dispatch`]; `bl import` (§16) authors its own bulk change
+/// and seals through the same path, so there is exactly one road to the anvil.
+/// Returns the sealed sha.
+pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, before: Option<Task>) -> io::Result<String> {
+    let clone = edge.xdg.clone_dir(&edge.invocation_path);
+    let (landing, store) = (clone.landing(), clone.store());
+    primed(&landing)?;
     let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let log = Log::new(clone.op_log(), level, verb, log::wall);
@@ -75,12 +109,12 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     // `--remote`/`--center` override, else the XDG `task-remote` — both explicit
     // config reads (§0 stays local); the tracker discovers the project `origin`
     // when it is `None` (the bottom tier — remote-talk, the tracker's alone).
-    let remote = flags.remote.clone().or_else(|| crate::config::xdg_remote(&edge.xdg.user_config()));
+    let remote = op.remote.clone().or_else(|| crate::config::xdg_remote(&edge.xdg.user_config()));
     let binding = checkout::binding(&landing, &store, &edge.invocation_path, remote, cfg.tasks_branch);
     let ctx = OpContext {
-        actor: flags.actor.clone(),
+        actor: op.actor.clone(),
         binding,
-        command: Some(command(verb, &flags)),
+        command: Some(op.command.clone()),
         before,
     };
 
@@ -91,10 +125,9 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let change_dir = clone.change(&change_token());
     let plugins = Subprocess::new(ctx, &log, edge.depth);
     let anvil = Git::at(&store);
-    let sha = Engine::new(&anvil, &plugins, &log)
-        .seal(base.as_ref(), verb, &change_dir, &pre, &post)
-        .map_err(|e| other(e.to_string()))?;
-    report::emit(verb, &store, &sha)
+    Engine::new(&anvil, &plugins, &log)
+        .seal(base, verb, &change_dir, &pre, &post)
+        .map_err(|e| other(e.to_string()))
 }
 
 /// A verb's authored change plus the ball's op-start state (the §7

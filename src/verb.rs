@@ -21,6 +21,13 @@ pub enum Verb {
     Unclaim,
     Update,
     Close,
+    /// §16 `bl import` — ingest verbatim, fully-identified task JSON (the
+    /// `show --json` bedrock shape) through the real store. The inverse of the
+    /// bedrock read: id and timestamps are taken verbatim — no mint, no stamp,
+    /// no gate. NOT `create` with an id flag: "reproduce an existing identity"
+    /// (migration, restore, federation join) is a distinct primitive from
+    /// "mint a new one", which is exactly why `create` refuses foreign ids.
+    Import,
     // Reads (§9): author no diff; their hook keys run against the checkouts.
     Show,
     List,
@@ -45,12 +52,13 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 11] = [
+    pub const ALL: [Verb; 12] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
         Verb::Update,
         Verb::Close,
+        Verb::Import,
         Verb::Show,
         Verb::List,
         Verb::Prime,
@@ -67,6 +75,7 @@ impl Verb {
             Verb::Unclaim => "unclaim",
             Verb::Update => "update",
             Verb::Close => "close",
+            Verb::Import => "import",
             Verb::Show => "show",
             Verb::List => "list",
             Verb::Prime => "prime",
@@ -92,6 +101,7 @@ impl Verb {
             Verb::Unclaim => "release a claim",
             Verb::Update => "overwrite any field of a task",
             Verb::Close => "deliver the work and archive the task",
+            Verb::Import => "ingest verbatim task JSON from stdin (the inverse of show --json)",
             Verb::Show => "show one task in full",
             Verb::List => "list tasks (status, tag, and date filters)",
             Verb::Prime => "ready this checkout (run at session start)",
@@ -108,7 +118,8 @@ impl Verb {
             | Verb::Claim
             | Verb::Unclaim
             | Verb::Update
-            | Verb::Close => OpClass::Mutating,
+            | Verb::Close
+            | Verb::Import => OpClass::Mutating,
             Verb::Show
             | Verb::List
             | Verb::Prime
@@ -182,6 +193,7 @@ mod tests {
             Verb::Unclaim,
             Verb::Update,
             Verb::Close,
+            Verb::Import,
         ];
         for v in Verb::ALL {
             let expected = if mutating.contains(&v) {

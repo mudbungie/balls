@@ -7,7 +7,7 @@
 
 use std::io;
 
-use super::{Flags, Reach};
+use super::{legacy, Flags, Reach};
 use crate::civil::start_of_day;
 use crate::task::Status;
 use crate::verb::Verb;
@@ -28,6 +28,9 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
             "--since" if verb == Verb::List => f.since = Some(date(value(&mut args, "--since")?)?),
             // `--until` bounds the whole named day: its last second is inclusive.
             "--until" if verb == Verb::List => f.until = Some(date(value(&mut args, "--until")?)? + 86_399),
+            // §16 migration shim — every read accepts it (list = the preview,
+            // show = one projected ball); the spec rides `--legacy=REF`.
+            arg if legacy::flag(arg).is_some() => f.legacy = legacy::flag(arg),
             flag if flag.starts_with('-') => {
                 return Err(io::Error::other(format!("{}: unexpected flag '{flag}'", verb.token())));
             }
@@ -40,6 +43,11 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
     }
     if verb == Verb::Show && f.target.is_none() {
         return Err(io::Error::other("show: needs a ball id"));
+    }
+    // The legacy store has no greenfield history to reconstruct: `--legacy`
+    // serves the LIVE legacy set alone, so a dead-set reach contradicts it.
+    if f.legacy.is_some() && f.reach != Reach::Live {
+        return Err(io::Error::other("list: --legacy serves the live legacy set — it has no --all/--status closed reach"));
     }
     Ok(f)
 }
