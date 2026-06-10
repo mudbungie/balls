@@ -66,8 +66,8 @@ fn install_before_prime_is_an_error() {
 
 #[test]
 fn an_unresolvable_to_ref_is_refused() {
-    // Sealing targets only the two local checkouts (§2); a remote/other ref is
-    // the open bl-66e7 direction and must be refused, not guessed.
+    // Sealing targets only the two local checkouts (§2): install is purely
+    // local in core; transport is the tracker's (§6, bl-b8d6).
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     found(&e);

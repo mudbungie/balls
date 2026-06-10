@@ -9,9 +9,10 @@
 //! whole-tree replace, never a ref reset (§6 "siblings are never touched") —
 //! with §14 rollback on any abort. Identical bytes stage nothing and seal to
 //! the existing tip (the no-op seal, §13 idempotence). `--to` resolves to one
-//! of the two LOCAL checkouts (the landing or the store, §2); sealing to a
-//! remote center is the open bl-66e7 question, so any other ref is refused,
-//! not guessed.
+//! of the two LOCAL checkouts (the landing or the store, §2) — install is
+//! purely local in core (§0); whether the sealed commit then travels is the
+//! tracker's ordinary transport question, so any other ref is refused (§6,
+//! bl-b8d6).
 //!
 //! An omitted `--from` is the §6 default — the CONFIGURED UPSTREAM, resolved
 //! by [`upstream`]: the `install.pre` chain (the tracker, the only
@@ -74,7 +75,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let to_landing = opts.to == LANDING_BRANCH;
     if !to_landing && opts.to != binding.tasks_branch {
         return Err(io::Error::other(format!(
-            "install: --to must name the landing ({LANDING_BRANCH}) or the configured store branch ({}) — any other seal target is not wired (bl-66e7)",
+            "install: --to must name the landing ({LANDING_BRANCH}) or the configured store branch ({}) — install is purely local in core; a center's config publishes by `git push` from its owning clone (§6)",
             binding.tasks_branch
         )));
     }
