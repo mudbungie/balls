@@ -25,6 +25,11 @@ use crate::task::Task;
 /// block; empty under `--json` (which never dispatches) or when nothing printed.
 pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style, folded: &str) -> io::Result<String> {
     let id = flags.target.as_deref().expect("parser guarantees show has a target");
+    // A corrupt ball is PRESENT, not dead (bl-528c): surface its parse error
+    // rather than fall through to history and resurrect a stale incarnation.
+    if let Some(err) = cat.corruption(id) {
+        return Err(io::Error::other(format!("tasks/{id}.md: {err}")));
+    }
     match cat.get(id) {
         Some(e) => Ok(render_live(cat, e, flags, style, folded)),
         // A `--legacy` miss never falls through to the GREENFIELD store's

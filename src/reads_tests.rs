@@ -49,6 +49,24 @@ fn status_climbs_the_three_rung_ladder() {
 }
 
 #[test]
+fn a_corrupt_ball_degrades_per_file_instead_of_blinding_the_store() {
+    // bl-528c: one bad ball must not fail every list/show repo-wide. The
+    // corrupt file is skipped (warned on stderr), the rest stays readable —
+    // and its id still EXISTS for the §10 resolver, so a blocker naming it
+    // stays unresolved.
+    let tmp = tempfile::TempDir::new().unwrap();
+    crate::taskfile::write_task(tmp.path(), "bl-good", &task("Good", 1)).unwrap();
+    std::fs::write(tmp.path().join("tasks/bl-bad.md"), "+++\ntitle = \"a\"\ntitle = \"b\"\n+++\n").unwrap();
+
+    let cat = Catalog::load(tmp.path()).unwrap();
+    assert!(cat.get("bl-good").is_some()); // the store stays readable
+    assert!(cat.get("bl-bad").is_none()); // the corrupt ball lists nowhere
+    assert!(cat.corruption("bl-bad").unwrap().contains("duplicate"));
+    assert!(cat.corruption("bl-good").is_none());
+    assert!(!cat.is_resolved("bl-bad")); // its file exists ⇒ still a live blocker
+}
+
+#[test]
 fn get_finds_a_ball_or_none() {
     let cat = catalog(&[("bl-1", task("One", 1))]);
     assert!(cat.get("bl-1").is_some());

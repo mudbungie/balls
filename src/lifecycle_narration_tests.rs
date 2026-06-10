@@ -20,6 +20,9 @@ impl Anvil for ConvergingAnvil {
         self.j.borrow_mut().push("open".into());
         Ok(())
     }
+    fn changed(&self, _dir: &Path) -> io::Result<Vec<String>> {
+        Ok(Vec::new()) // nothing staged — the converging case
+    }
     fn seal(&self, _dir: &Path, _message: &str) -> io::Result<String> {
         self.j.borrow_mut().push("seal".into());
         Ok("T0".into())
