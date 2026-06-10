@@ -406,6 +406,17 @@ plugin <name> <op> <phase>` is the canonical dispatch and balls dogfoods it.
           `log_level` threshold (§4) even when the plugin's own info-level stderr is filtered out.
 ```
 
+**Reads may dispatch plugins too.** Dispatch is op-uniform — there is no rule that only mutating ops
+invoke plugins. A READ op (`show`/`list`) carries no seal and no `pre`/`post` split, so it dispatches a
+SINGLE phase: core runs the named plugin (cwd = the relevant checkout, §7 wire minus the task-op
+fields), forwards its stdout into the HUMAN render, and parses nothing back (§7 — still no return
+channel). This is how `bl show` surfaces a value only the plugin can compute (the delivery worktree
+path, §11): core cannot derive it (it never opens the project repo, §11) so it asks the owner. `--json`
+never dispatches — it stays the lossless mirror of stored frontmatter (§9), so a read-op plugin's
+output reaches the human projection alone, never the machine contract. A read dispatch that fails is
+non-fatal: the read still renders, minus the plugin's line (a read mutates nothing, so there is nothing
+to roll back).
+
 **Metrics are a query, not core state.** balls stores and emits no metrics: the unified `log` (§1) is
 the event stream — every op/phase/plugin record is timestamped — and the §5 commit trailers are the
 durable history. Counters/timing compose over those by `jq`/parse, or a `*.post` plugin observes the
@@ -425,10 +436,8 @@ a list property, not an `NN-` filename convention faking one.
 [hooks]
 "sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
-"prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
-"claim.pre"    = ["bl-delivery"]              # stage the worktree-path field before the seal
-"claim.post"   = ["bl-delivery", "tracker"]   # worktree, then the push (tracker last)
-"unclaim.pre"  = ["bl-delivery"]              # clear the path field in lockstep with claimant
+"prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees + print their paths
+"claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "tracker"]
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
@@ -636,15 +645,15 @@ new `tasks/*.md`; regex-valid; no collision) and commits.
 
 **`claim`** (acquire occupancy; core's guards refuse a ball whose `claimant` is already set, or whose claim-blockers are unresolved — `!ready()`, §10): stage `claimant`, bump `updated` — the ONLY field it writes. There is no status to set:
 "claimed" is the derived view of `claimant` (§3), so claim stores the one occupancy fact in the one
-field (the only field CORE writes). `claim.pre`: the delivery plugin STAGES the worktree path into a
-preserved frontmatter key so the seal captures it and `bl show --json` reads it authoritatively (§11).
-`claim.post`: the delivery plugin materializes the code worktree. The path is NOT printed (a plugin has
-no return channel — §7 discards plugin stdout); the consumer's authoritative read is the
-`delivery-worktree` key via `bl show --json` (§11 — the plugin owns the path, core never computes it).
+field (the only field CORE writes). `claim.post`: the delivery plugin materializes the code worktree and
+PRINTS its path on stdout (§11), which balls forwards verbatim — the natural product of the verb, the way
+`create` prints the id. The path is not stored anywhere: it is a pure function of `(binding, id, claimant)`
+and already a local git fact (`git worktree list`), so balls neither computes nor records it (§11;
+derive-don't-store).
 
 **`unclaim`** (release occupancy): clear `claimant` (symmetric with claim — the only CORE field
-touched); `unclaim.pre`, the delivery plugin clears its worktree-path key in lockstep (§11).
-`*.post`: the delivery plugin releases the code worktree.
+touched). `*.post`: the delivery plugin releases the code worktree. There is nothing to unstage — the
+worktree path was never a field.
 
 **`update`** (op `update`): the generic field/body edit — it overwrites EVERY ball field, so there is
 no create-only split. Retitle (`--title`), rewrite the markdown body (`--body`), set or clear the
@@ -795,39 +804,39 @@ the filesystem; it needs no id-keyed scratch, and every hook is idempotent by co
 `claimant` as well as `id` keeps the pure-function/stateless property (claimant is already on the
 wire) while disambiguating a drop-and-reclaim by a different actor and naming forge branches by owner.
 
-**Core never computes this path** — the plugin owns the formula end to end and surfaces the result to
-consumers two ways, neither teaching core the formula:
-- a HUMAN hint — on `claim.post` it PRINTS the path on its stdout (§6), which balls forwards verbatim;
-  "claim prints the path" is the plugin printing, not core knowing (no privileged plugin, §0/§6).
-- an AUTHORITATIVE machine read — on `claim.pre` it STAGES the path into a plugin-namespaced
-  frontmatter key (the reference plugin writes `delivery-worktree`; §3 preserved-key seam), so the
-  seal captures it and `bl show --json` surfaces it deterministically. This is the consumer's ONLY
-  reliable read: stdout is a forward-verbatim human channel interleaved across the whole chain (§6),
-  not machine-parseable, and §7 hands a plugin no return channel but the worktree it edits. The path
-  is derivable BY THE PLUGIN yet NOT by the consumer (core/agents lack both the formula and the
-  plugin's territory layout, §0), so the stored copy is not a derive-don't-store violation from the
-  consumer's view — it is the single deterministic source, written through §7's one sanctioned
-  channel (a plugin contributes by editing frontmatter, never by a return value).
+**Core never computes this path, and nothing stores it.** The path has an authoritative home already:
+it is a pure function of `(binding, id, claimant)` AND a standing local git fact — `git worktree list`
+in the project repo prints `work/<id> → <path>`. The formula is how the plugin PLACES the worktree;
+git's worktree registry is the ground truth of where it landed. Recording it in a frontmatter field
+would be a THIRD copy of a fact git already owns — and a derive-don't-store violation (§0): the path is
+machine-LOCAL (`$XDG_STATE_HOME` + `invocation_path`), so the default delivery+tracker combo would
+seal-and-PUSH a local path into the shared store, replicating it to every clone where it is meaningless.
+The claim itself is shared truth and belongs on the remote; its worktree is a local derivation and does
+not. So the plugin stores nothing and surfaces the path ON DEMAND, two ways — both PRINTING, neither
+teaching core the formula:
+- on `claim.post` and `prime.post` it PRINTS the path on stdout (§6), which balls forwards verbatim —
+  the natural product of the verb (as `create` prints the id) at the two moments a consumer transitions
+  into a worktree: starting work, and resuming a session (`prime` lists the claimed set and prints each
+  path). This is deterministic, not interleaved noise: stdout is reserved for the verb's ONE product —
+  tracker and every other plugin write diagnostics to stderr (§6), so delivery is the sole stdout writer
+  on claim/prime. An agent reads it as readily as a machine parses it; the bl-934a worry that stdout is
+  "not machine-parseable" held only if plugins muddy stdout, and the discipline forbids that.
+- on `bl show` it answers a READ-OP dispatch (§6): core, which never opens the project repo, asks the
+  delivery plugin for the worktree and folds the printed line into the HUMAN render. `bl show --json`
+  does NOT dispatch — it is the lossless mirror of stored frontmatter (§9), and the worktree is not
+  stored, so the machine contract never carries a local path. A machine that wants it scripts `bl claim`/
+  `bl prime` stdout, or `git worktree list` directly.
 
-It MUST be staged at `claim.pre`, not `post`: §14 forbids a `post` reactor from mutating the sealed
-ball, and the staging is possible because the id ALREADY exists at claim (unlike create, where the id
-isn't sealed yet, §7) and `claimant` is the field claim itself stages — so `worktree_path(binding, id,
-claimant)` is fully determined before the seal. **The field travels with `claimant`** as its companion:
-written at `claim.pre`, CLEARED at `unclaim.pre`, mirroring core setting/clearing `claimant` (§9) — so
-it is present exactly while the ball is claimed and never names a released worktree. The plugin still
-RECOMPUTES the path for its own materialize/release/rollback and never READS the stored copy, so the
-pure-function/stateless property (above) is untouched; the frontmatter key is purely consumer-facing.
+The plugin computes the path from `(binding, id, claimant)` (or reads `git worktree list`) every time
+it needs it — materialize, release, rollback, and each surfacing — so it holds no id-keyed scratch and
+every hook stays idempotent (the pure-function/stateless property above). The worktree lives in plugin
+XDG territory, not the project tree; its existence is git's to know, never a ball field's to assert, so
+there is no field that can drift out of sync with whether the worktree exists.
 
-**Consistency across every seal.** The staged path survives only if the claim seal survives, which
-survives only if `claim.post` materializes the worktree — a `claim.post` failure triggers §8 post-abort
-(`git reset` the store back one commit; claimant + field gone), REJECTING the claim. So at every
-COMMITTED state the field is present iff the worktree exists (the same holds across `unclaim`'s seal):
-the ball never carries a path to a nonexistent worktree. The worktree lives in plugin XDG territory,
-not the project tree.
-
-**Hooks:** `claim.pre` stage the path field / `claim.post` materialize (create-if-absent);
-`unclaim.pre` clear the path field / `unclaim.post` + `drop.post` release (remove-if-present);
-**`close.pre` deliver** (sorts last); **`close.post` teardown**. balls does not guard against tearing a
+**Hooks:** `claim.post` materialize (create-if-absent) + print the path; `prime.post` re-materialize
+each still-claimed worktree + print its path; `unclaim.post` + `drop.post` release (remove-if-present);
+**`close.pre` deliver** (sorts last); **`close.post` teardown**; **`show` (read-op)** print the path for
+the named ball (§6 read dispatch). balls does not guard against tearing a
 worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
 cwd is not deleted underneath it (a recommendation in the skill guide, not an enforced precondition).
 
@@ -1322,11 +1331,15 @@ RESOLVED (folded into the body, no longer open):
   `src/lifecycle_diffless.rs` (`Engine::fixpoint`), `src/checkout.rs` (`converge`), `src/tracker/prime.rs`
   (`prime` clone-in + `prime_post`); the bl-fa00 `adopt`/`reset` is reverted. Tracked under bl-72a8.
 - **worktree path is a staged frontmatter field; `delivered_in` stays derived (recency-ordered)
-  (2026-06-07, bl-934a — post-freeze).** A spec attack on §11's consumer interface: the worktree path
+  (2026-06-07, bl-934a — post-freeze; part (1) SUPERSEDED by bl-0af4 2026-06-09, entry below — the
+  field is deleted, the path is computed-and-printed; (2) stands).** A spec attack on §11's consumer
+  interface: the worktree path
   is consumer-relevant (an agent needs it after `bl claim`), but §7 gives a plugin no return channel
   and §6 makes plugin stdout a forward-verbatim HUMAN channel interleaved across the whole chain — not
   reliably machine-parseable. RESOLVED in two halves that look like one pattern but are NOT.
-  (1) **worktree path — STAGE it (a field).** The delivery plugin writes the derived path into a
+  (1) **worktree path — STAGE it (a field). [SUPERSEDED 2026-06-09 by bl-0af4 — the field is DELETED;
+  the path is computed-and-printed, never stored. The original reasoning is kept for the record; the
+  reversal and its case are in the bl-0af4 entry below.]** The delivery plugin writes the derived path into a
   plugin-namespaced preserved frontmatter key (`delivery-worktree`, §3 seam) at **`claim.pre`**, so the
   seal captures it and `bl show --json` reads it authoritatively. `pre` not `post` (§14 bars a post
   reactor mutating the sealed ball); possible because the id already exists at claim (unlike create) and
@@ -1353,6 +1366,29 @@ RESOLVED (folded into the body, no longer open):
   example stays intact. Touched §6 (hooks table: `claim.pre`/`unclaim.pre`), §9 (claim/unclaim prose),
   §11 (the path-staging + the `delivered_in` recency note). Code follow-up (delivery plugin writes/clears
   the key on `claim.pre`/`unclaim.pre`; the derived query recency-orders) filed bl-ae51 under bl-72a8.
+- **worktree path is computed-and-printed, never a field — supersedes bl-934a(1) (2026-06-09, bl-0af4
+  — post-freeze).** bl-934a(1) staged the path into a `delivery-worktree` frontmatter key read via
+  `bl show --json`. REVERSED. Three faults: (a) the path is a pure function of `(binding, id, claimant)`
+  AND already a local git fact — `git worktree list` prints `work/<id> → path` — so the field was a THIRD
+  copy of what git already owns (derive-don't-store, §0). (b) it is machine-LOCAL (`$XDG_STATE_HOME` +
+  `invocation_path`), and the default delivery+tracker combo seals-and-PUSHES the store, so the field
+  replicated a local path to every clone — meaningless to all but the one claimant on the claiming
+  machine, who can compute it locally; the claim is shared truth (belongs on the remote), its worktree a
+  local derivation (does not). (c) bl-934a(1)'s justification — "stdout is interleaved across the chain,
+  not machine-parseable" — is false under the existing discipline: tracker and every other plugin write
+  only stderr, so delivery is the SOLE stdout writer on claim/prime, and stdout = the verb's one product
+  (as `create` prints the id) is deterministic. RESOLVED: store nothing. The delivery plugin PRINTS the
+  path on `claim.post` (start work) and `prime.post` (resume), and answers `bl show` via a READ-OP
+  dispatch folded into the HUMAN render; `bl show --json` does NOT dispatch and never carries the path
+  (lossless store mirror; the worktree is not stored). This establishes that READ OPS MAY DISPATCH
+  PLUGINS — never a deliberate prohibition, now documented. Touched §6 (drop `claim.pre`/`unclaim.pre`
+  from the default hooks table + new "Reads may dispatch plugins" contract), §9 (claim/unclaim prose:
+  `claim.post` prints, nothing staged/cleared), §11 ("Core never computes this path, and nothing stores
+  it" + Hooks). Code follow-up (delivery: delete the `delivery-worktree` stage/clear — reverting the
+  field half of bl-ae51; print on `prime.post`; add the `show` read-op; core: dispatch a plugin read on
+  the `bl show` human render and drop the `claim.pre`/`unclaim.pre` default wirings; fix the stale `bl
+  skill` line that says `--json` omits the key; close the ghost bl-b930) filed bl-9ccb
+  under bl-72a8.
 - **prime push-failure splits founding-miss vs established-reject (2026-06-07, bl-9857 —
   post-freeze).** §12 read "A push that fails for lack of perms falls back to stealth-local silently."
   That conflated two cases into one silent path. The fallback is defensible ONLY for FOUNDING — the
