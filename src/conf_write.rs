@@ -8,8 +8,11 @@
 //! appending a present name or removing an absent one is a no-op, and a list
 //! emptied by `remove` drops its key (absent/empty = run nothing, §4/§6).
 //!
-//! Homes: `task-remote` ⇒ the XDG `config.toml` (a plain per-machine file
-//! edit); `task-branch`/`log-level` ⇒ the landing `balls.toml` and the hooks
+//! Homes: `task-remote` routes by VALUE — a URL ⇒ the XDG `config.toml` (a
+//! plain per-machine file edit, clearing any landing stealth sentinel so the
+//! set changes what the ladder resolves), the sentinel `none` ⇒ the landing
+//! `task_remote` policy rung (§12, bl-9df0); `task-branch`/`log-level` ⇒ the
+//! landing `balls.toml` and the hooks
 //! keys ⇒ the landing `plugins.toml`, each an ordinary commit on `balls/config`
 //! (`balls: conf <op> <key> …`, checkout-scoped — §5). A write that changes
 //! nothing seals nothing: git's own empty-diff check is the change detector,
@@ -38,7 +41,16 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
     let actor = &edge.default_actor;
     match (Key::parse(token)?, op) {
         (Key::Hook(k), _) => hooks_edit(&landing, actor, op, &k, values),
-        (Key::TaskRemote, "set") => xdg_set(edge, one(op, token, values)?),
+        (Key::TaskRemote, "set") => match one(op, token, values)? {
+            crate::config::STEALTH_REMOTE => declare_stealth(&landing, actor),
+            url => {
+                // Clear a declared stealth first: the landing rung outranks the
+                // XDG one, so leaving the sentinel would make this set change
+                // nothing the ladder resolves — the bl-d234 trap, inverted.
+                clear_stealth(&landing, actor, url)?;
+                xdg_set(edge, url)
+            }
+        },
         (Key::LogLevel, "set") => {
             let value = one(op, token, values)?;
             Level::parse(value)?; // refuse a level the ladder won't speak
@@ -65,9 +77,27 @@ fn one<'a>(op: &str, key: &str, values: &'a [String]) -> io::Result<&'a str> {
     }
 }
 
+/// Declare stealth: write the §12 sentinel into the landing's per-checkout
+/// `task_remote` policy rung, sealed like any landing config edit. `bl prime
+/// --stealth` is sugar for exactly this write (bl-9df0) — the opt-out is a
+/// durable config fact every later op's bind derives, never a per-invocation
+/// flag.
+pub(crate) fn declare_stealth(landing: &Path, actor: &str) -> io::Result<()> {
+    landing_set(landing, actor, "task-remote", "task_remote", crate::config::STEALTH_REMOTE)
+}
+
+/// Drop the landing stealth sentinel (a durable URL set supersedes the declared
+/// opt-out). Removing an absent key is the convergent no-op — nothing commits.
+fn clear_stealth(landing: &Path, actor: &str, url: &str) -> io::Result<()> {
+    edit_landing_toml(landing, actor, "balls.toml", &format!("balls: conf set task-remote {url}"), |table| {
+        table.remove("task_remote");
+        Ok(())
+    })
+}
+
 /// Set the per-machine XDG `remote` (§12) — a plain file edit on the user
-/// config, every other key in it untouched. The one home that is not the
-/// landing: a remote URL must not travel on `install` (§4).
+/// config, every other key in it untouched. A remote URL's only home: it must
+/// not travel on `install` (§4).
 fn xdg_set(edge: &Edge, url: &str) -> io::Result<()> {
     let path = edge.xdg.user_config();
     let mut table = read_table(&path)?;

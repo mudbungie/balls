@@ -13,14 +13,16 @@ use std::io::{self, Read};
 
 /// §7 binding — where the op is happening, from the tracker's seat. `remote` is
 /// absent in a stealth (no-remote) repo, which is the tracker's whole branch
-/// point: no remote ⇒ nothing to talk to. `stealth` is `bl prime --stealth`'s
-/// explicit §12 opt-out: it makes the no-remote read DECLARED rather than
+/// point: no remote ⇒ nothing to talk to. `stealth` is the §12 declared opt-out
+/// (the landing `task_remote` sentinel, derived by core per op — bl-9df0): it
+/// makes the no-remote read DECLARED rather than
 /// inferred, suppressing even `origin` discovery (absent on every ordinary
 /// payload, so it defaults `false`). `store` is the STORE checkout it
 /// fetches/pushes `tasks_branch` against (§2); `landing` is the `balls/config`
-/// checkout the `install/pre` config fetch targets (§6/§13 — every other handler
-/// ignores it, so it defaults empty); `invocation_path` locates this checkout's
-/// clone bundle (§1) for the stealth lock.
+/// checkout the `install/pre` config fetch targets (§6/§13) and the W2 gap's
+/// durable-ladder read (bl-9df0 — every other handler
+/// ignores it, so it defaults empty); `invocation_path` locates the project
+/// repo whose `origin` is the implicit bottom tier (§12).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Binding {
     #[serde(default)]

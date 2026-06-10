@@ -2,9 +2,10 @@
 //! per axis of "make this checkout ready" (bl-0a23).
 //!
 //! - **`prime/pre` settles the NAME + clones the store in** ([`prime`]). With no
-//!   remote it is STEALTH: touch no remote, write a self-lock in this checkout's
-//!   clone bundle (the opt-out is structural — no remote, nothing to leave on
-//!   `origin`; installing the tracker with a remote IS the consent to federate).
+//!   remote it is STEALTH: touch no remote, warn (W1), persist nothing — the
+//!   opt-out is structural (no remote, nothing to leave on `origin`) and the
+//!   DECLARED opt-out is a config fact core re-derives every op (the landing
+//!   `task_remote` sentinel, bl-9df0), so there is no tracker-side state.
 //!   With a remote it (a) WARNS when the configured store sits elsewhere (a
 //!   default-named clone of a repo whose canonical store is a non-default branch —
 //!   diagnostic only; config crosses into a landing solely by `install`, §0/§12),
@@ -19,19 +20,21 @@
 //!   ESTABLISHED store is split-brain and ERRORS (E5), never degrades. Absent
 //!   remote branch → the founding push CREATES it; a rejection there (no create
 //!   perm) falls back to stealth-local SILENTLY — nothing existed to land on, so
-//!   the founding-miss is harmless and once-per-clone (§12). Established-vs-absent
+//!   the founding-miss is harmless and once-per-clone (§12) — and persists
+//!   NOTHING: the miss is an outcome, re-derived per op, so re-running prime
+//!   re-attempts by construction (bl-9df0). Established-vs-absent
 //!   is read from the remote, never declared.
 
 use super::git::git;
 use super::payload::Binding;
 use super::remote_ops::{not_yet_cut_over, remote_has_branch};
 use super::Env;
-use std::fs;
 use std::io;
 use std::path::Path;
 
 /// `prime/pre`: settle the store NAME and clone an established store in (§12).
-/// Stealth (no remote) warns (W1), writes the self-lock and stops. Otherwise warn on a
+/// Stealth (no remote) warns (W1) and stops — persisting nothing; the declared
+/// opt-out already lives in config (bl-9df0). Otherwise warn on a
 /// store-elsewhere mismatch and on an ephemeral remote (both diagnostic, never
 /// fatal), then [`clone_in`] the
 /// remote store branch if it is established and absent locally. Idempotent: a
@@ -41,7 +44,7 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
         // W1 (§12): say so — a stealth store is fine, but invisible-until-`bl
         // conf` left "deliberately local" and "forgot to federate" identical.
         eprintln!("tracker: store is stealth (local), not auto-syncing");
-        return stealth_lock(b, env);
+        return Ok(());
     };
     let landing = Path::new(&b.landing);
     if let Some(durable) = ephemeral_gap(b, env, &remote) {
@@ -54,12 +57,19 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
 }
 
 /// The §12 ephemeral-remote gap (W2, bl-c2de): prime is acting on `remote`, but
-/// the DURABLE ladder (XDG `task-remote` > `origin`) resolves to something else
+/// the DURABLE ladder (landing `task_remote` > XDG `task-remote` > `origin`)
+/// resolves to something else
 /// — so it arrived via a per-op `--remote`/`--center` and plain commands will
-/// not reproduce it (the bl-d234 silent-stealth failure). Returns what durable
+/// not reproduce it (the bl-d234 silent-stealth failure). A landing stealth
+/// sentinel is the strongest durable answer: plain commands run DECLARED
+/// stealth, named as such (bl-9df0). Returns what durable
 /// resolution yields, rendered for the warning; `None` = no gap (the remote in
 /// use IS the durable one, however it was spelled).
 fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
+    let declared = crate::config::landing_remote(Path::new(&b.landing)).ok().flatten();
+    if declared.is_some_and(|v| v == crate::config::STEALTH_REMOTE) {
+        return Some("declared stealth (the landing `task_remote` sentinel)".to_string());
+    }
     let durable = crate::config::xdg_remote(&env.xdg.user_config())
         .or_else(|| super::origin_of(Path::new(&b.invocation_path)));
     match durable {
@@ -76,7 +86,7 @@ fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
 /// founding-miss (no create perm) and degrades to stealth-local SILENTLY, the
 /// fallback that is founding's ALONE (nothing existed to land on). Stealth (no
 /// remote) no-ops, like every handler.
-pub fn prime_post(b: &Binding, env: &Env) -> io::Result<()> {
+pub fn prime_post(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.clone() else {
         return Ok(());
     };
@@ -88,11 +98,12 @@ pub fn prime_post(b: &Binding, env: &Env) -> io::Result<()> {
     // FOUNDING-MISS: the branch is absent, so this push CREATES it. A rejection is
     // the once-per-clone founding attempt failing for lack of a create permission
     // — harmless by definition (nothing existed to land on), so degrade to
-    // stealth-local SILENTLY rather than error (§12); contrast the established push
-    // above, whose rejection is split-brain.
-    if git(store, &["push", &remote, &b.tasks_branch]).is_err() {
-        return stealth_lock(b, env);
-    }
+    // stealth-local SILENTLY rather than error (§12) — persisting NOTHING: the
+    // miss is an outcome, not a consent, so re-running prime re-attempts by
+    // construction and a later op's push fails LOUDLY instead of never publishing
+    // (bl-9df0); contrast the established push above, whose rejection is
+    // split-brain.
+    let _ = git(store, &["push", &remote, &b.tasks_branch]);
     Ok(())
 }
 
@@ -150,13 +161,6 @@ fn store_elsewhere(b: &Binding, repo: &Path, remote: &str) -> Option<String> {
         .as_str()?
         .to_string();
     (named != b.tasks_branch).then_some(named)
-}
-
-/// Write the self-reference stealth lock into this checkout's clone bundle (§1).
-fn stealth_lock(b: &Binding, env: &Env) -> io::Result<()> {
-    let bundle = env.xdg.clone_dir(Path::new(&b.invocation_path));
-    fs::create_dir_all(bundle.root())?;
-    fs::write(bundle.root().join("stealth.lock"), "stealth: no remote\n")
 }
 
 #[cfg(test)]

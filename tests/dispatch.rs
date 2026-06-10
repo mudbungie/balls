@@ -19,7 +19,7 @@ fn bl(workspace: &TempDir) -> Command {
 }
 
 /// `bl` rooted in `project`, with `HOME`/`$XDG_STATE_HOME` pinned under `home`
-/// and `state` so its clone bundle + stealth lock land in the tempdir, not the
+/// and `state` so its clone bundle lands in the tempdir, not the
 /// real `$HOME`. The `tracker` sibling is found beside the built `bl` (§12).
 fn bl_primed(project: &Path, home: &Path, state: &Path) -> Command {
     let mut cmd = Command::cargo_bin("bl").unwrap();
@@ -30,13 +30,12 @@ fn bl_primed(project: &Path, home: &Path, state: &Path) -> Command {
     cmd
 }
 
-/// Where the tracker's stealth lock lands for an invocation at `project` —
-/// `$XDG_STATE_HOME/balls/clones/<pct-enc-project>/stealth.lock`.
-fn stealth_lock(state: &Path, project: &Path) -> PathBuf {
+/// The landing checkout for an invocation at `project` —
+/// `$XDG_STATE_HOME/balls/clones/<pct-enc-project>/config`.
+fn landing(state: &Path, project: &Path) -> PathBuf {
     balls::layout::Xdg::with(Path::new("/unused"), None, Some(&state.to_string_lossy()))
         .clone_dir(project)
-        .root()
-        .join("stealth.lock")
+        .landing()
 }
 
 #[test]
@@ -84,10 +83,14 @@ fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
     std::fs::create_dir_all(&project).unwrap();
 
     // Fresh box, no remote → prime founds the landing AND runs the prime chain,
-    // whose tracker handler writes the stealth self-lock (§12). Its presence is
-    // proof the full engine→subprocess→tracker path ran, not just bootstrap.
-    bl_primed(&project, &home, &state).arg("prime").assert().success();
-    assert!(stealth_lock(&state, &project).is_file());
+    // whose tracker handler emits the stealth W1 on stderr (§12, bl-9df0 — the
+    // self-lock is gone; stealth persists nothing). The warning is proof the
+    // full engine→subprocess→tracker path ran, not just bootstrap.
+    bl_primed(&project, &home, &state)
+        .arg("prime")
+        .assert()
+        .success()
+        .stderr(contains("store is stealth (local)"));
 
     // Idempotent: a second prime converges to a no-op, and `sync` runs the
     // tracker's sync/pre against the store.
@@ -99,8 +102,8 @@ fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
 fn prime_stealth_opts_out_of_founding_on_a_pushable_origin() {
     // §12 `bl prime --stealth` end to end, through the real bl + tracker: in a
     // clone with a pushable `origin`, a plain prime FOUNDS balls/tasks on the
-    // remote; `--stealth` takes the inferred no-remote path instead — the
-    // self-lock is written and the origin is never touched.
+    // remote; `--stealth` writes the landing `task_remote` sentinel instead
+    // (bl-9df0) — and the origin is never touched, by prime OR by any later op.
     let tmp = TempDir::new().unwrap();
     let (home, state) = (tmp.path().join("h"), tmp.path().join("s"));
     let origin = tmp.path().join("origin.git");
@@ -109,11 +112,20 @@ fn prime_stealth_opts_out_of_founding_on_a_pushable_origin() {
     git(tmp.path(), &["clone", "-q", &origin.to_string_lossy(), &project.to_string_lossy()]);
 
     bl_primed(&project, &home, &state).args(["prime", "--stealth"]).assert().success();
-    assert!(stealth_lock(&state, &project).is_file()); // locked local
-    let founded = std::process::Command::new("git")
-        .args(["-C", &origin.to_string_lossy(), "rev-parse", "--verify", "refs/heads/balls/tasks"])
-        .status().unwrap().success();
-    assert!(!founded, "--stealth must not found balls/tasks on origin");
+    let cfg = std::fs::read_to_string(landing(&state, &project).join("config/balls.toml")).unwrap();
+    assert!(cfg.contains("task_remote = \"none\""), "the durable sentinel: {cfg}");
+    let founded = || {
+        std::process::Command::new("git")
+            .args(["-C", &origin.to_string_lossy(), "rev-parse", "--verify", "refs/heads/balls/tasks"])
+            .status().unwrap().success()
+    };
+    assert!(!founded(), "--stealth must not found balls/tasks on origin");
+
+    // The bl-9df0 regression: consent withheld binds EVERY op, not just the
+    // prime that declared it — a later mutate must not rediscover origin and
+    // implicitly found the store (the write-only-lock bug).
+    bl_primed(&project, &home, &state).args(["create", "T", "--as", "me"]).assert().success();
+    assert!(!founded(), "a post-stealth mutate must not found balls/tasks on origin");
 
     // The contradiction is refused loud (§12: stealth means no store remote).
     bl_primed(&project, &home, &state)

@@ -55,7 +55,7 @@
 //! `protocol` self-describe before binding it. [`tracker`] is the
 //! one shipped remote-talker (a separate binary): it reads the §7 wire and does
 //! the §12/§13 git acts — sync (fetch + ff-only), push on post, and prime
-//! (adopt/found/stealth-lock) — and nothing local touches a remote without it.
+//! (adopt/found, stealth no-op) — and nothing local touches a remote without it.
 //!
 //! # §3/§10 — task files & the blocker model
 //!

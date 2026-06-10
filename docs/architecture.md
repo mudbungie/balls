@@ -357,7 +357,9 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
   store) — the "where are my files / what remote am I actually using" answer. `bl conf <key>` prints
   one resolved value (stdout — the verb's one product) with its provenance on stderr. A checkout with
   no durable remote reads `task-remote (none)`: stealth is VISIBLE, closing the bl-d234 gap where
-  "deliberately stealth" and "meant to federate, nothing set" were indistinguishable.
+  "deliberately stealth" and "meant to federate, nothing set" were indistinguishable — and the two
+  are DISTINCT readouts (bl-9df0): declared stealth reads `(none)` from `landing` (the sentinel),
+  circumstantial stealth reads `(none)` from `stealth` (nothing set, no origin).
 - **Write = scope-keyed CRUD on the canonical home.** `bl conf set <key> <value...>` replaces (a
   scalar, or a hooks key's whole list); `bl conf append|prepend|remove <key> <value>` composes a
   list. The list verbs are the §4 directive vocabulary APPLIED AT WRITE TIME to the canonical bare
@@ -368,7 +370,7 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
 
 | key | underlying field | type | `set`/list-op writes to |
 |---|---|---|---|
-| `task-remote` | the per-machine store remote (§12) | scalar | XDG `config.toml` `remote` — its ONLY home: a remote URL is per-machine and must not travel on `install`, so it is NOT a landing field by design |
+| `task-remote` | the store remote (§12) | scalar | routes by VALUE (bl-9df0): a URL ⇒ XDG `config.toml` `remote` (a remote URL is per-machine and must not travel on `install` — URLs are NOT landing fields by design; the write also clears any landing sentinel, so the set changes what the ladder resolves); the stealth sentinel `none` ⇒ the landing `task_remote` (per-checkout POLICY — it travels on `install` like any team policy) |
 | `task-branch` | `tasks_branch` | scalar | landing `config/balls.toml` (committed on `balls/config`) |
 | `log-level` | `log_level` | scalar | landing `config/balls.toml` |
 | `<op>.<pre\|post>`, bare `show`/`list` | the `[hooks]` schedule (§6) | list | landing `config/plugins.toml` |
@@ -1182,7 +1184,12 @@ the tracker or `--stealth` and prime never touches a remote (the seeded tracker 
 leave a branch on `origin`). Adopting an established store branch and founding an absent one are the
 same read-from-remote step, the difference read from remote state, not a flag. **Implicit founding is
 fine:** creating a `balls` branch on a repo you can push to is harmless and once-per-clone — `--stealth`
-opts out (and locks the store local).
+opts out, and the opt-out is DURABLE (bl-9df0): the flag is sugar for `bl conf set task-remote none`,
+one committed landing write of the per-checkout stealth sentinel, which EVERY later op's bind derives
+its stealth from (consent withheld binds the checkout, not one prime invocation — the old write-only
+`stealth.lock` let the very next mutate op rediscover `origin` and found the store anyway). Consent
+given supersedes withheld: a per-op `--remote` outranks the sentinel for that op, and a durable
+`bl conf set task-remote <url>` clears it.
 
 **Push-failure splits on founding-vs-established — the two must NOT collapse to one silent path
 (bl-9857).** `prime/post` reads the case from remote state, the same `ls-remote` that decides
@@ -1191,7 +1198,10 @@ adopt-vs-found:
   rejected. This falls back to stealth-local **silently** — nothing existed to land on, so "couldn't
   found, stayed local" is harmless by definition and once-per-clone, and the property holds even without
   write access. (Re-running `prime` re-attempts; if another clone has since founded the branch it is now
-  present → adopt.)
+  present → adopt.) The miss persists NOTHING (bl-9df0): it is an OUTCOME, re-derived per op, never a
+  consent — so the re-attempt promise holds by construction, and a LATER op's push against the
+  still-absent branch fails loudly (E5-shaped) rather than silently never publishing; the silent
+  degrade is founding-prime's alone.
 - **Rejected push to an ESTABLISHED remote** (branch PRESENT — non-ff, perms revoked mid-life, a
   server-hook reject): this is the opposite and is an **ERROR (E5)**. Your mutation did NOT land while
   you believe you are federated; silently degrading to stealth here is a split-brain (the local store
@@ -1225,17 +1235,25 @@ remote. Federating is two edits, both consented:
   it. It is NEVER read off the landing: the landing is local-only (§2 install-transport), founded by a
   bare `git init`, and carries no origin — reading origin there is meaningless. And like all
   remote-talk it is the **tracker's** job, not core's (§0): core resolves only the EXPLICIT tiers —
-  two tiers with different lifetimes, not one set: the per-op `--remote`/`--center` flag (argv,
-  ephemeral) over the XDG `task-remote` (per-machine config, durable) — and hands the tracker
-  `remote: None` when neither is
+  three tiers with different lifetimes, not one set: the per-op `--remote`/`--center` flag (argv,
+  ephemeral) over the landing `task_remote` (per-checkout POLICY — today only the stealth sentinel
+  `none`, where resolution STOPS; bl-9df0) over the XDG `task-remote` (per-machine config, durable) —
+  and hands the tracker
+  `remote: None` when none is
   set; the tracker then discovers `origin` from the invocation path as its single fallback, in ONE
   place all its handlers share (not re-probed per op). This is what makes "a fresh clone, `bl prime`,
   works out of the box" true without a flag.
 
 **ONE remote ladder, every op (bl-c2de).** The store remote resolves IDENTICALLY on every
 store-touching verb: `--remote`/`--center` (a PER-OP override, accepted by the deliverable verbs and
-`sync` exactly as by `prime`) > the XDG `task-remote` (per-machine, durable — `bl conf set
-task-remote`) > discovered `origin` (per-repo, durable, git-native). prime is not special — the old
+`sync` exactly as by `prime`) > the landing `task_remote` (per-checkout POLICY, durable — holds only
+the stealth sentinel `none`, "no remote, on purpose", where resolution STOPS; written by `bl conf set
+task-remote none` or its sugar `bl prime --stealth`, cleared by a durable URL set or an adopted
+config without it — bl-9df0; a URL there is REFUSED, a remote URL is per-machine and must not travel
+on `install`) > the XDG `task-remote` (per-machine, durable — `bl conf set
+task-remote <url>`) > discovered `origin` (per-repo, durable, git-native). Stealth is not a mode or a
+lock file: it is federation's zero case, a VALUE on this one ladder — "point it local and you are
+stealth" made durable. prime is not special — the old
 prime-only flags were the missing reframe (bl-d234): `--remote` shaped one invocation's binding and
 persisted NOTHING, while every other op resolved `XDG > origin` alone, so founding a satellite via
 `--remote` left no durable pointer and the next op silently went stealth — invisible, because
@@ -1249,9 +1267,11 @@ remote is a local config fact; *contacting* one stays the tracker's alone (§0),
 the dump shows is exactly the one the tracker will act on.
 
 **prime WARNS when its remote is ephemeral.** When prime founds/joins on an explicit
-`--remote`/`--center` that the durable ladder (XDG > `origin`) does not reproduce, the tracker warns
+`--remote`/`--center` that the durable ladder (landing > XDG > `origin`) does not reproduce, the
+tracker warns
 (W2): *"primed on `<hub>` via an explicit remote; the durable ladder (XDG > origin) resolves
-`<other>`/nothing — set `origin` or `bl conf set task-remote` to federate durably."* The same §12
+`<other>`/nothing/declared stealth — set `origin` or `bl conf set task-remote` to federate
+durably."* The same §12
 pattern as the non-default-store warning below — diagnostic, never authority — applied to the remote
 axis; it would have caught the bl-d234 failure live. A one-shot explicit remote over a deliberately
 stealth checkout may be exactly what you meant, so it warns and proceeds.
@@ -1603,6 +1623,44 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`stealth.lock` DELETED — stealth is a VALUE on the one §12 ladder, the per-checkout landing
+  `task_remote` sentinel `none`; consent withheld binds every op (2026-06-10, bl-9df0 —
+  post-freeze).** The bug: `bl prime --stealth` wrote a lock file NOTHING read back, so the very
+  next mutate op rebuilt a non-stealth binding, rediscovered `origin`, and its `*/post` push
+  implicitly founded `balls/tasks` there — the exact act the flag refuses. §12's "locks the store
+  local" was a statement about the CHECKOUT realized as a statement about one prime invocation. The
+  reframe: the lock had two writers and conflated two facts — a CONSENT ("this checkout declined to
+  publish", `--stealth`) and an OUTCOME ("the founding push was rejected", transient by §12's own
+  re-prime promise). Outcomes are derivable per op and must not be stored (§0 derive-don't-store);
+  the consent was the one non-derivable fact, stored nowhere readable. So: consent is config. The
+  §12 ladder gained its per-checkout rung — landing `task_remote`, legally holding only the sentinel
+  `none` ("no remote, on purpose"; resolution stops above `origin`) — and the lock is deleted, BOTH
+  writers. `bl prime --stealth` is sugar for `bl conf set task-remote none` (an explicit flag you
+  typed is the §4 "by you" path, on a founding seed and an established landing alike);
+  `checkout::bind` derives the binding's stealth bit from the resolved sentinel on EVERY op
+  (`mutate::seal_op`'s duplicate ladder — the bypass itself — was collapsed into the one bind);
+  the tracker's gate (`effective_remote`: stealth ⇒ no discovery) is unchanged. Consent given
+  supersedes withheld: per-op `--remote` outranks the sentinel for that op; `conf set task-remote
+  <url>` writes the per-machine XDG home AND clears the sentinel (leaving it would make the set
+  change nothing the ladder resolves — the bl-d234 trap inverted). The sentinel TRAVELS on `install`
+  (maintainer-confirmed): stealth is checkout policy like any other config — "unless you install a
+  remote configuration, you're never going to get one" — while remote URLs stay per-machine, and a
+  URL in the landing rung is REFUSED NAMED at the read authority (an adopted config silently
+  redirecting your store pushes is exactly the surprise the URLs-don't-travel rule prevents).
+  Consequences: the founding-miss persists nothing (an outcome re-derived per op — §12's "re-running
+  prime re-attempts" holds by construction), so a post-miss op's push fails LOUDLY instead of
+  silently never publishing (the silent degrade stays founding-prime's alone — maintainer-accepted);
+  `bl conf` shows declared stealth as `(none)`/`landing`, distinct from circumstantial
+  `(none)`/`stealth` (bl-d234 completed); W2's durable ladder includes the rung and names "declared
+  stealth". Rejected: (B) read the lock, gate the implicit tier — consent exiled to a side file
+  outside `conf`'s provenance, invented lifecycle, XDG-vs-checkout precedence by fiat; (C) two lock
+  states — persists the derivable outcome whose only consumer is its own expiry, plus everything
+  wrong with B. Touched §4 (conf table + provenance bullets), §12 (the opt-out, the ladder, the
+  founding-miss, the explicit tiers, W2), §15 (this entry). Code: `config::remote_ladder` (the one
+  resolution authority — core's whole explicit ladder), `landing_remote`, `STEALTH_REMOTE`;
+  `checkout::bind` (stealth derived, argv param gone); `conf` set-by-value routing + provenance;
+  `tracker/prime.rs` lock writers deleted; dialogue record in `docs/design/bl-9df0-stealth-lock.md`.
+  Tracked under bl-72a8.
 - **`install --to <center>` (the publish direction) DISSOLVES — install is purely local in core;
   `--to` names this checkout's local checkouts, transport is the tracker's, and the refusal of any
   other target is architecture, permanent (2026-06-09, bl-b8d6 — post-freeze; resolves the leg

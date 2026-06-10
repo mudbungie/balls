@@ -71,7 +71,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     if !landing.join("config").is_dir() {
         return Err(io::Error::other("no balls checkout here — run `bl prime` first"));
     }
-    let (binding, level) = checkout::bind(edge, &landing, &store, None, None, false)?;
+    let (binding, level) = checkout::bind(edge, &landing, &store, None, None)?;
     let to_landing = opts.to == LANDING_BRANCH;
     if !to_landing && opts.to != binding.tasks_branch {
         return Err(io::Error::other(format!(

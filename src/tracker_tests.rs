@@ -3,7 +3,6 @@
 //! effective-remote resolution (explicit binding > discovered project origin).
 
 use super::*;
-use std::path::Path;
 use tempfile::TempDir;
 
 fn env() -> (TempDir, Env) {
@@ -78,10 +77,23 @@ fn install_pre_dispatches_to_the_config_fetch() {
 
 #[test]
 fn prime_pre_dispatches_to_the_prime_handler() {
-    let (_tmp, env) = env();
-    assert_eq!(invoke("prime", "pre", &stealth(), &env), 0);
-    let lock = env.xdg.clone_dir(Path::new("/p")).root().join("stealth.lock");
-    assert!(lock.is_file()); // proof the prime handler, not a no-op, ran
+    // A tracked prime/pre CLONES IN the established remote store branch —
+    // proof the (prime, pre) arm reaches prime::prime, not the catch-all no-op
+    // (the old proof, the stealth self-lock, was deleted by bl-9df0).
+    let (tmp, env) = env();
+    let remote = super::fixtures::remote_with_branch(tmp.path());
+    let landing = super::fixtures::landing_repo(tmp.path());
+    let payload = format!(
+        r#"{{"binding":{{"remote":"{}","tasks_branch":"{}","store":"/nope","landing":"{}","invocation_path":"/p"}}}}"#,
+        remote.display(),
+        super::fixtures::BRANCH,
+        landing.display(),
+    );
+    assert_eq!(invoke("prime", "pre", &payload, &env), 0);
+    assert_eq!(
+        super::fixtures::tip(&landing, super::fixtures::BRANCH),
+        super::fixtures::tip(&remote, super::fixtures::BRANCH)
+    );
 }
 
 #[test]
@@ -160,11 +172,13 @@ fn effective_remote_prefers_explicit_then_discovers_the_project_origin() {
 }
 
 #[test]
-fn an_explicit_stealth_prime_locks_local_and_founds_nothing_on_origin() {
-    // §12 `bl prime --stealth`: the binding's `stealth` forces the same path the
-    // inferred no-remote case takes, even though the project's `origin` IS
-    // discoverable — `prime/pre` writes the self-lock, `prime/post` founds and
-    // pushes NOTHING.
+fn a_declared_stealth_binding_founds_nothing_on_a_discoverable_origin() {
+    // §12/bl-9df0: a binding carrying `stealth` (core derived the landing
+    // sentinel) forces the same path the inferred no-remote case takes, even
+    // though the project's `origin` IS discoverable — `prime/pre` warns and
+    // persists nothing, `prime/post` founds and pushes NOTHING. This is the
+    // gate EVERY op's `*/post` push shares, so a post-stealth mutate can no
+    // longer rediscover origin and found the store (the bl-9df0 bug).
     let (tmp, env) = env();
     let remote = super::fixtures::empty_remote(tmp.path());
     let store = super::fixtures::local_unpushed(tmp.path());
@@ -179,9 +193,8 @@ fn an_explicit_stealth_prime_locks_local_and_founds_nothing_on_origin() {
         proj.display(),
     );
     assert_eq!(invoke("prime", "pre", &payload, &env), 0);
-    let lock = env.xdg.clone_dir(&proj).root().join("stealth.lock");
-    assert!(lock.is_file()); // the self-lock — the store is locked local
     assert_eq!(invoke("prime", "post", &payload, &env), 0);
+    assert_eq!(invoke("create", "post", &payload, &env), 0); // a mutate op's publish
     // The origin still carries no store branch: nothing was founded or pushed.
     assert!(super::git::git(&remote, &["rev-parse", super::fixtures::BRANCH]).is_err());
 }

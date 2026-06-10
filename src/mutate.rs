@@ -21,13 +21,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
 use crate::checkout;
-use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::git::Git;
 use crate::hooks::Hooks;
 use crate::id::IdScheme;
 use crate::lifecycle::{BaseChange, Engine};
-use crate::log::{self, Level, Log};
+use crate::log::{self, Log};
 use crate::plugin::Subprocess;
 use crate::registry::Registry;
 use crate::task::Task;
@@ -102,15 +101,13 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
     primed(&landing)?;
-    let cfg = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?;
-    let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
+    // The ONE §12 ladder, identical on every op (bl-c2de): `checkout::bind` IS
+    // the resolution point — per-op `--remote`/`--center`, the landing stealth
+    // sentinel, the XDG `task-remote` (§0 stays local; the tracker discovers
+    // `origin` beneath). A second ladder here is exactly how the bl-9df0
+    // stealth bypass happened; there is one bind, shared with the checkout verbs.
+    let (binding, level) = checkout::bind(edge, &landing, &store, op.remote.clone(), None)?;
     let log = Log::new(clone.op_log(), level, verb, log::wall);
-    // The ONE §12 ladder, identical on every op (bl-c2de): the per-op
-    // `--remote`/`--center` override, else the XDG `task-remote` — both explicit
-    // config reads (§0 stays local); the tracker discovers the project `origin`
-    // when it is `None` (the bottom tier — remote-talk, the tracker's alone).
-    let remote = op.remote.clone().or_else(|| crate::config::xdg_remote(&edge.xdg.user_config()));
-    let binding = checkout::binding(&landing, &store, &edge.invocation_path, remote, cfg.tasks_branch);
     let ctx = OpContext {
         actor: op.actor.clone(),
         binding,

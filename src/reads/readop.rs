@@ -48,8 +48,10 @@ pub(crate) fn fold(edge: &Edge, store: &Path, verb: Verb, id: Option<&str>, cfg:
     if refs.is_empty() {
         return String::new();
     }
-    let remote = config::xdg_remote(&edge.xdg.user_config());
-    let binding = checkout::binding(&landing, store, &edge.invocation_path, remote, cfg.tasks_branch.clone());
+    // The same §12 ladder as every op (best-effort here — a read renders even
+    // over a poisoned landing value, it just binds no remote).
+    let (remote, stealth) = config::remote_ladder(None, &landing, &edge.xdg.user_config()).unwrap_or((None, false));
+    let binding = checkout::binding(&landing, store, &edge.invocation_path, remote, stealth, cfg.tasks_branch.clone());
     let ctx = OpContext { actor: edge.default_actor.clone(), binding, command: None, before: None };
     let metadata = id.map_or_else(Metadata::new, |id| Metadata::from([("bl-id".to_string(), vec![id.to_string()])]));
 

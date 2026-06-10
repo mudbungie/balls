@@ -110,6 +110,13 @@ fn task_remote_reads_the_durable_ladder_and_shows_stealth() {
     // The XDG `task-remote` outranks origin.
     user_file(&e, "config.toml", "remote = \"git@hub:x\"\n");
     assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:x".into(), "xdg".into()));
+    // A landing sentinel outranks both: DECLARED stealth, distinct from the
+    // nothing-set readout above (bl-9df0 — three no-remote provenances).
+    let balls_toml = clone.landing().join("config").join("balls.toml");
+    let mut body = fs::read_to_string(&balls_toml).unwrap_or_default();
+    body.push_str("task_remote = \"none\"\n");
+    fs::write(&balls_toml, body).unwrap();
+    assert_eq!(res(&e, &clone, "task-remote"), ("(none)".into(), "landing".into()));
 }
 
 #[test]

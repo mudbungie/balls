@@ -107,7 +107,7 @@ fn sync_targets_the_store_and_special_cases_no_branch_name() {
     sync(&e, &argv(&["work/bl-1234", "--as", "me"])).unwrap(); // a named target
     sync(&e, &argv(&[crate::LANDING_BRANCH])).unwrap(); // the landing, by its real name
     let (l, s) = (landing(&e), store(&e));
-    let (b, _) = bind(&e, &l, &s, None, Some(crate::LANDING_BRANCH.into()), false).unwrap();
+    let (b, _) = bind(&e, &l, &s, None, Some(crate::LANDING_BRANCH.into())).unwrap();
     assert_eq!(b.tasks_branch, crate::LANDING_BRANCH); // rides the binding untouched
 }
 
@@ -119,8 +119,8 @@ fn a_named_sync_branch_overrides_the_config_tasks_branch_in_the_binding() {
     let (l, s) = (landing(&e), store(&e));
     // No target ⇒ the config-named store branch; a target ⇒ that branch, which
     // is the one datum the tracker fetches/ff's (§13 `bl sync <branch>`).
-    let (default_b, _) = bind(&e, &l, &s, None, None, false).unwrap();
-    let (named_b, _) = bind(&e, &l, &s, None, Some("federation/shared".into()), false).unwrap();
+    let (default_b, _) = bind(&e, &l, &s, None, None).unwrap();
+    let (named_b, _) = bind(&e, &l, &s, None, Some("federation/shared".into())).unwrap();
     assert_eq!(named_b.tasks_branch, "federation/shared");
     assert_ne!(default_b.tasks_branch, named_b.tasks_branch);
 }
@@ -163,23 +163,30 @@ fn prime_rejects_stealth_combined_with_any_remote_naming_flag() {
 }
 
 #[test]
-fn a_stealth_prime_binds_no_remote_outranking_even_the_xdg_one() {
-    // §12 `bl prime --stealth`: the binding carries `stealth` and NO remote.
-    // The CLI layer outranks config (§4), so the per-machine XDG `remote` —
-    // the one remote tier the parse cannot forbid — is dropped too.
+fn a_stealth_prime_writes_the_landing_sentinel_that_binds_every_later_op() {
+    // §12/bl-9df0: `--stealth` is a DURABLE config act — sugar for `conf set
+    // task-remote none` — never a per-invocation flag. The sentinel outranks
+    // even the per-machine XDG `remote` (the one remote tier the parse cannot
+    // forbid) on EVERY later bind, and a later `--stealth` prime on an
+    // ESTABLISHED landing is the same §4 "by you" write.
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
-    prime(&e, &argv(&["--stealth", "--as", "me"])).unwrap(); // the full verb runs
+    prime(&e, &argv(&["--as", "me"])).unwrap();
     let user_config = e.xdg.user_config();
     std::fs::create_dir_all(user_config.parent().unwrap()).unwrap();
     std::fs::write(&user_config, "remote = \"git@hub:r\"\n").unwrap();
     let (l, s) = (landing(&e), store(&e));
-    let (tracked, _) = bind(&e, &l, &s, None, None, false).unwrap();
+    let (tracked, _) = bind(&e, &l, &s, None, None).unwrap();
     assert_eq!(tracked.remote.as_deref(), Some("git@hub:r")); // XDG tier resolves
     assert!(!tracked.stealth);
-    let (stealth, _) = bind(&e, &l, &s, None, None, true).unwrap();
-    assert_eq!(stealth.remote, None); // --stealth drops it
+    prime(&e, &argv(&["--stealth", "--as", "me"])).unwrap(); // the established-landing write
+    let (stealth, _) = bind(&e, &l, &s, None, None).unwrap(); // a PLAIN later bind
+    assert_eq!(stealth.remote, None); // the sentinel stops resolution above origin
     assert!(stealth.stealth);
+    // Consent given supersedes withheld — for that one op (the per-op tier).
+    let (overridden, _) = bind(&e, &l, &s, Some("git@hub:x".into()), None).unwrap();
+    assert_eq!(overridden.remote.as_deref(), Some("git@hub:x"));
+    assert!(!overridden.stealth);
 }
 
 #[test]
