@@ -85,7 +85,9 @@ configured remote (the store is local-only).
 
 ```
 $XDG_CONFIG_HOME/balls/
-  config.toml                          # user-level config layer (§4)
+  config.toml                          # user-level config layer (§4) — scalar fields (remote, …)
+  plugins.toml                         # user-level [hooks] layer (§4/§6): the machine-local schedule
+                                       #   overlay, a sibling FILE mirroring the landing's plugins.toml
   default-config/                      # the SEED: prime copies this into a fresh landing (§12).
                                        #   install-default wires tracker + delivery + builtin plugins,
                                        #   so they are ordinary entries in the landing list — no
@@ -94,19 +96,20 @@ $XDG_CONFIG_HOME/balls/
 
 $XDG_STATE_HOME/balls/
   plugins/<name>/<plugin-territory>/   # each plugin owns one subtree
-    tracker/<pct-enc-remote>/          #   tracker: a clone tracking the store branch (.git/ tasks/)
     <delivery>/<local-path>/<id>/      #   delivery: the code worktree for task <id> (see §11).
                                        #     MIRRORS the invocation path (leading / stripped), NOT
                                        #     percent-encoded: this is a cargo build dir and rust-lld
                                        #     cannot write an output file under a `%` ancestor (bl-f3e4).
+                                       #   (the tracker keeps NO territory: it fetch/pushes by URL
+                                       #    from the clone bundle's own repo — see below)
 
-  clones/<pct-enc-local-path>/         # per-invocation-path binding
-    binding.toml                       #   tracker remote (if any) + invocation_path + tasks_branch
+  clones/<pct-enc-local-path>/         # one bundle per invocation path
     config/                            #   the LANDING — balls/config checkout (real, path-derived)
-    tasks/                             #   the STORE — tasks_branch checkout; local (stealth) or a
-                                       #     worktree tracking tracker/<remote>/ when remote-backed
+    tasks/                             #   the STORE — tasks_branch checkout; the branch is local
+                                       #     (stealth) or fetched/pushed against the remote BY URL
     changes/<uuid>/                    #   in-flight CHANGE worktrees (core, ephemeral, one per op)
     log                                #   the unified op log: JSON-lines, balls-owned (§4/§6)
+    stealth.lock                       #   tracker-written marker of a no-remote prime (§12 self-lock)
 ```
 
 - URLs and paths are **percent-encoded, never hashed**, so directory names stay inspectable. The
@@ -114,7 +117,7 @@ $XDG_STATE_HOME/balls/
   invocation path verbatim: it is a cargo build dir and `rust-lld` cannot open an output file whose
   path contains a `%` (bl-f3e4). Mirroring is no less inspectable (§1's goal is *readable*, not
   *encoded*) and is always a valid path, since the invocation path already is one. Encoding is kept
-  everywhere git data lives (clones, tracker), where nothing compiles and `%` is inert.
+  everywhere git data lives (the clone bundles), where nothing compiles and `%` is inert.
 - `config/` and `tasks/` are SEPARATE checkouts of the two branches. There is NO `operating/` symlink
   and no terminus to resolve: config is read from `config/`, tasks from `tasks/` (named by
   `tasks_branch`, §4). `tasks_branch` may NOT name the landing: the two checkouts are worktrees of
@@ -124,12 +127,18 @@ $XDG_STATE_HOME/balls/
   STORE for task ops and off the landing for `config`/`install` ops (§8). It is distinct from the
   delivery plugin's CODE worktree (§11), which lives in plugin territory and checks out the *project*
   repo.
-- Two clones sharing one store remote share one `plugins/tracker/<remote>/` dir.
+- There is NO shared tracker clone: the tracker keeps no on-disk territory of its own. Each clone
+  bundle's one local repo holds the fetched store branch, and the tracker fetches/pushes it against
+  the remote BY URL (§12/§13). Two clones sharing one store remote therefore hold two independent
+  local copies of the store branch, converged through the remote, not through a shared directory.
 - **`log` is ONE unified per-clone op log** (not a per-plugin or per-op-phase tree): JSON-lines, one
-  object per line `{ts, lvl, src, op, phase, msg}` with `src ∈ {core, <plugin>}`. balls owns the
+  object per line `{ts, lvl, src, op, phase, msg}` with `src ∈ {core, <plugin>}`. `phase` is carried
+  only on per-plugin lines (`invoke`, enveloped plugin stderr, the §6 non-zero-exit `error` record);
+  an op-level core line (`begin`/`seal`/`done`/`abort`) has no phase, and the key is OMITTED there —
+  absent, not `null`. balls owns the
   format — the source is a stamped FIELD, so you grep one source or read the whole sequence; metrics
-  (§6) compose over it. It is local runtime state, gitignored, never on a committed branch (like
-  `binding.toml`) — which the §4 "landing cannot be published" rule makes doubly correct. One object
+  (§6) compose over it. It is local runtime state, gitignored, never on a committed
+  branch — which the §4 "landing cannot be published" rule makes doubly correct. One object
   per line keeps concurrent appends from parallel agents atomic — every line is held at or below
   `PIPE_BUF` (4096 bytes) so a single `O_APPEND` write never interleaves with another agent's, and the
   one unbounded field (the §6 enveloped plugin-stderr `msg`) is truncated with a `…[truncated]` marker
@@ -308,7 +317,14 @@ silently redirect where you write — config is not as inert as "data, not code"
 bare `<field>` = full replacement; compose with `<field>_prepend` / `<field>_append` / `<field>_ban`.
 The `[hooks]` lists in `config/plugins.toml` (§6) ARE list fields, layered the same way — a landing's
 schedule composes with an XDG `_prepend`/`_append`/`_ban`, and `bl install` copies the file like any
-other config (never inherited down a trail — there is none, §12). An absent/empty hook list = run nothing.
+other config (never inherited down a trail — there is none, §12). An absent/empty hook list = run
+nothing. **The XDG `[hooks]` layer mirrors the file split, not just the table:** the machine-local
+overlay lives in a SIBLING `$XDG_CONFIG_HOME/balls/plugins.toml` (§1) — `[hooks]` next to `[hooks]`,
+exactly as the landing splits the schedule out of `balls.toml` — and a `[hooks]` table written into
+the XDG `config.toml` is NOT read (balls reads only scalar fields there). The overlay is
+DISPATCH-only: it composes into the effective schedule an op resolves, but the seed's prune and
+`install`'s binding read the committed landing schedule alone — a machine-local overlay must not
+redirect what gets seeded or bound.
 
 **The landing is single-owner — and balls cannot publish it.** Config's transport is a path-copy
 mirror (§6 install), which has NO cross-writer merge, so two writers to one config branch clobber.
@@ -327,9 +343,12 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   landing branch itself is path-derived (`balls/config`), NOT a config field (bootstrap fixed point).
 - `log_level` (string, default `"info"`) — the single threshold for the unified op log (§1/§6),
   applied at WRITE time so it gates BOTH file persistence and terminal echo (a line below threshold is
-  never emitted anywhere). A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
-  entry and NOT a "run-time default" carve-out: the seed is for capability *sets* (the plugin chain),
-  the layer-4 serde fallback is exactly "for a field no layer set." Read order is the normal §4 stack,
+  never emitted anywhere). A serde-default scalar like `tasks_branch` — and like `tasks_branch` the
+  shipped seed `balls.toml` SPELLS IT OUT (`log_level = "info"`), as an ordinary committed landing
+  entry: the seed file documents the standard values rather than introducing them (every field has a
+  layer-4 serde fallback beneath it), so a landing seeded from it reads these values from layer 3,
+  and a hand-built landing that omits them falls through to the identical serde default — NOT a
+  "run-time default" carve-out either way. Read order is the normal §4 stack,
   so `--log-level` (layer 1) overrides for one run. Default mapping: core narrates mutating-op
   lifecycle at `info` and read-op narration (`show`/`list`) at `debug`, so default-`info`
   keeps read chatter out of the log; plugin-enveloped stderr is `info`.
@@ -502,6 +521,7 @@ a list property, not an `NN-` filename convention faking one.
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
 "create.post"  = ["tracker"]
 "update.post"  = ["tracker"]
+"import.post"  = ["tracker"]                  # imported records sync like any mutate (§16)
 ```
 
 Schedule (committed text) and binary (local symlink) split cleanly:
@@ -586,11 +606,19 @@ channel (forwarded verbatim, parsed never); diagnostics are stderr (§6). Two
 plugins writing the same field is two filesystem writes — last writer wins, where "last" is the
 hook-list order; balls neither arbitrates nor tracks ownership.
 
+**Optional wire fields are ABSENT, never `null`:** a field with nothing to say (no `remote`, no
+`current_state` on create, no `command` on a diffless op) is realized as a missing key — a plugin
+tests presence, not null.
+
 **pre payload (stdin):** `protocol`, `op`/`phase`, `plugin_name`, `actor`, `binding`
-(`{ remote, tasks_branch, store, landing, invocation_path }` — `store`/`landing` are the two checkout
-paths (§1), `tasks_branch` names the store branch (§4), `invocation_path` is where `bl` was invoked,
-the project-repo root the delivery plugin needs, §11), `command` (`op` + intended `body_change`),
-`current_state` (`null` on create). There is **no wire-carried field changeset**: the op's field-level
+(`{ remote?, stealth?, tasks_branch, store, landing, invocation_path }` — `store`/`landing` are the two
+checkout paths (§1), `tasks_branch` names the store branch (§4), `invocation_path` is where `bl` was
+invoked, the project-repo root the delivery plugin needs, §11; `remote` is carried ONLY when an
+explicit tier set it — per-op `--remote`/`--center` or the XDG `task-remote` — and is ABSENT on the
+common origin-tier repo: core resolves no implicit remote (§0), so discovering the project `origin`
+is the tracker's own bottom-tier read (§12), never a wire fact; `stealth` is `bl prime --stealth`'s
+explicit §12 opt-out, serialized only when true), `command` (`op` + intended `body_change`),
+`current_state` (absent on create). There is **no wire-carried field changeset**: the op's field-level
 diff has one authoritative home — the change worktree plus the op-start state to diff against — and a
 plugin reads it there, never from a second wire description (derive-don't-store, §14; bl-3bfd, §15).
 The id is NOT on the pre wire (it is not sealed
@@ -598,7 +626,7 @@ yet — a reassigning plugin reads it from the single staged `tasks/*.md`).
 
 **post payload (stdin):** same plus `commit`/`previous_commit`, the final `command`, `metadata`
 (parsed from the §5 trailer block, incl. the now-sealed `bl-id`), and `previous_state` (the op-start
-ball — what `pre` saw as `current_state`; `null` on create). There is **no post `current_state`**: a
+ball — what `pre` saw as `current_state`; absent on create). There is **no post `current_state`**: a
 `post` reactor MUST NOT mutate the sealed ball (§14) and derives the LANDED ball from git — the
 `commit` it is handed plus `git show` — never the wire (derive-don't-store, §14; bl-667e, §15). So the
 after-state is a read, not a payload field; `current_state` exists on the `pre` wire alone.
@@ -1284,8 +1312,9 @@ never does, so a center can never make your box run a binary you didn't opt into
 SEAM: core reads config from the landing and reads/writes tasks on `tasks_branch` (knows nothing of
 remotes — stealth = a local `tasks_branch`, identical code); the tracker translates remote↔local for
 the STORE branch only (fetches the configured remote into the §1 layout, keeps the store synced). The
-physical realization is §1 (`config/` and `tasks/` are two checkouts; the store checkout tracks
-`plugins/tracker/<remote>/` when remote-backed, a local branch in stealth — no `operating/` symlink);
+physical realization is §1 (`config/` and `tasks/` are two checkouts of the clone bundle's one local
+repo; the tracker fetch/pushes the store branch against the remote BY URL — no tracker-owned clone,
+no `operating/` symlink; in stealth the branch is simply local);
 `bl sync`/`prime` verb mechanics + contention are §13.
 
 Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store remote resolved
@@ -1412,7 +1441,8 @@ converging predicate.
 - **argv:** `<op> <phase>` (`sync|prime` / `pre|post`). **env:** `BALLS_PROTOCOL=1`,
   `BALLS_PLUGIN_NAME`, `BALLS_PLUGIN_DEPTH` (the §6 set). **cwd:** the store checkout (`tasks/`).
 - **pre stdin:** `{ protocol, op, phase, plugin_name, actor, binding }`. `binding =
-  { remote, tasks_branch, store, landing, invocation_path }` is the load-bearing payload — exactly
+  { remote?, stealth?, tasks_branch, store, landing, invocation_path }` (the §7 shape — `remote` only
+  when an explicit tier set it) is the load-bearing payload — exactly
   what a fetcher needs (`remote` + `tasks_branch` + the `store` checkout path). **Absent:** `command`
   (nothing is authored — no `body_change`) and `current_state`/`previous_state`
   (sync/prime are not per-task transitions).
