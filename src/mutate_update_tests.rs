@@ -1,9 +1,11 @@
 //! §9 `update` front-door dispatch tests — every ball field is overwriteable
 //! (title/body/parent/priority/tags/extras and the task's own blockers), the
-//! set/clear flag pairs, and the create-only `--blocks` + contradiction guards.
-//! Shares the parent module's `flags`/`write`/`TASK` fixtures via [`super`].
+//! set/clear flag pairs, the create-only `--blocks` + contradiction guards,
+//! and the post-hoc live-target refusal (bl-6b8c). Shares the parent module's
+//! `flags`/`write`/`TASK` fixtures via [`super`].
 
 use super::*;
+use crate::reads::test_support::{git_store, task};
 
 #[test]
 fn update_builds_extras_priority_and_tags() {
@@ -185,16 +187,36 @@ fn update_adds_and_drops_its_own_blockers() {
         ..Task::default()
     };
     write_task(dir, "bl-1", &before).unwrap();
+    write(dir, "bl-new", TASK); // an added edge's target must be live (bl-6b8c)
     let mut f = flags();
     f.positionals = vec!["bl-1".into()];
     f.needs = vec!["bl-new:close".into()]; // add a post-hoc gate
-    f.no_needs = vec!["bl-old".into(), "bl-z:claim".into()]; // unlink: bare id + tolerant id:op form
+    // Unlink: bare id + tolerant id:op form. Neither target is live — the
+    // remove direction is the dangling-edge REMEDY, never refused (bl-6b8c).
+    f.no_needs = vec!["bl-old".into(), "bl-z:claim".into()];
     let (base, _) = base_change(Verb::Update, dir, &f, 3).unwrap();
     base.stage(dir).unwrap();
     let t = read_task(dir, "bl-1").unwrap();
     // bl-old dropped, bl-new added; the bl-z drop is a harmless no-op.
     assert_eq!(t.blockers, vec![Blocker { id: "bl-new".into(), on: On::Close }]);
     assert_eq!(t.updated, 3);
+}
+
+#[test]
+fn update_refuses_a_non_live_needs_target() {
+    // bl-6b8c: a post-hoc `--needs` validates exactly like create's — refused
+    // naming the id and its fate (unknown vs already closed). `--no-needs`
+    // and `--edit` stay free: the unlink and the hand-stitch escape hatch.
+    let s = git_store();
+    s.create("bl-1", &task("A", 1), 1);
+    s.create("bl-dead", &task("D", 2), 2).retire("bl-dead", "close", 3);
+    for (target, fate) in [("bl-nope", "'bl-nope' is not a known id"), ("bl-dead", "'bl-dead' is already closed")] {
+        let mut f = flags();
+        f.positionals = vec!["bl-1".into()];
+        f.needs = vec![target.into()];
+        let err = base_change(Verb::Update, s.dir(), &f, 0).err().unwrap();
+        assert!(err.to_string().contains(fate), "{target}: {err}");
+    }
 }
 
 #[test]

@@ -40,6 +40,7 @@ mod record;
 mod show;
 
 pub(crate) use flags::parse;
+pub(crate) use history::resolve_dead;
 pub(crate) use record::{json_line, on_word, status_word, task_json};
 
 #[cfg(test)]

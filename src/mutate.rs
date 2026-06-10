@@ -154,6 +154,13 @@ fn base_change(
             let title = one_positional(flags, "create")?;
             // `--subtask-of` folds into the parent + a close-gate edge (§10).
             let parent = build::effective_parent(flags)?;
+            let blockers = build::needs_blockers(flags)?;
+            let blocks = build::blocks_edges(flags, parent.as_deref())?;
+            build::require_live(
+                store,
+                verb,
+                blockers.iter().map(|b| b.id.as_str()).chain(blocks.iter().map(|(id, _)| id.as_str())),
+            )?;
             let base = Create {
                 id: IdScheme::default().generate(),
                 actor,
@@ -162,8 +169,8 @@ fn base_change(
                 parent: parent.clone(),
                 priority: flags.priority,
                 tags: flags.tags.clone(),
-                blockers: build::needs_blockers(flags)?,
-                blocks: build::blocks_edges(flags, parent.as_deref())?,
+                blockers,
+                blocks,
                 body: flags.body.clone(),
                 message: flags.message.clone(),
                 existing: task_ids(store)?,
@@ -196,6 +203,17 @@ fn base_change(
             } else {
                 build::edits(positionals, flags)?
             };
+            // Only the flag-minted edges are validated (§10, bl-6b8c): `--edit`'s
+            // whole-buffer Replace is the blessed hand-stitch escape hatch, and a
+            // RemoveBlocker unlink is the dangling-edge remedy — never refused.
+            build::require_live(
+                store,
+                verb,
+                edits.iter().filter_map(|e| match e {
+                    FieldEdit::AddBlocker(b) => Some(b.id.as_str()),
+                    _ => None,
+                }),
+            )?;
             let base = Update { id, actor, now, edits, message: flags.message.clone() };
             Ok(Some((Box::new(base), Some(before))))
         }
