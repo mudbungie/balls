@@ -1,7 +1,8 @@
 +++
 title = "skill note: non-bare delivery leaves the project working tree stale (add -A footgun)"
 created = 1781067253
-updated = 1781067253
+updated = 1781068988
+claimant = "Rebut"
 parent = "bl-72a8"
 priority = 3
 tags = ["docs"]
