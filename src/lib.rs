@@ -205,7 +205,10 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         Verb::Show | Verb::List => reads::run(edge, verb, &rest[1..]),
         // `import` is the write inverse of the bedrock read (§16): records ride
         // stdin, so the host stream is bound here at the edge and injected.
-        Verb::Import => import::run(edge, &mut std::io::stdin().lock(), &rest[1..]),
+        // UNLOCKED (`Stdin` locks per read): the `--legacy` edge pass re-enters
+        // stdin via `mutate::run`'s editor seam, and the std stdin mutex is not
+        // reentrant — a lock held across the verb self-deadlocks (bl-0a80).
+        Verb::Import => import::run(edge, &mut std::io::stdin(), &rest[1..]),
         Verb::Install => install::run(edge, &rest[1..]),
         Verb::Conf => conf::run(edge, &rest[1..]),
         // Everything left is a deliverable verb (§9); mutate's own dispatch
