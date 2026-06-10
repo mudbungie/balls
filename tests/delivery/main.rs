@@ -2,6 +2,11 @@
 //! drive a full claim→work→close lifecycle by subprocess, exactly as balls'
 //! `plugin::Subprocess` would — §7 payload on stdin, §6 env, `<op> <phase>`
 //! argv. The git all happens on throwaway repos in a temp dir.
+//!
+//! The `prime` re-materialization scenarios live in the [`prime`] sibling
+//! module — same crate, same harness, split for the 300-line cap.
+
+mod prime;
 
 use std::fs;
 use std::path::Path;
@@ -74,17 +79,6 @@ fn change_dir(tmp: &Path, name: &str) -> std::path::PathBuf {
     change
 }
 
-/// Write a `tasks/<id>.md` ball with `claimant` into the store checkout `store`.
-fn claimed_ball(store: &Path, id: &str, claimant: &str) {
-    let tasks = store.join("tasks");
-    fs::create_dir_all(&tasks).unwrap();
-    fs::write(
-        tasks.join(format!("{id}.md")),
-        format!("+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\nclaimant = \"{claimant}\"\n+++\n"),
-    )
-    .unwrap();
-}
-
 #[test]
 fn show_read_prints_the_worktree_field_line_only_once_materialized() {
     // §6 read dispatch (bl-0af4): nothing is stored — the plugin recomputes the
@@ -123,39 +117,6 @@ fn protocol_self_describes_without_env_or_stdin() {
         .assert()
         .success()
         .stdout(contains(r#""ops":["claim","unclaim","close","prime","show"]"#));
-}
-
-#[test]
-fn prime_re_materializes_only_the_actors_still_claimed_worktrees() {
-    let tmp = TempDir::new().unwrap();
-    let home = tmp.path().join("home");
-    fs::create_dir_all(&home).unwrap();
-    let root = project(tmp.path());
-    let inv = root.to_str().unwrap();
-    // balls invokes the plugin with cwd at the store checkout (§13 diffless), so
-    // prime scans the store from the cwd, not a wire field.
-    let store = tmp.path().join("store");
-    claimed_ball(&store, "bl-mine", "me");
-    claimed_ball(&store, "bl-theirs", "you"); // another actor — left alone
-
-    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
-    let mine = worktree_path(&xdg, "delivery", inv, "bl-mine");
-    let theirs = worktree_path(&xdg, "delivery", inv, "bl-theirs");
-
-    // The path of each re-materialized worktree prints — the resume-session
-    // counterpart of claim.post's print (§11) — and only mine.
-    delivery(&store, &home, "prime", "post", &prime("me", inv))
-        .assert()
-        .success()
-        .stdout(format!("{}\n", mine.display()));
-
-    assert!(mine.join("seed.txt").exists()); // my claim re-materialized
-    assert!(!theirs.exists()); // a different actor's claim is not mine to make
-
-    // Idempotent: a second prime over the same set converges to a no-op (the
-    // path still prints — prime re-surfaces it every session).
-    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success().stdout(format!("{}\n", mine.display()));
-    assert!(mine.join("seed.txt").exists());
 }
 
 #[test]
