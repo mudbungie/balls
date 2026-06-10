@@ -1,7 +1,8 @@
 +++
 title = "Pure-note no-op seal silently drops the -m narration — fail loudly instead"
 created = 1781058454
-updated = 1781058454
+updated = 1781058459
+claimant = "Parasol"
 priority = 2
 +++
 A zero-edit `bl update <id> -m NOTE` relies on the `updated` restamp (seconds granularity) to produce a diff. When the ball's last write landed in the same wall-clock second, the §8 seal converges on the existing tip (the no-op seal), no commit is created, and the -m narration — the entire payload of a notes-via--m update — vanishes while the verb still prints its `update <id>` confirmation.
