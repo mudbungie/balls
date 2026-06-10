@@ -83,6 +83,23 @@ fn a_layer_read_error_other_than_absence_propagates() {
 }
 
 #[test]
+fn a_tasks_branch_naming_the_landing_is_refused_by_name() {
+    // §2/§4 (bl-ac89): one branch cannot back two checkouts of one repo, and the
+    // landing is single-owner — never a store. The read authority refuses the
+    // coincident name NAMED, whichever layer carries it, so a seeded or
+    // hand-edited poison fails on every op instead of wedging prime on a git fatal.
+    let tmp = TempDir::new().unwrap();
+    let land = landing(&tmp, "landing", "tasks_branch = \"balls/config\"\n");
+    let err = EffectiveConfig::resolve(&land, &bare(&tmp, "absent.toml")).unwrap_err();
+    assert!(err.to_string().contains("names the landing"), "{err}");
+    // The user layer is the same one check — it wins the merge, then is refused.
+    let user = tmp.path().join("user.toml");
+    fs::write(&user, "tasks_branch = \"balls/config\"\n").unwrap();
+    let err = EffectiveConfig::resolve(&bare(&tmp, "clean"), &user).unwrap_err();
+    assert!(err.to_string().contains("names the landing"), "{err}");
+}
+
+#[test]
 fn a_value_that_clashes_with_the_typed_schema_does_not_resolve() {
     let tmp = TempDir::new().unwrap();
     // `tasks_branch` typed as a string, given an array — projection fails.
