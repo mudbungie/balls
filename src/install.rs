@@ -257,6 +257,13 @@ pub fn resolve_and_bind(
     Ok(())
 }
 
+/// The §8 run-wiring (`bl install` end to end) lives in a sibling module; this
+/// layer stays the pure, git-free path-copy it is unit-tested as.
+#[path = "install_run.rs"]
+mod wiring;
+pub use wiring::run;
+pub(crate) use wiring::{bind_referenced, seal_copy, Chain};
+
 #[cfg(test)]
 #[path = "install_tests.rs"]
 mod tests;

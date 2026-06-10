@@ -25,7 +25,11 @@ pub trait Anvil {
     /// (§8.1) Make the change worktree at `dir`, detached at the anvil tip.
     fn open(&self, dir: &Path) -> io::Result<()>;
     /// (§8.3) SEAL: commit everything in `dir` with `message`, then fast-forward
-    /// the anvil onto it — atomically. Returns the sealed commit sha.
+    /// the anvil onto it — atomically. Returns the sealed commit sha. A change
+    /// that stages NOTHING (the tree already equals the tip) seals to the
+    /// EXISTING tip — no empty commit, so a byte-identical re-run of an op
+    /// converges instead of erroring (§13 idempotence; `install` of identical
+    /// content is the canonical case).
     fn seal(&self, dir: &Path, message: &str) -> io::Result<String>;
     /// (§14 tier-1) Un-seal a post-abort: reset the anvil back to `sha`.
     fn unseal(&self, sha: &str) -> io::Result<()>;
@@ -88,6 +92,11 @@ impl Anvil for Git {
 
     fn seal(&self, dir: &Path, message: &str) -> io::Result<String> {
         run(dir, &["add", "-A"], None)?;
+        // Nothing staged (`diff --cached --quiet` exits 0) ⇒ the no-op seal:
+        // the op converges on the existing tip instead of an empty commit.
+        if run(dir, &["diff", "--cached", "--quiet"], None).is_ok() {
+            return self.head();
+        }
         run(dir, &["commit", "-F", "-"], Some(message))?;
         let sha = run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
         if let Err(e) = run(&self.checkout, &["merge", "--ff-only", &sha], None) {

@@ -80,6 +80,7 @@ Have the harness pick a name at session start and pass it as `--as` /
 |---------|-------------|
 | `bl prime [--as ID] [--remote URL] [--install URL]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold. Prints no listing of its own. Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
+| `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--to` the landing. Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |

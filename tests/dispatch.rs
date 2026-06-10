@@ -1,10 +1,9 @@
 //! End-to-end harness: build the `bl` binary and run it from a throwaway temp
 //! directory, never against the dev repo's own task list. The read verbs
-//! (`show`/`list`/`ready`/`dep-tree`, §9) render the store; the still-unwired
-//! diffless verb (`install`) reports its §8 op plan; the checkout-lifecycle
-//! verbs (`prime`/`sync`, §12/§13) and the deliverable verbs
-//! (`create`/`claim`/`close`, §9) run the real engine + the shipped `tracker`
-//! sibling end to end.
+//! (`show`/`list`/`ready`/`dep-tree`, §9) render the store; the
+//! checkout-lifecycle verbs (`prime`/`sync`/`install`, §6/§12/§13) and the
+//! deliverable verbs (`create`/`claim`/`close`, §9) run the real engine + the
+//! shipped `tracker` sibling end to end.
 
 use assert_cmd::Command;
 use predicates::prelude::PredicateBooleanExt;
@@ -41,14 +40,16 @@ fn stealth_lock(state: &Path, project: &Path) -> PathBuf {
 }
 
 #[test]
-fn an_unwired_diffless_verb_reports_its_op_plan() {
-    // install is not yet wired, so it still prints its §8 plan.
-    let workspace = TempDir::new().unwrap();
-    bl(&workspace)
-        .arg("install")
-        .assert()
-        .success()
-        .stdout(contains("install: pre -> post"));
+fn install_seals_a_path_copy_through_the_engine() {
+    // §6 standalone install with the real tracker on install.pre (stealth ⇒ no-op
+    // fetch): an identical copy converges, still printing the §6 change summary.
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    bl_primed(&project, &home, &state).arg("prime").assert().success();
+    bl_primed(&project, &home, &state)
+        .args(["install", "config", "--from", "balls/config", "--to", "balls/config"])
+        .assert().success().stdout(contains("install: ").and(contains("added")));
 }
 
 #[test]
