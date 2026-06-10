@@ -446,6 +446,18 @@ running the binary by hand with the same argv.
           `log_level` threshold (§4) even when the plugin's own info-level stderr is filtered out.
 ```
 
+**stdout's single-writer property is a DEFAULT-SCHEDULE guarantee, not a protocol invariant.** On
+the shipped schedule exactly one plugin per verb writes stdout (delivery on `claim`/`prime`/`show`;
+every other shipped plugin writes only stderr), so "stdout is the verb's one product" —
+`path=$(bl claim …)` — is reliable as shipped. The protocol itself enforces nothing: a third-party
+plugin's stdout is forwarded verbatim in hook-list order, and a schedule listing two stdout-writers
+on one verb gets both. Ergonomics won over §0's enforced-structurally bar here, deliberately — the
+forwarded human channel is load-bearing (§11) and a guard would cost the property it protects.
+RESERVED SEAM (unbuilt — no consumer yet, the bl-587f bar): if a machine consumer ever needs
+structure under a noisy schedule, the channel is enveloping plugin stdout per-line exactly as
+stderr already is — the §1 unified-log record shape (`{ts, lvl, src, op, phase, msg}`) behind an
+opt-in — never a new format.
+
 **Reads may dispatch plugins too.** Dispatch is op-uniform — there is no rule that only mutating ops
 invoke plugins. A READ op (`show`/`list`) carries no seal and no `pre`/`post` split, so it dispatches a
 SINGLE phase: core runs the named plugin (cwd = the relevant checkout, §7 wire minus the task-op
@@ -917,7 +929,9 @@ teaching core the formula:
   path). This is deterministic, not interleaved noise: stdout is reserved for the verb's ONE product —
   tracker and every other plugin write diagnostics to stderr (§6), so delivery is the sole stdout writer
   on claim/prime. An agent reads it as readily as a machine parses it; the bl-934a worry that stdout is
-  "not machine-parseable" held only if plugins muddy stdout, and the discipline forbids that.
+  "not machine-parseable" holds only if a schedule adds another stdout-writer — a DEFAULT-SCHEDULE
+  guarantee, not a protocol invariant (§6); the reserved enveloped-stdout seam (§6) is the forward
+  path if a noisy schedule ever needs machine structure.
 - on `bl show` it answers a READ-OP dispatch (§6): core, which never opens the project repo, asks the
   delivery plugin for the worktree and folds the printed line into the HUMAN render. `bl show --json`
   does NOT dispatch — it is the lossless mirror of stored frontmatter (§9), and the worktree is not
@@ -1433,6 +1447,20 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **stdout single-writer is a default-schedule guarantee, not a discipline — own the contradiction;
+  reserve the enveloped-stdout seam (2026-06-09, bl-2bff — post-freeze).** §0 promises every
+  load-bearing principle "enforced structurally, not by discipline", yet §11 defended claim-stdout's
+  machine-readability with "the discipline forbids that" — plugin stdout has no structural guard,
+  and one third-party plugin printing a banner on `claim.post` corrupts `path=$(bl claim …)`.
+  RESOLVED by OWNING it: ergonomics won, deliberately — stdout as the verb's forwarded ONE product
+  is load-bearing (§11), and a guard would cost the property it protects. §6 now states the real
+  contract: single-writer stdout is a property of the SHIPPED SCHEDULE (delivery is the only listed
+  stdout-writer; every other shipped plugin writes stderr only), never of the protocol — third-party
+  stdout is forwarded verbatim, unguaranteed. Forward path RESERVED, not built (no consumer, the
+  bl-587f bar): a machine channel under a noisy schedule is enveloping plugin stdout per-line
+  exactly as stderr already is — the §1 record shape behind an opt-in — never a new format. Touched
+  §6 (the contract paragraph after the spawn block), §11 (the bl-934a sentence). Doc only — no code
+  change. Tracked under bl-72a8.
 - **spec drift sweep #2 — propagate logged §15 decisions the body missed (2026-06-09, bl-6672 —
   post-freeze; the bl-3911 discipline re-run).** An internal-consistency audit found that nearly every
   defect was a REVISION SHADOW: a §15 resolution lists the sections it touched, and the contradictions
