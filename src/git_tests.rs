@@ -104,6 +104,35 @@ fn seal_fails_when_the_anvil_cannot_fast_forward() {
 }
 
 #[test]
+fn a_lost_seal_resets_the_checkout_so_later_ops_succeed() {
+    let (tmp, checkout, g) = repo();
+    let change = tmp.path().join("change");
+    g.open(&change).unwrap();
+    fs::write(change.join("seed.txt"), "claimant = \"winner\"\n").unwrap();
+
+    // The bl-07d6 wedge state: a claimant write left modified AND STAGED in
+    // the checkout, against the very file the seal's merge must update — the
+    // ff-only merge aborts ("Your local changes ... would be overwritten").
+    fs::write(checkout.join("seed.txt"), "claimant = \"phantom\"\n").unwrap();
+    run(&checkout, &["add", "-A"], None).unwrap();
+
+    let err = g.seal(&change, "loses the race\n").unwrap_err();
+    assert!(err.to_string().contains("git merge --ff-only"));
+
+    // The failed seal rolled the checkout back atomically: clean tree, no
+    // staged phantom claimant left to wedge or mislead later reads.
+    assert_eq!(run(&checkout, &["status", "--porcelain"], None).unwrap(), "");
+    assert_eq!(fs::read_to_string(checkout.join("seed.txt")).unwrap(), "seed\n");
+
+    // ...and the clone is not wedged: the next op seals cleanly.
+    let retry = tmp.path().join("retry");
+    g.open(&retry).unwrap();
+    fs::write(retry.join("seed.txt"), "claimant = \"winner\"\n").unwrap();
+    let sealed = g.seal(&retry, "wins cleanly\n").unwrap();
+    assert_eq!(g.head().unwrap(), sealed);
+}
+
+#[test]
 fn unseal_to_an_unknown_sha_is_an_error() {
     let (_tmp, _op, g) = repo();
     assert!(g.unseal("0000000000000000000000000000000000000000").is_err());
