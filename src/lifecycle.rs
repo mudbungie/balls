@@ -113,7 +113,9 @@ impl std::fmt::Display for OpError {
             OpError::Author(e) => write!(f, "authoring the base change failed: {e}"),
             OpError::Anvil(e) => write!(f, "sealing onto the anvil failed: {e}"),
             OpError::Substrate(e) => write!(f, "materializing the store failed: {e}"),
-            OpError::Plugin { name, source } => write!(f, "plugin {name} aborted the op: {source}"),
+            // The source already names the locus ("plugin X aborted the op…",
+            // [`crate::plugin`]) — re-prefixing it here stuttered (bl-3ddb).
+            OpError::Plugin { source, .. } => write!(f, "{source}"),
             OpError::Invalid(msg) => f.write_str(msg),
             OpError::Narration => write!(
                 f,
