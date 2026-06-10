@@ -167,7 +167,7 @@ balls/tasks    (the STORE — named by config.tasks_branch, shared, sync-transpo
   fixed point (the landing) plus the single pointer (to the store).
 - **The store is materialized LAZILY — "a branch is a disk path" (bl-0a23).** Core founds the LANDING
   eagerly (it must read `config/` to know the chain and the `tasks_branch` name), but the store branch
-  is laid down by `prime`'s fixpoint only AFTER the tracker has had its `prime/pre` pass. The primitive
+  is laid down by `prime` only AFTER the tracker has had its `prime/pre` pass (bl-698d). The primitive
   is `materialize(tasks_branch)`: ensure the named branch has a worktree on disk, founding a fresh
   orphan (`tasks/.gitkeep` root) **iff the ref is absent**. So an established remote branch the tracker
   just cloned into a local ref is CHECKED OUT (adopt — no divergent orphan to reset), and an orphan is
@@ -627,16 +627,19 @@ the five verbs — they differ only in which fields the base change stages.
   reverse-order rollback, and the §7 wire minus its task fields — and do their own work where the seal
   would be: `sync`'s integration is the tracker's fetch+ff, owned by a PLUGIN not core (remote-talk is
   plugin-exclusive, §0/§13); `prime` orchestrates syncs + substrate.
-  Their hooks run against the live store/landing checkout directly. **`prime` runs a FIXPOINT, not a
-  single pre→post (bl-0a23):** core loops `prime/pre` then `materialize` until the configured
-  `tasks_branch` stops moving, THEN runs `prime/post` once — so an established remote branch the
-  `pre` tracker clones in is checked out before any orphan is founded. The loop is CORE's, its signal
-  the config branch core owns (no §7 return channel); `pre` runs with cwd = the landing (the store may
-  not be materialized yet), `post` with cwd = the now-materialized store. It is bounded by its OWN
-  pass cap (`FIXPOINT_CAP` = 32; bl-33db — the §6 cap bounds depth DOWN the invocation tree and
-  structurally cannot bound passes ACROSS it at one depth): a dial still moving at the cap ABORTS the
-  op — fail, not silent, §6's disposition — the error naming the op and the value that kept changing.
-  It converges in one pass when the dial holds (the common case).
+  Their hooks run against the live store/landing checkout directly. **`prime` runs ONE pre pass with
+  a core `materialize` between the phases (bl-0a23, bl-698d):** core runs `prime/pre`, then
+  `materialize(tasks_branch)`, then `prime/post` once — so an established remote branch the
+  `pre` tracker clones in is checked out before any orphan is founded. `pre` runs with cwd = the
+  landing (the store may not be materialized yet), `post` with cwd = the now-materialized store. The
+  configured `tasks_branch` may not MOVE across `pre`: no conformant plugin rewrites it — config
+  crosses into a landing only by `install` (§12), and the tracker's name-settle is warn-only — so a
+  moved name ABORTS the op — fail, not silent, §6's disposition — the error naming the rule
+  ("prime/pre may not move tasks_branch") and the moved value. The check is CORE's, its signal the
+  config branch core owns (no §7 return channel). The bounded fixpoint that looped to re-run `pre`
+  for a moving dial (bl-0a23) and its pass cap (`FIXPOINT_CAP`, bl-33db) are SUBTRACTED (bl-698d):
+  mechanism only a non-conformant plugin could drive, and the abort enforces the consent rule
+  instead of accommodating violations of it.
 
 The canonical task-op sequence (verb-agnostic):
 
@@ -1056,10 +1059,11 @@ prunes a committed schedule, it only re-derives the gitignored `bin/` symlinks. 
 tracker + delivery + builtin plugin wiring comes from — so
 `prime`'s `prime/pre`/`prime/post` run the plugins NOW IN THE LANDING LIST (there are no run-time
 defaults, §0/§4); on an established landing the seed step is a no-op (config already present). **The
-store is NOT founded with the landing — it is materialized LAZILY inside `prime`'s fixpoint (bl-0a23,
-§2/§8):** core loops `prime/pre` (where the tracker clones an established remote branch into a local
+store is NOT founded with the landing — it is materialized LAZILY between `prime`'s phases (bl-0a23,
+§2/§8):** core runs `prime/pre` (where the tracker clones an established remote branch into a local
 ref) then `materialize(tasks_branch)` (check the cloned-in ref out, or found a fresh orphan iff no ref
-exists) until the configured name stops moving, THEN runs `prime/post`. Founding the orphan eagerly,
+exists) — aborting if the configured name MOVED across `pre` (bl-698d, §8) — THEN runs `prime/post`.
+Founding the orphan eagerly,
 before the tracker could clone the remote in, was the unrelated-histories divergence bl-fa00 had to
 reset away; lazy materialize means it is never created. Per-session worktree re-materialization for
 still-claimed tasks — and the prune of settled `work/<id>` branches whose delivery already landed —
@@ -1292,7 +1296,7 @@ not a consent breach, because consent governs config + executable plugins, never
   plugin, not core — because remote-talk is plugin-exclusive (§0).
 
 **`bl prime` — readiness, built FROM sync.** prime is not a hook-superset of sync; it is an
-**orchestrator of syncs** (§12): found the landing, run the `prime` FIXPOINT to materialize the store,
+**orchestrator of syncs** (§12): found the landing, run the `prime` chain to materialize the store,
 then `bl sync` it. "Ready to start the engine" = substrate exists + store synced + claimed-task
 worktrees re-materialized + settled `work/<id>` branches pruned (both delivery's `prime.post`, §11 —
 the prune deletes a branch whose delivery already landed on integration and KEEPS one carrying
@@ -1301,16 +1305,18 @@ non-transactional cleanup" made concrete). Idempotent: on an established checkou
 step is create-if-absent/already-current, so re-running converges to a no-op. The whole verb is the §12
 converging predicate.
 
-- **prime is a bounded fixpoint, core-owned (bl-0a23).** Core loops `prime/pre` then
-  `materialize(tasks_branch)` until the configured name stops moving, THEN runs `prime/post` once. The
-  loop's signal is the config branch core owns — no §7 return channel, no plugin-driven control flow —
-  and it is bounded by the engine's own pass cap (`FIXPOINT_CAP`, §8; bl-33db — the §6 cap bounds
-  depth, not passes). `prime/pre` (the tracker's name-settle + clone-in)
-  runs against the landing; `post` (fetch-ff + publish) against the now-materialized store. It converges
-  in ONE `pre` pass in the common case (the dial holds), since plain prime never rewrites `tasks_branch`
-  — that crosses only by `install` (§12). The fixpoint is what lets an established remote branch be
-  cloned in and checked out before any orphan is founded, so the bl-fa00 unrelated-histories divergence
-  is never created.
+- **prime is ONE pass, core-checked (bl-0a23, bl-698d).** Core runs `prime/pre` once, then
+  `materialize(tasks_branch)`, then `prime/post` once — and ABORTS if the configured name MOVED
+  across `pre` ("prime/pre may not move tasks_branch", §8). The check's signal is the config branch
+  core owns — no §7 return channel, no plugin-driven control flow. No conformant plugin can trip it:
+  plain prime never rewrites `tasks_branch` (the tracker's name-settle is warn-only) — that crosses
+  only by `install` (§12) — so the abort ENFORCES the consent rule, where the superseded bl-0a23
+  fixpoint (and its bl-33db pass cap) looped to accommodate violations of it. `prime/pre` (the
+  tracker's name-settle + clone-in) runs against the landing; `post` (fetch-ff + publish) against the
+  now-materialized store. Pre-before-materialize is what lets an established remote branch be cloned
+  in and checked out before any orphan is founded, so the bl-fa00 unrelated-histories divergence is
+  never created. (`prime --install` needs no second pass either: it is SEQUENTIAL — prime → install →
+  prime — the trailing prime brings the just-adopted name to readiness.)
 
 - **prime drives sync; it does not duplicate it.** Keeping the fetch inside the sync primitive is what
   makes "all wire transfer goes through sync" a true single-codepath invariant. prime's only distinct
@@ -1483,6 +1489,27 @@ RESOLVED (folded into the body, no longer open):
   only by `update` — every other base always stages a real diff), unwinding like any seal failure;
   §13 idempotent converge is untouched for every `-m`-less op. Touched §8 (step 3), §9 (update
   prose).
+- **the prime fixpoint SUBTRACTED — one pass, abort if `tasks_branch` moves (2026-06-09, bl-698d —
+  post-freeze; supersedes the loop of bl-0a23 and the pass cap of bl-33db, entries below).** §13's
+  own text held the indictment: the fixpoint "converges in ONE `pre` pass in the common case (the
+  dial holds), since plain prime never rewrites `tasks_branch` — that crosses only by `install`
+  (§12)" — and the tracker's `prime/pre` is spec-bound warn-only ("it NEVER rewrites
+  `tasks_branch`", §12). So no CONFORMANT plugin can ever move the dial: passes 2..32 existed only
+  to accommodate a plugin violating the consent model, and `prime --install` never used the loop
+  (it is sequential — prime → install → prime — the trailing prime reads the adopted name).
+  Mechanism without a conformant consumer, the same crime that killed `field_changes` (bl-3bfd) and
+  `bl plugin` (bl-587f). SUBTRACTED: `prime` runs `pre` ONCE, `materialize(tasks_branch)`, and if
+  the configured name MOVED across `pre`, ABORTS — "prime/pre may not move tasks_branch", the error
+  naming the moved value — fail, not silent, the cap's own §6/§8 disposition, but ENFORCING the
+  consent rule instead of tolerating 31 violations of it; bl-33db's runaway dial is now a
+  first-pass error. `Engine::fixpoint` and `FIXPOINT_CAP` are deleted. Accepted delta: `prime
+  --install`'s shape is now more deviant from plain prime's — a smaller compromise than carrying a
+  loop no conformant plugin can drive. Touched §2 (lazy-materialize bullet), §8 (the prime bullet:
+  one pass + the moved-dial abort), §12 (lazy substrate), §13 (the prime bullet), §15 (this entry;
+  the bl-0a23 and bl-33db entries carry supersession markers). Code: `src/lifecycle_diffless.rs`
+  (`Engine::prime` replaces `Engine::fixpoint`; `FIXPOINT_CAP` deleted), `src/checkout.rs`
+  (`prime_chain` replaces `converge`), `src/substrate.rs`/`src/lifecycle.rs` (docs), tests (the
+  runaway case asserts the first-pass abort). Tracked under bl-72a8.
 - **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
   post-freeze).** §10's explicit-edge model (bl-7d46(6)) is correct — containment never mints a
   blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
@@ -1594,7 +1621,8 @@ RESOLVED (folded into the body, no longer open):
   `src/tracker/remote_ops.rs` (the general rule), `src/tracker/prime.rs` (shares the probe). Tracked
   under bl-72a8.
 - **the prime fixpoint gets a REAL bound — its own pass cap; the claimed §6 bound never existed
-  (2026-06-09, bl-33db — post-freeze; corrects the bl-0a23 entry below).** §8 and §13 both said the
+  (2026-06-09, bl-33db — post-freeze; corrects the bl-0a23 entry below; SUPERSEDED 2026-06-09 by
+  bl-698d, entry above — the loop itself is subtracted, a moved dial is a first-pass abort).** §8 and §13 both said the
   fixpoint "is bounded by the §6 invocation-tree cap", but that cap structurally CANNOT bound it:
   `BALLS_PLUGIN_DEPTH` grows DOWN the invocation tree (one bump per nested spawn), while the
   convergence loop iterates ACROSS passes at the same depth+1 — `Engine::fixpoint` was a bare
@@ -1759,7 +1787,9 @@ RESOLVED (folded into the body, no longer open):
   read (mutate ops discover too, via their `*/post` push) — deterministic over the project repo, so all
   handlers agree with no persisted session state. Tracked under bl-72a8.
 - **prime materializes the store LAZILY via a core fixpoint — supersedes the bl-fa00 reset (2026-06-08,
-  bl-0a23 — post-freeze).** bl-fa00 had founded a throwaway orphan store EAGERLY (before any remote was
+  bl-0a23 — post-freeze; the FIXPOINT half SUPERSEDED 2026-06-09 by bl-698d, entry above — one `pre`
+  pass, a moved `tasks_branch` aborts; lazy `materialize` and the two-slot tracker stand).** bl-fa00
+  had founded a throwaway orphan store EAGERLY (before any remote was
   resolved), so a fresh clone's local store had history UNRELATED to an established remote and the
   tracker had to `reset --hard` it onto the remote tip — reconciling a divergence after creating it.
   REFRAMED so the divergence is never created. Core's only store primitive is now

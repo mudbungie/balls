@@ -92,7 +92,8 @@ pub enum OpError {
     /// An [`Anvil`] git act (open/seal/head) failed.
     Anvil(io::Error),
     /// A core substrate step the engine drives between phases failed — the
-    /// `materialize` the `prime` fixpoint runs between `pre` passes (§12, bl-0a23).
+    /// `materialize` `prime` runs between its `pre` and `post` (§12, bl-0a23),
+    /// or `prime/pre` moved `tasks_branch` (the consent violation, bl-698d).
     Substrate(io::Error),
     /// A [`Plugins::run`] returned non-zero — the named plugin aborted the op.
     Plugin { name: String, source: io::Error },
@@ -278,7 +279,6 @@ fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)
 /// `run_phase`/`unwind`/`SealRecord` seams.
 #[path = "lifecycle_diffless.rs"]
 mod diffless;
-pub use diffless::FIXPOINT_CAP;
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
