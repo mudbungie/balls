@@ -50,6 +50,17 @@ fn balls_reads_the_ref_projects_live_tasks_and_skips_closed() {
 }
 
 #[test]
+fn balls_refuses_a_missing_legacy_store_cleanly() {
+    // bl-3ddb: a repo with no legacy ref died with git's raw `fatal: Not a
+    // valid object name balls/tasks`; the shim owns the refusal and names
+    // the spec instead.
+    let tmp = TempDir::new().unwrap();
+    crate::git::run(tmp.path(), &["init", "-q"], None).unwrap();
+    let err = balls(tmp.path(), DEFAULT_SPEC).unwrap_err();
+    assert_eq!(err.to_string(), format!("no legacy store at `{DEFAULT_SPEC}`"));
+}
+
+#[test]
 fn balls_accepts_a_bare_ref_spec_and_names_a_bad_record() {
     let repo = legacy_repo(&[("bl-bad.json", "{not json")]);
     // A bare `<ref>` defaults the dir — same store, named parse failure.

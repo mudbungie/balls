@@ -103,3 +103,24 @@ fn prime_on_a_legacy_carrying_hub_founds_fresh_converges_and_imports() {
         .success();
     bl(&clone, &home, &state).arg("list").assert().success().stdout(contains("legacy task"));
 }
+
+#[test]
+fn import_legacy_without_a_legacy_store_refuses_cleanly() {
+    // bl-3ddb: no legacy ref here — the refusal names the spec instead of
+    // dying on git's raw `fatal: Not a valid object name balls/tasks`.
+    let tmp = TempDir::new().unwrap();
+    let (home, state) = (tmp.path().join("h"), tmp.path().join("s"));
+    let repo = tmp.path().join("repo");
+    git(tmp.path(), &["init", "-q", &repo.to_string_lossy()]);
+    git(&repo, &["config", "user.name", "t"]);
+    git(&repo, &["config", "user.email", "t@e"]);
+    fs::write(repo.join("README.md"), "hi\n").unwrap();
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "init"]);
+    bl(&repo, &home, &state).arg("prime").assert().success();
+    bl(&repo, &home, &state)
+        .args(["import", "--legacy", "--as", "mig"])
+        .assert()
+        .failure()
+        .stderr(contains("no legacy store at `balls/tasks:.balls/tasks`"));
+}

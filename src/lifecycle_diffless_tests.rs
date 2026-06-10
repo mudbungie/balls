@@ -129,8 +129,16 @@ fn a_prime_whose_pre_moved_the_dial_aborts_on_the_first_pass() {
 
 #[test]
 fn a_prime_post_abort_unwinds_every_run_plugin_in_reverse() {
-    // pre "a" lands, the dial held, post "b" fails → the whole op unwinds.
+    // pre "a" lands, the dial held, post "b" fails → the whole op unwinds, and
+    // the abort renders as the catalog's E7 — "plugin failed during prime,
+    // rolled back K prior" (K = 1, the run "a") — not the generic plugin abort
+    // (bl-3ddb).
     let (r, log) = run_prime(None, false, Some("b"), &["a"], &["b"]);
-    assert!(matches!(r, Err(OpError::Plugin { ref name, .. }) if name == "b"));
+    let Err(e) = r else { panic!("expected a Plugin abort") };
+    assert!(matches!(e, OpError::Plugin { ref name, .. } if name == "b"));
+    assert!(
+        e.to_string().starts_with("plugin failed during prime, rolled back 1 prior:"),
+        "{e}"
+    );
     assert_eq!(log, ["run:a:pre", "run:b:post", "rollback:a:pre"]);
 }

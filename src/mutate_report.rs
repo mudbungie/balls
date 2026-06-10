@@ -31,12 +31,22 @@ pub(super) fn emit(verb: Verb, store: &Path, sha: &str) -> io::Result<()> {
         eprintln!("{} {id}", verb.token());
     }
     if verb == Verb::Close {
-        let n = open_children(store, &id)?;
-        if n > 0 {
-            eprintln!("notice: {id} closed with {n} open children, none gating — their parent pointers now dangle (display-only)");
+        if let Some(notice) = children_notice(&id, open_children(store, &id)?) {
+            eprintln!("{notice}");
         }
     }
     Ok(())
+}
+
+/// Render the §10 surviving-children notice for a close that left `n` live
+/// children — number-agreeing ("1 open child", bl-3ddb), `None` when none
+/// survive. Pure, so the wording is unit-testable.
+pub(super) fn children_notice(id: &str, n: usize) -> Option<String> {
+    match n {
+        0 => None,
+        1 => Some(format!("notice: {id} closed with 1 open child, not gating — its parent pointer now dangles (display-only)")),
+        n => Some(format!("notice: {id} closed with {n} open children, none gating — their parent pointers now dangle (display-only)")),
+    }
 }
 
 /// How many live balls name `id` as their `parent` — the same containment scan
