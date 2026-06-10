@@ -25,7 +25,7 @@ make install
 make hooks     # one-time per clone: install the repo-local pre-commit hook
 ```
 
-`make install` builds release binaries and installs three executables to `~/.local/bin/`: `bl` (core, plus a `balls` alias symlink), `tracker`, and `bl-delivery`. **The adjacency is the wiring** — `bl` resolves a plugin by looking for a binary of that name beside itself (§6 subprocess-uniform dispatch). A core-only install leaves `bl prime` founding a stealth, plugin-less task list: remotes and code worktrees silently never engage. Install the plugins beside `bl` and they wire themselves. Make sure `~/.local/bin` is on your `PATH`.
+`make install` builds release binaries and installs three executables to `~/.local/bin/`: `bl` (core, plus a `balls` alias symlink), `tracker`, and `bl-delivery`. Wiring is by name: the hook schedule (`config/plugins.toml`) lists plugin names, and `bl prime`/`bl install` bind each name to the binary of that name installed **beside `bl`** — a local, gitignored `config/plugins/bin/<name>` symlink that dispatch then resolves (§6). A core-only install leaves `bl prime` founding a stealth, plugin-less task list: remotes and code worktrees silently never engage. Install the plugins beside `bl` and they wire themselves. Make sure `~/.local/bin` is on your `PATH`.
 
 `make hooks` wires the repo-local pre-commit hook (clippy, 300-line cap, tests, 100% coverage). Run it once per clone; it is not part of `make install` because a user installing the binary should not have hooks attached to whatever repo they happen to be in. The coverage check requires `cargo install cargo-tarpaulin`.
 
@@ -102,18 +102,18 @@ The human-facing output of `list`/`show`/`dep-tree` paints derived columns — t
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL]` | Sync + show ready/claimed. **Founds the substrate on first run** (no separate `init`). Run at session start. |
+| `bl prime [--as ID] [--remote URL] [--center URL] [--install URL]` | Ready this checkout: **founds the substrate on first run** (no separate `init`), then syncs. Re-prints the worktree path of every task you still hold. Run at session start. `--remote`/`--center` both name the store remote (`--remote` wins if both are given). |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail. A closed id still resolves (reconstructed from history). |
 | `bl dep-tree [--json]` | Parent/child tree with blocker/gate edges inline. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body, `-m` the commit note). Prints the new id. |
-| `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. (Find the worktree with `git worktree list` — the `work/<id>` line.) |
+| `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. **Prints the worktree path** to stdout. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. |
 | `bl drop <id> [--as ID]` | Abandon a claim/task without delivering. |
-| `bl install [PATH] [--from REF] [--to REF]` | Copy a committed config path between branches (adopt/publish plugin config); bare = `config/` minus `tasks/`. **Not yet wired standalone** — the verb prints its op plan; `prime --install` is the wired adoption route today. |
+| `bl install [PATH] --from REF [--to REF] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `--from` is required; `PATH` defaults to `config/`, `--to` to the landing. A folder source mirrors (deletions propagate), a file/glob source unions. |
 | `bl skill` | Print the agent guide (`SKILL.md`) — the full manual. |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
@@ -127,15 +127,11 @@ Run `bl prime` at the start of every session:
 bl prime --as YOUR_IDENTITY
 ```
 
-`prime` is idempotent. On first run it **founds** the local substrate — seeding `config/` from the install defaults and creating the store — then syncs with the remote. Re-running converges to a no-op. To point a fresh checkout at a shared project, pass the remote once: `bl prime --as ID --remote <git-url>` (or `--install <git-url>` to also adopt that center's `config/`).
+`prime` is idempotent. On first run it **founds** the local substrate — seeding `config/` from the install defaults and creating the store — then syncs with the remote. Re-running converges to a no-op. To point a fresh checkout at a shared project, pass the remote once: `bl prime --as ID --remote <git-url>` (`--center <git-url>` is the same store-remote knob in federation framing; `--remote` wins if both are given). Pass `--install <git-url>` to also adopt that center's `config/` — a **single hop**, not a walk: a center's config names its own store branch, never another config to chase.
 
 ### Identity
 
-Every claim/close/prime is stamped with a worker identity, resolved from `--as ID`, else `$BALLS_IDENTITY`, else `$USER`. **Don't let an LLM invent its own name** — language models are not RNGs and collapse to the same handful of names across sessions (you end up with three Junipers stepping on each other's claims). Source the randomness outside the model: have the agent harness pick a name at session start and inject it as `$BALLS_IDENTITY`. A portable recipe is `shuf -n1 /usr/share/dict/words`. In Claude Code, a `SessionStart` hook in `~/.claude/settings.json` that sets the name works well.
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `BALLS_IDENTITY` | Worker identity for claim/close/prime | `$USER`, then `"unknown"` |
+Every claim/close/prime is stamped with a worker identity, resolved from `--as ID`, else `$USER`, else the literal `"unknown"`. **Don't let an LLM invent its own name** — language models are not RNGs and collapse to the same handful of names across sessions (you end up with three Junipers stepping on each other's claims). Source the randomness outside the model: have the agent harness pick a name at session start and pass it via `--as`. A portable recipe is `shuf -n1 /usr/share/dict/words`. In Claude Code, a `SessionStart` hook in `~/.claude/settings.json` that exports the name for the agent to pass as `--as` works well.
 
 ---
 
@@ -182,17 +178,24 @@ The one relational primitive is a blocker edge `{id, on}` on the *blocked* task:
 
 ## Plugins
 
-Behavior beyond the base (commit config to the landing, task files to the store) is **plugins** — single binaries, dispatched as subprocesses with no in-process or privileged path. The schedule is config: `config/plugins.toml` on the landing has a `[hooks]` table mapping `<op>.<phase>` to an ordered list of plugin names (list position = run order). A plugin's binary is a local, gitignored symlink resolved beside `bl`; a plugin whose binary is not installed is pruned at prime, so a remote-less or plugin-less box still works.
+Behavior beyond the base (commit config to the landing, task files to the store) is **plugins** — single binaries, dispatched as subprocesses with no in-process or privileged path. The schedule is config: `config/plugins.toml` on the landing has a `[hooks]` table mapping `<op>.<phase>` to an ordered list of plugin names (list position = run order). Each name resolves through a local, gitignored `config/plugins/bin/<name>` symlink that `bl prime`/`bl install` bind to the binary installed beside `bl`; a scheduled name whose binary is missing at founding is pruned from the seed, so a remote-less or plugin-less box still works.
+
+The shipped seed (`default-config/plugins.toml`):
 
 ```toml
 [hooks]
-"sync.pre"     = ["tracker"]
+"sync.pre"     = ["tracker"]                  # import remote state first
 "prime.pre"    = ["tracker"]
-"prime.post"   = ["bl-delivery"]              # re-materialize still-claimed worktrees
-"claim.pre"    = ["bl-delivery"]              # stage the worktree-path field before the seal
-"claim.post"   = ["bl-delivery", "tracker"]   # materialize worktree, then push (tracker last)
+"install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
+"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
+"unclaim.post" = ["bl-delivery", "tracker"]
+"show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
+"drop.post"    = ["bl-delivery", "tracker"]
+"create.post"  = ["tracker"]
+"update.post"  = ["tracker"]
 ```
 
 Two plugins ship by default and are wired by the seed config:
@@ -200,7 +203,7 @@ Two plugins ship by default and are wired by the seed config:
 - **tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
 - **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim, squash-deliver + tear down on close. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
 
-A plugin contributes by **editing the change worktree** (the task file), never by a return value — its stdout is discarded (there is no return channel, §7). Its stderr is enveloped line-by-line into the per-clone op log. A non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol. (One consequence: `bl claim` does not echo the worktree path — the delivery plugin materializes the checkout but its output goes nowhere, so you find it with `git worktree list`.) See `docs/architecture.md` §6–§8 for the full contract.
+A plugin contributes by **editing the change worktree** (the task file), never by a parsed return value — core parses nothing back (there is no return channel, §7). Its stdout is the **user-facing channel**, forwarded verbatim to the invoker's stdout: "`bl claim` prints the worktree path" is bl-delivery printing there, and `bl prime` re-prints the path of every task you still hold the same way. Its stderr is enveloped line-by-line into the per-clone op log. A non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol. See `docs/architecture.md` §6–§8 for the full contract.
 
 ### Delivery: direct vs. forge
 
