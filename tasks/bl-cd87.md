@@ -1,7 +1,8 @@
 +++
 title = "update accepts id= as a preserved extra: shadow id key, lossy bedrock round-trip"
 created = 1781067248
-updated = 1781067248
+updated = 1781068965
+claimant = "Rebut"
 parent = "bl-72a8"
 priority = 3
 tags = ["bug"]
