@@ -229,6 +229,17 @@ names). Two ship by default:
 - **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim,
   squash-deliver + tear down on close.
 
+**Hook-list order is yours.** Plugins run in list order; on abort, whatever ran
+rolls back in reverse, then core un-seals. Nothing enforces the seeded order —
+it's only a default — so when wiring your own plugin, **prepend** to post
+phases (`bl conf prepend <op>.post <name>`) or `conf set` the full order; only
+the irreversible belongs last (tracker pushes, delivery squashes). The natural
+gesture, `conf append <op>.post`, lands your plugin AFTER tracker — if it fails
+there, the un-seal resets a commit the remote already has and the next push is
+rejected non-fast-forward. Recoverable (`bl sync` resurrects the seal from the
+remote, then retry) but surprising. Same shape in `close.pre`: anything
+appended after bl-delivery runs after the squash.
+
 A plugin whose binary is not installed beside `bl` is pruned at prime, so a
 remote-less or plugin-less box still works.
 
