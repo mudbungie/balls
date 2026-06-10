@@ -150,6 +150,23 @@ fn show_dead_json_is_the_reconstructed_bedrock_record() {
 }
 
 #[test]
+fn show_surfaces_a_corrupt_live_ball_and_never_resurrects_its_dead_past() {
+    // bl-528c: the id's FILE exists but no longer parses. Show must surface
+    // the parse error — not "no such ball", and above all not the history
+    // fallthrough, which would render the id's stale dead incarnation.
+    let s = git_store();
+    s.create("bl-r", &task("First life", 1), 1).retire("bl-r", "close", 2);
+    std::fs::create_dir_all(s.dir().join("tasks")).unwrap();
+    std::fs::write(s.dir().join("tasks/bl-r.md"), "+++\ntitle = 1\n+++\n").unwrap();
+    let cat = Catalog::load(s.dir()).unwrap();
+    let err = dispatch(s.dir(), &cat, &flags(false, "bl-r"), &plain(), "").unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("tasks/bl-r.md"), "names the file: {msg}");
+    assert!(msg.contains("invalid frontmatter"), "carries the parse error: {msg}");
+    assert!(!msg.contains("First life"), "no stale resurrection: {msg}");
+}
+
+#[test]
 fn show_errors_with_no_such_ball_when_history_has_nothing() {
     // A real git store where the id was never created — resolve_dead is None,
     // so dispatch returns the "no such ball" error (not a git failure).
