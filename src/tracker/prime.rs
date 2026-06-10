@@ -24,7 +24,7 @@
 
 use super::git::git;
 use super::payload::Binding;
-use super::remote_ops::remote_has_branch;
+use super::remote_ops::{not_yet_cut_over, remote_has_branch};
 use super::Env;
 use std::fs;
 use std::io;
@@ -100,7 +100,12 @@ pub fn prime_post(b: &Binding, env: &Env) -> io::Result<()> {
 /// `sync` to ff; an absent remote branch is the bootstrap, left for core to found;
 /// only an established-remote-and-locally-absent branch is fetched, straight into
 /// `refs/heads/<branch>` (the branch is checked out nowhere yet, so the refspec
-/// just creates the ref). Runs against the LANDING — on a first prime the store is
+/// just creates the ref). "Established" means an established STORE (bl-868d): a
+/// remote tip with no `tasks/` — a hub still carrying the PRE-greenfield legacy
+/// store on the colliding branch name (§16) — is QUARANTINED, not adopted
+/// ([`not_yet_cut_over`] warns), so core founds a fresh greenfield orphan and the
+/// runbook's "prime founds, import fills, cutover rewrites" holds on a fresh
+/// clone. Runs against the LANDING — on a first prime the store is
 /// not materialized yet, and landing + store share one object store and refs (§2).
 fn clone_in(landing: &Path, remote: &str, branch: &str) -> io::Result<()> {
     if local_branch(landing, branch) {
@@ -108,6 +113,9 @@ fn clone_in(landing: &Path, remote: &str, branch: &str) -> io::Result<()> {
     }
     if !remote_has_branch(landing, remote, branch)? {
         return Ok(()); // bootstrap — nothing to clone; core founds, `prime/post` pushes
+    }
+    if not_yet_cut_over(landing, remote, branch) {
+        return Ok(()); // a legacy tip is no store — leave it; core founds fresh (§16)
     }
     git(landing, &["fetch", remote, &format!("{branch}:{branch}")])?;
     Ok(())

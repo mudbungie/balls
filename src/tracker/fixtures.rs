@@ -79,13 +79,32 @@ pub fn remote_with_config(tmp: &Path, store_branch: &str) -> PathBuf {
 }
 
 /// A bare remote already carrying one commit on the `balls` branch — the
-/// established case (adopt / sync / push).
+/// established case (adopt / sync / push). STORE-shaped: the tip carries the
+/// §2 `tasks/` tree, like every real greenfield store commit, so the shape
+/// reads (`FETCH_HEAD:tasks`, bl-868d) see an adoptable upstream.
 pub fn remote_with_branch(tmp: &Path) -> PathBuf {
     let remote = empty_remote(tmp);
     let seed = tmp.join("seed");
     run(tmp, &["clone", "-q", &remote.to_string_lossy(), &seed.to_string_lossy()]);
     identify(&seed);
+    fs::create_dir_all(seed.join("tasks")).unwrap();
+    fs::write(seed.join("tasks/.gitkeep"), "").unwrap();
     commit(&seed, "seed.txt", "seed");
+    run(&seed, &["push", "-q", "origin", BRANCH]);
+    remote
+}
+
+/// A bare remote whose `balls` branch is a LEGACY store (§16): pre-greenfield
+/// task JSON under `.balls/tasks/`, NO `tasks/` tree at the tip — the shape a
+/// shared hub still carries before the one-time cutover (bl-868d).
+pub fn legacy_remote(tmp: &Path) -> PathBuf {
+    let remote = empty_remote(tmp);
+    let seed = tmp.join(format!("{}-legacy", remote.file_name().unwrap().to_string_lossy()));
+    run(tmp, &["clone", "-q", &remote.to_string_lossy(), &seed.to_string_lossy()]);
+    identify(&seed);
+    fs::create_dir_all(seed.join(".balls/tasks")).unwrap();
+    fs::write(seed.join(".balls/tasks/bl-aaaa.json"), "{\"id\":\"bl-aaaa\"}\n").unwrap();
+    commit(&seed, ".balls/config.json", "legacy store");
     run(&seed, &["push", "-q", "origin", BRANCH]);
     remote
 }

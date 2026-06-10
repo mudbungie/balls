@@ -1133,8 +1133,19 @@ local, a self-lock written). With a remote (the one §12 ladder below — `--rem
   by that name, fetch it straight into `refs/heads/<branch>` so core's `materialize` checks it out —
   an established history adopts with no divergent orphan to reset. A local branch already present is
   left for `sync` to fast-forward; an absent remote branch is the bootstrap, left for core to found.
+  "Established" means an established STORE (bl-868d): a remote tip with no `tasks/` tree — a hub still
+  carrying the PRE-greenfield legacy JSON store on the colliding branch name (§16), or any non-store
+  ref — is QUARANTINED, not adopted: the tracker warns and leaves it intact, core founds a fresh
+  greenfield orphan, and the §16 runbook ("prime founds, import fills, cutover rewrites") holds on a
+  fresh clone of a shared legacy repo. Every store commit carries `tasks/` by construction (§2, the
+  founding `.gitkeep`), so the shape read is decisive, never a guess.
 - **`prime/post` settles the CONTENT.** Established remote branch → fetch-ff (bring current) then push
-  (publish). Absent branch → the founding push CREATES it.
+  (publish). Absent branch → the founding push CREATES it. A not-yet-cut-over legacy tip is neither:
+  `sync` and `push` positively identify it (the fetched tip lacks `tasks/`) and SKIP with a warning —
+  it is no upstream at all, so a failed ff/publish against it is the §16 migration window, not
+  contention (E5 stays the rejected-push rule for a GREENFIELD remote). Work stays local, the legacy
+  ref is never rewritten (cutover is the runbook's explicit force-push), and prime converges instead
+  of re-aborting (bl-868d).
 
 Remote founding is therefore **gated by having the tracker at all**: the opt-out is structural — drop
 the tracker or `--stealth` and prime never touches a remote (the seeded tracker *is* the consent to
@@ -2363,11 +2374,14 @@ stabilizes; never runaway) — the accepted floor of migrate-clean-or-delink, no
 **Branch & history.** Greenfield uses TWO branches — `balls/config` (landing) + `balls/tasks` (store);
 legacy used `balls/tasks` for the JSON store, so the store branch NAME collides. `bl prime` founds
 the fresh orphan `balls/config` (the §12 seed IS the migrated config — there is no config-rewriting
-step) and an empty store; `bl import --legacy` fills it. Cutting a shared `origin/balls/tasks` over is a one-time,
-human-coordinated migration: `bl install` writes the greenfield store and its per-op store sync (§12,
-on by default) pushes it — no separate push step. The push may force-rewrite the shared ref; that is
-intrinsic to a format change, not a thing core guards (git is the recovery net, §6 — `git branch
-balls-archive origin/balls/tasks` first if you want the legacy history kept locally). The operator
+step) and an empty store; `bl import --legacy` fills it. The collision itself is handled by the §12
+quarantine (bl-868d): a remote tip with no `tasks/` is not a store, so prime never adopts the legacy
+ref, and every op's sync/push warns and keeps work local instead of failing against it — the whole
+pre-cutover window converges. Cutting a shared `origin/balls/tasks` over is a one-time,
+human-coordinated migration and is the ONE deliberate force-push: bl never rewrites the legacy ref
+implicitly, the operator pushes the greenfield store over it explicitly (runbook step 5; git is the
+recovery net, §6 — `git branch balls-archive origin/balls/tasks` first if you want the legacy
+history kept locally), after which the per-op sync/publish resumes as on any federated checkout. The operator
 runbook is `docs/migration-runbook.md`, not a core-format concern. `main`'s legacy `[bl-xxxx]`
 commit-subject tags stay untouched: forward-compatible with §11's delivery tag, so the
 `delivered_in` query (§11) works over old history for free.
