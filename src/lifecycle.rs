@@ -97,6 +97,10 @@ pub enum OpError {
     Substrate(io::Error),
     /// A [`Plugins::run`] returned non-zero — the named plugin aborted the op.
     Plugin { name: String, source: io::Error },
+    /// The §8.3 seal validation refused: a CHANGED `tasks/*.md` no longer
+    /// parses (bl-528c). Carries the rendered refusal — file, last pre plugin,
+    /// parse error — built where the facts live ([`validate`]).
+    Invalid(String),
     /// The op carried `-m` narration but the seal converged on the existing
     /// tip (nothing changed — the no-op seal, §13): a note's only home is a
     /// commit, so converging would silently drop it (bl-cf93).
@@ -110,6 +114,7 @@ impl std::fmt::Display for OpError {
             OpError::Anvil(e) => write!(f, "sealing onto the anvil failed: {e}"),
             OpError::Substrate(e) => write!(f, "materializing the store failed: {e}"),
             OpError::Plugin { name, source } => write!(f, "plugin {name} aborted the op: {source}"),
+            OpError::Invalid(msg) => f.write_str(msg),
             OpError::Narration => write!(
                 f,
                 "nothing changed, so nothing sealed — the -m note rides only a commit and would be lost; retry in a second or drop -m"
@@ -209,6 +214,7 @@ impl<'a> Engine<'a> {
         trace.opened = true;
         base.stage(change_dir).map_err(OpError::Author)?; // (1) stage the base
         run_phase(self.plugins, op, Phase::Pre, change_dir, pre, None, &mut trace.ran)?; // (2)
+        validate::changed_balls(self.anvil, change_dir, &trace.ran)?; // (3) seal-validate, bl-528c
         let prev = self.anvil.head().map_err(OpError::Anvil)?;
         let message = base.finalize(change_dir).map_err(OpError::Author)?;
         let sha = self.anvil.seal(change_dir, &message).map_err(OpError::Anvil)?; // (3) SEAL
@@ -280,6 +286,10 @@ fn unwind(plugins: &dyn Plugins, op: Verb, dir: &Path, ran: &[(PluginRef, Phase)
 /// `run_phase`/`unwind`/`SealRecord` seams.
 #[path = "lifecycle_diffless.rs"]
 mod diffless;
+
+// §8.3 seal validation (bl-528c): every CHANGED `tasks/*.md` must still parse.
+#[path = "lifecycle_validate.rs"]
+mod validate;
 
 #[cfg(test)]
 #[path = "lifecycle_tests.rs"]
