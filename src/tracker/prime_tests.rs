@@ -1,4 +1,4 @@
-//! Tests for the §12 prime handlers — the stealth self-lock, `prime/pre`
+//! Tests for the §12 prime handlers — the stealth no-op, `prime/pre`
 //! clone-in (established/present/bootstrap), `prime/post` founding vs publish
 //! (and their rejection paths), and the store-elsewhere diagnostic.
 
@@ -8,16 +8,18 @@ use crate::tracker::fixtures::{
     local_unpushed, remote_with_branch, remote_with_config, store_clone, tip, tracked,
     unpushable_remote, BRANCH,
 };
+use std::fs;
 use tempfile::TempDir;
 
 #[test]
-fn stealth_writes_a_self_lock_and_touches_no_remote() {
+fn a_no_remote_prime_warns_and_persists_nothing() {
+    // bl-9df0: stealth leaves NO tracker-side state (the lock file is gone) —
+    // a DECLARED opt-out lives in core's config, an inferred one re-derives.
     let tmp = TempDir::new().unwrap();
     let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
     let b = binding(None, &tmp.path().join("landing"));
     prime(&b, &env).unwrap();
-    let lock = env.xdg.clone_dir(Path::new(&b.invocation_path)).root().join("stealth.lock");
-    assert!(lock.is_file());
+    assert!(!env.xdg.clone_dir(Path::new(&b.invocation_path)).root().exists());
 }
 
 #[test]
@@ -76,12 +78,8 @@ fn prime_post_over_a_legacy_remote_converges_without_touching_it() {
     let remote = legacy_remote(tmp.path());
     let store = local_unpushed(tmp.path()); // the freshly-founded greenfield store
     let before = tip(&remote, BRANCH);
-    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-    let b = binding(Some(&remote), &store);
-    prime_post(&b, &env).unwrap();
+    prime_post(&binding(Some(&remote), &store)).unwrap();
     assert_eq!(tip(&remote, BRANCH), before); // the legacy ref was not rewritten
-    let lock = env.xdg.clone_dir(Path::new(&b.invocation_path)).root().join("stealth.lock");
-    assert!(!lock.exists()); // and nothing degraded to stealth
 }
 
 #[test]
@@ -100,8 +98,7 @@ fn prime_post_founds_an_absent_remote_by_pushing() {
     let tmp = TempDir::new().unwrap();
     let remote = empty_remote(tmp.path());
     let store = local_unpushed(tmp.path());
-    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-    prime_post(&binding(Some(&remote), &store), &env).unwrap();
+    prime_post(&binding(Some(&remote), &store)).unwrap();
     assert_eq!(tip(&remote, BRANCH), tip(&store, "HEAD")); // the push created the branch
 }
 
@@ -111,21 +108,18 @@ fn prime_post_brings_current_then_publishes_to_an_established_remote() {
     let remote = remote_with_branch(tmp.path());
     let store = store_clone(tmp.path(), &remote);
     let landed = commit(&store, "landed.txt", "landed"); // local work ahead of the remote
-    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-    prime_post(&binding(Some(&remote), &store), &env).unwrap();
+    prime_post(&binding(Some(&remote), &store)).unwrap();
     assert_eq!(tip(&remote, BRANCH), landed); // fetch-ff is a no-op, the push publishes
 }
 
 #[test]
-fn prime_post_founding_reject_falls_back_to_stealth_local() {
+fn prime_post_founding_reject_degrades_silently_and_persists_nothing() {
+    // bl-9df0: the founding-miss is an OUTCOME, not a consent — nothing is
+    // written, so §12's "re-running prime re-attempts" holds by construction.
     let tmp = TempDir::new().unwrap();
     let remote = unpushable_remote(tmp.path());
     let store = local_unpushed(tmp.path());
-    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-    let b = binding(Some(&remote), &store);
-    prime_post(&b, &env).unwrap(); // push denied on an absent branch → silent stealth
-    let lock = env.xdg.clone_dir(Path::new(&b.invocation_path)).root().join("stealth.lock");
-    assert!(lock.is_file());
+    prime_post(&binding(Some(&remote), &store)).unwrap(); // denied founding push → silent
     assert!(git(&remote, &["rev-parse", BRANCH]).is_err()); // nothing was founded
 }
 
@@ -140,22 +134,21 @@ fn prime_post_established_push_reject_errors_never_degrades() {
     commit(&other, "remote.txt", "remote");
     git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
     commit(&store, "local.txt", "local");
-    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-    assert!(prime_post(&binding(Some(&remote), &store), &env).is_err());
+    assert!(prime_post(&binding(Some(&remote), &store)).is_err());
 }
 
 #[test]
 fn prime_post_in_stealth_is_a_no_op() {
     let tmp = TempDir::new().unwrap();
     let store = local_unpushed(tmp.path());
-    let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
-    prime_post(&binding(None, &store), &env).unwrap(); // no remote → nothing
+    prime_post(&binding(None, &store)).unwrap(); // no remote → nothing
 }
 
 #[test]
 fn the_ephemeral_gap_compares_the_acting_remote_to_the_durable_ladder() {
     // W2 (bl-c2de): warn iff the remote prime acts on is NOT what the durable
-    // ladder (XDG `task-remote` > `origin`) resolves — a per-op `--remote` that
+    // ladder (landing `task_remote` > XDG `task-remote` > `origin`) resolves —
+    // a per-op `--remote` that
     // plain commands will silently not reproduce (the bl-d234 failure).
     let tmp = TempDir::new().unwrap();
     let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
@@ -175,6 +168,16 @@ fn the_ephemeral_gap_compares_the_acting_remote_to_the_durable_ladder() {
     fs::write(&cfg, "remote = \"git@hub:durable\"\n").unwrap();
     assert_eq!(ephemeral_gap(&b, &env, "git@hub:r").as_deref(), Some("`git@hub:durable`"));
     assert_eq!(ephemeral_gap(&b, &env, "git@hub:durable"), None);
+    // A landing stealth sentinel outranks everything durable: plain commands
+    // run DECLARED stealth, named as such (bl-9df0).
+    let stealth_landing = tmp.path().join("stealth-landing");
+    fs::create_dir_all(stealth_landing.join("config")).unwrap();
+    fs::write(stealth_landing.join("config").join("balls.toml"), "task_remote = \"none\"\n").unwrap();
+    let declared = Binding { landing: stealth_landing.to_string_lossy().into_owned(), ..b };
+    assert_eq!(
+        ephemeral_gap(&declared, &env, "git@hub:r").as_deref(),
+        Some("declared stealth (the landing `task_remote` sentinel)")
+    );
 }
 
 #[test]
