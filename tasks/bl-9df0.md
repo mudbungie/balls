@@ -1,7 +1,7 @@
 +++
 title = "stealth.lock is write-only — a post-stealth mutate op rediscovers origin and founds balls/tasks anyway (§12 'locks the store local' only binds prime)"
 created = 1781040083
-updated = 1781061621
+updated = 1781078139
 claimant = "mark"
 parent = "bl-72a8"
 priority = 2
