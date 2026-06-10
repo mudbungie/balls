@@ -186,6 +186,13 @@ impl BaseChange for Update {
         let title = read_task(dir, &self.id)?.title;
         commit_message(Verb::Update, &self.actor, &self.id, &title, self.message.as_deref())
     }
+
+    /// `update` is the one base that can stage a byte-identical tree (zero
+    /// effective edits + a same-second `updated` restamp), hitting the no-op
+    /// seal — its `-m` must refuse to converge rather than drop (bl-cf93).
+    fn narrated(&self) -> bool {
+        self.message.is_some()
+    }
 }
 
 // The field-edit vocabulary (one [`FieldEdit`] per overwriteable field, plus

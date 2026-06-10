@@ -291,3 +291,7 @@ fn op_error_renders_each_variant_and_is_an_error() {
 // §13 diffless-op tests share this module's engine harness (fakes + helpers).
 #[path = "lifecycle_diffless_tests.rs"]
 mod diffless;
+
+// bl-cf93 narration-vs-no-op-seal tests share the same harness.
+#[path = "lifecycle_narration_tests.rs"]
+mod narration;
