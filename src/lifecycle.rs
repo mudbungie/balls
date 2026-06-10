@@ -36,6 +36,15 @@ pub trait BaseChange {
     /// (§8.3) Re-read `dir` after `pre` ran and render the §5 commit message
     /// (final id/state) the seal will commit.
     fn finalize(&self, dir: &Path) -> io::Result<String>;
+    /// Does the change carry `-m` narration? The §5 free body lives ONLY in
+    /// the sealed commit, so when this is true the engine refuses the no-op
+    /// seal (converging on the existing tip would silently drop the note,
+    /// bl-cf93). Default `false`: only `update` can stage a byte-identical
+    /// tree (create mints a file, claim/unclaim flip `claimant`, close
+    /// deletes), so it alone overrides.
+    fn narrated(&self) -> bool {
+        false
+    }
 }
 
 /// What the op moved, threaded to every `post` reactor and any `post`-phase
@@ -87,6 +96,10 @@ pub enum OpError {
     Substrate(io::Error),
     /// A [`Plugins::run`] returned non-zero — the named plugin aborted the op.
     Plugin { name: String, source: io::Error },
+    /// The op carried `-m` narration but the seal converged on the existing
+    /// tip (nothing changed — the no-op seal, §13): a note's only home is a
+    /// commit, so converging would silently drop it (bl-cf93).
+    Narration,
 }
 
 impl std::fmt::Display for OpError {
@@ -96,6 +109,10 @@ impl std::fmt::Display for OpError {
             OpError::Anvil(e) => write!(f, "sealing onto the anvil failed: {e}"),
             OpError::Substrate(e) => write!(f, "materializing the store failed: {e}"),
             OpError::Plugin { name, source } => write!(f, "plugin {name} aborted the op: {source}"),
+            OpError::Narration => write!(
+                f,
+                "nothing changed, so nothing sealed — the -m note rides only a commit and would be lost; retry in a second or drop -m"
+            ),
         }
     }
 }
@@ -194,6 +211,9 @@ impl<'a> Engine<'a> {
         let prev = self.anvil.head().map_err(OpError::Anvil)?;
         let message = base.finalize(change_dir).map_err(OpError::Author)?;
         let sha = self.anvil.seal(change_dir, &message).map_err(OpError::Anvil)?; // (3) SEAL
+        if base.narrated() && sha == prev {
+            return Err(OpError::Narration); // converged no-op seal would drop the note (bl-cf93)
+        }
         // boundary crossed: record the seal so post (and any post-abort) gets §7 facts.
         let sealed = trace
             .seal

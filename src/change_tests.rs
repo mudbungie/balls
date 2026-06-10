@@ -222,6 +222,17 @@ fn the_m_message_flows_into_the_commit_body_under_the_title_subject() {
     assert!(msg.contains("Extra paragraph."));
 }
 
+#[test]
+fn update_is_narrated_iff_it_carries_m() {
+    // bl-cf93: the engine consults `narrated()` to refuse a no-op seal that
+    // would drop the `-m` note; a note-less update may still converge.
+    let noted =
+        Update { id: "bl-1".into(), actor: "me".into(), now: 1, edits: vec![], message: Some("n".into()) };
+    assert!(noted.narrated());
+    let plain = Update { id: "bl-1".into(), actor: "me".into(), now: 1, edits: vec![], message: None };
+    assert!(!plain.narrated());
+}
+
 // The `create` authoring tests share this module's `write`/`TASK` fixtures.
 #[path = "change_create_tests.rs"]
 mod create;

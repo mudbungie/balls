@@ -30,13 +30,6 @@ ungated: close delivers unchecked. A merge conflict with `main` also aborts the
 close (cleanly — no half-merge is left behind); merge `main` into the worktree
 by hand, resolve, and close again.
 
-Because close re-gates the **folded** tree — the tree that actually lands —
-intermediate commits in the `work/<id>` worktree may reasonably use `git commit
---no-verify`: the gate-of-record runs at close, before anything lands, and is
-never skipped. Whether each worktree commit also pays the hook (which may be
-expensive) stays the repo's own policy decision; bl takes no position beyond
-where the gate-of-record sits.
-
 ## The worktree is the unit of work
 
 `bl` tracks the code change a task delivers, not just the task. `bl claim`
@@ -182,6 +175,23 @@ A closed task has **no file** (absence = resolved). Its history — including th
 delivery commit on `main` tagged `[bl-xxxx]` — is the record. Closing is the
 ONLY retirement: to abandon a held task, `bl unclaim` then `bl close` (an empty
 worktree delivers nothing), so a `close`-gate guards every way a task can die.
+
+## Progress notes ride `-m`, not the body
+
+To append a comment / progress note to a task, use a zero-edit update:
+
+```
+bl update <id> -m "waiting on upstream release"
+```
+
+`--body` is the task's living document (current state — overwrite it when the
+state changes); `-m` is the append-only journal entry, riding the update
+commit's message on the store branch. There is no `comment` verb and no
+body-append flag — the journal IS git history (`git log -- tasks/<id>.md` in
+the store checkout under `$XDG_STATE_HOME/balls/clones/…/tasks`). A pure-note
+update always commits (the `updated` restamp); if truly nothing changed — a
+second write inside the same wall-clock second — the op FAILS rather than drop
+the note. Retry a second later.
 
 ## Blockers and the dependency model
 
