@@ -1,7 +1,9 @@
-//! Tests for the `bl install` run-wiring: argv parsing, the `--to` checkout
-//! resolution, and the engine-sealed path-copy driven end to end on a founded
-//! substrate (the [`crate::adopt_tests`] pattern — throwaway repos, fake
-//! plugins beside `bl` where a chain participant is needed).
+//! Tests for the `bl install` run-wiring: the `--to` checkout resolution and
+//! the engine-sealed path-copy driven end to end on a founded substrate (the
+//! [`crate::adopt_tests`] pattern — throwaway repos, fake plugins beside `bl`
+//! where a chain participant is needed). The fixtures are `pub(crate)` so the
+//! sibling §6 surface tests ([`super::surface_tests`]) share them; the argv
+//! parse tests live with the parser ([`super::args`]).
 
 use super::*;
 use crate::git;
@@ -12,34 +14,35 @@ use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
 /// An edge rooted in `tmp` with the given (optional) `bl`-sibling dir.
-fn edge(tmp: &TempDir, exe_dir: Option<PathBuf>) -> Edge {
+pub(crate) fn edge(tmp: &TempDir, exe_dir: Option<PathBuf>) -> Edge {
     Edge {
         xdg: Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy())),
         invocation_path: tmp.path().join("proj"),
         default_actor: "tester".into(),
         depth: 0,
         exe_dir,
+        path_dirs: Vec::new(),
         color: false,
         log_level: None,
     }
 }
 
 /// Found the two-branch substrate; returns the (landing, store) checkouts.
-fn found(e: &Edge) -> (PathBuf, PathBuf) {
+pub(crate) fn found(e: &Edge) -> (PathBuf, PathBuf) {
     let clone = e.xdg.clone_dir(&e.invocation_path);
     substrate::found(&clone.landing(), &clone.store(), &e.xdg, e.exe_dir.as_deref()).unwrap();
     (clone.landing(), clone.store())
 }
 
-fn g(cwd: &Path, args: &[&str]) {
+pub(crate) fn g(cwd: &Path, args: &[&str]) {
     git::run(cwd, args, None).unwrap();
 }
 
-fn head(checkout: &Path) -> String {
+pub(crate) fn head(checkout: &Path) -> String {
     git::run(checkout, &["rev-parse", "HEAD"], None).unwrap()
 }
 
-fn run_install(e: &Edge, args: &[&str]) -> io::Result<()> {
+pub(crate) fn run_install(e: &Edge, args: &[&str]) -> io::Result<()> {
     run(e, &args.iter().map(ToString::to_string).collect::<Vec<_>>())
 }
 
@@ -52,40 +55,6 @@ fn side_branch(tmp: &TempDir, landing: &Path) -> &'static str {
     fs::write(wt.join("config/balls.toml"), "tasks_branch = \"balls/elsewhere\"\n").unwrap();
     g(&wt, &["commit", "-q", "-am", "side config"]);
     "side"
-}
-
-fn parsed(args: &[&str]) -> io::Result<Opts> {
-    parse(&args.iter().map(ToString::to_string).collect::<Vec<_>>(), "tester")
-}
-
-#[test]
-fn parse_defaults_the_path_and_the_to_ref() {
-    // Bare `install --from X` = the recommended bundle onto the landing (§6).
-    let o = parsed(&["--from", "balls/tasks"]).unwrap();
-    assert_eq!((o.path.as_str(), o.from.as_str()), (DEFAULT_PATH, "balls/tasks"));
-    assert_eq!((o.to.as_str(), o.actor.as_str()), (LANDING_BRANCH, "tester"));
-}
-
-#[test]
-fn parse_takes_an_explicit_path_refs_and_actor() {
-    let o = parsed(&["tasks/*", "--from", "a", "--to", "b", "--as", "me"]).unwrap();
-    assert_eq!((o.path.as_str(), o.from.as_str()), ("tasks/*", "a"));
-    assert_eq!((o.to.as_str(), o.actor.as_str()), ("b", "me"));
-}
-
-#[test]
-fn parse_rejects_bad_shapes() {
-    for (args, needle) in [
-        (&["a", "b", "--from", "x"][..], "at most one path"),
-        (&["--from", "x", "--frobnicate"][..], "unexpected flag"),
-        (&["config"][..], "--from <ref> is required"),
-        (&["/etc/config", "--from", "x"][..], "checkout-relative"),
-        (&["config/../tasks", "--from", "x"][..], "checkout-relative"),
-        (&["--from"][..], "--from needs a value"),
-    ] {
-        let err = parsed(args).unwrap_err();
-        assert!(err.to_string().contains(needle), "{args:?}: {err}");
-    }
 }
 
 #[test]
