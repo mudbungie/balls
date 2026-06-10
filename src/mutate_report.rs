@@ -18,7 +18,11 @@ use crate::message;
 use crate::verb::Verb;
 
 /// Emit the op's result after a successful seal (§9): the minted id to stdout for
-/// `create`, a terse confirmation to stderr for every other mutating verb.
+/// `create`, a terse confirmation to stderr for every other mutating verb. A
+/// `close` that leaves live children adds the §10 notice — diagnostic, never
+/// authority (the §12 warn pattern): any child alive at a successful close was,
+/// by the close-blocker guard, not gating, and its `parent:` now dangles
+/// (display-only, §3).
 pub(super) fn emit(verb: Verb, store: &Path, sha: &str) -> io::Result<()> {
     let id = sealed_id(store, sha)?;
     if verb == Verb::Create {
@@ -26,7 +30,25 @@ pub(super) fn emit(verb: Verb, store: &Path, sha: &str) -> io::Result<()> {
     } else {
         eprintln!("{} {id}", verb.token());
     }
+    if verb == Verb::Close {
+        let n = open_children(store, &id)?;
+        if n > 0 {
+            eprintln!("notice: {id} closed with {n} open children, none gating — their parent pointers now dangle (display-only)");
+        }
+    }
     Ok(())
+}
+
+/// How many live balls name `id` as their `parent` — the same containment scan
+/// the `show` tree renders, reduced to a count.
+fn open_children(store: &Path, id: &str) -> io::Result<usize> {
+    let mut n = 0;
+    for child in crate::taskfile::task_ids(store)? {
+        if crate::taskfile::read_task(store, &child)?.parent.as_deref() == Some(id) {
+            n += 1;
+        }
+    }
+    Ok(n)
 }
 
 /// The `bl-id` trailer of the sealed commit `sha` on the STORE — the op's task id

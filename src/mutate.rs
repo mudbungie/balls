@@ -119,16 +119,18 @@ fn base_change(
         Verb::Create => {
             build::forbid_removals_on_create(flags)?;
             let title = one_positional(flags, "create")?;
+            // `--subtask-of` folds into the parent + a close-gate edge (§10).
+            let parent = build::effective_parent(flags)?;
             let base = Create {
                 id: IdScheme::default().generate(),
                 actor,
                 now,
                 title,
-                parent: flags.parent.clone(),
+                parent: parent.clone(),
                 priority: flags.priority,
                 tags: flags.tags.clone(),
                 blockers: build::needs_blockers(flags)?,
-                blocks: build::blocks_edges(flags)?,
+                blocks: build::blocks_edges(flags, parent.as_deref())?,
                 body: flags.body.clone(),
                 message: flags.message.clone(),
                 existing: task_ids(store)?,

@@ -36,26 +36,45 @@ pub(super) fn needs_blockers(flags: &Flags) -> io::Result<Vec<Blocker>> {
         .collect()
 }
 
+/// The create-time parent, with the §10 `--subtask-of` sugar folded in:
+/// `--subtask-of E` IS a parent spelling (`--parent E --blocks close` in one
+/// word), so naming both is a conflict, never a silent pick.
+pub(super) fn effective_parent(flags: &Flags) -> io::Result<Option<String>> {
+    if flags.subtask_of.is_some() && flags.parent.is_some() {
+        return Err(other("create: --subtask-of and --parent conflict — --subtask-of IS a parent spelling (parent + close-gate)"));
+    }
+    Ok(flags.subtask_of.clone().or_else(|| flags.parent.clone()))
+}
+
 /// `--blocks OP` / `--blocks ID:OP` → reciprocal edges naming THIS new task on a
-/// target's op `OP`: a bare `OP` gates the `--parent` (required — that is the
-/// only target a bare form has), an explicit `ID:OP` gates a non-parent. This is
-/// the §10/§15 front door for the retired `--gates X` (= `--parent X --blocks
-/// close`): containment never mints a blocker, so every gate is spelled here.
-pub(super) fn blocks_edges(flags: &Flags) -> io::Result<Vec<(String, On)>> {
-    flags
+/// target's op `OP`: a bare `OP` gates the [`effective_parent`] (required — that
+/// is the only target a bare form has), an explicit `ID:OP` gates a non-parent.
+/// This is the §10/§15 front door for the retired `--gates X` (= `--parent X
+/// --blocks close`): containment never mints a blocker, so every gate is spelled
+/// here. `--subtask-of E` contributes its `{child, close}` gate on `E` — the
+/// sugar's blocking half — deduped against an explicit equivalent.
+pub(super) fn blocks_edges(flags: &Flags, parent: Option<&str>) -> io::Result<Vec<(String, On)>> {
+    let mut edges: Vec<(String, On)> = flags
         .blocks
         .iter()
         .map(|spec| {
             if let Some((id, op)) = spec.split_once(':') {
                 Ok((id.to_string(), verb_of(op)?))
             } else {
-                let parent = flags.parent.clone().ok_or_else(|| {
-                    other("create: --blocks OP needs --parent; gate a non-parent with --blocks ID:OP")
+                let parent = parent.map(ToString::to_string).ok_or_else(|| {
+                    other("create: --blocks OP needs --parent/--subtask-of; gate a non-parent with --blocks ID:OP")
                 })?;
                 Ok((parent, verb_of(spec)?))
             }
         })
-        .collect()
+        .collect::<io::Result<_>>()?;
+    if let Some(e) = &flags.subtask_of {
+        let gate = (e.clone(), On::Close);
+        if !edges.contains(&gate) {
+            edges.push(gate);
+        }
+    }
+    Ok(edges)
 }
 
 /// Resolve an op token (`claim`/`close`/`update`/…) to its [`Verb`] — `on` is ANY
@@ -125,6 +144,12 @@ pub(super) fn forbid_foreign_blocks(flags: &Flags, verb: Verb) -> io::Result<()>
             verb.token()
         )));
     }
+    if flags.subtask_of.is_some() {
+        return Err(other(format!(
+            "{}: --subtask-of carries a reciprocal close-gate, so it is create-only; set --parent and gate with a fresh gate task",
+            verb.token()
+        )));
+    }
     Ok(())
 }
 
@@ -163,6 +188,7 @@ fn shapes(flags: &Flags) -> bool {
     flags.title.is_some()
         || flags.body.is_some()
         || flags.parent.is_some()
+        || flags.subtask_of.is_some()
         || flags.no_parent
         || flags.no_priority
         || flags.priority.is_some()

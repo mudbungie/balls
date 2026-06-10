@@ -25,6 +25,11 @@ pub(super) struct Flags {
     pub title: Option<String>,
     pub parent: Option<String>,
     pub no_parent: bool,
+    /// `--subtask-of E` (§10): the everyday subtask spelling — `--parent E
+    /// --blocks close` in one word, the intent named by the flag so the
+    /// close-gate cannot be silently forgotten. Create-only (it carries the
+    /// reciprocal edge); mutually exclusive with `--parent`.
+    pub subtask_of: Option<String>,
     pub blocks: Vec<String>,
     pub needs: Vec<String>,
     pub no_needs: Vec<String>,
@@ -95,6 +100,7 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "--title" => f.title = Some(value(args, &mut i, "--title")?),
             "--parent" => f.parent = Some(value(args, &mut i, "--parent")?),
             "--no-parent" => f.no_parent = true,
+            "--subtask-of" => f.subtask_of = Some(value(args, &mut i, "--subtask-of")?),
             "--blocks" => f.blocks.push(value(args, &mut i, "--blocks")?),
             "--needs" => f.needs.push(value(args, &mut i, "--needs")?),
             "--no-needs" => f.no_needs.push(value(args, &mut i, "--no-needs")?),
