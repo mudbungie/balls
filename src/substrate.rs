@@ -19,8 +19,9 @@
 //! to resolve (§1). Core knows nothing of remotes here (§0); it only ensures the
 //! two checkouts exist and seeds the landing's `config/` from the app
 //! default-config ([`crate::seed`]). Re-running `prime` skips both steps (the
-//! landing is already a landing, the store already exists), so the whole verb
-//! converges to a no-op — there is no `--reinit`.
+//! landing is already a landing, the store checkout already sits on the
+//! configured `tasks_branch` — the §12 predicate, not "a store dir exists",
+//! bl-eb52), so the whole verb converges to a no-op — there is no `--reinit`.
 
 use crate::git;
 use crate::layout::Xdg;
@@ -49,29 +50,39 @@ pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::R
     Ok(())
 }
 
-/// Ensure the store branch `name` has a worktree on disk at `store` — the lazy
-/// "a branch is a disk path" primitive `prime` drives between its phases (bl-0a23).
-/// Idempotent in three ways:
-/// - the worktree already exists (a re-prime) ⇒ no-op;
-/// - the branch ref exists but has no worktree — a prior clone, or the remote
-///   branch the `prime/pre` tracker just fetched into a local ref (clone-in,
-///   §12) ⇒ CHECK IT OUT, never found (so an established history adopts cleanly,
-///   no divergence to reset);
-/// - the branch ref is absent (no remote, or the remote had no such branch — the
-///   genuine bootstrap) ⇒ FOUND a fresh orphan with a tracked `tasks/.gitkeep`.
+/// Ensure the configured `tasks_branch` `name` IS the store checkout at `store`
+/// — the lazy "a branch is a disk path" primitive `prime` drives between its
+/// phases (bl-0a23). Two invariants, each established only when missing, so a
+/// re-prime converges to a no-op:
+/// - the branch ref `name` exists — a prior clone, or the remote branch the
+///   `prime/pre` tracker just fetched into a local ref (clone-in, §12); absent
+///   (no remote, or the remote had no such branch — the genuine bootstrap)
+///   ⇒ FOUND a fresh orphan root with a tracked `tasks/.gitkeep`;
+/// - the store checkout sits on `name` — absent ⇒ add the worktree; present on
+///   a DIFFERENT branch (the §12 predicate is "the CONFIGURED branch is the
+///   current checkout", not "a store dir exists" — a repointed `tasks_branch`
+///   on a once-primed checkout, bl-eb52) ⇒ SWITCH it onto `name`.
 ///
 /// Keyed on `name` (the configured `tasks_branch`) — and `prime/pre` may not
 /// move that name: a moved dial aborts the op (bl-698d), so one materialize
 /// per prime is the whole story.
 pub fn materialize(landing: &Path, store: &Path, name: &str) -> io::Result<()> {
-    if store.exists() {
-        return Ok(()); // already a worktree — a re-prime converges
+    if !branch_exists(landing, name) {
+        found_branch(landing, name)?;
     }
-    if branch_exists(landing, name) {
+    if !store.exists() {
         git::run(landing, &["worktree", "add", "-q", &store.to_string_lossy(), name], None)?;
-        return Ok(());
+    } else if checked_out(store)? != name {
+        git::run(store, &["switch", "-q", name], None)?;
     }
-    found_store(landing, store, name)
+    Ok(())
+}
+
+/// The branch the `store` checkout currently has — the datum convergence is
+/// keyed on (bl-eb52), read from the checkout itself.
+fn checked_out(store: &Path) -> io::Result<String> {
+    let branch = git::run(store, &["rev-parse", "--abbrev-ref", "HEAD"], None)?;
+    Ok(branch.trim().to_string())
 }
 
 /// Does `landing` carry a local branch ref named `name`? `show-ref --verify
@@ -82,18 +93,18 @@ fn branch_exists(landing: &Path, name: &str) -> bool {
     git::run(landing, &["show-ref", "--verify", "--quiet", &format!("refs/heads/{name}")], None).is_ok()
 }
 
-/// Found the STORE as a fresh orphan branch `name`, checked out at `store` (§2):
-/// no remote offered this history, so this clone bootstraps it. Plumbing builds an
-/// orphan root (no parent — the two single-job branches stay independent) carrying
-/// a tracked `tasks/.gitkeep`, which keeps `tasks/` present on every checkout
-/// (empty dirs are untracked) — one commit, no working-tree round-trip.
-fn found_store(landing: &Path, store: &Path, name: &str) -> io::Result<()> {
+/// Found a fresh orphan store branch `name` (§2): no ref anywhere offered this
+/// history, so this clone bootstraps it. Plumbing builds an orphan root (no
+/// parent — the two single-job branches stay independent) carrying a tracked
+/// `tasks/.gitkeep`, which keeps `tasks/` present on every checkout (empty dirs
+/// are untracked) — one commit, no working-tree round-trip. The REF only:
+/// putting it on disk is [`materialize`]'s second invariant.
+fn found_branch(landing: &Path, name: &str) -> io::Result<()> {
     let blob = git::run(landing, &["hash-object", "-w", "--stdin"], Some(""))?.trim().to_string();
     let subtree = git::run(landing, &["mktree"], Some(&format!("100644 blob {blob}\t.gitkeep\n")))?.trim().to_string();
     let tree = git::run(landing, &["mktree"], Some(&format!("040000 tree {subtree}\ttasks\n")))?.trim().to_string();
     let root = git::run(landing, &["commit-tree", &tree, "-m", "balls: found store"], None)?.trim().to_string();
     git::run(landing, &["branch", name, &root], None)?;
-    git::run(landing, &["worktree", "add", "-q", &store.to_string_lossy(), name], None)?;
     Ok(())
 }
 

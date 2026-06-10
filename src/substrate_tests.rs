@@ -93,6 +93,41 @@ fn materialize_is_idempotent_once_the_store_exists() {
 }
 
 #[test]
+fn materialize_switches_an_existing_store_onto_a_repointed_branch_ref() {
+    let tmp = TempDir::new().unwrap();
+    let (landing, store) = paths(&tmp);
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
+    materialize(&landing, &store, DEFAULT_TASKS_BRANCH).unwrap();
+    // A second store branch already has a ref (a clone-in of the repointed
+    // name, §12). Repointing `tasks_branch` and re-materializing must bring the
+    // EXISTING store checkout onto it — not no-op on "a store dir exists"
+    // (bl-eb52: reads and writes kept hitting the old branch).
+    let head = git(&store, &["rev-parse", "HEAD"], None).unwrap().trim().to_string();
+    git(&landing, &["branch", "balls/other", &head], None).unwrap();
+    materialize(&landing, &store, "balls/other").unwrap();
+    assert_eq!(git(&store, &["rev-parse", "--abbrev-ref", "HEAD"], None).unwrap().trim(), "balls/other");
+    assert_eq!(git(&store, &["rev-parse", "HEAD"], None).unwrap().trim(), head);
+}
+
+#[test]
+fn materialize_founds_the_repointed_branch_when_no_ref_exists() {
+    let tmp = TempDir::new().unwrap();
+    let (landing, store) = paths(&tmp);
+    found_landing(&landing, &xdg(&tmp), None).unwrap();
+    materialize(&landing, &store, DEFAULT_TASKS_BRANCH).unwrap();
+    // Repointed to a name with NO ref anywhere (`bl install --to <new>` /
+    // `conf set task-branch <new>` on a once-primed checkout): materialize must
+    // CREATE the ref — a fresh orphan — and switch the store onto it, so later
+    // pushes have a `src refspec` that resolves (bl-eb52).
+    materialize(&landing, &store, "balls/fresh").unwrap();
+    assert_eq!(git(&store, &["rev-parse", "--abbrev-ref", "HEAD"], None).unwrap().trim(), "balls/fresh");
+    assert!(store.join("tasks").join(".gitkeep").is_file());
+    // A fresh orphan root: a single rootless commit (no parent to resolve).
+    assert_eq!(git(&store, &["log", "--oneline"], None).unwrap().lines().count(), 1);
+    assert!(git(&store, &["rev-parse", "--verify", "HEAD^"], None).is_err());
+}
+
+#[test]
 fn found_landing_without_any_plugin_binary_seeds_an_empty_schedule() {
     let tmp = TempDir::new().unwrap();
     let (landing, _store) = paths(&tmp);
