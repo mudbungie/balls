@@ -1,7 +1,8 @@
 +++
 title = "pin install's validate-after-seal recovery loop: e2e test + skill note"
 created = 1781113185
-updated = 1781113185
+updated = 1781113192
+claimant = "Rebut"
 parent = "bl-72a8"
 tags = ["spec-divergence"]
 +++
