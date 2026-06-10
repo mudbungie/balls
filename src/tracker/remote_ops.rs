@@ -79,13 +79,22 @@ pub fn push(b: &Binding) -> io::Result<()> {
 /// core↔plugin convention); core reads it from the same checkout. This is a READ
 /// only — config adoption is destructive on the LANDING, never a push to the
 /// center (publishing is `install --to`, a separate direction). Stealth (no
-/// remote) is a no-op, like every handler.
+/// remote) is a no-op, like every handler — and so is a present remote that
+/// simply LACKS the ref (bl-45fd): bl never publishes the landing (§4
+/// single-owner), so a stock hub carries no `balls/config`, and a purely local
+/// install must not depend on remote state. The gate is sync's own
+/// [`remote_has_branch`] ("an upstream, if any", §13); an adopt that really
+/// needs the center's config fails at point-of-use (no `FETCH_HEAD`).
 pub fn fetch_config(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
     reject_option_like(remote)?;
-    git(Path::new(&b.landing), &["fetch", remote, crate::LANDING_BRANCH])?;
+    let landing = Path::new(&b.landing);
+    if !remote_has_branch(landing, remote, crate::LANDING_BRANCH)? {
+        return Ok(()); // no landing on the hub — the §13 no-op, for free
+    }
+    git(landing, &["fetch", remote, crate::LANDING_BRANCH])?;
     Ok(())
 }
 
@@ -207,6 +216,22 @@ mod tests {
         let mut b = binding(None, &landing);
         b.landing = landing.to_string_lossy().into_owned();
         fetch_config(&b).unwrap(); // no remote → nothing fetched, no error
+        assert!(git(&landing, &["rev-parse", "FETCH_HEAD"]).is_err());
+    }
+
+    #[test]
+    fn fetch_config_when_the_remote_lacks_the_landing_is_a_no_op() {
+        // bl-45fd: the landing is never pushed by bl (§4 single-owner), so a
+        // stock hub carries no `balls/config`. A present remote MISSING the
+        // ref is §13's "upstream, if any" no-op — not a fatal abort of a
+        // purely local install. Only an adopt naming the center as --from
+        // needs the fetch, and that fails at point-of-use (no FETCH_HEAD).
+        let tmp = TempDir::new().unwrap();
+        let remote = remote_with_branch(tmp.path()); // carries `balls`, no `balls/config`
+        let landing = local_unpushed(tmp.path());
+        let mut b = binding(Some(&remote), &landing);
+        b.landing = landing.to_string_lossy().into_owned();
+        fetch_config(&b).unwrap(); // ref absent → nothing fetched, no error
         assert!(git(&landing, &["rev-parse", "FETCH_HEAD"]).is_err());
     }
 
