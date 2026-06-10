@@ -15,11 +15,37 @@
 //! "this task's own" field, so re-wire it at create.
 
 use std::io;
+use std::path::Path;
 
 use super::{other, Flags};
 use crate::change::FieldEdit;
+use crate::reads::resolve_dead;
 use crate::task::{Blocker, On};
+use crate::taskfile::exists;
 use crate::verb::Verb;
+
+/// §10 front-door edge validation (bl-6b8c): `--needs`/`--blocks` (and
+/// `--subtask-of`'s reciprocal gate) REFUSE a target that is not LIVE, naming
+/// the id and whether it is dead or unknown. Under fixed random ids a
+/// never-minted target is always a typo or a hallucination — what it buys is a
+/// silently ungated task — and a dead target is an edge born resolved: a
+/// blocker that can never block. Only the write is validated (the store is
+/// never audited — an existing dangling edge stays read-side inert); the
+/// dead-vs-unknown naming rides the §9 recency walk, on the refusal path only.
+pub(super) fn require_live<'a>(store: &Path, verb: Verb, targets: impl Iterator<Item = &'a str>) -> io::Result<()> {
+    for id in targets {
+        if exists(store, id) {
+            continue;
+        }
+        let fate = if resolve_dead(store, id)?.is_some() {
+            "already closed — a dead blocker can never block"
+        } else {
+            "not a known id"
+        };
+        return Err(other(format!("{}: edge target '{id}' is {fate}; drop the flag", verb.token())));
+    }
+    Ok(())
+}
 
 /// `--needs B[:OP]` → the task's own blockers: it can't make op `OP` until `B`
 /// resolves. `OP` defaults to `claim` (a dependency, §10), so a bare `--needs B`
