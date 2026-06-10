@@ -1,7 +1,9 @@
 //! §9 mutating-dispatch tests — the parser, the per-verb [`base_change`]
 //! authoring, and the front-door guards, exercised on a plain temp dir (the
-//! authoring is git-free, so no anvil is needed). The full engine seal is
-//! covered end to end by the `lib`/`dispatch` integration tests.
+//! authoring is git-free, so no anvil is needed — except the bl-6b8c
+//! dead-vs-unknown refusals, which walk history on a throwaway git store).
+//! The full engine seal is covered end to end by the `lib`/`dispatch`
+//! integration tests.
 
 use super::*;
 use crate::task::{Blocker, On};

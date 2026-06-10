@@ -1,15 +1,19 @@
 //! §9 `create` front-door dispatch tests (§10/§15): `--parent` containment,
-//! `--needs B[:OP]`, `--blocks OP`/`--blocks ID:OP`, the unknown-op and
-//! missing-parent errors, and the one-positional guard. Shares the parent
-//! module's `flags`/`write`/`new_id`/`TASK` fixtures via [`super`].
+//! `--needs B[:OP]`, `--blocks OP`/`--blocks ID:OP`, the live-target refusal
+//! (bl-6b8c — on a throwaway git store, the one authoring read that walks
+//! history), the unknown-op and missing-parent errors, and the one-positional
+//! guard. Shares the parent module's `flags`/`write`/`new_id`/`TASK` fixtures
+//! via [`super`].
 
 use super::*;
+use crate::reads::test_support::{git_store, task};
 
 #[test]
 fn create_authors_a_ball_with_its_front_door_structure() {
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1000", TASK);
+    write(dir, "bl-9", TASK); // an edge target must be live (bl-6b8c)
     let mut f = flags();
     f.positionals = vec!["New thing".into()];
     f.parent = Some("bl-1000".into());
@@ -65,12 +69,13 @@ fn create_blocks_an_id_op_gates_a_non_parent() {
 fn create_needs_with_an_explicit_op() {
     let d = tempdir().unwrap();
     let dir = d.path();
+    write(dir, "bl-dep", TASK);
     let mut f = flags();
     f.positionals = vec!["t".into()];
     f.needs = vec!["bl-dep:close".into()];
     let (base, _) = base_change(Verb::Create, dir, &f, 0).unwrap();
     base.stage(dir).unwrap();
-    let id = new_id(dir, &[]);
+    let id = new_id(dir, &["bl-dep"]);
     assert_eq!(read_task(dir, &id).unwrap().blockers, vec![Blocker { id: "bl-dep".into(), on: On::Close }]);
 }
 
@@ -81,6 +86,33 @@ fn create_blocks_a_bare_op_requires_a_parent() {
     f.blocks = vec!["close".into()]; // bare OP, no --parent ⇒ no target
     let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
     assert!(err.to_string().contains("needs --parent"));
+}
+
+#[test]
+fn create_refuses_an_unknown_edge_target() {
+    // bl-6b8c: under fixed random ids a never-minted target is always a typo
+    // or a hallucination, and what it buys is a silently ungated task — the
+    // refusal names the id and that it is unknown.
+    let s = git_store();
+    s.create("bl-live", &task("Alive", 1), 1);
+    let mut f = flags();
+    f.positionals = vec!["t".into()];
+    f.needs = vec!["bl-nope".into()];
+    let err = base_change(Verb::Create, s.dir(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("'bl-nope' is not a known id"), "{err}");
+}
+
+#[test]
+fn create_refuses_a_dead_blocks_target_naming_the_closure() {
+    // bl-6b8c: a dead target is an edge born resolved — a blocker that can
+    // never block — and the refusal carries the fact the author lacked.
+    let s = git_store();
+    s.create("bl-dead", &task("Done", 1), 1).retire("bl-dead", "close", 2);
+    let mut f = flags();
+    f.positionals = vec!["t".into()];
+    f.blocks = vec!["bl-dead:close".into()];
+    let err = base_change(Verb::Create, s.dir(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("'bl-dead' is already closed"), "{err}");
 }
 
 #[test]

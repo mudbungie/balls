@@ -917,6 +917,22 @@ fact — containment and blocking never travel together implicitly:
   create-only like `--blocks` (it carries the reciprocal edge), deduped against an explicit
   `--blocks close`.
 
+**The edge flags require a LIVE target (bl-6b8c).** `--needs ID[:OP]` and `--blocks ID:OP` /
+`--blocks OP` — create and update alike, `--subtask-of`'s reciprocal gate included — REFUSE a target
+id that is not currently live, naming the id and whether it is dead or unknown. Under the fixed
+random 4-hex scheme (§ id generation) a never-existed target can never be intentional — there is no
+forward-declaring an id you have not minted — so it is always a typo or a hallucination, and what it
+would produce is the known worst failure shape: a SILENTLY ungated task (the bl-788e silent-forget
+class, inverted). A dead target is an edge born resolved — a blocker that can never block, and a
+primitive must mean what it says. The refusal carries exactly the information the author lacked
+("that id already closed"); the remedy is dropping the flag. The READ side stays unaudited: an
+existing edge pointing at a void remains cheap and inert (resolved = file gone) and `--no-needs`
+unlinks it — we validate the WRITE, never audit the store. The escape hatch stays open by hand:
+`bl import` remains verbatim (a reproduction, not a transition — §9's no-enforce-gate unchanged),
+and `update --edit` or a direct store edit still stitches anything; the front door takes no risk to
+help that case through. (`--parent` is untouched — containment is display-only and dangles freely,
+§3; the §16 epic edge-mint already targets live children only.)
+
 The forget-residue is caught by a close-time NOTICE, never a block (the §12 "diagnostic, never
 authority" pattern, bl-788e): a close that leaves live children prints "closed with N open children,
 none gating — their parent pointers now dangle". Any child alive at a successful close is non-gating
@@ -1570,6 +1586,24 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **front-door edge flags require a LIVE target (2026-06-10, bl-6b8c — post-freeze).** `--needs
+  ID[:OP]` and `--blocks ID:OP`/`--blocks OP` — create AND update alike, `--subtask-of`'s
+  reciprocal gate included — now REFUSE a target id that is not currently live, naming the id and
+  whether it is dead or unknown. Under the fixed random 4-hex scheme a never-existed target can
+  never be intentional (there is no forward-declaring an id you have not minted): it is always a
+  typo or a hallucination, and what it produces is the known worst failure shape — a SILENTLY
+  ungated task (the bl-788e silent-forget class, inverted). A dead target is an edge born resolved
+  — a blocker that can never block — and §10's own bar is "a primitive must mean what it says: a
+  blocker that does not block is not a feature"; the refusal carries exactly the information the
+  author lacked ("that id already closed") and the remedy is dropping the flag. The READ side stays
+  UNAUDITED: an existing edge pointing at a void remains cheap and inert (resolved = file gone),
+  `--no-needs` unlinks it — the write is validated, the store never audited. The escape hatch stays
+  open by hand: `bl import` remains verbatim (a reproduction, not a transition — §9's
+  no-enforce-gate unchanged), `update --edit` and a direct store edit still stitch anything.
+  Unaffected: the §16 epic edge-mint (targets live children only) and `--parent` (display-only
+  containment, dangles freely, §3). Touched §10 (the front-door flag block). Code: one live-store
+  existence read at the flag seam (`src/mutate.rs` `require_live`; dead-vs-unknown named via the §9
+  recency walk, refusal path only), tests.
 - **`tasks_branch` may not name the landing — the §1/§2 coincidence promise STRUCK (2026-06-09,
   bl-ac89 — post-freeze).** §1/§2 promised the coincident case Just Works ("the two checkouts
   coincide on one branch whose `config/` and `tasks/` folders simply both live there — same code

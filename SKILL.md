@@ -210,6 +210,13 @@ have create-time sugar:
   so it can't be silently forgotten. Mutually exclusive with `--parent`;
   create-only.
 
+**Every edge target must be LIVE.** `--needs` and `--blocks` (and `--subtask-of`'s
+gate) refuse a target id that is unknown or already closed, naming which — a
+never-minted id is a typo or a hallucination (it would leave the task silently
+ungated), and a dead blocker can never block. The remedy is dropping the flag.
+Existing edges at a void are inert (`--no-needs` unlinks them), and `bl import`
+/ `update --edit` still write anything verbatim.
+
 `--parent` is **containment only** — it builds the display tree and gates
 nothing. An "epic" is just a task with children; to make a parent wait on its
 children, add explicit edges (`--subtask-of` at create is the usual way). Core
