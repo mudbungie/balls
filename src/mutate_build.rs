@@ -94,7 +94,7 @@ pub(super) fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags)
     let mut edits = Vec::new();
     for kv in extras {
         let (k, v) = kv.split_once('=').ok_or_else(|| other(format!("update: '{kv}' is not key=value")))?;
-        edits.push(extra_edit(k, v));
+        edits.push(extra_edit(k, v)?);
     }
     if let Some(t) = &flags.title {
         edits.push(FieldEdit::Title(t.clone()));
@@ -122,15 +122,31 @@ pub(super) fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags)
     Ok(edits)
 }
 
+/// The keys `key=value` refuses by name: facts whose one authoritative home is
+/// not a preserved extra. `id` is the filename and `body` is the markdown after
+/// the fence (the [`crate::task`] shadow keys — a stored line would be a lossy
+/// shadow the bedrock projection drops, §3/§9); `created`/`updated` are the
+/// seal's stamps, so a hand-set value never survives. The string-typed §3
+/// fields (`title=`/`claimant=`/`parent=`) are NOT here: overwriting them is
+/// the update contract, just spelled without the flag.
+const RESERVED: [&str; 4] = ["id", "body", "created", "updated"];
+
 /// A `key=value` extra edit: an empty `value` REMOVES the key (the §3 clear),
 /// any other value sets it as a string. Setting an extra to "" is the degenerate
-/// case removal takes precedence over — clear is the useful operation.
-fn extra_edit(k: &str, v: &str) -> FieldEdit {
-    if v.is_empty() {
+/// case removal takes precedence over — clear is the useful operation. A
+/// [`RESERVED`] key is refused by name in both forms — there is never a
+/// reserved-named extra to set or remove.
+fn extra_edit(k: &str, v: &str) -> io::Result<FieldEdit> {
+    if RESERVED.contains(&k) {
+        return Err(other(format!(
+            "update: '{k}' is reserved, not an extra — the id is the filename, the body is --body, created/updated are the seal's stamps"
+        )));
+    }
+    Ok(if v.is_empty() {
         FieldEdit::RemoveExtra(k.to_string())
     } else {
         FieldEdit::SetExtra(k.to_string(), toml::Value::String(v.to_string()))
-    }
+    })
 }
 
 /// `update` edits this task's OWN fields and blockers; only `--blocks` (a

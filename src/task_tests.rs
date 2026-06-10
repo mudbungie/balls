@@ -97,6 +97,20 @@ fn invalid_toml_frontmatter_is_an_error() {
 }
 
 #[test]
+fn a_shadow_id_or_body_frontmatter_key_is_an_error() {
+    // The id is the filename and the body is the markdown after the fence —
+    // a stored `id =`/`body =` line would be a shadow the bedrock projection
+    // silently drops (§3/§9), so the schema refuses to parse it at all.
+    for key in ["id", "body"] {
+        let src = format!("+++\ntitle = \"t\"\ncreated = 1\nupdated = 2\n{key} = \"shadow\"\n+++\n");
+        let err = Task::parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::ReservedKey(k) if k == key));
+        assert!(err.to_string().contains(&format!("'{key}'")), "{err}");
+        assert!(err.to_string().contains("filename"), "{err}");
+    }
+}
+
+#[test]
 fn a_claimant_yields_claimed_even_with_an_open_blocker() {
     let mut task = Task::parse(FULL).unwrap();
     task.claimant = Some("me".into());
