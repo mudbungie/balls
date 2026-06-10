@@ -87,6 +87,18 @@ fn parse_rejects_bad_input() {
     assert!(parse(Verb::Show, &["--status".into(), "ready".into()]).is_err()); // list-only flag
 }
 
+#[test]
+fn parse_reads_the_legacy_shim_flag_on_both_reads() {
+    // §16: `--legacy[=REF]` rides list (the migration preview) AND show.
+    let f = parse(Verb::List, &["--legacy".into()]).unwrap();
+    assert_eq!(f.legacy.as_deref(), Some(legacy::DEFAULT_SPEC));
+    let f = parse(Verb::Show, &["bl-1".into(), "--legacy=v1:old".into()]).unwrap();
+    assert_eq!(f.legacy.as_deref(), Some("v1:old"));
+    // The legacy store holds the LIVE set alone — a dead-set reach contradicts.
+    assert!(parse(Verb::List, &["--legacy".into(), "--all".into()]).is_err());
+    assert!(parse(Verb::List, &["--legacy".into(), "-s".into(), "closed".into()]).is_err());
+}
+
 /// Parse a `bl list` argv from string slices.
 fn list(args: &[&str]) -> io::Result<Flags> {
     parse(Verb::List, &args.iter().map(ToString::to_string).collect::<Vec<_>>())

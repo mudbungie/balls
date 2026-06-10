@@ -673,7 +673,9 @@ The canonical task-op sequence (verb-agnostic):
 
 ## §9 Verbs
 
-Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`.**
+Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`** — plus
+**`import`**, the one mutating verb outside the lifecycle: it reproduces already-identified balls
+(the write inverse of the bedrock read; see below and §16).
 There is **no `review` verb** — see "close" below.
 
 Read verbs (no seal, no change worktree — their hook keys run against the checkouts directly, §13):
@@ -683,7 +685,9 @@ Read verbs (no seal, no change worktree — their hook keys run against the chec
 contract; retired 2026-06-09, see §15 bl-ffaf.) They
 author no ball-file diff; their whole contribution is what the hook chain prints (§7). `--json` on any
 read verb is the lossless **bedrock** projection — raw stored fields only, no derived value (the
-round-trippable "what's actually there", §3); the default human render is the orthogonal projection
+round-trippable "what's actually there", §3). The record is TOTAL — frontmatter AND the markdown
+`body` — because `bl import` writes it back verbatim (bl-e614, §16): what the bedrock reads out must
+be the whole ball. The default human render is the orthogonal projection
 that carries the derived columns (the status ladder, the tree, ISO-8601 dates).
 
 **`list`** is the SINGLE listing verb (the old `ready` folded in — fewer verbs, composable filters).
@@ -806,6 +810,22 @@ phase (bl-7bfe): the worker pushes `work/<id>` and opens the PR (the `[bl-id]` t
 a forge `sync` closes the gate on merge; the next close retires the parent. `bl close` is purely
 retire — it never submits. "Close is related to remotes" = the tracker pushes the *balls* branch,
 nothing more.
+
+**`import`** (op `import`; bl-e614, §16): ingest one or a stream of VERBATIM, fully-identified
+bedrock task records (`show --json` objects, `list --json` arrays, or any concatenation) on stdin
+and seal them onto the store as ONE commit, through the same §8 engine wiring as every mutating verb.
+Id and timestamps are taken verbatim — **no mint, no `now` stamp, no enforce gate** — because the
+record is a REPRODUCTION of an identity that is authoritative at its source (a federation peer, a
+backup, the §16 legacy store), not a transition. This is deliberately a distinct primitive from
+`create --id` (which does not exist): `create` mints a NEW identity and rightly refuses a foreign
+one; folding the two into one verb would make each the other's edge case. **Collision = refuse the
+whole stream**: an id already in the store, or repeated within the stream, aborts before anything is
+written — exit nonzero naming every colliding id, nothing imported (all-or-nothing, the §14
+guarantee). Skip would lie (a "restored" ball silently isn't); replace would destroy local state on
+no explicit signal; both are guesses, and both remedies already compose from existing verbs (`bl
+close` the holder, or filter the stream) — so there is no `--skip`/`--replace`/`--force` flag.
+`import` prints nothing to stdout (the caller supplied every id — there is no product to print);
+confirmation goes to stderr. `bl import --legacy[=REF]` is the §16 cutover button.
 
 **There is no `drop` verb** (deleted 2026-06-09, bl-65e0 — §15). Closing is the ONLY retirement, so
 a `--blocks close` gate guards every way a ball can die. Abandonment is the composite spelled out:
@@ -1545,6 +1565,34 @@ RESOLVED (folded into the body, no longer open):
   bullet: CAPTURE guard, strict FOLD, the invariant at SQUASH). Code: `src/delivery_fold.rs` (new —
   the guard + the invariant), `src/delivery_repo.rs` (guard before capture, invariant before the
   squash). Tracked under bl-72a8.
+- **§16 migration dissolved into verbs: `bl import` + the `--legacy` read shim (2026-06-09, bl-e614 —
+  post-freeze; supersedes bl-0802's throwaway script).** The script wrote legacy state into the store
+  BELOW the verb layer, and every smell followed from that placement: a hand-rolled duplicate of the
+  `task.rs` serializer (SSOT violation), orphan-ref plumbing to land branches without the substrate,
+  and id/timestamp gymnastics to preserve exactly what the verbs refuse. RESOLVED by giving the verb
+  layer its missing primitive and making migration composition: (a) `bl import` (§9) — the write
+  INVERSE of the bedrock read: verbatim, fully-identified records on stdin, sealed through the real
+  store/serializer/engine as ONE commit; no mint, no stamp, no gate. Deliberately a distinct
+  primitive from `create --id`: "reproduce an existing identity" (federation join, restore,
+  clone-seeding — migration is merely the first caller) ≠ "mint a new one", which is why `create`
+  rightly refuses foreign ids. COLLISION = REFUSE THE WHOLE STREAM, naming every held/duplicated id,
+  nothing written: skip would lie (a "restored" ball silently isn't), replace would destroy local
+  state on no explicit signal, and both remedies compose from existing verbs (`close` the holder or
+  filter the stream) — no `--skip`/`--replace` flag; re-running is idempotent-by-refusal. The
+  bedrock record became TOTAL for this (`--json` now carries `body`): what `show --json` reads out
+  must be the whole ball `import` writes back. (b) `bl list/show --legacy[=REF]` — the bounded read
+  shim: one module (`src/reads/legacy.rs`) owns the §16 field map read-side; `bl list --legacy` IS
+  the dry-run/preview; severable (flag + module delete cleanly, no core edit). (c) `bl import
+  --legacy` — the cutover button: pure orchestration, `bl list --legacy --json | bl import`
+  in-process plus the epic reciprocal edges as ordinary `update --needs` ops (the shim stays a
+  rename, never a reconstruction). The script + its python3 test harness are DELETED; the operator
+  sequence (quiesce guard included — a runbook line, not code: the primitive must not carry one
+  caller's policy) is `docs/migration-runbook.md`; the decision record is
+  `docs/design/bl-e614-import.md`. Touched §9 (verb roster, bedrock totality, the import verb), §16
+  (mechanism rewritten verbs-first). Code: `src/import.rs`/`src/import_stream.rs` (new),
+  `src/reads/legacy.rs`/`src/reads/record.rs` (new — shim; the bedrock record lifted to a sibling),
+  `src/mutate.rs` (`seal_op` — one shared road to the anvil), `scripts/migrate-legacy.py`/
+  `tests/migrate.rs` (deleted). Tracked under bl-72a8.
 - **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
   post-freeze).** §10's explicit-edge model (bl-7d46(6)) is correct — containment never mints a
   blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
@@ -2138,27 +2186,47 @@ RESOLVED (folded into the body, no longer open):
 
 Legacy balls (pre-greenfield): task JSON on the `balls/tasks` orphan branch, plugin state inline in
 the core JSON, a pile of config knobs, `[bl-xxxx]` tags on `main`. Greenfield: §2 markdown `tasks/`
-on `balls/tasks` + config on `balls/config`, §1 XDG, §6 hook-list plugins. Migration is a **one-shot,
-throwaway transform SCRIPT — not a verb.** A `bl migrate` would be the §0 "new verb is a smell" for a
-job that runs once over a handful of known repos (`init`→`prime`, `review`→`close`, `repair`→verbs,
-`remaster` all retired the same way). The script does ONLY the irreducible format transform;
-everything ongoing — XDG bootstrap, worktree re-materialization — is already `bl prime`'s idempotent
-job (§12/§13), so the script ends by handing off to `prime`.
+on `balls/tasks` + config on `balls/config`, §1 XDG, §6 hook-list plugins. Migration is **verbs, not
+a script — and still not a `bl migrate` verb** (bl-e614; supersedes the throwaway script of bl-0802).
+A `bl migrate` would be the §0 "new verb is a smell" for a job that runs once over a handful of known
+repos (`init`→`prime`, `review`→`close`, `repair`→verbs, `remaster` all retired the same way) — but
+so was the script: written below the verb layer, it had to duplicate the `task.rs` serializer (SSOT
+violation), hand-roll ref plumbing to land branches without the substrate, and re-implement what the
+verbs refuse (foreign ids, historical timestamps). The dissolution is three small parts:
 
-**Governing principle — migrate-clean-or-delink, never guess.** The script transforms only what maps
+- **`bl list --legacy[=REF]` / `bl show --legacy`** — a bounded READ SHIM: point the read verbs at
+  the legacy `.balls/tasks/*.json` (default spec `balls/tasks:.balls/tasks`) and project it into the
+  greenfield wire shape. ONE module owns "how to read legacy" (`src/reads/legacy.rs`), and `bl list
+  --legacy` IS the migration preview/dry-run. SEVERABLE: the flag arms + that module delete cleanly
+  post-cutover — no core edit (footprint-demarcation, not a permanent dialect). `--legacy` rejects
+  the dead-set reach (`--all`/`-s closed`): the legacy store has no greenfield history, and closed
+  legacy tasks deliberately do not migrate (closed = file-absent, §9).
+- **`bl import`** — the general write primitive (§9): the verbatim records, through the real store
+  and serializer. Not migration-specific — migration is merely its first caller (federation join,
+  restore-from-backup, and clone-seeding are the others).
+- **`bl import --legacy[=REF]`** — the cutover button: PURE ORCHESTRATION, exactly
+  `bl list --legacy --json | bl import` in-process, plus the epic reciprocal-edge pass as ordinary
+  `update --needs` ops. It carries no policy the pipe can't express — that constraint is what keeps
+  it severable and prevents a second code path for one job.
+
+Everything ongoing — XDG bootstrap, config seeding, worktree re-materialization — is already
+`bl prime`'s idempotent job (§12/§13): prime founds, import fills, the tracker pushes.
+
+**Governing principle — migrate-clean-or-delink, never guess.** The shim projects only what maps
 deterministically and DELINKS anything it cannot prove (an unresolvable reference, a plugin's private
 state); reconstruction is deferred to the authoritative source — the plugin's own adoption (below).
 Single-source-of-truth applied to migration: never fabricate a mapping
 the transform can't derive.
 
 **Split on the plugin-territory boundary** (the same plugin-territory boundary as §14 scratch):
-migration is NOT one script but **base-migrates-core PLUS each-plugin-migrates-its-own-territory.**
-- **Base migrator** owns core fields only (§3 schema); it never reads plugin state.
+migration is NOT one transform but **base-migrates-core PLUS each-plugin-migrates-its-own-territory.**
+- **The base half** (the `--legacy` shim + `import`) owns core fields only (§3 schema); it never
+  reads plugin state.
 - **Each plugin** owns its legacy state: its greenfield port carries a one-time *legacy-adoption*
   that seeds its §14 XDG scratch from the old inline blob.
 
-**Core field mapping (base migrator).** Read `balls/tasks:.balls/tasks/*.json`; skip `status: closed`
-(closed = file-absent, §9); write `tasks/<id>.md`:
+**Core field mapping (the `--legacy` projection).** Read `balls/tasks:.balls/tasks/*.json`; skip
+`status: closed` (closed = file-absent, §9); project into the wire shape `import` writes back:
 - direct: `claimed_by`→`claimant`, `created_at`→`created`, `updated_at`→`updated`, `parent`,
   `priority`, `tags`; `description`→ the markdown body.
 - `depends_on: [id]` → `blockers: [{id, on: claim}]`.
@@ -2169,9 +2237,11 @@ migration is NOT one script but **base-migrates-core PLUS each-plugin-migrates-i
   and derived the rest from `status`/`closed_children`. Greenfield `parent` is containment ONLY and
   implies no edge (§10), so the migrator must mint this claim-blocker explicitly to preserve legacy
   "epic waits on its children" — without it the epic migrates spuriously `ready`. (This is the one
-  place the migrator re-creates an edge the old implicit model derived; it is `--blocks claim` per
-  child, done in the transform.) Closed children are skipped (absent file = resolved); a live child
-  whose parent did not migrate has its now-dangling `parent:` nulled.
+  place migration re-creates an edge the old implicit model derived — and it is exactly why it lives
+  in the BUTTON, not the projection: the shim is a RENAME, never a reconstruction, so `bl import
+  --legacy` mints the edge through the ordinary `update --needs` machinery — real ops, real edge
+  logic — after the nodes land.) Closed children are skipped (absent file = resolved); a live child
+  whose parent did not migrate has its now-dangling `parent:` nulled by the projection.
 - **dropped** (no core home): `id` (= filename, §3); `status`/`delivered_in`/`branch`/
   `closed_children` (derived, §3/§11); `repo` (the store knows it, §12); `type` (folded to tag);
   `links` (legacy-unused); `external`/`synced_at` (plugin territory — below).
@@ -2187,7 +2257,7 @@ entries naming each enabled plugin in the op-phases it handles (op/phase read fr
 local gitignored `bin/<name>`, and each `config_file`'s content → `config/plugins/<name>/`.
 
 **Plugin state (the per-plugin half).** Legacy plugin state lived inline in core
-(`external.<plugin>.*`, `synced_at.<plugin>`). The base migrator DROPS it; the plugin's greenfield
+(`external.<plugin>.*`, `synced_at.<plugin>`). The base projection DROPS it; the plugin's greenfield
 port re-adopts. Worked example — **github-issues**: its greenfield join SSOT is the `[bl-xxxx]`
 marker on the issue *title* (its territory base is only a rebuildable sync-cache), but legacy issues
 carry no marker, so a naive drop would unmatch on the next sync. Its port's one-time adoption amends
@@ -2199,22 +2269,26 @@ adoption entirely and the cost is bounded — ONE dup per task on first sync (th
 stabilizes; never runaway) — the accepted floor of migrate-clean-or-delink, not a failure.
 
 **Branch & history.** Greenfield uses TWO branches — `balls/config` (landing) + `balls/tasks` (store);
-legacy used `balls/tasks` for the JSON store, so the store branch NAME collides. The script writes a
-fresh orphan `balls/config` (seed config incl. `tasks_branch`) and migrates the legacy JSON into a
-fresh greenfield `tasks/` on `balls/tasks`. Cutting a shared `origin/balls/tasks` over is a one-time,
+legacy used `balls/tasks` for the JSON store, so the store branch NAME collides. `bl prime` founds
+the fresh orphan `balls/config` (the §12 seed IS the migrated config — there is no config-rewriting
+step) and an empty store; `bl import --legacy` fills it. Cutting a shared `origin/balls/tasks` over is a one-time,
 human-coordinated migration: `bl install` writes the greenfield store and its per-op store sync (§12,
 on by default) pushes it — no separate push step. The push may force-rewrite the shared ref; that is
 intrinsic to a format change, not a thing core guards (git is the recovery net, §6 — `git branch
-balls-archive origin/balls/tasks` first if you want the legacy history kept locally). The cutover
-runbook is bl-0802, not a core-format concern. `main`'s legacy `[bl-xxxx]` commit-subject
-tags stay untouched: forward-compatible with §11's delivery tag, so the `delivered_in` query (§11)
-works over old history for free.
+balls-archive origin/balls/tasks` first if you want the legacy history kept locally). The operator
+runbook is `docs/migration-runbook.md`, not a core-format concern. `main`'s legacy `[bl-xxxx]`
+commit-subject tags stay untouched: forward-compatible with §11's delivery tag, so the
+`delivered_in` query (§11) works over old history for free.
 
-**Preconditions / guards.** One-shot, NOT idempotent-converge (that is `prime`'s contract): the
-script REFUSES if `balls/config` already exists, and REFUSES if any live task is `claimed` (a claimed task's
-in-flight code worktree would be stranded when `prime` re-materializes a fresh `work/<id>` — quiesce
-first: merge/close/unclaim in-flight work before migrating). Sequence: run the script → `bl prime`
-brings XDG/worktrees/config to readiness (§12) → each plugin's port runs its one-time adoption.
+**Preconditions / guards — runbook lines, not code** (the full sequence: `docs/migration-runbook.md`).
+The one-shot-ness is idempotent-BY-REFUSAL: re-running `bl import --legacy` against an already-migrated
+store collides on every id and refuses the whole stream (§9), so there is no separate "already
+migrated" guard. The QUIESCE guard — finish or release every claimed legacy task first, because a
+claimed task's in-flight code worktree is not reproduced and `prime` would re-materialize a fresh
+`work/<id>` — is an operator step, deliberately NOT enforced in `import`: the primitive is general
+(federation, restore legitimately import claimed balls) and must not carry one caller's policy.
+Sequence: quiesce → `bl prime` (founds substrate + config, §12) → `bl list --legacy` (preview) →
+`bl import --legacy` → cut the shared ref over → each plugin's port runs its one-time adoption.
 Any residual drift surfaces at point-of-use: the next op that needs a missing or stale piece fails
 naming the verb that fixes it (`prime` re-materializes, `install` re-resolves a `bin/`, `sync`
 refreshes the store, `update` unlinks a bad edge) — there is no separate scan verb.

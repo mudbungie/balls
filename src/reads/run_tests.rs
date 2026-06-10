@@ -146,3 +146,33 @@ fn the_folded_line_lands_in_the_human_render() {
     let out = render(&edge, Verb::List, &flags, &store, &cfg, &log).unwrap();
     assert!(out.contains("bl-1") && out.ends_with("folded-line\n"), "{out}");
 }
+
+#[test]
+fn legacy_reads_project_the_old_store_through_the_ordinary_render() {
+    // §16 shim: `--legacy` swaps the catalog SOURCE only — the greenfield store
+    // stays untouched and the downstream render is the normal read path.
+    let tmp = TempDir::new().unwrap();
+    let edge = edge_with(&tmp, &[("bl-new", task("Greenfield", 1))]);
+    test_support::legacy_store_at(
+        &tmp.path().join("proj"),
+        &[(
+            "bl-old.json",
+            r#"{"id":"bl-old","title":"Old one","status":"open",
+                "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}"#,
+        )],
+    );
+    let store = edge.xdg.clone_dir(&edge.invocation_path).store();
+    let (cfg, log) = (EffectiveConfig::default(), test_support::log_at(tmp.path(), Level::Info, Verb::List));
+    // list --legacy is the migration preview: the legacy ball, not the store's.
+    let flags = parse(Verb::List, &["--legacy".into(), "--plain".into()]).unwrap();
+    let out = render(&edge, Verb::List, &flags, &store, &cfg, &log).unwrap();
+    assert!(out.contains("bl-old") && !out.contains("bl-new"), "{out}");
+    // show --legacy resolves one projected ball; a miss NEVER falls through to
+    // greenfield history — the legacy set is the whole world the flag names.
+    let flags = parse(Verb::Show, &["bl-old".into(), "--legacy".into(), "--plain".into()]).unwrap();
+    let out = render(&edge, Verb::Show, &flags, &store, &cfg, &log).unwrap();
+    assert!(out.contains("Old one"), "{out}");
+    let flags = parse(Verb::Show, &["bl-new".into(), "--legacy".into()]).unwrap();
+    let err = render(&edge, Verb::Show, &flags, &store, &cfg, &log).unwrap_err();
+    assert!(err.to_string().contains("no such legacy ball: bl-new"), "{err}");
+}

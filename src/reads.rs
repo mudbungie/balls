@@ -23,23 +23,24 @@ use std::collections::HashSet;
 use std::io;
 use std::path::Path;
 
-use serde_json::{json, Value};
-
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::log::{self, Level, Log};
-use crate::task::{On, Status, Task};
+use crate::task::{Status, Task};
 use crate::taskfile;
 use crate::verb::Verb;
 
 mod filter;
 mod flags;
 mod history;
+pub(crate) mod legacy;
 mod list;
 mod readop;
+mod record;
 mod show;
 
 pub(crate) use flags::parse;
+pub(crate) use record::{json_line, on_word, status_word, task_json};
 
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -62,14 +63,23 @@ impl Catalog {
     /// Load and parse every `tasks/<id>.md` under the store `dir`. An absent
     /// `tasks/` yields an empty catalog (§13 silent-empty), not an error.
     pub(crate) fn load(dir: &std::path::Path) -> io::Result<Catalog> {
-        let mut ids_vec = taskfile::task_ids(dir)?;
-        ids_vec.sort();
-        let mut entries = Vec::with_capacity(ids_vec.len());
-        for id in &ids_vec {
-            entries.push(Entry { id: id.clone(), task: taskfile::read_task(dir, id)? });
+        let mut ids = taskfile::task_ids(dir)?;
+        ids.sort();
+        let mut pairs = Vec::with_capacity(ids.len());
+        for id in ids {
+            let task = taskfile::read_task(dir, &id)?;
+            pairs.push((id, task));
         }
-        let ids = ids_vec.into_iter().collect();
-        Ok(Catalog { entries, ids })
+        Ok(Catalog::from_pairs(pairs))
+    }
+
+    /// A catalog over already-parsed `(id, task)` pairs — the store-free
+    /// constructor [`Catalog::load`] reduces to, and the entry point of the §16
+    /// `--legacy` projection (whose balls come from a git ref, not `tasks/`).
+    pub(crate) fn from_pairs(pairs: Vec<(String, Task)>) -> Catalog {
+        let ids = pairs.iter().map(|(id, _)| id.clone()).collect();
+        let entries = pairs.into_iter().map(|(id, task)| Entry { id, task }).collect();
+        Catalog { entries, ids }
     }
 
     /// Is blocker `id` resolved? True when no live ball carries it (§10 —
@@ -111,6 +121,12 @@ pub(crate) struct Flags {
     pub since: Option<i64>,
     /// `bl list --until DATE`: upper date bound, inclusive of the whole day.
     pub until: Option<i64>,
+    /// `--legacy[=REF]` (§16): point this read at the PRE-greenfield JSON store
+    /// instead of `tasks/` — the bounded migration shim, projected into the
+    /// greenfield wire shape by [`legacy`]. `Some` holds the `<ref>:<dir>` spec
+    /// (default `balls/tasks:.balls/tasks`). Severable: delete the flag and the
+    /// [`legacy`] module and nothing in core changes.
+    pub legacy: Option<String>,
     /// The lone positional: a ball id for `show`, the text-search needle for
     /// `list` (substring over title+body, §9).
     pub target: Option<String>,
@@ -179,7 +195,13 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
 /// frontmatter; only `show` names a ball on the wire (`metadata.bl-id`), the
 /// target-free reads carry no id.
 fn render(edge: &Edge, verb: Verb, flags: &Flags, store: &Path, cfg: &EffectiveConfig, log: &Log) -> io::Result<String> {
-    let cat = Catalog::load(store)?;
+    // `--legacy` swaps the SOURCE only (§16): the catalog comes from the legacy
+    // ref projected into greenfield shape, and everything downstream — status
+    // ladder, filters, both renders — is the ordinary read path.
+    let cat = match &flags.legacy {
+        Some(spec) => Catalog::from_pairs(legacy::balls(&edge.invocation_path, spec)?),
+        None => Catalog::load(store)?,
+    };
     let style = Style { plain: flags.plain || !edge.color };
     let fold =
         |id: Option<&str>| if flags.json { String::new() } else { readop::fold(edge, store, verb, id, cfg, log) };
@@ -226,66 +248,6 @@ impl Style {
         }
         "\u{1b}[90m\u{2713}\u{1b}[0m".to_string() // ✓ dim grey — retired, not live
     }
-}
-
-/// The §3 status word — the stable token shared by plain output and `--json`.
-pub(crate) fn status_word(s: Status) -> &'static str {
-    match s {
-        Status::Ready => "ready",
-        Status::Claimed => "claimed",
-        Status::Blocked => "blocked",
-    }
-}
-
-/// The blocker-op token for `--json` and `show`. `on` is ANY op (§10/§15), so it
-/// is exactly the verb's canonical token.
-pub(crate) fn on_word(on: On) -> &'static str {
-    on.token()
-}
-
-/// One ball as the **bedrock** JSON record — the single shape every read verb's
-/// `--json` emits (§9). It is the lossless mirror of stored frontmatter ONLY:
-/// every stored field round-trips back to the file, and NOTHING derived appears —
-/// no `status` ladder, no ISO dates (timestamps stay the literal stored i64), no
-/// inverse-derived `children`, no tree nesting. The derived columns live on the
-/// orthogonal HUMAN render alone (§3, bl-d074). `id` is the filename identity
-/// (the round-trip key), not a frontmatter field.
-///
-/// Preserved `extra` keys (§3 seam — a team's `state:` field) ride through too:
-/// lossless means EVERY stored key. And ONLY stored keys: a plugin-computed
-/// value (the delivery worktree path, §11) is never here — `--json` never
-/// dispatches a read-op plugin (§6), it mirrors the file alone. Extras are
-/// UNKNOWN keys, so none can collide with the canonical fields layered over
-/// them; the canonical set is always present (a cleared scalar emits `null`),
-/// unlike the file's skip-if-absent frontmatter.
-pub(crate) fn task_json(id: &str, task: &Task) -> Value {
-    let blockers: Vec<Value> = task
-        .blockers
-        .iter()
-        .map(|b| json!({ "id": b.id, "on": on_word(b.on) }))
-        .collect();
-    let mut record = serde_json::to_value(&task.extra).expect("a toml table serializes to a json object");
-    let map = record.as_object_mut().expect("a toml table is a json object");
-    for (key, value) in [
-        ("id", json!(id)),
-        ("title", json!(task.title)),
-        ("claimant", json!(task.claimant)),
-        ("priority", json!(task.priority)),
-        ("parent", json!(task.parent)),
-        ("tags", json!(task.tags)),
-        ("blockers", json!(blockers)),
-        ("created", json!(task.created)),
-        ("updated", json!(task.updated)),
-    ] {
-        map.insert(key.to_string(), value);
-    }
-    record
-}
-
-/// Serialise a JSON value to a trailing-newline string — the one place every
-/// `--json` branch renders, so the machine contract is byte-identical.
-pub(crate) fn json_line(v: &Value) -> String {
-    format!("{}\n", serde_json::to_string_pretty(v).expect("serde_json::Value serializes"))
 }
 
 #[cfg(test)]
