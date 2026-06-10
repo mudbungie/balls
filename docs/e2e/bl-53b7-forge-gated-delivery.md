@@ -31,8 +31,8 @@ plugin**. Per `src/enforce.rs`:
 So an approval gate is just a **gate child**: a task whose *close* blocks the
 parent's *close* (a `{id, on: close}` blocker edge — the §10 op-keyed guard). The
 gate child stands in for the forge's pre-merge review unit (a GitHub PR, a GitLab
-MR…). A forge plugin's `sync` would close it on PR-merge (SPEC-forge-gated-delivery
-§9); here the reviewer closes it by hand. Core refuses the parent's `bl close`
+MR…). A forge plugin's `sync` would close it on PR-merge (gating model:
+docs/architecture.md §10); here the reviewer closes it by hand. Core refuses the parent's `bl close`
 — **before** `close.pre` delivery ever runs — until that child is gone.
 
 The JSON op-log (`{"ts":…,"lvl":"info",…}`) is written to **stderr**; it is
