@@ -91,7 +91,7 @@ pub(crate) fn install_local(edge: &Edge, landing: &Path) -> io::Result<()> {
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(edge.default_actor.clone(), binding), &log, edge.depth);
     let chain = install::Chain { plugins: &plugins, log: &log, pre: Vec::new(), post: Vec::new() };
-    let summary = install::seal_copy(&clone, install::DEFAULT_PATH, "FETCH_HEAD", landing, &chain)?;
+    let summary = install::seal_copy(&clone, install::DEFAULT_PATH, "FETCH_HEAD", landing, &chain, &edge.default_actor)?;
     install::bind_referenced(landing, edge.exe_dir.as_deref())?;
     println!("install: {summary}");
     Ok(())

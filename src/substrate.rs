@@ -25,7 +25,9 @@
 
 use crate::git;
 use crate::layout::Xdg;
+use crate::message::Message;
 use crate::seed;
+use crate::verb::Verb;
 use crate::LANDING_BRANCH;
 use std::fs;
 use std::io;
@@ -39,14 +41,15 @@ use std::path::Path;
 /// never clobbers an established checkout. The STORE is NOT founded here — that is
 /// [`materialize`]'s lazy job, run after the tracker's `prime/pre` has
 /// had its chance to clone an established remote branch in (bl-0a23).
-pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::Result<()> {
+pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>, actor: &str) -> io::Result<()> {
     fs::create_dir_all(landing)?;
     git::run(landing, &["init", "-q", "-b", LANDING_BRANCH], None)?;
     identify(landing)?;
     fs::write(landing.join(".gitignore"), "/config/plugins/bin/\n")?;
     seed::seed_landing(xdg, landing, exe_dir)?;
     git::run(landing, &["add", "-A"], None)?;
-    git::run(landing, &["commit", "-q", "-m", "balls: found"], None)?;
+    let message = Message::checkout(Verb::Prime, actor, "balls: found".into()).render()?;
+    git::run(landing, &["commit", "-q", "-F", "-"], Some(&message))?;
     Ok(())
 }
 
@@ -66,9 +69,9 @@ pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::R
 /// Keyed on `name` (the configured `tasks_branch`) — and `prime/pre` may not
 /// move that name: a moved dial aborts the op (bl-698d), so one materialize
 /// per prime is the whole story.
-pub fn materialize(landing: &Path, store: &Path, name: &str) -> io::Result<()> {
+pub fn materialize(landing: &Path, store: &Path, name: &str, actor: &str) -> io::Result<()> {
     if !branch_exists(landing, name) {
-        found_branch(landing, name)?;
+        found_branch(landing, name, actor)?;
     }
     if !store.exists() {
         git::run(landing, &["worktree", "add", "-q", &store.to_string_lossy(), name], None)?;
@@ -99,11 +102,12 @@ fn branch_exists(landing: &Path, name: &str) -> bool {
 /// `tasks/.gitkeep`, which keeps `tasks/` present on every checkout (empty dirs
 /// are untracked) — one commit, no working-tree round-trip. The REF only:
 /// putting it on disk is [`materialize`]'s second invariant.
-fn found_branch(landing: &Path, name: &str) -> io::Result<()> {
+fn found_branch(landing: &Path, name: &str, actor: &str) -> io::Result<()> {
     let blob = git::run(landing, &["hash-object", "-w", "--stdin"], Some(""))?.trim().to_string();
     let subtree = git::run(landing, &["mktree"], Some(&format!("100644 blob {blob}\t.gitkeep\n")))?.trim().to_string();
     let tree = git::run(landing, &["mktree"], Some(&format!("040000 tree {subtree}\ttasks\n")))?.trim().to_string();
-    let root = git::run(landing, &["commit-tree", &tree, "-m", "balls: found store"], None)?.trim().to_string();
+    let message = Message::checkout(Verb::Prime, actor, "balls: found store".into()).render()?;
+    let root = git::run(landing, &["commit-tree", &tree], Some(&message))?.trim().to_string();
     git::run(landing, &["branch", name, &root], None)?;
     Ok(())
 }
@@ -120,11 +124,12 @@ fn identify(landing: &Path) -> io::Result<()> {
 
 /// Found a COMPLETE bootstrapped substrate in one call — the landing plus an
 /// orphan-founded default store — for callers and tests that want the whole shape
-/// eager founding used to make, with no remote in play (bl-0a23).
+/// eager founding used to make, with no remote in play (bl-0a23). Founds as the
+/// fixture actor `tester` (the test edges' `default_actor`).
 #[cfg(test)]
 pub fn found(landing: &Path, store: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::Result<()> {
-    found_landing(landing, xdg, exe_dir)?;
-    materialize(landing, store, crate::DEFAULT_TASKS_BRANCH)
+    found_landing(landing, xdg, exe_dir, "tester")?;
+    materialize(landing, store, crate::DEFAULT_TASKS_BRANCH, "tester")
 }
 
 #[cfg(test)]
