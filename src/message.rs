@@ -52,6 +52,15 @@ pub struct Message {
 }
 
 impl Message {
+    /// A checkout-scoped seal's message (§5): `prime`/`install`/`conf` name no
+    /// single ball, so `bl-id` is absent — but the other three core trailers
+    /// (`bl-protocol`/`bl-op`/`bl-actor`) ride every balls commit alike
+    /// (bl-1d9b). The subject is the op's own `balls: …` line (there is no ball
+    /// title to carry), and there is no `-m` narration on these ops.
+    pub fn checkout(verb: Verb, actor: &str, subject: String) -> Message {
+        Message { verb, actor: actor.to_string(), id: None, subject, body: None }
+    }
+
     /// Render to the full `subject / body / trailer-block` text, with the core
     /// `bl-*` trailers appended via `git interpret-trailers`. Any trailer the
     /// body already carries (a plugin's self-prefixed key) is merged into the

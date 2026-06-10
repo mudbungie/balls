@@ -76,7 +76,7 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     if is_landing(&landing) {
         seed::rebind(&landing, edge.exe_dir.as_deref())?;
     } else {
-        substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref())?;
+        substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref(), &opts.actor)?;
     }
     if let Some(center) = &opts.install {
         adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
@@ -110,7 +110,7 @@ fn prime_chain(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: 
     let before = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
     let mut step = || -> io::Result<Option<String>> {
         let name = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
-        substrate::materialize(landing, store, &name)?;
+        substrate::materialize(landing, store, &name, actor)?;
         Ok((name != before).then_some(name))
     };
     let log = Log::new(clone.op_log(), level, Verb::Prime, log::wall);

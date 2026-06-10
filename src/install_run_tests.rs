@@ -145,6 +145,23 @@ fn install_seals_a_path_copy_onto_the_landing_tip() {
 }
 
 #[test]
+fn an_install_seal_carries_the_checkout_scoped_trailers() {
+    // §5: checkout-scoped seals carry bl-protocol/bl-op/bl-actor — only bl-id
+    // (which names a single ball) is absent (bl-1d9b).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let (landing, _store) = found(&e);
+    let from = side_branch(&tmp, &landing);
+    run_install(&e, &["config", "--from", from, "--as", "me"]).unwrap();
+    let msg = git::run(&landing, &["log", "-1", "--format=%B"], None).unwrap();
+    let md = crate::message::parse(&msg).unwrap();
+    assert_eq!(md["bl-protocol"], ["1"], "{msg}");
+    assert_eq!(md["bl-op"], ["install"], "{msg}");
+    assert_eq!(md["bl-actor"], ["me"], "{msg}");
+    assert!(!md.contains_key("bl-id"), "{msg}");
+}
+
+#[test]
 fn reinstalling_identical_content_converges_on_the_tip() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);

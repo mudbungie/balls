@@ -62,6 +62,22 @@ fn set_task_branch_seals_one_commit_and_converges_on_a_repeat() {
 }
 
 #[test]
+fn a_conf_seal_carries_the_checkout_scoped_trailers() {
+    // §5: checkout-scoped seals carry bl-protocol/bl-op/bl-actor — only bl-id
+    // (which names a single ball) is absent (bl-1d9b).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    conf(&e, &["set", "task-branch", "balls/x"]).unwrap();
+    let msg = git::run(&clone.landing(), &["log", "-1", "--format=%B"], None).unwrap();
+    let md = crate::message::parse(&msg).unwrap();
+    assert_eq!(md["bl-protocol"], ["1"], "{msg}");
+    assert_eq!(md["bl-op"], ["conf"], "{msg}");
+    assert_eq!(md["bl-actor"], ["tester"], "{msg}");
+    assert!(!md.contains_key("bl-id"), "{msg}");
+}
+
+#[test]
 fn set_log_level_validates_against_the_ladder() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);

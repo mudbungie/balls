@@ -21,6 +21,8 @@ use crate::edge::Edge;
 use crate::git;
 use crate::layout::CloneDir;
 use crate::log::Level;
+use crate::message::Message;
+use crate::verb::Verb;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -33,15 +35,16 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
         return Err(io::Error::other(format!("conf {op}: needs <key> <value...>")));
     };
     let landing = clone.landing();
+    let actor = &edge.default_actor;
     match (Key::parse(token)?, op) {
-        (Key::Hook(k), _) => hooks_edit(&landing, op, &k, values),
+        (Key::Hook(k), _) => hooks_edit(&landing, actor, op, &k, values),
         (Key::TaskRemote, "set") => xdg_set(edge, one(op, token, values)?),
         (Key::LogLevel, "set") => {
             let value = one(op, token, values)?;
             Level::parse(value)?; // refuse a level the ladder won't speak
-            landing_set(&landing, token, "log_level", value)
+            landing_set(&landing, actor, token, "log_level", value)
         }
-        (Key::TaskBranch, "set") => landing_set(&landing, token, "tasks_branch", one(op, token, values)?),
+        (Key::TaskBranch, "set") => landing_set(&landing, actor, token, "tasks_branch", one(op, token, values)?),
         _ => Err(io::Error::other(format!(
             "conf {op}: '{token}' is a scalar — append/prepend/remove compose the [hooks] list keys"
         ))),
@@ -70,8 +73,8 @@ fn xdg_set(edge: &Edge, url: &str) -> io::Result<()> {
 }
 
 /// Set a landing `balls.toml` scalar and seal it on `balls/config` (§4).
-fn landing_set(landing: &Path, token: &str, field: &str, value: &str) -> io::Result<()> {
-    edit_landing_toml(landing, "balls.toml", &format!("balls: conf set {token} {value}"), |table| {
+fn landing_set(landing: &Path, actor: &str, token: &str, field: &str, value: &str) -> io::Result<()> {
+    edit_landing_toml(landing, actor, "balls.toml", &format!("balls: conf set {token} {value}"), |table| {
         table.insert(field.into(), Value::String(value.to_string()));
         Ok(())
     })
@@ -80,12 +83,12 @@ fn landing_set(landing: &Path, token: &str, field: &str, value: &str) -> io::Res
 /// Apply one §4 list op to a `[hooks]` key on the landing `plugins.toml`:
 /// `set` bare-replaces with `values`; `append`/`prepend` insert ONE name iff
 /// absent (convergent); `remove` prunes it, dropping the key when emptied.
-fn hooks_edit(landing: &Path, op: &str, key: &str, values: &[String]) -> io::Result<()> {
+fn hooks_edit(landing: &Path, actor: &str, op: &str, key: &str, values: &[String]) -> io::Result<()> {
     if op != "set" {
         one(op, key, values)?; // compose moves exactly one name
     }
-    let message = format!("balls: conf {op} {key} {}", values.join(" "));
-    edit_landing_toml(landing, "plugins.toml", &message, |root| {
+    let subject = format!("balls: conf {op} {key} {}", values.join(" "));
+    edit_landing_toml(landing, actor, "plugins.toml", &subject, |root| {
         let Value::Table(hooks) = root.entry("hooks").or_insert_with(|| Value::Table(Table::new())) else {
             return Err(io::Error::other("plugins.toml: [hooks] is not a table"));
         };
@@ -114,13 +117,15 @@ fn hooks_edit(landing: &Path, op: &str, key: &str, values: &[String]) -> io::Res
 }
 
 /// Read-edit-write one landing `config/<file>` TOML document, then seal it as
-/// an ordinary commit on `balls/config`. The edit touches one key; everything
-/// else in the document round-trips. A no-change edit commits nothing — git's
-/// empty-diff check is the §13 convergence test.
+/// an ordinary commit on `balls/config` carrying the §5 checkout-scoped
+/// trailer block (bl-1d9b). The edit touches one key; everything else in the
+/// document round-trips. A no-change edit commits nothing — git's empty-diff
+/// check is the §13 convergence test.
 fn edit_landing_toml(
     landing: &Path,
+    actor: &str,
     file: &str,
-    message: &str,
+    subject: &str,
     edit: impl FnOnce(&mut Table) -> io::Result<()>,
 ) -> io::Result<()> {
     let path = landing.join("config").join(file);
@@ -131,7 +136,8 @@ fn edit_landing_toml(
     if git::run(landing, &["diff", "--cached", "--quiet"], None).is_ok() {
         return Ok(()); // the value already held — converge, no empty commit
     }
-    git::run(landing, &["commit", "-q", "-m", message], None)?;
+    let message = Message::checkout(Verb::Conf, actor, subject.to_string()).render()?;
+    git::run(landing, &["commit", "-q", "-F", "-"], Some(&message))?;
     Ok(())
 }
 
