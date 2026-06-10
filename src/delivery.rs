@@ -62,10 +62,13 @@ pub trait Repo {
     /// repo's own HEAD branch, §11).
     fn integration(&self) -> io::Result<String>;
     /// `close.pre` deliver (direct): capture any pending worktree work onto
-    /// `branch`, then squash `branch` → `integration` as ONE commit whose
-    /// subject is `subject` (carrying the `[bl-id]` delivery tag). A no-op when
-    /// the worktree/branch is absent or carries no changes (the empty
-    /// deliverable, §11).
+    /// `branch`, fold `integration` into it, run the project repo's own
+    /// pre-commit gate on the result (bl-ee85 — the squash is plumbing, so
+    /// without this the close would bypass the hook every porcelain commit
+    /// runs; a failure aborts the close before the seal), then squash `branch`
+    /// → `integration` as ONE commit whose subject is `subject` (carrying the
+    /// `[bl-id]` delivery tag). A no-op when the worktree/branch is absent or
+    /// carries no changes (the empty deliverable, §11).
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str) -> io::Result<()>;
     /// `rollback close.pre` (§14): un-squash — reset `integration` to its parent
     /// IFF its tip is the delivery commit (its subject contains `marker`).
