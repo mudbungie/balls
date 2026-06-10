@@ -982,16 +982,28 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
 **One delivery path** (kind-blind and idempotent; forge changes WHO merges, never the path — bl-7bfe, §15):
 - `close.pre` delivers in four acts, the first three in the code
   worktree (re-materialized if absent): CAPTURE any pending work onto `work/<id>` (`--no-verify` —
-  the gate runs once, below, not per-capture); FOLD integration into the branch (a real merge, so
-  the tree gated next IS the tree that lands even when integration moved since claim; a conflict
-  aborts the half-merge and the close); GATE — run the project repo's own **pre-commit hook**
+  the gate runs once, below, not per-capture; capture REFUSES a worktree with a merge in progress,
+  bl-a04a — its `add -A` + commit would CONCLUDE the half-merge, silently resolving every
+  modify/delete work-side: the bl-33db resurrection path); FOLD integration into the branch — a
+  real merge, so the tree gated next IS the tree that lands even when integration moved since
+  claim, and STRICT (bl-a04a): git's DEFAULT merge, no `-X`/strategy side-picking ever rides it,
+  and anything git marks conflicted — modify/delete and rename/delete included — aborts the
+  half-merge and the close. Delivery never resolves a fold conflict; resolving is the AGENT's job,
+  and their resolution merge commit is ordinary work on `work/<id>`; GATE — run the project repo's
+  own **pre-commit hook**
   (bl-ee85: the squash is plumbing, so without this a close bypasses the hook every porcelain
   commit runs; resolved as git resolves it — `core.hooksPath` honored — and skipped as git skips
   it — absent or non-executable hook = ungated project, delivers as before; a failure aborts the
   close BEFORE the seal, leaving claim and worktree up for the fix); then SQUASH `work/<id>` →
   integration as one commit
   whose subject carries the `[bl-id]` delivery tag (the plugin's analog of the §5 trailer; this tag
-  is delivery ground truth). Integration branch is the delivery plugin's own config (default
+  is delivery ground truth), guarded by the NO-RESURRECTION INVARIANT (bl-a04a): the squash's
+  changed paths (diff vs the integration tip) must be a subset of the paths authored on `work/<id>`
+  since its fork — every non-merge commit's changed paths plus each fold merge commit's resolution
+  paths (its combined `--cc` diff; a fold-conflict resolution IS a work commit, so it counts). An
+  excess path means the squash carries something the task never wrote — a resurrection or a leak —
+  and aborts the close NAMING the path. Pure plumbing: two `--name-only` path-set compares over
+  existing refs, zero new state (derive-don't-store, §0). Integration branch is the delivery plugin's own config (default
   `HEAD@project-repo`); a per-task override, if ever needed, rides as a preserved frontmatter key
   (§3 seam), NEVER a core field — core opens no project repo, so it has no integration branch to name.
 - FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. The forge plugin mints an
@@ -1510,6 +1522,29 @@ RESOLVED (folded into the body, no longer open):
   (`Engine::prime` replaces `Engine::fixpoint`; `FIXPOINT_CAP` deleted), `src/checkout.rs`
   (`prime_chain` replaces `converge`), `src/substrate.rs`/`src/lifecycle.rs` (docs), tests (the
   runaway case asserts the first-pass abort). Tracked under bl-72a8.
+- **Delivery fold rigor — strict merge + the no-resurrection invariant (2026-06-09, bl-a04a —
+  post-freeze).** bl-33db resurrected bl-ffaf's delivered deletion THROUGH the gate: its close-fold
+  hit a modify/delete conflict against the sibling's deletion, the conflict was resolved work-side,
+  and the squash re-landed the deleted file on main inside an unrelated commit (re-applied by
+  bl-2546). §11 specced only "a conflict aborts the half-merge" — the fold's RESOLUTION policy was
+  unspecified — and the implementation carried a conclude-by-capture hole: a close retried over a
+  worktree with a merge still in progress ran capture's `add -A` + commit, which CONCLUDES the
+  half-merge, silently resolving every modify/delete work-side (and committing conflict markers
+  besides). The store got one-step rigor long ago (§13: a non-ff IS the contention signal);
+  delivery — the seam parallel agents hit hardest — now gets the same, delivery-shaped. (a) STRICT
+  FOLD: the fold is git's DEFAULT merge — no `-X`/strategy side-picking ever — anything git marks
+  conflicted (modify/delete and rename/delete included) aborts the close, and capture REFUSES a
+  worktree with `MERGE_HEAD` present: delivery never concludes a half-merge; resolving is the
+  agent's job, their resolution merge commit is ordinary work on `work/<id>`. (b) NO-RESURRECTION
+  INVARIANT at squash: paths(squash diff vs the integration tip) ⊆ paths authored on `work/<id>`
+  since its fork (every non-merge commit's changed paths + each fold merge's `--cc` resolution
+  paths — resolutions are work commits, so they count); an excess path aborts the close NAMING it —
+  the squash would carry something the task never wrote, a resurrection or a leak. Pure plumbing —
+  two `--name-only` path-set compares over existing refs — zero new state, derive-don't-store;
+  would have caught bl-33db at close instead of at bl-2546. Touched §11 (the one-delivery-path
+  bullet: CAPTURE guard, strict FOLD, the invariant at SQUASH). Code: `src/delivery_fold.rs` (new —
+  the guard + the invariant), `src/delivery_repo.rs` (guard before capture, invariant before the
+  squash). Tracked under bl-72a8.
 - **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
   post-freeze).** §10's explicit-edge model (bl-7d46(6)) is correct — containment never mints a
   blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
