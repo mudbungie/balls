@@ -106,8 +106,9 @@ pub fn xdg_remote(user_config: &Path) -> Option<String> {
 
 /// Read one `config/balls.toml` layer. Absent ⇒ `None` (the layer is empty, the
 /// common un-configured case); malformed ⇒ an error naming the file; any other
-/// read error propagates.
-fn read_layer(path: &Path) -> io::Result<Option<Table>> {
+/// read error propagates. Shared with [`crate::conf`], whose provenance read
+/// inspects each layer table individually (§4).
+pub(crate) fn read_layer(path: &Path) -> io::Result<Option<Table>> {
     match fs::read_to_string(path) {
         Ok(text) => toml::from_str::<Table>(&text)
             .map(Some)
