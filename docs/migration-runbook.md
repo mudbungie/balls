@@ -36,16 +36,29 @@ code.
    stream naming the ids (nothing half-lands — fix and re-run). The
    composable form is the same thing: `bl list --legacy --json | bl import`.
 
-5. **Cut the shared ref over.** The greenfield store REUSES the `balls/tasks`
-   name, and bl NEVER rewrites the legacy ref implicitly (the §12 quarantine,
-   bl-868d) — the cutover is this one explicit, human-coordinated force-push.
-   Keep the legacy history first if wanted:
-   `git branch balls-archive origin/balls/tasks`. Then, from the XDG store
-   checkout (`$XDG_STATE_HOME/balls/clones/<pct-enc-path>/tasks`):
-   `git push --force-with-lease=refs/heads/balls/tasks:<legacy-sha> <origin-url>
-   balls/tasks:refs/heads/balls/tasks` (the explicit lease form — the store
-   checkout has no remote-tracking ref to lease against implicitly). The next
-   op's sync/publish then resumes as on any federated checkout.
+5. **Join the histories and cut over.** The greenfield store REUSES the
+   `balls/tasks` name, and bl NEVER rewrites the legacy ref (the §12
+   quarantine, bl-868d) — and neither does the cutover: the one explicit,
+   human-coordinated act is a history JOIN that makes the greenfield tip a
+   descendant of the legacy tip, so the cutover push is an ordinary
+   fast-forward, not a rewrite. From the XDG store checkout
+   (`$XDG_STATE_HOME/balls/clones/<pct-enc-path>/tasks`):
+
+   ```
+   git fetch <origin-url> refs/heads/balls/tasks
+   git merge -s ours --allow-unrelated-histories FETCH_HEAD \
+     -m "cutover: greenfield store supersedes the legacy .balls/ JSON (§16)"
+   git push <origin-url> balls/tasks:refs/heads/balls/tasks
+   ```
+
+   `-s ours` keeps the greenfield tree byte-for-byte (no `.balls/` resurrected)
+   while parenting the merge on the legacy tip. No force, no lease, no archive
+   branch: every clone's `origin/balls/tasks` fast-forwards on its next fetch,
+   and the legacy history stays where it always lived — the early history of
+   `balls/tasks`, with every closed legacy task still readable at the merge's
+   legacy parent. The final plain push is just the ordinary publish brought
+   forward — once the join exists, the next op's sync/publish would deliver
+   the cutover the same way; then federation resumes as on any checkout.
 
 6. **Per-plugin adoption.** Each plugin re-adopts its own legacy territory
    (§16) — e.g. github-issues' one-time `adopt` stamps the `[bl-id]` title

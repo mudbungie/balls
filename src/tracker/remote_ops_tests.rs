@@ -106,8 +106,8 @@ fn push_keeps_work_local_when_the_remote_tip_is_not_a_store() {
     // bl-868d: publishing over an un-cut-over legacy ref is rejected (non-ff,
     // unrelated histories) — that is the migration window, not split-brain:
     // warn, keep the work local, and NEVER rewrite the legacy ref (cutover is
-    // the runbook's explicit force-push). A rejected push to a GREENFIELD
-    // store stays the E5 error (the test below).
+    // the runbook's explicit history join + fast-forward push). A rejected
+    // push to a GREENFIELD store stays the E5 error (the test below).
     let tmp = TempDir::new().unwrap();
     let remote = legacy_remote(tmp.path());
     let store = local_unpushed(tmp.path());

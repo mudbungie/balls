@@ -73,7 +73,7 @@ fn prime_post_over_a_legacy_remote_converges_without_touching_it() {
     // The composed §12 content settle (sync + publish) over an un-cut-over hub:
     // both halves see "not a store yet" and keep the work local — no abort, no
     // stealth degrade, the legacy ref untouched (cutover is the runbook's
-    // explicit force-push, never an implicit overwrite).
+    // explicit history join + fast-forward push, never an implicit overwrite).
     let tmp = TempDir::new().unwrap();
     let remote = legacy_remote(tmp.path());
     let store = local_unpushed(tmp.path()); // the freshly-founded greenfield store
