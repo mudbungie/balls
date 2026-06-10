@@ -31,13 +31,16 @@ use std::io;
 use std::path::Path;
 
 /// `prime/pre`: settle the store NAME and clone an established store in (§12).
-/// Stealth (no remote) writes the self-lock and stops. Otherwise warn on a
+/// Stealth (no remote) warns (W1), writes the self-lock and stops. Otherwise warn on a
 /// store-elsewhere mismatch and on an ephemeral remote (both diagnostic, never
 /// fatal), then [`clone_in`] the
 /// remote store branch if it is established and absent locally. Idempotent: a
 /// re-prime finds the local branch present and clones nothing.
 pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
     let Some(remote) = b.remote.clone() else {
+        // W1 (§12): say so — a stealth store is fine, but invisible-until-`bl
+        // conf` left "deliberately local" and "forgot to federate" identical.
+        eprintln!("tracker: store is stealth (local), not auto-syncing");
         return stealth_lock(b, env);
     };
     let landing = Path::new(&b.landing);

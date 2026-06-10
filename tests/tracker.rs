@@ -60,3 +60,25 @@ fn a_deliverable_verbs_post_pushes_the_sealed_branch() {
 
     assert_eq!(tip(&remote, "balls"), tip(&op, "HEAD"));
 }
+
+#[test]
+fn prime_pre_with_no_remote_warns_w1_and_self_locks() {
+    // §12 W1 (bl-3ddb): a stealth prime says so on stderr — "deliberately
+    // local" must be visible, not discoverable only via `bl conf`.
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    git(tmp.path(), &["init", "-q", &repo.to_string_lossy()]); // no origin → stealth
+    let payload = format!(
+        r#"{{"binding":{{"tasks_branch":"balls","store":"{0}","landing":"{0}","invocation_path":"{0}"}}}}"#,
+        repo.display()
+    );
+    Command::cargo_bin("tracker")
+        .unwrap()
+        .args(["prime", "pre"])
+        .env("HOME", tmp.path())
+        .env("XDG_STATE_HOME", tmp.path().join("state"))
+        .write_stdin(payload)
+        .assert()
+        .success()
+        .stderr(contains("tracker: store is stealth (local), not auto-syncing"));
+}

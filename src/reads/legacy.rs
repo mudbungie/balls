@@ -47,7 +47,10 @@ pub(crate) fn flag(arg: &str) -> Option<String> {
 /// `bl import` consume.
 pub(crate) fn balls(repo: &Path, spec: &str) -> io::Result<Vec<(String, Task)>> {
     let (ref_, dir) = spec.split_once(':').unwrap_or((spec, ".balls/tasks"));
-    let listing = git::run(repo, &["ls-tree", "-r", "--name-only", ref_, dir], None)?;
+    // An unlistable ref IS "no legacy store here" — a clean refusal, not git's
+    // raw `fatal: Not a valid object name` passthrough (bl-3ddb).
+    let listing = git::run(repo, &["ls-tree", "-r", "--name-only", ref_, dir], None)
+        .map_err(|_| invalid(format!("no legacy store at `{spec}`")))?;
     let mut live = Vec::new();
     for path in listing.lines().filter(|p| Path::new(p).extension().is_some_and(|e| e == "json")) {
         let text = git::run(repo, &["show", &format!("{ref_}:{path}")], None)?;

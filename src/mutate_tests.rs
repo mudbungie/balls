@@ -264,6 +264,21 @@ fn now_reads_a_positive_clock() {
 }
 
 #[test]
+fn children_notice_agrees_in_number_and_stays_silent_at_zero() {
+    // bl-3ddb: "closed with 1 open children" was ungrammatical; one survivor
+    // reads singular, several keep the plural, none emits nothing.
+    assert_eq!(super::report::children_notice("bl-x", 0), None);
+    assert_eq!(
+        super::report::children_notice("bl-x", 1).unwrap(),
+        "notice: bl-x closed with 1 open child, not gating — its parent pointer now dangles (display-only)"
+    );
+    assert_eq!(
+        super::report::children_notice("bl-x", 2).unwrap(),
+        "notice: bl-x closed with 2 open children, none gating — their parent pointers now dangle (display-only)"
+    );
+}
+
+#[test]
 fn change_tokens_are_hex_and_distinct() {
     let (a, b) = (change_token(), change_token());
     assert_eq!(a.len(), 32);
