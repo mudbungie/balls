@@ -10,6 +10,7 @@
 //! whole §16 sequence — prime → preview → import → cutover — runs as written.
 
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -25,6 +26,17 @@ fn git(cwd: &Path, args: &[&str]) {
 fn tip(cwd: &Path, rev: &str) -> String {
     let out = Git::new("git").arg("-C").arg(cwd).args(["rev-parse", rev]).output().unwrap();
     String::from_utf8(out.stdout).unwrap().trim().to_string()
+}
+
+/// Is `anc` an ancestor of `desc` in `cwd`?
+fn is_ancestor(cwd: &Path, anc: &str, desc: &str) -> bool {
+    Git::new("git")
+        .arg("-C")
+        .arg(cwd)
+        .args(["merge-base", "--is-ancestor", anc, desc])
+        .status()
+        .unwrap()
+        .success()
 }
 
 /// The freshly-built `bl` rooted in `project`, XDG-isolated under the tempdir.
@@ -69,7 +81,7 @@ fn legacy_hub_and_clone(tmp: &Path) -> (PathBuf, PathBuf) {
 }
 
 #[test]
-fn prime_on_a_legacy_carrying_hub_founds_fresh_converges_and_imports() {
+fn prime_on_a_legacy_carrying_hub_founds_fresh_imports_and_cuts_over_fast_forward() {
     let tmp = TempDir::new().unwrap();
     let (home, state) = (tmp.path().join("h"), tmp.path().join("s"));
     let (hub, clone) = legacy_hub_and_clone(tmp.path());
@@ -86,7 +98,8 @@ fn prime_on_a_legacy_carrying_hub_founds_fresh_converges_and_imports() {
     // §12 no-op-converge: a re-prime succeeds too (it used to re-abort).
     bl(&clone, &home, &state).arg("prime").assert().success();
     // The hub's legacy ref was never rewritten — cutover is the operator's
-    // explicit force-push (runbook step 5), not an implicit side effect.
+    // explicit history join + fast-forward push (runbook step 5), not an
+    // implicit side effect.
     assert_eq!(tip(&hub, "balls/tasks"), legacy_tip);
 
     // Steps 3+4: the preview reads the legacy store from the clone's
@@ -102,6 +115,36 @@ fn prime_on_a_legacy_carrying_hub_founds_fresh_converges_and_imports() {
         .assert()
         .success();
     bl(&clone, &home, &state).arg("list").assert().success().stdout(contains("legacy task"));
+
+    // Step 5: the cutover JOIN (bl-8660) — from the XDG store checkout, merge
+    // the legacy tip (`-s ours`: greenfield tree byte-for-byte, merge parented
+    // on the legacy tip), then publish with a PLAIN push. The push succeeding
+    // without `--force` IS the claim under test: the cutover rewrites nothing.
+    let clones = state.join("balls/clones");
+    let store = fs::read_dir(&clones).unwrap().next().unwrap().unwrap().path().join("tasks");
+    git(&store, &["config", "user.name", "t"]);
+    git(&store, &["config", "user.email", "t@e"]);
+    let hub_url = hub.to_string_lossy();
+    git(&store, &["fetch", "-q", &hub_url, "refs/heads/balls/tasks"]);
+    git(&store, &["merge", "-q", "-s", "ours", "--allow-unrelated-histories", "FETCH_HEAD", "-m", "cutover"]);
+    git(&store, &["push", "-q", &hub_url, "balls/tasks:refs/heads/balls/tasks"]);
+    // The hub's new tip DESCENDS from the legacy tip — every clone of the hub
+    // fast-forwards on its next fetch, and the legacy history (closed tasks
+    // included) stays readable in-branch at the merge's legacy parent.
+    let cut_tip = tip(&hub, "balls/tasks");
+    assert!(is_ancestor(&hub, &legacy_tip, &cut_tip));
+
+    // The migration window is CLOSED: the next op's sync/publish resumes as on
+    // any federated checkout — no quarantine warning, the hub advances, and
+    // the branch is still one fast-forward lineage from the legacy tip.
+    bl(&clone, &home, &state)
+        .args(["create", "post-cutover", "--as", "mig"])
+        .assert()
+        .success()
+        .stderr(contains("not a greenfield store").not());
+    let after = tip(&hub, "balls/tasks");
+    assert_ne!(after, cut_tip);
+    assert!(is_ancestor(&hub, &legacy_tip, &after));
 }
 
 #[test]

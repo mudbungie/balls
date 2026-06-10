@@ -52,11 +52,12 @@ pub fn sync(b: &Binding) -> io::Result<()> {
 /// is the §16 migration window (bl-868d): a hub still carrying the
 /// PRE-greenfield legacy JSON store on the (colliding, §16) store-branch name,
 /// awaiting the runbook's one-time human cutover. Such a tip is no upstream at
-/// all — every store commit carries `tasks/` by construction (§2, the founding
-/// `.gitkeep`) — so a failed integrate/publish against it is the window, not
-/// contention: warn (the §12 diagnostic-never-authority pattern) and report
-/// `true` so the caller skips, keeping work local and the legacy ref intact
-/// (cutover is the runbook's explicit force-push, never an implicit rewrite).
+/// all — every store TIP carries `tasks/` by construction (§2, the founding
+/// `.gitkeep`; the §16 cutover join keeps the greenfield tree) — so a failed
+/// integrate/publish against it is the window, not contention: warn (the §12
+/// diagnostic-never-authority pattern) and report `true` so the caller skips,
+/// keeping work local and the legacy ref intact (cutover is the runbook's
+/// explicit history join + fast-forward push, never a rewrite).
 /// Identification must be POSITIVE: the tip is re-fetched here (`FETCH_HEAD`),
 /// and any failure to read it reports `false` — the caller's own error stands.
 pub(super) fn not_yet_cut_over(repo: &Path, remote: &str, branch: &str) -> bool {
@@ -101,7 +102,8 @@ pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::R
 /// nothing existed to land on). ONE carve-out, positively identified: a reject
 /// against a remote tip that is NOT a store ([`not_yet_cut_over`], bl-868d) is
 /// the §16 migration window — warn and keep the work local; the legacy ref is
-/// never rewritten (cutover is the runbook's explicit force-push).
+/// never rewritten (cutover is the runbook's explicit history join, published
+/// as an ordinary fast-forward).
 pub fn push(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());

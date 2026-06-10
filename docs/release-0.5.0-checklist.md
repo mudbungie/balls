@@ -22,8 +22,9 @@ Version 0.4.2 → 0.5.0 is a MINOR (design/API not frozen for a 1.0 commitment).
    Cutover already executed (bl-0802); this is a confirmation pass, no re-run.
    - *branch collision*: §16 "Branch & history" — legacy and greenfield share
      the `balls/tasks` name; script writes fresh orphan branches under
-     `refs/migrate/*` (no checkout, no clobber); archive recipe
-     `git branch balls-archive origin/balls/tasks` documented.
+     `refs/migrate/*` (no checkout, no clobber); cutover is the runbook's
+     history join + fast-forward push (bl-8660 — no force-push, legacy
+     history kept in-branch; the old `balls-archive` recipe is retired).
    - *epic edges*: §16 "epic reciprocal edge" — migrator mints the per-live-child
      claim-blocker on the parent; asserted in
      `tests/migrate.rs::build_refs_transforms_a_real_legacy_store_end_to_end`.
