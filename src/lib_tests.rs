@@ -69,6 +69,37 @@ fn create_claim_update_close_round_trip_through_the_engine() {
     assert!(!tasks.join(format!("{id}.md")).exists());
 }
 
+#[test]
+fn close_notices_open_children_and_subtask_of_gates() {
+    // §10: --subtask-of mints the parent + close-gate through the real engine,
+    // and a close that leaves non-gating children emits the §10 notice (the
+    // n > 0 stderr branch in `mutate::report::emit`).
+    let tmp = TempDir::new().unwrap();
+    assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+    let tasks = store(&tmp).join("tasks");
+    let new_id = |known: &[&str]| -> String {
+        std::fs::read_dir(&tasks)
+            .unwrap()
+            .filter_map(|e| e.unwrap().file_name().to_string_lossy().strip_suffix(".md").map(str::to_string))
+            .find(|id| !known.contains(&id.as_str()))
+            .unwrap()
+    };
+    assert_eq!(run_in(&tmp, &["create", "Epic", "--as", "me"]), 0);
+    let epic = new_id(&[]);
+    assert_eq!(run_in(&tmp, &["create", "Child", "--parent", &epic, "--as", "me"]), 0);
+    let child = new_id(&[&epic]);
+    assert_eq!(run_in(&tmp, &["create", "Gate", "--subtask-of", &epic, "--as", "me"]), 0);
+    let gate = new_id(&[&epic, &child]);
+    // The sugar's close-gate holds end to end: the epic refuses to close.
+    assert_eq!(run_in(&tmp, &["close", &epic, "--as", "me"]), 1);
+    // Resolve the gate; the close lands and notices the surviving child.
+    assert_eq!(run_in(&tmp, &["close", &gate, "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["close", &epic, "--as", "me"]), 0);
+    assert!(!tasks.join(format!("{epic}.md")).exists());
+    // The child survives, its parent pointer dangling (display-only, §3).
+    assert!(tasks.join(format!("{child}.md")).exists());
+}
+
 /// The landing checkout for `tmp`'s edge.
 fn landing(tmp: &TempDir) -> std::path::PathBuf {
     edge(tmp).xdg.clone_dir(Path::new(&edge(tmp).invocation_path)).landing()
