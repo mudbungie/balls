@@ -57,10 +57,11 @@ impl Registry {
     }
 
     /// The machine binary `name` resolves to here, or `None` when `bin/<name>` is
-    /// absent or dangling (the "referenced but not installed" case, §6).
+    /// absent, dangling, or not a regular file (the "referenced but not installed"
+    /// case, §6 — an empty name joins to `bin/` itself, a directory, bl-bee0).
     #[must_use]
     pub fn resolve_bin(&self, name: &str) -> Option<PathBuf> {
-        fs::canonicalize(self.bin_dir().join(name)).ok()
+        fs::canonicalize(self.bin_dir().join(name)).ok().filter(|p| p.is_file())
     }
 }
 

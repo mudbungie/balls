@@ -88,6 +88,13 @@ fn landing_set(landing: &Path, actor: &str, token: &str, field: &str, value: &st
 /// `set` bare-replaces with `values`; `append`/`prepend` insert ONE name iff
 /// absent (convergent); `remove` prunes it, dropping the key when emptied.
 fn hooks_edit(landing: &Path, actor: &str, op: &str, key: &str, values: &[String]) -> io::Result<()> {
+    if values.iter().any(String::is_empty) {
+        // bl-bee0: "" is not a plugin name — it would resolve bin/ itself at
+        // dispatch. Clearing already has a spelling: `set <key>` with no values.
+        return Err(io::Error::other(format!(
+            "conf {op}: a plugin name must be non-empty — `conf set {key}` clears the list"
+        )));
+    }
     if op != "set" {
         one(op, key, values)?; // compose moves exactly one name
     }
