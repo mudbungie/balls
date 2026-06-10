@@ -30,6 +30,13 @@ ungated: close delivers unchecked. A merge conflict with `main` also aborts the
 close (cleanly — no half-merge is left behind); merge `main` into the worktree
 by hand, resolve, and close again.
 
+Because close re-gates the **folded** tree — the tree that actually lands —
+intermediate commits in the `work/<id>` worktree may reasonably use `git commit
+--no-verify`: the gate-of-record runs at close, before anything lands, and is
+never skipped. Whether each worktree commit also pays the hook (which may be
+expensive) stays the repo's own policy decision; bl takes no position beyond
+where the gate-of-record sits.
+
 ## The worktree is the unit of work
 
 `bl` tracks the code change a task delivers, not just the task. `bl claim`
