@@ -726,7 +726,8 @@ the RCE gate is unchanged).
 **`create`** (op `create`; no prior state): balls generates a default-scheme id (§ id generation)
 and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p`)/`tags`, plus any
 `blockers` edges spelled out by `--blocks`/`--needs` — §10; `--parent` adds containment only, no
-blocker; no status field is written, §3). A `create/pre`
+blocker; `--subtask-of E` is the everyday bundle, `--parent E --blocks close` in one word — §10;
+no status field is written, §3). A `create/pre`
 plugin may reject or *reassign*
 the id by `git mv`-ing the single staged `tasks/*.md` (it discovers the current name by reading
 that file, never hardcoding — so reassigns compose under hook-list order). balls validates (exactly one
@@ -870,8 +871,24 @@ fact — containment and blocking never travel together implicitly:
   finish before the parent can CLOSE). `OP` is required — there is no default-gated transition.
 - `--needs B` (or `--needs B:OP`) → `self.blockers += {B, OP}`, default `OP = claim` — the inverse
   direction: the new task is gated BY `B` (cross-tree dependency).
+- `--subtask-of E` → `parent: E` AND `E.blockers += {child, close}` — the everyday subtask bundle,
+  the intent named by the flag (bl-788e). The explicit-edge model's one failure mode was the SILENT
+  forget: `--parent` is the natural spelling and gates nothing, so an unstated gate vanished without
+  a signal. The sugar puts the gate in the flag's name; it is pure front-door expansion over the two
+  primitives above — zero new schema. Mutually exclusive with `--parent` (it IS a parent spelling),
+  create-only like `--blocks` (it carries the reciprocal edge), deduped against an explicit
+  `--blocks close`.
 
-The retired `--gates X` is exactly `--parent X --blocks close`. Any edge the one-liner can't express
+The forget-residue is caught by a close-time NOTICE, never a block (the §12 "diagnostic, never
+authority" pattern, bl-788e): a close that leaves live children prints "closed with N open children,
+none gating — their parent pointers now dangle". Any child alive at a successful close is non-gating
+by definition (a gating child would have refused the close, §10), and a dangling `parent:` is
+display-only (§3) — so the notice is information about a containment rollup ending with members
+open, exactly the case a forgotten gate produces. The scan is the `show` tree's containment read,
+reduced to a count.
+
+The retired `--gates X` is exactly `--parent X --blocks close` — now spelled `--subtask-of X`. Any
+edge the one-liner can't express
 (gate a third op, multiple blockers, a post-hoc edge) is an ordinary `bl update … blockers` edit —
 the create flags are sugar over the general primitive, never a constraint on it.
 
@@ -1447,6 +1464,22 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
+  post-freeze).** §10's explicit-edge model (bl-7d46(6)) is correct — containment never mints a
+  blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
+  a forgotten `--blocks close` left an epic closeable over open children with no signal, and the fix
+  had degenerated into a standing skill-doc advisory (the §0 overhead the tool exists to remove).
+  RESOLVED by naming the intent, not re-minting the implicit edge: `--subtask-of E` ≡ `--parent E
+  --blocks close` — pure front-door sugar over the existing primitives (§10 "the create flags are
+  sugar over the general primitive"), zero new core schema; mutually exclusive with `--parent`,
+  create-only like `--blocks`, deduped against an explicit equivalent. The residue is a close-time
+  NOTICE — "closed with N open children, none gating" — the §12 diagnostic-never-authority pattern;
+  a block would re-create the auto-mint gap the explicit model dissolved. The auto-mint rejection
+  STANDS: nothing implies an edge; the sugar only makes stating one the path of least resistance.
+  Touched §9 (create prose, the close notice), §10 (the flag bullet + notice paragraph + `--gates`
+  line). Code: `src/mutate_args.rs` (flag), `src/mutate_build.rs` (`effective_parent` +
+  `blocks_edges` sugar/dedup + create-only/shaping guards), `src/mutate_report.rs` (the notice),
+  SKILL.md. Tracked under bl-72a8.
 - **stdout single-writer is a default-schedule guarantee, not a discipline — own the contradiction;
   reserve the enveloped-stdout seam (2026-06-09, bl-2bff — post-freeze).** §0 promises every
   load-bearing principle "enforced structurally, not by discipline", yet §11 defended claim-stdout's
