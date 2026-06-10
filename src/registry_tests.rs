@@ -48,6 +48,19 @@ fn resolve_bin_is_none_for_an_unbound_or_dangling_name() {
 }
 
 #[test]
+fn resolve_bin_is_none_when_the_name_resolves_to_a_non_file() {
+    // bl-bee0: an empty name joins to bin/ itself, which canonicalizes fine
+    // (it is a directory) and then execs with EACCES. Only a regular file is
+    // a binding — anything else is the clean §6 dangling-entry `None`.
+    let (tmp, reg) = fixture();
+    fs::create_dir_all(tmp.path().join("config/plugins/bin")).unwrap();
+    assert_eq!(reg.resolve_bin(""), None);
+    // A binding hand-pointed at a directory is equally not a binary.
+    reg.bind("dir", tmp.path()).unwrap();
+    assert_eq!(reg.resolve_bin("dir"), None);
+}
+
+#[test]
 fn binding_is_idempotent_and_re_bind_wins() {
     let (tmp, reg) = fixture();
     let first = tmp.path().join("one");
