@@ -187,66 +187,44 @@ fn resolve_id_propagates_a_lister_error() {
 }
 
 #[test]
-fn claim_pre_stages_the_worktree_path_under_the_preserved_key() {
-    let content = "+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\nclaimant = \"me\"\n+++\nbody\n";
-    let out = stage_field("claim", "pre", false, Path::new("/wt/bl-x"), || Ok(content.into()))
-        .unwrap()
-        .unwrap();
-    let task = Task::parse(&out).unwrap();
-    assert_eq!(task.extra[WORKTREE_KEY].as_str(), Some("/wt/bl-x"));
-    // claimant + body round-trip untouched — only the one key is added.
-    assert_eq!(task.claimant.as_deref(), Some("me"));
-    assert_eq!(task.body, "body\n");
+fn claim_and_prime_post_surface_the_bare_path() {
+    // The verb's one product, the way `create` prints the id (§11) — printed
+    // whether or not the dir pre-existed (claim.post just materialized it).
+    let wt = Path::new("/wt/bl-x");
+    assert_eq!(surfaced("claim", "post", false, wt, true).as_deref(), Some("/wt/bl-x"));
+    assert_eq!(surfaced("prime", "post", false, wt, true).as_deref(), Some("/wt/bl-x"));
 }
 
 #[test]
-fn unclaim_pre_clears_the_worktree_path_key() {
-    let content = format!("+++\ntitle = \"t\"\ncreated = 0\nupdated = 0\n{WORKTREE_KEY} = \"/wt/bl-x\"\n+++\n");
-    let out = stage_field("unclaim", "pre", false, Path::new("/wt/bl-x"), || Ok(content))
-        .unwrap()
-        .unwrap();
-    let task = Task::parse(&out).unwrap();
-    assert!(!task.extra.contains_key(WORKTREE_KEY)); // present iff claimed, now gone
+fn show_read_surfaces_a_field_line_only_when_the_worktree_exists() {
+    // The §6 read dispatch folds this into `bl show`'s human field block; an
+    // absent worktree (released, or claimed on another machine) prints nothing —
+    // the plugin asserts nothing git doesn't know (§11).
+    let wt = Path::new("/wt/bl-x");
+    assert_eq!(surfaced("show", "read", false, wt, true).as_deref(), Some("  worktree /wt/bl-x"));
+    assert_eq!(surfaced("show", "read", false, wt, false), None);
 }
 
 #[test]
-fn no_other_hook_stages_anything_or_reads_the_file() {
-    // Every non-staging (op, phase) — and any rollback of the two pre hooks —
-    // returns `None` WITHOUT consulting the file (a post-abort resets the store,
-    // §8, so a staged field needs no explicit undo).
-    for (op, phase, rb) in [
-        ("claim", "post", false),
-        ("unclaim", "post", false),
-        ("close", "pre", false),
-        ("claim", "pre", true),
-        ("unclaim", "pre", true),
+fn no_other_hook_or_rollback_surfaces_anything() {
+    // Nothing is ever staged or stored (bl-0af4): every non-surfacing hook —
+    // and any rollback — prints nothing.
+    for (op, phase, rb, exists) in [
+        ("claim", "post", true, true), // a rolled-back claim is not a product
+        ("claim", "pre", false, true),
+        ("unclaim", "post", false, true),
+        ("close", "pre", false, true),
+        ("show", "read", true, true), // a read has nothing to roll back, but stay strict
     ] {
-        let out = stage_field(op, phase, rb, Path::new("/wt"), || {
-            unreachable!("a non-staging hook must not read the task file")
-        })
-        .unwrap();
-        assert!(out.is_none());
+        assert_eq!(surfaced(op, phase, rb, Path::new("/wt"), exists), None, "{op}.{phase} rb={rb}");
     }
-}
-
-#[test]
-fn stage_field_surfaces_an_unparseable_ball() {
-    let err = stage_field("claim", "pre", false, Path::new("/wt"), || Ok("not a ball".into())).unwrap_err();
-    assert!(err.to_string().contains("frontmatter"));
-}
-
-#[test]
-fn stage_field_propagates_a_read_error() {
-    let err =
-        stage_field("claim", "pre", false, Path::new("/wt"), || Err(io::Error::other("disk gone"))).unwrap_err();
-    assert_eq!(err.to_string(), "disk gone");
 }
 
 #[test]
 fn protocol_self_description_lists_every_hooked_op() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
-    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime"]));
+    assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "drop", "close", "prime", "show"]));
 }
 
 #[test]

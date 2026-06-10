@@ -97,10 +97,15 @@ impl Hooks {
         Hooks::load_from(&landing.join("config").join("plugins.toml"))
     }
 
+    /// The ordered plugin names under one schedule `key` (empty when un-wired).
+    fn key_names(&self, key: &str) -> &[String] {
+        self.table.get(key).map_or(&[], Vec::as_slice)
+    }
+
     /// The ordered plugin names wired for `<op>.<phase>` (empty when un-wired).
     #[must_use]
     pub fn names(&self, op: &str, phase: &str) -> &[String] {
-        self.table.get(&format!("{op}.{phase}")).map_or(&[], Vec::as_slice)
+        self.key_names(&format!("{op}.{phase}"))
     }
 
     /// Resolve `<op>.<phase>` into the engine's [`PluginRef`] set, in list order,
@@ -108,7 +113,20 @@ impl Hooks {
     /// not installed here — a dangling ref the dispatch rejects, §6).
     #[must_use]
     pub fn resolve(&self, registry: &Registry, op: &str, phase: &str) -> Vec<PluginRef> {
-        self.names(op, phase)
+        Self::refs(registry, self.names(op, phase))
+    }
+
+    /// Resolve a READ op's plugin set (§6 read dispatch): a read carries no seal
+    /// and no `pre`/`post` split, so its hook key is the BARE `<op>` token — one
+    /// key for the one phase it dispatches.
+    #[must_use]
+    pub fn resolve_read(&self, registry: &Registry, op: &str) -> Vec<PluginRef> {
+        Self::refs(registry, self.key_names(op))
+    }
+
+    /// Stitch `names` to their local `bin/<name>` bindings, in list order.
+    fn refs(registry: &Registry, names: &[String]) -> Vec<PluginRef> {
+        names
             .iter()
             .map(|name| PluginRef { name: name.clone(), bin: registry.resolve_bin(name) })
             .collect()

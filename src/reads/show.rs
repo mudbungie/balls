@@ -20,20 +20,23 @@ use crate::task::Task;
 /// Resolve and render `bl show`. Live `tasks/<id>.md` wins; on a miss the recency
 /// walk reconstructs the most recent dead incarnation from `balls/tasks` history
 /// (§9); an id matching neither is an error. `flags.target` is parser-guaranteed.
-pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style) -> io::Result<String> {
+/// `folded` is the §6 read-dispatch contribution — wired plugins' captured stdout
+/// (the delivery worktree line, §11) — inserted verbatim into the human field
+/// block; empty under `--json` (which never dispatches) or when nothing printed.
+pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style, folded: &str) -> io::Result<String> {
     let id = flags.target.as_deref().expect("parser guarantees show has a target");
     match cat.get(id) {
-        Some(e) => Ok(render_live(cat, e, flags, style)),
+        Some(e) => Ok(render_live(cat, e, flags, style, folded)),
         None => match resolve_dead(store, id)? {
-            Some(dead) => Ok(render_dead(&dead, flags, style)),
+            Some(dead) => Ok(render_dead(&dead, flags, style, folded)),
             None => Err(io::Error::other(format!("no such ball: {id}"))),
         },
     }
 }
 
 /// Render a live ball: the bedrock record under `--json`, else the human field
-/// block (badge, fields, blockers, children, body).
-fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style) -> String {
+/// block (badge, fields, blockers, children + the folded plugin lines, body).
+fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &str) -> String {
     if flags.json {
         // `--json` is the bedrock record (§9) — no derived `children`, no body,
         // identical to a `list` row. The rich view is the human projection.
@@ -42,14 +45,17 @@ fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style) -> String
     let badge = style.badge(cat.status(e));
     let mut out = header(&badge, &e.id, &e.task);
     field(&mut out, "status", status_word(cat.status(e)));
-    body_block(&mut out, &e.task, |out| kids(out, cat, &child_ids(cat, &e.id), style));
+    body_block(&mut out, &e.task, |out| {
+        kids(out, cat, &child_ids(cat, &e.id), style);
+        out.push_str(folded);
+    });
     out
 }
 
 /// Render a dead (history-served) ball: the same bedrock `--json` record (its
 /// reconstructed frontmatter round-trips), else the human block with the
 /// retirement badge and an extra `retired` date line in place of the live status.
-fn render_dead(d: &Dead, flags: &Flags, style: &Style) -> String {
+fn render_dead(d: &Dead, flags: &Flags, style: &Style, folded: &str) -> String {
     if flags.json {
         return json_line(&task_json(&d.id, &d.task));
     }
@@ -57,7 +63,9 @@ fn render_dead(d: &Dead, flags: &Flags, style: &Style) -> String {
     let mut out = header(&badge, &d.id, &d.task);
     field(&mut out, "status", "closed");
     field(&mut out, "retired", &iso8601(d.retired_at));
-    body_block(&mut out, &d.task, |_| {}); // dead balls render no children rollup
+    // Dead balls render no children rollup; a read-dispatch line still folds
+    // (in practice none — a retired ball's worktree is torn down, §11).
+    body_block(&mut out, &d.task, |out| out.push_str(folded));
     out
 }
 

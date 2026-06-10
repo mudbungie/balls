@@ -51,8 +51,9 @@ const BUSY_BACKOFF_MS: u64 = 2;
 /// Retry `exec` while it reports `ExecutableFileBusy`. Exec'ing a file any
 /// process holds open for writing yields `ETXTBSY` — transient when a plugin
 /// binary is being (re)written concurrently (a parallel agent's `bl install`,
-/// §6). Bounded, then gives up with the last error.
-fn retry_busy<T>(mut exec: impl FnMut() -> io::Result<T>) -> io::Result<T> {
+/// §6). Bounded, then gives up with the last error. Shared with the §6 read-op
+/// dispatch ([`crate::reads`]), which spawns the same plugin binaries.
+pub(crate) fn retry_busy<T>(mut exec: impl FnMut() -> io::Result<T>) -> io::Result<T> {
     for _ in 0..BUSY_RETRIES {
         match exec() {
             Err(e) if e.kind() == io::ErrorKind::ExecutableFileBusy => {

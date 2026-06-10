@@ -35,13 +35,13 @@ use serde::Deserialize;
 
 use crate::layout::Xdg;
 use crate::message::Metadata;
-use crate::task::Task;
 
 /// The protocol self-description (`<bin> protocol`, §6): this plugin speaks
 /// protocol 1 and handles the ops whose hooks it wires into — the four per-ball
-/// lifecycle ops and `prime` for re-materialization. balls reads it at
-/// install time, validates the wiring against it, and never persists it.
-pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close","prime"]}"#;
+/// lifecycle ops, `prime` for re-materialization, and the `show` read-op (§6
+/// read dispatch). balls reads it at install time, validates the wiring against
+/// it, and never persists it.
+pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","drop","close","prime","show"]}"#;
 
 /// The project-repo git acts the delivery hooks need, behind a seam so
 /// [`dispatch`] is testable without a real repo. Each is idempotent — it
@@ -106,41 +106,22 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
     }
 }
 
-/// The plugin-namespaced preserved frontmatter key (§3 seam) the delivery plugin
-/// stages the derived worktree path under, so the seal captures it and
-/// `bl show --json` surfaces it authoritatively (§11). Purely consumer-facing:
-/// the plugin RECOMPUTES the path for its own acts and never reads this back.
-pub const WORKTREE_KEY: &str = "delivery-worktree";
-
-/// The pre-seal frontmatter staging the delivery plugin performs (§11), the
-/// store-side counterpart to [`dispatch`]'s project-repo acts: it edits the
-/// op's `tasks/<id>.md` in the change worktree so the seal captures the result.
-/// `claim.pre` writes the derived `worktree` path under [`WORKTREE_KEY`] (the
-/// consumer's authoritative read); `unclaim.pre` clears it in lockstep with core
-/// clearing `claimant`, so the field is present exactly while the ball is claimed
-/// and never names a released worktree. Every other hook — and any rollback,
-/// since a `claim.post` failure post-aborts the whole seal (§8) and the staged
-/// field vanishes with the store reset — leaves the file untouched (`None`); the
-/// edge then skips the rewrite (and the lazy `content` read with it). Pure: the
-/// edge owns the fs.
-pub fn stage_field(
-    op: &str,
-    phase: &str,
-    rolling_back: bool,
-    worktree: &Path,
-    content: impl FnOnce() -> io::Result<String>,
-) -> io::Result<Option<String>> {
-    let staged = match (op, phase, rolling_back) {
-        ("claim", "pre", false) => Some(worktree),
-        ("unclaim", "pre", false) => None,
-        _ => return Ok(None),
-    };
-    let mut task = Task::parse(&content()?).map_err(io::Error::other)?;
-    match staged {
-        Some(path) => task.extra.insert(WORKTREE_KEY.into(), path.to_string_lossy().into_owned().into()),
-        None => task.extra.remove(WORKTREE_KEY),
-    };
-    Ok(Some(task.to_markdown()))
+/// The §11 path surfacing — the stdout line a hook prints, if any (the §6
+/// product channel; balls forwards it verbatim). The path is NEVER stored: it is
+/// recomputed per surfacing (derive-don't-store, §11; bl-0af4 deleted the staged
+/// `delivery-worktree` field). `claim.post` and each `prime.post`
+/// re-materialization print the BARE path — the verb's one product, the way
+/// `create` prints the id. The `show` read-op (§6 read dispatch) prints a human
+/// field line instead, folded into `bl show`'s render — and only when the
+/// worktree actually `exists`: a released or other-machine claim has no local
+/// worktree, and the plugin asserts nothing git doesn't know.
+#[must_use]
+pub fn surfaced(op: &str, phase: &str, rolling_back: bool, worktree: &Path, exists: bool) -> Option<String> {
+    match (op, phase, rolling_back) {
+        ("claim" | "prime", "post", false) => Some(worktree.display().to_string()),
+        ("show", "read", false) if exists => Some(format!("  {:<9}{}", "worktree", worktree.display())),
+        _ => None,
+    }
 }
 
 /// This binding's worktree territory (§11):
