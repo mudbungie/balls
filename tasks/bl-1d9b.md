@@ -1,7 +1,8 @@
 +++
 title = "checkout-scoped seals carry no SS5 trailers at all"
 created = 1781067179
-updated = 1781067179
+updated = 1781067827
+claimant = "Rebut"
 parent = "bl-72a8"
 priority = 2
 tags = ["spec-divergence"]
