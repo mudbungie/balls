@@ -63,11 +63,11 @@ fn a_diffless_post_abort_hands_the_moved_facts_to_every_rollback() {
     assert_eq!(seen.iter().find(|(k, _)| k == "rb:a").unwrap().1, Some("T1".into()));
 }
 
-/// Run a `prime` fixpoint through the engine (bl-0a23). `passes` = how many `pre`
-/// passes before `step` (core's materialize) reports converged; `step_fail` makes
-/// `step` error on its first call; `run_fail` fails the named plugin.
-fn run_fixpoint(
-    passes: u32,
+/// Run a `prime` pass through the engine (bl-698d). `moved` = the value `step`
+/// (core's materialize) reports the dial moved to (`None` = it held); `step_fail`
+/// makes `step` error; `run_fail` fails the named plugin.
+fn run_prime(
+    moved: Option<&'static str>,
     step_fail: bool,
     run_fail: Option<&'static str>,
     pre: &[&str],
@@ -78,17 +78,13 @@ fn run_fixpoint(
     let plugins = FakePlugins::new(jrn.clone(), run_fail);
     let pre: Vec<_> = pre.iter().map(|n| plugin(n)).collect();
     let post: Vec<_> = post.iter().map(|n| plugin(n)).collect();
-    let mut n = 0u32;
     let mut step = || -> io::Result<Option<String>> {
         if step_fail {
             return Err(io::Error::other("materialize"));
         }
-        n += 1;
-        // Converge once `step` has run `passes` times; until then the dial moved.
-        Ok((n < passes).then(|| format!("dial-{n}")))
+        Ok(moved.map(String::from))
     };
-    let result = Engine::new(&anvil, &plugins, &test_log()).fixpoint(
-        Verb::Prime,
+    let result = Engine::new(&anvil, &plugins, &test_log()).prime(
         Path::new("/landing"),
         Path::new("/store"),
         &pre,
@@ -100,51 +96,41 @@ fn run_fixpoint(
 }
 
 #[test]
-fn a_fixpoint_runs_pre_until_step_converges_then_runs_post_once() {
-    // Two passes: pre, step(false), pre, step(true), then post. §12 "1 extra pass".
-    let (r, log) = run_fixpoint(2, false, None, &["a"], &["b"]);
-    assert!(r.is_ok());
-    assert_eq!(log, ["run:a:pre", "run:a:pre", "run:b:post"]);
-}
-
-#[test]
-fn a_fixpoint_converging_on_the_first_pass_runs_pre_once() {
-    // The common case (the dial held): exactly one pre, then post — no extra pass.
-    let (r, log) = run_fixpoint(1, false, None, &["a"], &["b"]);
+fn a_prime_pass_runs_pre_once_then_post_once() {
+    // The conformant shape (the dial held — every plain prime): one pre, one
+    // post, no second pass to take (bl-698d).
+    let (r, log) = run_prime(None, false, None, &["a"], &["b"]);
     assert!(r.is_ok());
     assert_eq!(log, ["run:a:pre", "run:b:post"]);
 }
 
 #[test]
-fn a_fixpoint_step_failure_is_a_substrate_abort_that_unwinds_pre() {
+fn a_prime_step_failure_is_a_substrate_abort_that_unwinds_pre() {
     // `step` (core's materialize) fails after `pre` ran → a Substrate abort; the
     // pre plugin rolls back and `post` never runs.
-    let (r, log) = run_fixpoint(1, true, None, &["a"], &["b"]);
+    let (r, log) = run_prime(None, true, None, &["a"], &["b"]);
     assert!(matches!(r, Err(OpError::Substrate(_))));
     assert_eq!(log, ["run:a:pre", "rollback:a:pre"]);
 }
 
 #[test]
-fn a_fixpoint_whose_dial_never_holds_aborts_loudly_at_the_pass_cap() {
-    // A pre participant rewrites the dial on EVERY pass (bl-33db): the loop must
-    // not spin forever — it aborts at FIXPOINT_CAP, the error naming the op and
-    // the last dial value, and unwinds every run pre. `post` never runs.
-    let (r, log) = run_fixpoint(u32::MAX, false, None, &["a"], &["b"]);
+fn a_prime_whose_pre_moved_the_dial_aborts_on_the_first_pass() {
+    // A pre participant rewrote `tasks_branch` (bl-33db's runaway): no conformant
+    // plugin moves the dial — config crosses only by install — so the violation
+    // is a first-pass ERROR (bl-698d), the message naming the rule and the moved
+    // value. The run pre unwinds; `post` never runs.
+    let (r, log) = run_prime(Some("balls/elsewhere"), false, None, &["a"], &["b"]);
     let Err(OpError::Substrate(e)) = r else { panic!("expected a Substrate abort, got {r:?}") };
     let msg = e.to_string();
-    assert!(msg.contains(&format!("fixpoint pass cap ({FIXPOINT_CAP})")), "{msg}");
-    assert!(msg.contains("prime.pre"), "{msg}");
-    assert!(msg.contains(&format!("dial-{FIXPOINT_CAP}")), "{msg}"); // the value still moving at the cap
-    let cap = FIXPOINT_CAP as usize;
-    assert_eq!(log.iter().filter(|l| *l == "run:a:pre").count(), cap);
-    assert_eq!(log.iter().filter(|l| *l == "rollback:a:pre").count(), cap);
-    assert!(!log.contains(&"run:b:post".to_string()));
+    assert!(msg.contains("prime.pre may not move tasks_branch"), "{msg}");
+    assert!(msg.contains("balls/elsewhere"), "{msg}"); // the moved value, named
+    assert_eq!(log, ["run:a:pre", "rollback:a:pre"]);
 }
 
 #[test]
-fn a_fixpoint_post_abort_unwinds_every_run_plugin_in_reverse() {
-    // pre "a" lands, step converges, post "b" fails → the whole op unwinds.
-    let (r, log) = run_fixpoint(1, false, Some("b"), &["a"], &["b"]);
+fn a_prime_post_abort_unwinds_every_run_plugin_in_reverse() {
+    // pre "a" lands, the dial held, post "b" fails → the whole op unwinds.
+    let (r, log) = run_prime(None, false, Some("b"), &["a"], &["b"]);
     assert!(matches!(r, Err(OpError::Plugin { ref name, .. }) if name == "b"));
     assert_eq!(log, ["run:a:pre", "run:b:post", "rollback:a:pre"]);
 }
