@@ -34,7 +34,7 @@ use crate::install::{install, referenced, resolve_and_bind, Summary, DEFAULT_PAT
 use crate::layout::CloneDir;
 use crate::lifecycle::{BaseChange, Engine};
 use crate::log::{self, Log};
-use crate::message::PROTOCOL;
+use crate::message::{Message, PROTOCOL};
 use crate::plugin::Subprocess;
 use crate::registry::{PluginRef, Registry};
 use crate::safegit::reject_option_like;
@@ -64,7 +64,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
     let reg = Registry::at(&landing);
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
-    let plugins = Subprocess::new(OpContext::diffless(opts.actor, binding), &log, edge.depth);
+    let plugins = Subprocess::new(OpContext::diffless(opts.actor.clone(), binding), &log, edge.depth);
     let chain = Chain {
         plugins: &plugins,
         log: &log,
@@ -72,7 +72,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
         post: hooks.resolve(&reg, Verb::Install.token(), "post"),
     };
     let to = if to_landing { &landing } else { &store };
-    let summary = seal_copy(&clone, &opts.path, &opts.from, to, &chain)?;
+    let summary = seal_copy(&clone, &opts.path, &opts.from, to, &chain, &opts.actor)?;
     if to_landing {
         bind_referenced(&landing, edge.exe_dir.as_deref())?;
     }
@@ -95,13 +95,13 @@ pub(crate) struct Chain<'a> {
 /// worktree (the copy's source root), drives [`Engine::seal`] with [`Copier`]
 /// as the base change, tears the source down whatever the outcome, and
 /// returns the change [`Summary`].
-pub(crate) fn seal_copy(clone: &CloneDir, path: &str, from: &str, to: &Path, chain: &Chain) -> io::Result<Summary> {
+pub(crate) fn seal_copy(clone: &CloneDir, path: &str, from: &str, to: &Path, chain: &Chain, actor: &str) -> io::Result<Summary> {
     reject_option_like(from)?;
     let src = source_root(to, clone, from)?;
     let base = Copier {
         path,
         src: &src,
-        message: format!("balls: install {path} --from {from}"),
+        message: Message::checkout(Verb::Install, actor, format!("balls: install {path} --from {from}")).render()?,
         copied: Cell::new(Summary::default()),
     };
     let change = clone.change("install");
@@ -127,9 +127,10 @@ fn source_root(repo: &Path, clone: &CloneDir, from: &str) -> io::Result<PathBuf>
 
 /// install's [`BaseChange`]: `stage` is the §6 path-copy into the change
 /// worktree (opened on `--to`'s tip, so the seal swaps only `<path>`);
-/// `finalize` is the install commit message — no §5 trailers, install carries
-/// none of the task-shaped fields (§8). `copied` carries the [`Summary`] back
-/// across the engine's `&dyn` seam for the caller to print.
+/// `finalize` is the pre-rendered §5 message — checkout-scoped, so it carries
+/// the protocol/op/actor trailers but no `bl-id` (bl-1d9b; the task-shaped
+/// WIRE fields stay absent, §8). `copied` carries the [`Summary`] back across
+/// the engine's `&dyn` seam for the caller to print.
 struct Copier<'a> {
     path: &'a str,
     src: &'a Path,
