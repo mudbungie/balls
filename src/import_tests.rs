@@ -154,6 +154,37 @@ fn the_legacy_button_imports_live_balls_and_wires_the_epic_edges() {
 }
 
 #[test]
+fn the_legacy_button_completes_through_the_dispatch() {
+    // bl-0a80: the dispatch must not hold the host stdin lock across the verb —
+    // the legacy edge pass re-enters stdin through `mutate::run`'s editor seam
+    // (`Editor::live` locks stdin), and the std stdin mutex is non-reentrant,
+    // so a held lock self-deadlocks after the node seal. Run the REAL dispatch
+    // in a thread and demand it finishes: under the bug this starves forever.
+    let tmp = TempDir::new().unwrap();
+    let iso = r#""created_at":"2026-01-01T00:00:07Z","updated_at":"2026-01-01T00:00:08Z""#;
+    legacy_store_at(
+        &tmp.path().join("proj"),
+        &[
+            ("bl-ep.json", &format!(r#"{{"id":"bl-ep","title":"Epic","status":"open","type":"epic",{iso}}}"#)),
+            ("bl-c1.json", &format!(r#"{{"id":"bl-c1","title":"Kid","status":"open","parent":"bl-ep",{iso}}}"#)),
+        ],
+    );
+    let edge = primed(&tmp);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let dispatched = edge.clone();
+    std::thread::spawn(move || {
+        let _ = tx.send(crate::run(&dispatched, &strs(&["import", "--legacy", "--as", "me"])));
+    });
+    let code = rx
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .expect("import --legacy deadlocked: the stdin lock was held across the epic edge pass");
+    assert_eq!(code, 0);
+    // The whole button ran: nodes sealed AND the epic edge pass landed.
+    let epic = read_task(&store(&edge), "bl-ep").unwrap();
+    assert_eq!(epic.blockers, [crate::task::Blocker { id: "bl-c1".into(), on: On::Claim }]);
+}
+
+#[test]
 fn the_dispatch_wires_import_and_a_parse_error_exits_one() {
     // Through `crate::run` (the §8 dispatch): the verb is reachable, and a bad
     // argv fails BEFORE the stdin read (so the test never touches the host's).
