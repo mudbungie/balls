@@ -70,7 +70,7 @@ fn show_omits_absent_optional_fields_blockers_children_and_body() {
 }
 
 #[test]
-fn show_json_is_the_bedrock_record_no_derived_children_body_or_status() {
+fn show_json_is_the_bedrock_record_total_with_no_derived_fields() {
     let cat = catalog(&[("bl-1", rich_task()), ("bl-kid", child_of("bl-1"))]);
     let out = dispatch(nostore(), &cat, &flags(true, "bl-1"), &plain(), "").unwrap();
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
@@ -78,8 +78,11 @@ fn show_json_is_the_bedrock_record_no_derived_children_body_or_status() {
     assert_eq!(v["id"], "bl-1");
     assert_eq!(v["parent"], "bl-root");
     assert!(v["created"].is_i64());
-    // Derived/non-frontmatter fields are absent — the human render owns them.
-    for derived in ["children", "body", "status"] {
+    // The record is TOTAL (bl-e614): the stored body rides too, so `bl import`
+    // writes the whole ball back from it.
+    assert_eq!(v["body"], "Some body text.");
+    // Derived fields stay absent — the human render owns them.
+    for derived in ["children", "status"] {
         assert!(v.get(derived).is_none(), "bedrock must omit {derived}");
     }
 }
