@@ -34,23 +34,13 @@ pub struct Binding {
     pub invocation_path: String,
 }
 
-/// One field-level intent in a [`Command`]: set `field` to `value`, or clear it
-/// when `value` is `None`. The §7 "intended `field_changes`" — content, not a
-/// diff hash the plugin has to reverse.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct FieldChange {
-    pub field: String,
-    pub value: Option<String>,
-}
-
-/// §7 command — the op plus its intended diff. `body_change` is the new markdown
-/// body when the op rewrites it. `field_changes` empty = a body-only or
-/// occupancy-only op.
+/// §7 command — the op plus its intended body. `body_change` is the new markdown
+/// body when the op rewrites it. There is no field-level changeset on the wire:
+/// the op's field diff has one authoritative home — the change worktree plus the
+/// op-start state to diff against (§14 derive-don't-store; bl-3bfd, §15).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Command {
     pub op: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub field_changes: Vec<FieldChange>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body_change: Option<String>,
 }
