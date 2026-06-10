@@ -1,7 +1,8 @@
 +++
 title = "skill note: hook-list ordering is yours - irreversibles last, prepend to post phases"
 created = 1781077562
-updated = 1781077562
+updated = 1781078632
+claimant = "Rebut"
 priority = 3
 tags = ["docs"]
 +++
