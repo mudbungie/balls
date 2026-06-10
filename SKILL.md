@@ -242,6 +242,16 @@ Then:
   `git status`/`git diff` inside your `work/<id>` worktree.
 - All `bl` verbs run from the bare root.
 
+In a **non-bare** project repo the same verbs work, with one trap: delivery
+moves `main` by plumbing (`commit-tree` + `update-ref`) and never touches the
+root checkout's working tree or index, so after a close the root is **stale**
+relative to its own branch — the ref advanced, the files on disk did not. A
+`git add -A && git commit` from that stale root silently commits DELETIONS of
+every previously delivered file. Keep all work in the `work/<id>` worktrees;
+after a close, refresh the root (`git checkout` / `git reset --hard`) before
+touching it. `bl` never resets it for you — it may hold your uncommitted
+changes.
+
 ## Removing or abandoning tasks
 
 - A task you decided against (dupe, stale): `bl close <id>` archives it; an
