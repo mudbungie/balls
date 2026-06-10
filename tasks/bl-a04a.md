@@ -1,7 +1,8 @@
 +++
 title = "Delivery fold rigor: strict merge + no-resurrection path invariant"
 created = 1781057282
-updated = 1781057282
+updated = 1781058910
+parent = "bl-72a8"
 priority = 1
 tags = ["design"]
 +++
