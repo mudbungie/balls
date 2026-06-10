@@ -62,6 +62,20 @@ fn set_task_branch_seals_one_commit_and_converges_on_a_repeat() {
 }
 
 #[test]
+fn set_task_branch_to_the_landing_is_refused_and_writes_nothing() {
+    // §2/§4 (bl-ac89): the coincident name is refused at the front door — same
+    // write-time validation precedent as log-level's ladder check. Nothing is
+    // written and nothing seals, so the checkout is never poisoned.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    let before = commits(&clone.landing());
+    let err = conf(&e, &["set", "task-branch", "balls/config"]).unwrap_err().to_string();
+    assert!(err.contains("names the landing"), "{err}");
+    assert_eq!(commits(&clone.landing()), before);
+}
+
+#[test]
 fn a_conf_seal_carries_the_checkout_scoped_trailers() {
     // §5: checkout-scoped seals carry bl-protocol/bl-op/bl-actor — only bl-id
     // (which names a single ball) is absent (bl-1d9b).

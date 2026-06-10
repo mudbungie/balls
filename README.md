@@ -76,7 +76,7 @@ State lives on **two branches** of your repo, each with one job and its own tran
 - **`balls/config`** — the **landing**. Holds `config/` (this checkout's config: which plugins run, where the store syncs from). Path-derived, single-owner, never pushed by balls.
 - **`balls/tasks`** — the **store** (default name; `config.tasks_branch` names it). Holds `tasks/<id>.md`, one file per task. Shared, sync-merged.
 
-`config/` and `tasks/` are top-level folders on *both* branches always, so the code reads config from the landing ref and tasks from the store ref with no special-casing of whether the two coincide. "Nothing on `main`" is structural: base balls never opens the project repo, so it *cannot* leave a commit there. The split exists because config and tasks have opposite transport disciplines — config is install-replaced (destructive, no merge), the store is sync-merged (union, fast-forward-only) — and one ref cannot carry both safely.
+`config/` and `tasks/` are top-level folders on *both* branches always, so the code reads config from the landing ref and tasks from the store ref with no special-casing of what else a branch carries. `tasks_branch` can never *name* the landing, though: the two checkouts are worktrees of one repo, and git refuses a branch checked out twice, so the coincident name is refused outright. "Nothing on `main`" is structural: base balls never opens the project repo, so it *cannot* leave a commit there. The split exists because config and tasks have opposite transport disciplines — config is install-replaced (destructive, no merge), the store is sync-merged (union, fast-forward-only) — and one ref cannot carry both safely.
 
 ### State lives outside the repo (XDG)
 

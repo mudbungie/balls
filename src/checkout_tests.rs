@@ -68,6 +68,27 @@ fn prime_drives_a_sync_after_the_prime_chain() {
 }
 
 #[test]
+fn a_seed_naming_the_landing_as_tasks_branch_fails_prime_named_and_conf_set_recovers() {
+    // bl-ac89: `tasks_branch = balls/config` is structurally impossible — one
+    // branch cannot back two worktrees of one repo. A poisoned seed used to
+    // wedge first prime on a raw git fatal (`already used by worktree`); now the
+    // §4 read authority refuses it BY NAME, the landing still founds, and the
+    // `conf set task-branch` fix path stays open.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let seed = e.xdg.default_config();
+    std::fs::create_dir_all(&seed).unwrap();
+    std::fs::write(seed.join("balls.toml"), "tasks_branch = \"balls/config\"\n").unwrap();
+    let err = prime(&e, &[]).unwrap_err().to_string();
+    assert!(err.contains("names the landing"), "{err}");
+    assert!(landing(&e).join("config").is_dir(), "the landing founded before the refusal");
+    // Recovery is one conf write, then prime converges normally.
+    crate::conf::run(&e, &argv(&["set", "task-branch", "balls/tasks"])).unwrap();
+    prime(&e, &[]).unwrap();
+    assert!(store(&e).join("tasks").is_dir());
+}
+
+#[test]
 fn sync_before_prime_is_an_error() {
     let tmp = TempDir::new().unwrap();
     assert!(sync(&edge(&tmp, None), &[]).is_err());

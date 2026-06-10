@@ -117,8 +117,9 @@ $XDG_STATE_HOME/balls/
   everywhere git data lives (clones, tracker), where nothing compiles and `%` is inert.
 - `config/` and `tasks/` are SEPARATE checkouts of the two branches. There is NO `operating/` symlink
   and no terminus to resolve: config is read from `config/`, tasks from `tasks/` (named by
-  `tasks_branch`, §4). If `tasks_branch` names the landing, the two checkouts coincide on one branch
-  whose `config/` and `tasks/` folders simply both live there — same code path (§2).
+  `tasks_branch`, §4). `tasks_branch` may NOT name the landing: the two checkouts are worktrees of
+  ONE local repo, and git refuses a branch checked out twice — the coincident name is refused BY
+  NAME (§2, bl-ac89).
 - The CHANGE worktree (`changes/<uuid>/`) is core, uuid-named (nothing keys off the uuid), off the
   STORE for task ops and off the landing for `config`/`install` ops (§8). It is distinct from the
   delivery plugin's CODE worktree (§11), which lives in plugin territory and checks out the *project*
@@ -154,14 +155,18 @@ balls/tasks    (the STORE — named by config.tasks_branch, shared, sync-transpo
 
 - **`config/` and `tasks/` are top-level folders, ALWAYS** — on every branch, in either role. This
   is what makes the split free: the code reads `config/` from the landing ref and `tasks/` from the
-  `tasks_branch` ref with NO branching on whether those refs are equal. One-vs-two branches is just
-  whether the two names coincide — not a code path. Point `tasks_branch` at the landing (or run both
-  roles on one branch) and it Just Works: the two folders coexist. balls does NOT block on branch
-  names.
-- **Default-two.** `tasks_branch` defaults to a DISTINCT ref (`balls/tasks`), because two single-job
-  branches are simplest and fewest code paths (§0). Reuse is legal but a deliberate choice with its
-  own costs (§6): a config ref shared as another clone's store couples their cadences and carries
-  baggage; a config ref shared AS config between clones CORRUPTS, having no merge.
+  `tasks_branch` ref, never branching on what else a branch carries (a branch may hold both folders).
+  But the two refs may NOT be one name: `config/` and `tasks/` are two worktrees of ONE local repo,
+  and git refuses a branch checked out twice, so `tasks_branch = balls/config` is structurally
+  impossible — refused BY NAME at the §4 read authority and at `conf set task-branch` (bl-ac89),
+  never wedged at prime. §4 independently forbids what coincidence would mean: the tracker pushes
+  and sync-merges `tasks_branch`, and a pushed, merged landing is exactly the corruption structural
+  single-ownership rules out.
+- **Always-two.** `tasks_branch` defaults to a DISTINCT ref (`balls/tasks`) — two single-job
+  branches are simplest and fewest code paths (§0) — and the refusal above makes two STRUCTURAL.
+  Every clone's landing bears the same path-derived name (`balls/config`), so no clone can name a
+  config branch as its store, its own or another's; a config ref shared AS config between clones
+  CORRUPTS anyway, having no merge (§4).
 - The landing branch is path-derived (`balls/config`) and is never named by config — you read config
   FROM it, so it cannot name where it lives. `tasks_branch` is the one indirection (§4): the single
   fixed point (the landing) plus the single pointer (to the store).
@@ -528,8 +533,9 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   `git diff` reviews it after. No confirmation flag (a new flag is a smell, §0); the commit IS the undo.
 - **Siblings are never touched.** install builds its commit on top of `--to`'s current tip, swapping
   only `<path>` — it NEVER rebuilds the tip from the source's whole tree and NEVER resets the ref. So
-  `install config` can never eat a co-resident `tasks/` (if `tasks_branch` names the same branch, §2):
-  forbidden, not merely discouraged. More-specific paths are less destructive — scope the blast radius.
+  `install config` can never eat a co-resident `tasks/` (a target branch may carry both folders, §2 —
+  even though `tasks_branch` can never NAME the landing, bl-ac89): forbidden, not merely discouraged.
+  More-specific paths are less destructive — scope the blast radius.
 - **Committed tree only, never `bin/`.** A path-copy of the committed tree cannot include `bin/<name>`
   (gitignored, not in the tree), so publishing to another repo (`--from landing --to <center>`) ships a
   *recommendation* (a dangling `bin/` the recipient resolves locally), never runnable code. Adopting
@@ -1553,6 +1559,29 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`tasks_branch` may not name the landing — the §1/§2 coincidence promise STRUCK (2026-06-09,
+  bl-ac89 — post-freeze).** §1/§2 promised the coincident case Just Works ("the two checkouts
+  coincide on one branch whose `config/` and `tasks/` folders simply both live there — same code
+  path"; "balls does NOT block on branch names") — but it is structurally impossible: `config/` and
+  `tasks/` are realized as two worktrees of ONE local repo, and git forbids one branch checked out
+  twice. A fresh checkout seeded with `tasks_branch = "balls/config"` wedged at first prime on a
+  raw git fatal (`'balls/config' is already used by worktree at .../config`) and every later op
+  failed on the missing store dir. The promise was also a contradiction of §4, which makes landing
+  single-ownership STRUCTURAL ("the only component that pushes is the tracker, and it pushes ONLY
+  `tasks_branch` — nothing in balls ever puts the landing in a push refspec"; "Sharing a config
+  branch between clones corrupts; only the STORE is shareable"): a coincident name makes the
+  landing tracker-pushed and sync-merged — exactly the corruption §4 rules out — so IMPLEMENTING
+  coincidence was never coherent, and striking the promise is the §4-consistent resolution. The
+  refusal closes the door for ALL clones at once: every landing bears the same path-derived name,
+  so "a config ref as another clone's store" (§2's old reuse note) was the same impossibility.
+  STRUCK: ONE invariant, two doors — refused BY NAME at the §4 read authority
+  (`EffectiveConfig::resolve`, so a seeded, adopted, or hand-edited poison fails named on every op
+  instead of wedging prime, and the landing still founds so `conf set` can fix it) and at the
+  `conf set task-branch` front door (the log-level ladder-validation precedent). `bl sync <branch>`
+  naming the landing positionally stays the §13 free no-op (untouched — it materializes nothing).
+  Touched §1 (the coincide bullet), §2 (the namespacing bullet; Default-two → Always-two), §6 (the
+  co-resident parenthetical). Code: `src/config.rs` (`forbid_landing` + the resolve check),
+  `src/conf_write.rs` (the front-door refusal), tests. Tracked under bl-72a8.
 - **converge-on-retry is the rule; rollback the appendix for external effects (2026-06-09, bl-c231 —
   post-freeze).** Promoted bl-430e from incident to principle: every plugin effect is BINDING (one
   atomic, detectable commit point — the `[bl-id]` squash, the store seal, the push; a retry detects

@@ -121,8 +121,7 @@ impl CloneDir {
 
     /// `config/` — the LANDING checkout (the `balls/config` branch, §2). A real
     /// worktree balls reads config from; this layer only names the path. `config/`
-    /// is a top-level folder ALWAYS (§2), so this resolves the same whether or not
-    /// the store shares the branch — never a one-vs-two-branch code path.
+    /// is a top-level folder ALWAYS (§2), whatever else a branch carries.
     #[must_use]
     pub fn landing(&self) -> PathBuf {
         self.root.join("config")
@@ -130,9 +129,9 @@ impl CloneDir {
 
     /// `tasks/` — the STORE checkout (the `tasks_branch` branch, §2). The linked
     /// worktree balls reads/writes tasks on and seals task ops onto (§8). `tasks/`
-    /// is a top-level folder ALWAYS (§2), read from the `tasks_branch` ref with no
-    /// branching on whether that ref equals the landing's — one-vs-two branches is
-    /// just whether the names coincide, never a code path.
+    /// is a top-level folder ALWAYS (§2). The two checkouts are worktrees of ONE
+    /// repo, so `tasks_branch` can never name the landing branch — git refuses a
+    /// branch checked out twice; the coincident name is refused by name (bl-ac89).
     #[must_use]
     pub fn store(&self) -> PathBuf {
         self.root.join("tasks")

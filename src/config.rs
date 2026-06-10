@@ -85,10 +85,31 @@ impl EffectiveConfig {
         if let Some(layer) = read_layer(user_config)? {
             layer_over(&mut merged, layer);
         }
-        Value::Table(merged)
+        let cfg: EffectiveConfig = Value::Table(merged)
             .try_into()
-            .map_err(|e| io::Error::other(format!("config does not resolve: {e}")))
+            .map_err(|e| io::Error::other(format!("config does not resolve: {e}")))?;
+        forbid_landing(&cfg.tasks_branch)?;
+        Ok(cfg)
     }
+}
+
+/// Refuse a `tasks_branch` that names the LANDING branch (§2/§4, bl-ac89). The
+/// coincident name is structurally impossible — `config/` and `tasks/` are two
+/// worktrees of ONE local repo, and git refuses a branch checked out twice — and
+/// §4 independently forbids what it would mean: the landing is single-owner,
+/// never pushed, never sync-merged, so it cannot double as the store. ONE
+/// invariant, two doors: the read authority ([`EffectiveConfig::resolve`] — a
+/// seeded, adopted, or hand-edited poison fails NAMED on every op instead of
+/// wedging prime on a raw git fatal) and the `conf set task-branch` write
+/// ([`crate::conf`], the log-level ladder-validation precedent).
+pub(crate) fn forbid_landing(tasks_branch: &str) -> io::Result<()> {
+    if tasks_branch == crate::LANDING_BRANCH {
+        return Err(io::Error::other(format!(
+            "tasks_branch '{tasks_branch}' names the landing — one branch cannot back two checkouts, \
+             and the landing is single-owner, never a store (§2/§4); pick another: bl conf set task-branch <branch>"
+        )));
+    }
+    Ok(())
 }
 
 /// The per-machine store remote named in the XDG user config's `remote` key — the

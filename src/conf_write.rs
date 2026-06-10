@@ -44,7 +44,11 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
             Level::parse(value)?; // refuse a level the ladder won't speak
             landing_set(&landing, actor, token, "log_level", value)
         }
-        (Key::TaskBranch, "set") => landing_set(&landing, actor, token, "tasks_branch", one(op, token, values)?),
+        (Key::TaskBranch, "set") => {
+            let value = one(op, token, values)?;
+            crate::config::forbid_landing(value)?; // the coincident name is refused at the front door (bl-ac89)
+            landing_set(&landing, actor, token, "tasks_branch", value)
+        }
         _ => Err(io::Error::other(format!(
             "conf {op}: '{token}' is a scalar — append/prepend/remove compose the [hooks] list keys"
         ))),
