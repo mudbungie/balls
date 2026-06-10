@@ -20,8 +20,8 @@
 //!
 //! Config "crosses into a landing only by the explicit copy `install` performs"
 //! (§0); here that copy is local and the read that feeds it is the tracker's. The
-//! ADOPT direction always seals to the local landing (unambiguous), so this needs
-//! no resolution of `install --to <center>`'s remote-seal target (bl-66e7). The
+//! ADOPT direction always seals to the local landing — install is purely local in
+//! core, every seal target is (transport is the tracker's; §6, bl-b8d6). The
 //! surrounding [`crate::checkout::prime`] then drives prime+sync against the
 //! just-adopted `tasks_branch` — a SINGLE hop, no recursion (a center's config
 //! names its own store, never another config, §4). Idempotent so a failed adopt

@@ -537,9 +537,22 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   even though `tasks_branch` can never NAME the landing, bl-ac89): forbidden, not merely discouraged.
   More-specific paths are less destructive — scope the blast radius.
 - **Committed tree only, never `bin/`.** A path-copy of the committed tree cannot include `bin/<name>`
-  (gitignored, not in the tree), so publishing to another repo (`--from landing --to <center>`) ships a
-  *recommendation* (a dangling `bin/` the recipient resolves locally), never runnable code. Adopting
-  (`--to landing`) and publishing are the same verb, reversed. Re-homing the store = a `tasks_branch`
+  (gitignored, not in the tree), so an adopted config ships a *recommendation* (a dangling `bin/` the
+  recipient resolves locally), never runnable code.
+- **`--to` is LOCAL-ONLY — install is purely local in core (bl-b8d6, resolving the bl-66e7 leg).**
+  Core never talks to a remote (§0): `--to` resolves to one of this checkout's two local checkouts —
+  the landing or the configured store branch — and any other target is refused. That is architecture,
+  not a gap: install just moves the files in; whether the sealed commit then TRAVELS is the tracker's
+  ordinary transport question. The store side publishes exactly this way today — `install --to tasks`
+  where `tasks_branch` is a center seals locally and the tracker's normal post-op push carries it
+  (§13). Config does not travel only because the default tracker pushes ONLY `tasks_branch` (§4): a
+  center's config branch is single-owner with no cross-writer merge (two writers clobber), so its one
+  owner publishes it the way any single-owner git branch is published — raw
+  `git push <center> balls/config:balls/config` from the owning clone's landing checkout (or a
+  tracker wired to carry config). Consent gates ADOPTION (where the RCE risk sits), never
+  publication; git's own non-ff reject is the contention check; the blast-radius review is `git diff`
+  against the remote ref before pushing — the same honesty-not-guard this section already chose.
+  Re-homing the store = a `tasks_branch`
   edit + `install tasks` (mirror, to an empty home) or `install tasks/*` (union, into a populated one),
   §12.
 - **Local binary resolution.** When `--to` is the local landing, install resolves each named plugin's
@@ -722,8 +735,9 @@ Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
 bootstrap-on-miss path. `prime` makes the checkout ready (substrate + onboarding + worktree
 re-materialization, seeding a fresh landing from the app `default-config/` folder — §12); `sync` keeps
-it current (data only); `install` copies a committed path between branches (§6 — config/plugins adopt
-or publish; the recommended bundle is `config/` minus `tasks/`); `conf` reads and writes THIS
+it current (data only); `install` copies a committed path between branches (§6 — config/plugins
+adoption + store re-homing, always sealing to a LOCAL checkout, bl-b8d6; the recommended bundle is
+`config/` minus `tasks/`); `conf` reads and writes THIS
 checkout's local config (§4 — the "by you" path).
 
 **`conf`** (local config CRUD — the §4 "by you" surface, bl-c2de): READ — `bl conf` dumps every
@@ -1229,7 +1243,7 @@ no-remote is itself a legitimate mode. The flags stay per-op and ephemeral BY DE
 not a pointer write, and durability is an explicit act (set `origin`, or `bl conf set task-remote`);
 what changed is that the override exists uniformly and the seam between the ephemeral tier and the
 durable tiers is named. (`install` resolves the same durable ladder for its binding; its SOURCE is
-`--from` — a ref, the bl-66e7 seal-target axis, not a remote tier.) `bl conf`'s provenance read
+`--from` — a ref, not a remote tier; its TARGET (`--to`) is local-only, §6/bl-b8d6.) `bl conf`'s provenance read
 REPORTS this whole ladder, `origin` tier included, via a local `git remote get-url` — naming the
 remote is a local config fact; *contacting* one stays the tracker's alone (§0), and the resolution
 the dump shows is exactly the one the tracker will act on.
@@ -1253,7 +1267,8 @@ never authority — it changes nothing and executes nothing (§0). A non-standar
 
 **"Center" is emergent.** No branch declares itself a center; a center is just a store branch that ≥1
 landings' `tasks_branch` values converge on (in-degree). Setting up a center = point your
-`tasks_branch` at the shared branch and `install` it to the checkouts that should join. Founding
+`tasks_branch` at the shared branch; each joining checkout adopts with `bl install --from <center>`
+(the tracker fetches, core copies locally — install is purely local in core, §6/bl-b8d6). Founding
 (remote store branch absent → create+push) vs joining (present → adopt) is read from remote state,
 never declared by a flag.
 
@@ -1412,7 +1427,8 @@ converging predicate.
   the way all remote bytes do — the TRACKER, never core, does the fetch, wired on the default
   schedule's `install.pre` hook (§6 table): it fetches the center's `balls/config` into the landing's
   `FETCH_HEAD` (a git-standard ref, no invented core↔plugin convention), where the install path-copy
-  reads it. A READ only — never a push to the center (publishing is `install --to`); stealth (no
+  reads it. A READ only — never a push to the center (a center's config is published by its owner's
+  raw `git push`, §6/bl-b8d6); stealth (no
   remote) is a no-op. Remote-talk stays plugin-exclusive (§0) even inside the fused verb. It is a
   SINGLE hop, not a walk: a center's config is self-contained — it names its own `tasks_branch` (the one config→store
   indirection, §4), never another config to chase — so there is no chain to recurse. (The older
@@ -1420,7 +1436,8 @@ converging predicate.
   config crosses a checkout boundary exactly ONCE, by explicit install.) Each install is idempotent,
   so a failed adopt resumes rather than double-applies. The `--install` flag IS the consent — plain
   prime still cannot activate code, so the auto-safe property holds for the every-session path.
-  Likewise prime never *pushes* config; outbound transfer is `install --to` (§6).
+  Likewise prime never *pushes* config; the default tracker pushes only `tasks_branch` (§4), so a
+  center's config leaves its owner's box by raw `git push` (§6, bl-b8d6).
 
 **The wire (§6/§7), minus the task-shaped fields.** A sync/prime plugin gets meaning from its
 `binding`, not from a command:
@@ -1586,6 +1603,51 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`install --to <center>` (the publish direction) DISSOLVES — install is purely local in core;
+  `--to` names this checkout's local checkouts, transport is the tracker's, and the refusal of any
+  other target is architecture, permanent (2026-06-09, bl-b8d6 — post-freeze; resolves the leg
+  bl-66e7 left open, refused-not-guessed since bl-f387).** The spec contradicted itself: §6
+  ("adopting and publishing are the same verb, reversed") and §13's two asides ("publishing is
+  `install --to`") promised a direction §4 structurally FORBIDS — "the only component that pushes is
+  the tracker, and it pushes ONLY `tasks_branch` (§13) — nothing in balls ever puts the landing in a
+  push refspec, so `balls/config` physically cannot leave the box through balls." Resolved by a
+  REFRAME, not a struck feature: core never talks to a remote (§0), so install's seal lands in a
+  local checkout BY DEFINITION — install just moves the files in; whether the sealed commit then
+  TRAVELS is the tracker's ordinary transport question, the same as for every other sealed commit.
+  The store direction already publishes exactly this way: `install --to tasks` where `tasks_branch`
+  is a center seals locally and the tracker's normal post-op push carries it (§13) — no publish
+  machinery, just core-local seal + tracker transport. Config does not travel only because the
+  default tracker pushes ONLY `tasks_branch` (§4), and that default stays: a center's config branch
+  is SINGLE-OWNER with no cross-writer merge (path-copy mirror, two writers clobber), and a
+  bl-blessed config-publish wiring would invite N landings to publish onto one center config branch
+  — the case §4's single-owner rule exists to prevent. Its one owner publishes it the way any
+  single-owner no-merge git branch is published — `git push <center> balls/config:balls/config` from
+  the owning clone's landing checkout — raw git, outside balls' default surface (§4's "residue balls
+  cannot police", reframed as the path: consent gates ADOPTION, where the RCE risk sits, never
+  publication; git's non-ff reject is the contention check; balls would add nothing but ceremony).
+  Correct-substitute audit — what the raw push does NOT give, and why each is accepted: (a)
+  install's printed `N added / M deleted` blast radius → `git diff <center>/balls/config` before
+  pushing, the honesty-not-guard §6 already chose over confirmation flags; (b) a path-scoped publish
+  that preserves the center's other config → moot under single-owner — the owning clone's landing IS
+  the center config, whole; an owner whose daily landing must differ from the recommendation keeps a
+  dedicated curation clone (landings are per-path, §1 — onboarding-cadence work, not per-op); (c) an
+  admin-less hosted bare hub → identical under both designs: every publish path, wired or raw,
+  needs a clone with push access, which is exactly the substitute's precondition — "run install
+  locally at the center" never meant a working tree AT the hub. DEMAND surveyed, empty: the legacy
+  "capability publishing" center spec (bl-6965) was superseded by §12's emergent center; the one
+  live federation exercise (the bl-10a4 cross-tracking trial) surfaced five gaps, none config
+  publish; the spec's own asides were the only consumer of the promise. The bl-f387 phase-order
+  question DISSOLVES with the direction: adopt's `install.pre` tracker fetch (staging reads
+  `FETCH_HEAD`, so the fetch cannot ride the engine's own chain) stays the ONE documented leg
+  outside the §14 trace — with the publish direction gone there is no second fetch-before-Author
+  consumer, and formalizing the phase is mechanism without a consumer (the bl-587f bar). Touched §6
+  (the committed-tree bullet split: adopt ships recommendations; `--to` local-only as architecture +
+  the publish path), §9 (install one-liner), §12 (center-setup wording; the ladder aside), §13 (both
+  publish asides), §15 (this entry). Code follow-up (same ball, post-dialogue): `install_run.rs`'s
+  refusal stops citing bl-66e7 as "not wired" and names the rule ("install is purely local in core;
+  config publishes by `git push` from its owning clone, §6") — no behavior change, the refusal
+  already exists; `adopt.rs`/`install_run.rs` module docs + the `install_run_tests.rs` comment drop
+  the open-question framing. Tracked under bl-72a8.
 - **front-door edge flags require a LIVE target (2026-06-10, bl-6b8c — post-freeze).** `--needs
   ID[:OP]` and `--blocks ID:OP`/`--blocks OP` — create AND update alike, `--subtask-of`'s
   reciprocal gate included — now REFUSE a target id that is not currently live, naming the id and
