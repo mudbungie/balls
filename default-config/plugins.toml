@@ -25,3 +25,4 @@
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
 "create.post"  = ["tracker"]
 "update.post"  = ["tracker"]
+"import.post"  = ["tracker"]                  # imported records sync like any mutate (§16)

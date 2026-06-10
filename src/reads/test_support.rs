@@ -84,6 +84,31 @@ pub(crate) fn catalog(tasks: &[(&str, Task)]) -> Catalog {
     Catalog::load(tmp.path()).unwrap()
 }
 
+/// A PRE-greenfield repo at `r` for the §16 `--legacy` shim tests: a
+/// `balls/tasks` orphan branch holding `.balls/tasks/*` (the legacy JSON store
+/// plus any `*.notes.jsonl`), `main` left checked out. Shared by the
+/// legacy-shim and `bl import --legacy` tests.
+pub(crate) fn legacy_store_at(r: &Path, files: &[(&str, &str)]) {
+    fs::create_dir_all(r).unwrap();
+    let git = |args: &[&str]| crate::git::run(r, args, None).unwrap();
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.name", "test"]);
+    git(&["config", "user.email", "t@x"]);
+    fs::write(r.join("seed"), "s\n").unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-qm", "seed"]);
+    git(&["checkout", "-q", "--orphan", "balls/tasks"]);
+    git(&["rm", "-rfq", "."]);
+    let td = r.join(".balls/tasks");
+    fs::create_dir_all(&td).unwrap();
+    for (name, body) in files {
+        fs::write(td.join(name), body).unwrap();
+    }
+    git(&["add", "-A"]);
+    git(&["commit", "-qm", "legacy"]);
+    git(&["checkout", "-q", "main"]);
+}
+
 /// A throwaway git store carrying real `balls/tasks`-style history — the fixture
 /// the dead-ball reconstruction tests walk (`show` fallthrough, `list --status closed`).
 /// Commits go through the §5 trailer protocol so `bl-op:` reads back as the
