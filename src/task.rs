@@ -79,7 +79,20 @@ pub enum ParseError {
     MissingFrontmatter,
     UnterminatedFrontmatter,
     Toml(toml::de::Error),
+    /// A [`SHADOW_KEYS`] member stored as frontmatter — a key whose fact lives
+    /// OUTSIDE the frontmatter, so a stored line is a shadow the bedrock
+    /// projection silently drops (a lossy hole in the §9 round-trip). Refused
+    /// at parse, the one gate every write funnels through (the §8.3 seal
+    /// re-parse, `--edit`'s buffer validation, every read).
+    ReservedKey(&'static str),
 }
+
+/// The frontmatter keys no `tasks/<id>.md` may carry: each names a fact whose
+/// one authoritative home is elsewhere — `id` is the filename (§3 Model A) and
+/// `body` is the markdown after the closing fence. These are the only canonical
+/// names serde's flatten could capture as extras (every other §3 field is a
+/// struct field, so TOML's duplicate-key rule already excludes a twin).
+const SHADOW_KEYS: [&str; 2] = ["id", "body"];
 
 impl Task {
     /// Parse a `tasks/<id>.md` file: a `+++`-fenced TOML frontmatter block, then
@@ -97,6 +110,9 @@ impl Task {
             ),
         };
         let mut task: Task = toml::from_str(frontmatter).map_err(ParseError::Toml)?;
+        if let Some(key) = SHADOW_KEYS.into_iter().find(|k| task.extra.contains_key(*k)) {
+            return Err(ParseError::ReservedKey(key));
+        }
         task.body = body.to_string();
         Ok(task)
     }
@@ -160,6 +176,10 @@ impl std::fmt::Display for ParseError {
                 f.write_str("unterminated frontmatter: no closing `+++` fence")
             }
             ParseError::Toml(e) => write!(f, "invalid frontmatter: {e}"),
+            ParseError::ReservedKey(k) => write!(
+                f,
+                "reserved frontmatter key '{k}' — the id is the filename and the body follows the fence; neither is stored frontmatter"
+            ),
         }
     }
 }
