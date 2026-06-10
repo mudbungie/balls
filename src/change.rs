@@ -91,18 +91,39 @@ impl BaseChange for Create {
             .into_iter()
             .filter(|id| !existing.contains(id.as_str()))
             .collect();
-        if new.len() != 1 {
+        let Some(id) = new.pop() else {
+            return Err(invalid(self.vanished(dir)));
+        };
+        if !new.is_empty() {
             return Err(invalid(format!(
                 "create: expected exactly one new task file, found {}",
-                new.len()
+                new.len() + 1
             )));
         }
-        let id = new.pop().expect("len checked == 1");
         if !id::is_valid(&id) {
             return Err(invalid(format!("create: invalid task id '{id}'")));
         }
         let title = read_task(dir, &id)?.title;
         commit_message(Verb::Create, &self.actor, &id, &title, self.message.as_deref())
+    }
+}
+
+impl Create {
+    /// No new id appeared after `pre`: a `create/pre` reassignment landed ON a
+    /// live id (the §id-generation `git mv` seam colliding with an existing
+    /// task) or deleted the file outright. Name the collision when the staged
+    /// content (this op's clock + title) is found under an existing id —
+    /// "expected exactly one new task file, found 0" was oblique (bl-3ddb).
+    fn vanished(&self, dir: &Path) -> String {
+        let collided = self.existing.iter().find(|id| {
+            read_task(dir, id).is_ok_and(|t| t.created == self.now && t.title == self.title)
+        });
+        match collided {
+            Some(id) => format!(
+                "create: a create.pre plugin reassigned the new task to `{id}`, which already exists — id collision, nothing sealed"
+            ),
+            None => "create: expected exactly one new task file, found 0".to_string(),
+        }
     }
 }
 
