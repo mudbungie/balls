@@ -179,3 +179,16 @@ fn update_adds_and_drops_its_own_blockers() {
     assert_eq!(t.blockers, vec![Blocker { id: "bl-new".into(), on: On::Close }]);
     assert_eq!(t.updated, 3);
 }
+
+#[test]
+fn update_rejects_subtask_of() {
+    // --subtask-of carries a reciprocal close-gate, so like --blocks it is
+    // create-only; update sets --parent (containment) but never a foreign edge.
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    let mut f = flags();
+    f.positionals = vec!["bl-1".into()];
+    f.subtask_of = Some("bl-e".into());
+    let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("create-only"));
+}

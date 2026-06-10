@@ -47,9 +47,9 @@ fn parse_collects_every_flag_and_positional() {
     let f = parse(
         &strs(&[
             "the-id", "k=v", "--as", "ann", "-m", "note", "--body", "para", "--title", "New",
-            "--parent", "bl-p", "--no-parent", "--blocks", "bl-g:close", "--needs", "bl-n",
-            "--no-needs", "bl-rm", "-p", "3", "--no-priority", "-t", "x", "--no-tag", "y",
-            "--edit",
+            "--parent", "bl-p", "--no-parent", "--subtask-of", "bl-e", "--blocks", "bl-g:close",
+            "--needs", "bl-n", "--no-needs", "bl-rm", "-p", "3", "--no-priority", "-t", "x",
+            "--no-tag", "y", "--edit",
         ]),
         "default",
     )
@@ -60,6 +60,7 @@ fn parse_collects_every_flag_and_positional() {
     assert_eq!(f.title.as_deref(), Some("New"));
     assert_eq!(f.parent.as_deref(), Some("bl-p"));
     assert!(f.no_parent);
+    assert_eq!(f.subtask_of.as_deref(), Some("bl-e"));
     assert_eq!(f.blocks, ["bl-g:close"]);
     assert_eq!(f.needs, ["bl-n"]);
     assert_eq!(f.no_needs, ["bl-rm"]);
@@ -201,6 +202,7 @@ fn each_shaping_flag_bounces_an_occupancy_verb_on_its_own() {
         |f| f.body = Some("b".into()),
         |f| f.parent = Some("bl-p".into()),
         |f| f.no_parent = true,
+        |f| f.subtask_of = Some("bl-e".into()),
         |f| f.no_priority = true,
         |f| f.priority = Some(1),
         |f| f.blocks = vec!["close".into()],
