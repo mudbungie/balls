@@ -4,15 +4,15 @@
 //! chain runs against the STORE checkout directly ([`crate::lifecycle::Engine`]).
 //!
 //! - **`prime`** is the idempotent orchestrator of syncs (§12/§13): found the
-//!   `balls/config` LANDING on a miss ([`crate::substrate`]), then run the
-//!   CORE-OWNED FIXPOINT ([`converge`]) that loops `prime/pre` (the tracker
-//!   clones an established remote store in) and [`crate::substrate::materialize`]
-//!   until the configured `tasks_branch` settles — laying the store down LAZILY,
-//!   no eager orphan to diverge (bl-0a23) — then runs `prime/post` (the tracker's
-//!   fetch-ff + push), THEN drives `sync` against the store so an established
-//!   checkout is brought current. Currency comes from invoking the sync primitive,
-//!   never a reimplemented fetch (the single-codepath invariant). Re-running
-//!   converges.
+//!   `balls/config` LANDING on a miss ([`crate::substrate`]), then run ONE
+//!   core-owned pass ([`prime_chain`]) — `prime/pre` (the tracker clones an
+//!   established remote store in), [`crate::substrate::materialize`] for the
+//!   configured `tasks_branch` (laid down LAZILY, no eager orphan to diverge,
+//!   bl-0a23; a `pre` that MOVED the name aborts, bl-698d), `prime/post` (the
+//!   tracker's fetch-ff + push) — THEN drives `sync` against the store so an
+//!   established checkout is brought current. Currency comes from invoking the
+//!   sync primitive, never a reimplemented fetch (the single-codepath
+//!   invariant). Re-running converges.
 //! - **`sync`** is the synchronization primitive (§13): run the `sync` chain
 //!   against the store (the tracker's `sync/pre` does the fetch + ff-only). With
 //!   no arg it syncs the config `tasks_branch`; `bl sync <branch>` PULLS that
@@ -44,7 +44,7 @@ use std::path::Path;
 
 /// `bl prime [--as ID] [--install CENTER] [--stealth]` — bring this checkout to
 /// readiness
-/// (§12/§13). Bootstrap-on-miss founds the LANDING; the [`converge`] fixpoint
+/// (§12/§13). Bootstrap-on-miss founds the LANDING; the [`prime_chain`] pass
 /// materializes the store and runs the `prime` chain; THEN prime drives `sync` so
 /// an established checkout is brought current. Prime's binding already names the
 /// config `tasks_branch` with the resolved remote — exactly what a no-arg `sync`
@@ -83,40 +83,41 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     }
     let remote = opts.remote.or(opts.install);
     let (binding, level) = bind(edge, &landing, &store, remote, None, opts.stealth)?;
-    converge(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
+    prime_chain(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
-/// Run `prime`'s §12 fixpoint (bl-0a23): each pass runs the `prime/pre` chain
-/// (the tracker clones an established remote branch in, or no-ops) then core
-/// [`substrate::materialize`]s the store for the freshly-read `tasks_branch`; the
-/// loop converges when that name stops moving. THEN the `prime/post` chain (the
-/// tracker's fetch-ff + publish) runs against the now-materialized store. `pre`
-/// runs with cwd = the LANDING (the store is not laid down until materialize, so
-/// it cannot be the cwd on a first prime); `post` with cwd = the store. The `step`
-/// closure is core's between-phase work — materialize, then report whether the
-/// dial held — so the loop is core's, never driven by a plugin's return (§7),
-/// and bounded by the engine's [`crate::lifecycle::FIXPOINT_CAP`] pass cap (bl-33db).
-fn converge(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
+/// Run `prime`'s §12 chain — ONE pass (bl-698d): the `prime/pre` chain (the
+/// tracker clones an established remote branch in, or no-ops), then core
+/// [`substrate::materialize`]s the store for the configured `tasks_branch`, then
+/// the `prime/post` chain (the tracker's fetch-ff + publish) against the
+/// now-materialized store. `pre` runs with cwd = the LANDING (the store is not
+/// laid down until materialize, so it cannot be the cwd on a first prime);
+/// `post` with cwd = the store. The `step` closure is core's between-phase work
+/// — materialize, then report whether the configured name MOVED across `pre`. A
+/// moved name ABORTS the op in the engine: no conformant plugin rewrites
+/// `tasks_branch` (the tracker's name-settle is warn-only; config crosses only
+/// by `install`, §12), so the check ENFORCES the consent rule instead of looping
+/// to accommodate violations of it (supersedes the bl-0a23 fixpoint and its
+/// bl-33db pass cap).
+fn prime_chain(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let user_config = edge.xdg.user_config();
     let hooks = Hooks::effective(landing, &user_config)?;
     let reg = Registry::at(landing);
     let pre = hooks.resolve(&reg, Verb::Prime.token(), "pre");
     let post = hooks.resolve(&reg, Verb::Prime.token(), "post");
-    let mut last = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
+    let before = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
     let mut step = || -> io::Result<Option<String>> {
         let name = EffectiveConfig::resolve(landing, &user_config)?.tasks_branch;
         substrate::materialize(landing, store, &name)?;
-        let moved = (name != last).then(|| name.clone());
-        last = name;
-        Ok(moved)
+        Ok((name != before).then_some(name))
     };
     let log = Log::new(clone.op_log(), level, Verb::Prime, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth);
     let anvil = git::Git::at(store);
     Engine::new(&anvil, &plugins, &log)
-        .fixpoint(Verb::Prime, landing, store, &pre, &post, &mut step)
+        .prime(landing, store, &pre, &post, &mut step)
         .map_err(|e| io::Error::other(e.to_string()))
 }
 

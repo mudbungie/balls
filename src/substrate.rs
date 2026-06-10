@@ -7,7 +7,7 @@
 //!   as the repo's first worktree EAGERLY — `prime` needs its `config/` to know
 //!   the plugin chain and the configured `tasks_branch` before it can do anything.
 //! - [`materialize`] lays the **store** (`tasks_branch`, holding `tasks/`)
-//!   LAZILY, inside `prime`'s fixpoint loop (bl-0a23): it checks out the branch if
+//!   LAZILY, between `prime`'s pre and post phases (bl-0a23): it checks out the branch if
 //!   a ref already exists — a remote one the `prime/pre` tracker just cloned in
 //!   (§12) — and founds a fresh orphan ONLY when no such ref exists (the genuine
 //!   no-remote bootstrap). Founding eagerly would create a divergent orphan that
@@ -36,7 +36,7 @@ use std::path::Path;
 /// named plugin found beside `bl` in `exe_dir` bound and every absent-binary entry
 /// pruned, §12). The caller guarantees the landing does not already exist, so this
 /// never clobbers an established checkout. The STORE is NOT founded here — that is
-/// [`materialize`]'s lazy job, run inside `prime`'s fixpoint after the tracker has
+/// [`materialize`]'s lazy job, run after the tracker's `prime/pre` has
 /// had its chance to clone an established remote branch in (bl-0a23).
 pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::Result<()> {
     fs::create_dir_all(landing)?;
@@ -50,7 +50,7 @@ pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::R
 }
 
 /// Ensure the store branch `name` has a worktree on disk at `store` — the lazy
-/// "a branch is a disk path" primitive `prime`'s fixpoint drives (bl-0a23).
+/// "a branch is a disk path" primitive `prime` drives between its phases (bl-0a23).
 /// Idempotent in three ways:
 /// - the worktree already exists (a re-prime) ⇒ no-op;
 /// - the branch ref exists but has no worktree — a prior clone, or the remote
@@ -60,8 +60,9 @@ pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::R
 /// - the branch ref is absent (no remote, or the remote had no such branch — the
 ///   genuine bootstrap) ⇒ FOUND a fresh orphan with a tracked `tasks/.gitkeep`.
 ///
-/// Keyed on `name` (the configured `tasks_branch`), so a `prime/pre` that settles
-/// a different name re-materializes under it on the loop's next pass.
+/// Keyed on `name` (the configured `tasks_branch`) — and `prime/pre` may not
+/// move that name: a moved dial aborts the op (bl-698d), so one materialize
+/// per prime is the whole story.
 pub fn materialize(landing: &Path, store: &Path, name: &str) -> io::Result<()> {
     if store.exists() {
         return Ok(()); // already a worktree — a re-prime converges
