@@ -17,8 +17,8 @@ pub(super) struct SyncOpts {
 /// Parsed `bl prime` flags: the resolved actor, the optional store-remote
 /// override that becomes the binding's explicit remote (over XDG, §12), the
 /// optional `--install CENTER` that triggers config adoption (§13), and
-/// `--stealth` — the §12 consent opt-out (no remote is founded, pushed, or even
-/// discovered; the tracker writes the self-lock instead). `install` also seeds
+/// `--stealth` — the §12 consent opt-out (sugar for `conf set task-remote
+/// none`: the landing sentinel binds every later op, bl-9df0). `install` also seeds
 /// the remote when `remote` is unset (the center is where the adopted
 /// `tasks_branch` lives), resolved in [`crate::checkout::prime`].
 pub(super) struct PrimeOpts {

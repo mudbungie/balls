@@ -81,7 +81,9 @@ no listing of its own; once primed, read the two sets you care about with
 - **claimed** (tasks you already own — resume in their worktrees): `bl list -s claimed`.
 
 The store remote resolves the same way on **every** command: `--remote URL` (a
-per-op override — it is **not** remembered) > the per-machine `task-remote`
+per-op override — it is **not** remembered) > the per-checkout stealth sentinel
+(`bl conf set task-remote none` — "no remote, on purpose", resolution stops) >
+the per-machine `task-remote`
 (`bl conf set task-remote <url>`) > the project repo's `origin`. A fresh clone
 whose `origin` carries the store just works: `bl prime; bl list`. To point a
 checkout with no such `origin` at a shared project, set a durable pointer —
@@ -93,8 +95,11 @@ stealth. Re-running plain `bl prime` converges to a no-op, and `bl conf` shows
 the remote/branch a checkout actually resolves.
 
 In a repo with a pushable `origin`, prime founds a `balls/tasks` branch there
-and pushes it. `bl prime --stealth` is the opt-out: the store stays local and
-prime founds, pushes, and discovers nothing. It contradicts
+and pushes it. `bl prime --stealth` is the opt-out, and it is DURABLE: sugar
+for `bl conf set task-remote none`, a committed landing-config sentinel that
+every later command derives — no op founds, pushes, or discovers anything
+until you set a remote (`bl conf set task-remote <url>` clears it) or install
+a config without it. It contradicts
 `--remote`/`--center`/`--install` (each names a remote), refused at parse.
 
 ## Local config (`bl conf`)
@@ -106,7 +111,10 @@ A checkout with no durable remote shows `task-remote (none)` — that checkout
 is stealth. Writes are scope-keyed — the key implies the file, there is no
 `--scope` flag:
 
-- `bl conf set task-remote <url>` — per-machine store remote (XDG config).
+- `bl conf set task-remote <url>` — per-machine store remote (XDG config; also
+  clears a declared stealth sentinel). `bl conf set task-remote none` — declare
+  stealth: a landing-committed per-checkout sentinel, what `prime --stealth`
+  sugars to.
 - `bl conf set task-branch <name>` / `bl conf set log-level <level>` — landing
   `balls.toml`, committed on `balls/config`. Re-pointing `task-branch` strands
   the store unless you move it first (see the spec's re-home discipline).
@@ -133,7 +141,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. `--stealth` opts out of any store remote (store stays local). Run at session start, then `bl list`. |
+| `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. `--stealth` opts out of any store remote durably (a landing sentinel every later op derives; store stays local). Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID] [--remote URL]` | Pull the store from the remote (fetch + fast-forward; the remote resolves `--remote` > `task-remote` > `origin`, like every op). No arg syncs the configured store branch. |
 | `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-machine XDG), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--from` the configured upstream (fetched by the `install.pre` tracker), `--to` the landing. A landing-targeted install then binds each plugin the landed schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding per plugin — validated against its live `protocol`; a refusal lands AFTER the sealed copy (the commit is the undo; the retry converges and just binds). Prints `N added / M deleted`. |

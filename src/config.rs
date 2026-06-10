@@ -112,17 +112,56 @@ pub(crate) fn forbid_landing(tasks_branch: &str) -> io::Result<()> {
     Ok(())
 }
 
+/// The §12 stealth sentinel — the one value the landing `task_remote` rung may
+/// hold: "the store's remote is nothing, on purpose". Stealth is not a mode or
+/// a lock file; it is federation's zero case, a value on the ONE remote ladder
+/// (bl-9df0).
+pub const STEALTH_REMOTE: &str = "none";
+
 /// The per-machine store remote named in the XDG user config's `remote` key — the
-/// §12 precedence layer between an explicit CLI override and auto-discovered
-/// `origin` (`--remote` > `--center` > XDG > `origin`). The remote is NOT a
-/// landing field: it never travels on `install` (a remote URL is per-machine, not
-/// shared config, §4), so it lives only in this per-machine layer or is discovered
-/// from `origin`. An absent file/key ⇒ `None`; a malformed file ⇒ `None` too — the
+/// §12 precedence layer between the per-checkout landing policy and auto-discovered
+/// `origin`. A remote URL is per-machine, not shared config (§4): it never travels
+/// on `install`, so URLs live only in this layer or are discovered from `origin`.
+/// An absent file/key ⇒ `None`; a malformed file ⇒ `None` too — the
 /// same file is read by [`EffectiveConfig::resolve`], which surfaces the parse
 /// error, so this stays quiet rather than double-reporting.
 pub fn xdg_remote(user_config: &Path) -> Option<String> {
     let table = read_layer(user_config).ok().flatten()?;
     table.get("remote")?.as_str().map(str::to_string)
+}
+
+/// The per-checkout store-remote POLICY — the landing `balls.toml` `task_remote`
+/// key, the §12 rung between the per-op flag and the per-machine XDG remote.
+/// Today it legally holds only [`STEALTH_REMOTE`] ("declared stealth"): remote
+/// URLs stay per-machine (§4), but the stealth policy is the CHECKOUT's, lives
+/// in its config, and travels on `install` like any other team policy. A raw
+/// read — [`remote_ladder`] enforces the legal value.
+pub fn landing_remote(landing: &Path) -> io::Result<Option<String>> {
+    let layer = read_layer(&landing.join("config").join("balls.toml"))?;
+    Ok(layer.and_then(|t| t.get("task_remote").and_then(Value::as_str).map(str::to_string)))
+}
+
+/// Resolve the EXPLICIT tiers of the ONE §12 remote ladder — per-op
+/// `--remote`/`--center` > landing `task_remote` > XDG `remote` — returning the
+/// explicit remote and whether stealth is DECLARED. Consent given supersedes
+/// consent withheld: a per-op remote outranks the sentinel for that one op. A
+/// declared sentinel STOPS resolution — no XDG fallback, and the stealth bit
+/// rides the binding so the tracker skips even its implicit `origin` discovery
+/// beneath (the §12 "locks the store local" promise, now derived per op from
+/// config instead of written once to a lock file — bl-9df0). A landing value
+/// other than the sentinel is refused: a URL's home is per-machine.
+pub fn remote_ladder(cli: Option<String>, landing: &Path, user_config: &Path) -> io::Result<(Option<String>, bool)> {
+    if cli.is_some() {
+        return Ok((cli, false));
+    }
+    match landing_remote(landing)? {
+        Some(v) if v == STEALTH_REMOTE => Ok((None, true)),
+        Some(v) => Err(io::Error::other(format!(
+            "task_remote '{v}' in the landing config — the landing holds only the stealth sentinel \
+             '{STEALTH_REMOTE}' (a remote URL is per-machine: `bl conf set task-remote <url>`, §4/§12)"
+        ))),
+        None => Ok((xdg_remote(user_config), false)),
+    }
 }
 
 /// Read one `config/balls.toml` layer. Absent ⇒ `None` (the layer is empty, the
