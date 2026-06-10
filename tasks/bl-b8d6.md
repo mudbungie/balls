@@ -1,7 +1,8 @@
 +++
 title = "Design: install --to <center> (publish direction) — the open bl-66e7 leg"
 created = 1781033527
-updated = 1781033527
+updated = 1781061623
+claimant = "mark"
 parent = "bl-72a8"
 priority = 3
 tags = ["review"]
