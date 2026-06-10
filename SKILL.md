@@ -116,8 +116,8 @@ Have the harness pick a name at session start and pass it as `--as` /
 > confirmations and the op log (JSON lines) are on **stderr** — for clean
 > scripting without losing the confirmations, silence the op log with the global
 > `bl --log-level error <verb>` (levels `debug`/`info`/`error`; there is no
-> `warn`, and an unknown value reads as `info`) instead of redirecting
-> `2>/dev/null`.
+> `warn` — an unrecognised level is a usage error naming the ladder) instead of
+> redirecting `2>/dev/null`.
 
 ## Status is derived, never stored
 

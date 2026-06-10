@@ -23,7 +23,7 @@
 //! Logging is best-effort — it never aborts an op, so I/O errors are swallowed.
 
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -65,14 +65,18 @@ impl Level {
         }
     }
 
-    /// Parse a §4 `log_level` string. An unrecognised value is lenient — it reads
-    /// as `Info`, the default threshold (a typo never silences the log).
-    #[must_use]
-    pub fn parse(s: &str) -> Level {
+    /// Parse a §4 `log_level` string STRICTLY: an unrecognised value (say `warn` —
+    /// the ladder has no such rung) is a usage error naming the value and the
+    /// ladder, never a silent fallback to the default (fail loud beats
+    /// lenient-wrong, bl-56f7). Every `log_level` source — the CLI `--log-level`
+    /// override and the config-sourced value alike — comes through here, so a typo
+    /// in either fails the op instead of quietly running at `info`.
+    pub fn parse(s: &str) -> io::Result<Level> {
         match s {
-            "debug" => Level::Debug,
-            "error" => Level::Error,
-            _ => Level::Info,
+            "debug" => Ok(Level::Debug),
+            "info" => Ok(Level::Info),
+            "error" => Ok(Level::Error),
+            _ => Err(io::Error::other(format!("unrecognised log level '{s}' — valid levels are debug|info|error"))),
         }
     }
 }
