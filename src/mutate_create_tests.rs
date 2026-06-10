@@ -103,6 +103,24 @@ fn create_rejects_no_needs() {
 }
 
 #[test]
+fn create_rejects_each_removal_flag_on_its_own() {
+    // The removal guard is a pure disjunction: each --no-* flag must bounce
+    // ALONE (an && slipped into the chain would let a lone flag through).
+    let solo: &[fn(&mut Flags)] = &[
+        |f| f.no_parent = true,
+        |f| f.no_priority = true,
+        |f| f.no_tags = vec!["x".into()],
+    ];
+    for (i, set) in solo.iter().enumerate() {
+        let mut f = flags();
+        f.positionals = vec!["t".into()];
+        set(&mut f);
+        let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+        assert!(err.to_string().contains("only for update"), "solo removal flag #{i}: {err}");
+    }
+}
+
+#[test]
 fn create_requires_exactly_one_positional() {
     let dir = tempdir().unwrap();
     assert!(base_change(Verb::Create, dir.path(), &flags(), 0).is_err()); // zero
