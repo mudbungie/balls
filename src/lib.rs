@@ -27,8 +27,9 @@
 //! ([`lifecycle::Plugins`]) is filled by [`plugin::Subprocess`] over the §7 wire
 //! ([`wire`]). [`run`] dispatches the checkout-lifecycle verbs (`prime`/`sync`,
 //! §12/§13) to the engine via [`checkout`], the deliverable verbs via
-//! [`mutate`], and `install` — the op that seals to the LANDING (§6/§8) — via
-//! [`install::run`]; every verb is wired.
+//! [`mutate`], `import` — the §16 write inverse of the bedrock read — via
+//! [`import::run`], and `install` — the op that seals to the LANDING (§6/§8) —
+//! via [`install::run`]; every verb is wired.
 //!
 //! # §12/§13 — readiness & synchronization
 //!
@@ -109,6 +110,7 @@ pub mod git;
 pub mod help;
 pub mod hooks;
 pub mod id;
+pub mod import;
 pub mod install;
 pub mod layout;
 pub mod lifecycle;
@@ -200,6 +202,9 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         Verb::Prime => checkout::prime(edge, &rest[1..]),
         Verb::Sync => checkout::sync(edge, &rest[1..]),
         Verb::Show | Verb::List => reads::run(edge, verb, &rest[1..]),
+        // `import` is the write inverse of the bedrock read (§16): records ride
+        // stdin, so the host stream is bound here at the edge and injected.
+        Verb::Import => import::run(edge, &mut std::io::stdin().lock(), &rest[1..]),
         Verb::Install => install::run(edge, &rest[1..]),
         Verb::Conf => conf::run(edge, &rest[1..]),
         // Everything left is a deliverable verb (§9); mutate's own dispatch

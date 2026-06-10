@@ -46,10 +46,11 @@ pub struct Env {
 }
 
 /// The ops the tracker handles, for the §6 `protocol` self-description: the
-/// deliverable verbs (it pushes on their `post`), `sync`/`prime`, and `install`
+/// deliverable verbs plus `import` (it pushes on their `post` — imported
+/// records sync like any mutate, §16), `sync`/`prime`, and `install`
 /// (it fetches the center's config on `install/pre`, §13).
 const OPS: &[&str] = &[
-    "create", "claim", "unclaim", "update", "close", "sync", "prime", "install",
+    "create", "claim", "unclaim", "update", "close", "import", "sync", "prime", "install",
 ];
 
 /// The §6 self-description emitted by `tracker protocol`. balls never persists
