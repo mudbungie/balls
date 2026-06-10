@@ -517,8 +517,8 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   an install landing mid-op affects only the next op.
 - **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key, and the default
   schedule USES one: `show` lists the delivery plugin (the §11 worktree-path fold into the human
-  render — the bl-0af4 read-op dispatch). The other reads (`list`, `dep-tree`) stay plugin-free in
-  PRACTICE only because nothing is listed for them by default.
+  render — the bl-0af4 read-op dispatch). The other read (`list`) stays plugin-free in PRACTICE only
+  because nothing is listed for it by default.
 
 ## §7 Plugin wire payloads
 
@@ -614,8 +614,10 @@ The canonical task-op sequence (verb-agnostic):
 Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`.**
 There is **no `review` verb** — see "close" below.
 
-Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`, `dep-tree`.**
-(There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10.) They
+Read verbs (no seal, no change worktree — hook dirs only, §13): **`show`, `list`.**
+(There is **no `ready` verb** — it folded into `bl list --status ready`; see below and §10. There is
+**no `dep-tree` verb** — its `--json` was a duplicate of `list --json`, so it owned no machine
+contract; retired 2026-06-09, see §15 bl-ffaf.) They
 author no ball-file diff; their whole contribution is what the hook chain prints (§7). `--json` on any
 read verb is the lossless **bedrock** projection — raw stored fields only, no derived value (the
 round-trippable "what's actually there", §3); the default human render is the orthogonal projection
@@ -1315,6 +1317,17 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`dep-tree` retired — a verb that owned no machine contract (2026-06-09, bl-ffaf — post-freeze).**
+  `dep-tree --json` emitted the same flat bedrock array as `list --json` — the nesting is derived, so
+  the verb's own source already deferred to the consumer to rebuild the tree. Two verbs printing one
+  set is a drifted fact (§3 single source); the human forest render was the verb's sole property, and
+  the per-ball containment/blocker view (children, `needs`/`gate` edges) already lives in `show`.
+  Deleted outright: `src/reads/tree.rs`, the `Verb::DepTree` variant, the §9 read-verb listing (now
+  `show`, `list`), §6's reads bullet, and the README/SKILL/demonstration rows. NO replacement flag —
+  if a human forest is ever wanted, it is a `--tree` projection on `list` (the `ready` → `list -s
+  ready` precedent: projections ride the set verb), argued up as its own task. The `docs/e2e/`
+  transcripts that invoke `dep-tree` are captured runs of their epochs and stand unedited. Touched §6
+  (reads bullet), §9 (read-verb list + this pointer), §15 (this entry).
 - **`drop` verb DELETED — it was `unclaim ∘ close`, and a close-gate bypass (2026-06-09, bl-65e0 —
   post-freeze).** drop was a composite, not a primitive: identical `Retire` mechanics to close,
   differing only in which §10 guard ran — and that difference was an enforcement hole: a `--blocks

@@ -1,4 +1,4 @@
-//! §9 read verbs — `show`, `list`, `dep-tree`. Diffless ops (§8 "skip
+//! §9 read verbs — `show`, `list`. Diffless ops (§8 "skip
 //! steps 1/3/5"): they author no ball-file diff and seal nothing; the printed
 //! output IS the whole contribution. The human render of `show` may also FOLD
 //! IN a §6 read-op plugin dispatch ([`readop`] — the delivery worktree line,
@@ -35,7 +35,6 @@ mod history;
 mod list;
 mod readop;
 mod show;
-mod tree;
 
 pub(crate) use flags::parse;
 
@@ -110,7 +109,7 @@ pub(crate) struct Flags {
     /// `bl list --until DATE`: upper date bound, inclusive of the whole day.
     pub until: Option<i64>,
     /// The lone positional: a ball id for `show`, the text-search needle for
-    /// `list` (substring over title+body, §9), unused by `dep-tree`.
+    /// `list` (substring over title+body, §9).
     pub target: Option<String>,
 }
 
@@ -165,7 +164,6 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
             let dead = if flags.reach.dead() { history::dead_balls(&store, &cat)? } else { Vec::new() };
             list::render_list(&cat, &dead, &flags, &style)
         }
-        Verb::DepTree => tree::render(&cat, &flags, &style),
         other => return Err(io::Error::other(format!("{}: not a read verb", other.token()))),
     };
     print!("{out}");
