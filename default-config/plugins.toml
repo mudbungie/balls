@@ -23,6 +23,5 @@
 "show"         = ["bl-delivery"]              # read-op (§6, single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
-"drop.post"    = ["bl-delivery", "tracker"]
 "create.post"  = ["tracker"]
 "update.post"  = ["tracker"]

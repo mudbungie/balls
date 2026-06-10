@@ -88,7 +88,7 @@ impl GitStore {
         self
     }
 
-    /// Delete `tasks/<id>.md` as `op` (`close`/`drop`) at unix `at` — the
+    /// Delete `tasks/<id>.md` as `op` (`close`, or a legacy `drop`) at unix `at` — the
     /// retirement commit the recency walk reads `bl-op:` and `retired_at` from.
     pub(crate) fn retire(&self, id: &str, op: &str, at: i64) -> &Self {
         std::fs::remove_file(crate::taskfile::task_path(&self.dir, id)).unwrap();
