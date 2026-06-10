@@ -24,6 +24,10 @@ pub trait Anvil {
     fn head(&self) -> io::Result<String>;
     /// (§8.1) Make the change worktree at `dir`, detached at the anvil tip.
     fn open(&self, dir: &Path) -> io::Result<()>;
+    /// (§8.3) The paths the change worktree `dir` touched relative to the anvil
+    /// tip — what the seal-validation read (bl-528c) parses before committing.
+    /// Renames report as delete+add (`--no-renames`), so every entry is one path.
+    fn changed(&self, dir: &Path) -> io::Result<Vec<String>>;
     /// (§8.3) SEAL: commit everything in `dir` with `message`, then fast-forward
     /// the anvil onto it — atomically. Returns the sealed commit sha. A change
     /// that stages NOTHING (the tree already equals the tip) seals to the
@@ -88,6 +92,12 @@ impl Anvil for Git {
     fn open(&self, dir: &Path) -> io::Result<()> {
         run(&self.checkout, &["worktree", "add", "--detach", &dir.to_string_lossy(), "HEAD"], None)?;
         Ok(())
+    }
+
+    fn changed(&self, dir: &Path) -> io::Result<Vec<String>> {
+        let out = run(dir, &["status", "--porcelain", "--no-renames"], None)?;
+        // Each line is `XY <path>`; byte 3 onward is the path.
+        Ok(out.lines().filter_map(|l| l.get(3..)).map(str::to_string).collect())
     }
 
     fn seal(&self, dir: &Path, message: &str) -> io::Result<String> {

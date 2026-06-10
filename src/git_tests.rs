@@ -75,6 +75,29 @@ fn sealing_an_unchanged_tree_converges_on_the_existing_tip() {
 }
 
 #[test]
+fn changed_reports_modified_added_and_deleted_paths() {
+    let (tmp, _checkout, g) = repo();
+    let change = tmp.path().join("change");
+    g.open(&change).unwrap();
+    assert_eq!(g.changed(&change).unwrap(), Vec::<String>::new()); // pristine
+
+    fs::write(change.join("seed.txt"), "edited\n").unwrap(); // modify
+    fs::write(change.join("new.md"), "born\n").unwrap(); // add
+    let mut got = g.changed(&change).unwrap();
+    got.sort();
+    assert_eq!(got, ["new.md", "seed.txt"]);
+
+    fs::remove_file(change.join("seed.txt")).unwrap(); // delete still reports
+    assert!(g.changed(&change).unwrap().contains(&"seed.txt".to_string()));
+}
+
+#[test]
+fn changed_on_a_non_repo_is_an_error() {
+    let tmp = TempDir::new().unwrap();
+    assert!(Git::at(tmp.path()).changed(&tmp.path().join("nope")).is_err());
+}
+
+#[test]
 fn close_removes_the_change_worktree() {
     let (tmp, _op, g) = repo();
     let change = tmp.path().join("change");
