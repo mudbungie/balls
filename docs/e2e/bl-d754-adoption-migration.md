@@ -132,12 +132,15 @@ config/balls.toml
 config/plugins.toml
 ```
 
-Cutting `origin/balls/tasks` over is the human-coordinated step (bl-0802's
-runbook): `git branch balls-archive origin/balls/tasks` to keep the legacy
-history, then a one-time **force**-push of the markdown store. Git is the
-recovery net (§6); core does not guard the rewrite — it is intrinsic to a format
-change. `main`'s legacy `[bl-xxxx]` commit tags stay untouched (forward-
-compatible with §11's delivery tag).
+Cutting `origin/balls/tasks` over is the human-coordinated step. At the time
+of this demo (bl-0802's runbook) that meant `git branch balls-archive
+origin/balls/tasks` to keep the legacy history, then a one-time **force**-push
+of the markdown store. *Superseded by bl-8660:* runbook step 5 is now a
+history JOIN — merge the legacy tip into the greenfield store with `-s ours`,
+then an ordinary fast-forward push — so nothing is rewritten and the legacy
+history stays in-branch (no `balls-archive`). `main`'s legacy `[bl-xxxx]`
+commit tags stay untouched either way (forward-compatible with §11's delivery
+tag).
 
 ## 5. The migrated markdown — every transform, in the files
 
@@ -313,8 +316,10 @@ Never a runaway; the accepted cost of migrate-clean-or-delink (§16).
 ## What this proves
 
 - **Hole 1 (branch collision)** — the migrator writes a markdown `balls/tasks`
-  that force-rewrites the legacy JSON `balls/tasks`, plus a fresh sibling
-  `balls/config`; the cutover keeps the legacy history as `balls-archive` (§4).
+  beside the legacy JSON `balls/tasks`, plus a fresh sibling `balls/config`;
+  the cutover keeps the legacy history (§4 — as demoed, a `balls-archive`
+  branch before a force-push; since bl-8660, in-branch via the runbook's
+  history join).
 - **Hole 2 (epic edges)** — a migrated epic mints a reciprocal `claim`-blocker
   per live child and loads `blocked` through the real `bl`, not spuriously
   `ready` (§10/§16).
