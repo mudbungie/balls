@@ -1,5 +1,5 @@
 //! [`Project`] tests on throwaway project repos — every git act and its
-//! idempotent re-run, the direct squash, and the derived un-squash.
+//! idempotent re-run, and the direct squash.
 
 use super::*;
 use std::fs;
@@ -148,8 +148,8 @@ fn deliver_surfaces_a_conflict_as_an_error() {
 #[test]
 fn deliver_skips_when_this_incarnations_delivery_already_landed() {
     // The bl-430e retry: a close squash-delivered, then aborted after the seal
-    // (push race) without the un-squash landing — main keeps the delivery and
-    // the branch survives. The re-close must not mint a duplicate.
+    // (push race) — the squash is BINDING and stands (§14); main keeps the
+    // delivery and the branch survives. The re-close must not mint a duplicate.
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
@@ -193,24 +193,6 @@ fn deliver_skips_a_branch_already_fully_merged_into_integration() {
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(p.delivered_in("main", "[bl-x]").unwrap().len(), 1);
     assert_eq!(tip(&root), "concurrent work");
-}
-
-#[test]
-fn unsquash_resets_integration_only_when_its_tip_is_the_delivery_commit() {
-    let (tmp, root, p) = project();
-    let wt = tmp.path().join("wt");
-    p.materialize(&wt, "work/bl-x").unwrap();
-    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
-    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
-    assert_eq!(tip(&root), "Add feature [bl-x]");
-
-    // Tip carries the marker → reset to the parent (un-squash).
-    p.unsquash("main", "[bl-x]").unwrap();
-    assert_eq!(tip(&root), "seed");
-
-    // Tip no longer marked → a second un-squash is a no-op.
-    p.unsquash("main", "[bl-x]").unwrap();
-    assert_eq!(tip(&root), "seed");
 }
 
 #[test]

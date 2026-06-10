@@ -103,6 +103,7 @@ pub mod delivery;
 pub mod delivery_fold;
 pub mod delivery_prune;
 pub mod delivery_repo;
+pub mod delivery_standing;
 pub mod edge;
 pub mod encoding;
 pub mod enforce;

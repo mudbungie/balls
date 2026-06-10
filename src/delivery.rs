@@ -68,16 +68,14 @@ pub trait Repo {
     /// runs; a failure aborts the close before the seal), then squash `branch`
     /// → `integration` as ONE commit whose subject is `subject` (carrying the
     /// `[bl-id]` delivery tag). A no-op when the worktree/branch is absent or
-    /// carries no changes (the empty deliverable, §11) — and RETRY-IDEMPOTENT:
-    /// when a `marker` commit already sits on `integration` since `branch`
-    /// forked, this incarnation's delivery landed in an earlier aborted close,
-    /// and re-squashing would mint an empty duplicate (bl-430e), so deliver
-    /// skips.
+    /// carries no changes (the empty deliverable, §11) — and CONVERGENT ON
+    /// RETRY (§14): when a `marker` commit already sits on `integration` since
+    /// `branch` forked, this incarnation's delivery landed (an earlier aborted
+    /// close, bl-430e, or a forge squash-merge) and deliver SKIPS the squash —
+    /// IFF the delivery commit CONTAINS the branch's content; a branch carrying
+    /// content beyond it (the bl-65e0 handoff) ABORTS loudly instead of
+    /// stranding the work (bl-c231).
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()>;
-    /// `rollback close.pre` (§14): un-squash — reset `integration` to its parent
-    /// IFF its tip is the delivery commit (its subject contains `marker`).
-    /// Stateless and idempotent: a no-op delivery leaves no marked tip to undo.
-    fn unsquash(&self, integration: &str, marker: &str) -> io::Result<()>;
 }
 
 /// The resolved facts one hook acts on — the derived worktree, its branch, and
@@ -106,9 +104,12 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
         // triggers it.
         ("close" | "unclaim", "post", false) => repo.release(spec.worktree),
         ("claim", "post", true) => repo.discard(spec.worktree, spec.branch),
-        ("close", "pre", true) => repo.unsquash(&repo.integration()?, spec.marker),
+        // close.pre rollback DECLINES (§14): the squash is the delivery's
+        // BINDING commit point — a standing squash without a sealed close is
+        // the bl-430e state and the retried close converges onto it, while the
+        // old un-squash reset raced concurrent integration movement (bl-c231).
         // close.post teardown + unclaim release are re-creatable from the
-        // branch, so their rollback is a no-op (§14); any unwired hook too.
+        // branch, so their rollback is a no-op too (§14); any unwired hook too.
         _ => Ok(()),
     }
 }
@@ -187,14 +188,14 @@ pub fn work_branch(id: &str) -> String {
 
 /// The delivery commit subject: `<title> [<id>]`. The `[<id>]` tag is delivery
 /// ground truth — the `delivered_in` query (§11) tag-scans the integration
-/// branch for it, so it is also the [`Repo::unsquash`] marker.
+/// branch for it, and deliver's retry standing detects a landed squash by it.
 #[must_use]
 pub fn subject(title: &str, id: &str) -> String {
     format!("{title} [{id}]")
 }
 
-/// `[<id>]` — the delivery tag the squash subject carries and `unsquash` looks
-/// for at the integration tip.
+/// `[<id>]` — the delivery tag the squash subject carries and the retry
+/// standing / `delivered_in` tag-scans grep for.
 #[must_use]
 pub fn marker(id: &str) -> String {
     format!("[{id}]")

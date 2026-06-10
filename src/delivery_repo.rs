@@ -8,8 +8,9 @@
 //! squash itself is plumbing (`commit-tree` + `update-ref`) so it never disturbs
 //! a checked-out integration working tree — the work happens in the code
 //! worktree, where delivery folds integration in and runs the repo's own
-//! pre-commit gate before anything lands (bl-ee85). The un-squash is a derived
-//! reset (no stored state) keyed on the delivery tag.
+//! pre-commit gate before anything lands (bl-ee85). The squash is the BINDING
+//! commit point (§14): an abort never resets it — a retried close detects it
+//! by its delivery tag and converges ([`crate::delivery_standing`]).
 
 use std::fs;
 use std::io;
@@ -19,6 +20,7 @@ use std::process::{Command, Stdio};
 
 use crate::delivery::Repo;
 use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection};
+use crate::delivery_standing::Standing;
 use crate::task::Task;
 
 /// The production [`Repo`]: git against one project-repo root.
@@ -71,23 +73,6 @@ impl Project {
     /// Does local branch `branch` exist?
     fn branch_exists(&self, branch: &str) -> io::Result<bool> {
         Self::ok(&self.root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
-    }
-
-    /// Is `branch` SETTLED on `integration` — carrying nothing undelivered?
-    /// True when every branch commit is already on integration
-    /// (`--is-ancestor`: the fresh or fully-merged branch) or a `marker`
-    /// delivery commit landed on integration since the branch forked (this
-    /// incarnation's squash survived — scoped to the fork so a reused id's
-    /// PRIOR delivery, always an ancestor of the fork point, cannot
-    /// false-positive; bl-430e/§11). The one predicate `deliver`'s retry-skip
-    /// and the prime prune ([`Project::prune`]) both read through. The branch
-    /// must exist.
-    pub(crate) fn settled(&self, branch: &str, integration: &str, marker: &str) -> io::Result<bool> {
-        if Self::ok(&self.root, &["merge-base", "--is-ancestor", branch, integration])? {
-            return Ok(true);
-        }
-        let base = Self::run(&self.root, &["merge-base", integration, branch])?.trim().to_string();
-        Ok(!self.marked(&format!("{base}..{integration}"), marker)?.is_empty())
     }
 
     /// Capture any pending worktree work onto `branch` as a commit (squashed
@@ -166,8 +151,8 @@ impl Project {
 
     /// The `marker`-tagged commits reachable from `revs` (a ref or a range),
     /// newest first — the one tag-scan both [`Project::delivered_in`] and
-    /// `deliver`'s retry-idempotence check read through.
-    fn marked(&self, revs: &str, marker: &str) -> io::Result<Vec<String>> {
+    /// the retry standing ([`Project::standing`]) read through.
+    pub(crate) fn marked(&self, revs: &str, marker: &str) -> io::Result<Vec<String>> {
         let grep = format!("--grep={marker}");
         let out = Self::run(&self.root, &["log", "--format=%H", "--fixed-strings", &grep, revs])?;
         Ok(out.lines().map(str::to_string).collect())
@@ -213,21 +198,32 @@ impl Repo for Project {
             ensure_no_merge_in_progress(path)?;
             Self::capture(path, subject)?;
         }
-        // Nothing to deliver: branch never made, SETTLED (fully merged, or this
-        // incarnation's delivery survived an aborted close — the bl-430e retry;
-        // see [`Self::settled`]), or no tree change.
-        if !self.branch_exists(branch)?
-            || self.settled(branch, integration, marker)?
-            || Self::ok(&self.root, &["diff", "--quiet", integration, branch])?
-        {
-            return Ok(());
+        if !self.branch_exists(branch)? {
+            return Ok(()); // branch never made — nothing to deliver
+        }
+        match self.standing(branch, integration, marker)? {
+            // SETTLED (fully merged, or this incarnation's delivery survived an
+            // aborted close and CONTAINS the branch — the bl-430e retry, and the
+            // forge squash-merge): converge by skipping the squash.
+            Standing::Settled => return Ok(()),
+            // A delivery stands since the fork but the branch carries content
+            // beyond it — the bl-65e0 handoff onto a delivered-but-unsealed
+            // close. A silent skip would strand that work; abort loudly.
+            Standing::Diverged => {
+                return Err(io::Error::other(format!(
+                    "already delivered: a {marker} delivery commit is on {integration} since {branch} \
+                     forked, but {branch} carries undelivered changes beyond it — \
+                     file a new task or deliver manually"
+                )))
+            }
+            Standing::Undelivered => {}
         }
         // Reintegration and the gate both act in the worktree; a close on a box
         // that never materialized it recreates it (create-if-absent).
         self.materialize(path, branch)?;
         Self::reintegrate(path, integration)?;
         if Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
-            return Ok(()); // reintegration dissolved the diff — already delivered
+            return Ok(()); // no tree change — empty, or reintegration dissolved the diff
         }
         Self::gate(path)?;
         ensure_no_resurrection(&self.root, branch, integration)?;
@@ -240,16 +236,6 @@ impl Repo for Project {
             .trim()
             .to_string();
         Self::run(&self.root, &["update-ref", &format!("refs/heads/{integration}"), &commit])?;
-        Ok(())
-    }
-
-    fn unsquash(&self, integration: &str, marker: &str) -> io::Result<()> {
-        let tip = Self::run(&self.root, &["log", "-1", "--format=%s", integration])?;
-        if !tip.contains(marker) {
-            return Ok(()); // tip is not our delivery commit — nothing to undo
-        }
-        let parent = Self::run(&self.root, &["rev-parse", &format!("{integration}^")])?.trim().to_string();
-        Self::run(&self.root, &["update-ref", &format!("refs/heads/{integration}"), &parent])?;
         Ok(())
     }
 }

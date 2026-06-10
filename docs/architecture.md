@@ -796,9 +796,10 @@ self-merge default DELIVER and RETIRE are one act:
 - `close.pre`: the delivery plugin DELIVERS — folds integration into `work/<id>`, runs the
   project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
   close here, pre-seal), then squashes `work/<id>` → integration (conflicts
-  surface HERE), sorting LAST so its un-squash rollback is rare. One path, no forge variant: a
+  surface HERE). The squash is the delivery's BINDING commit point (§14): it stands through any
+  later abort, and the retried close converges onto it. One path, no forge variant: a
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
-  already-delivered check (§11) — delivery is retry-idempotent whoever performed the merge.
+  already-delivered check (§11) — delivery converges on retry whoever performed the merge.
 - balls seals the `tasks/<id>.md` DELETION (`bl-op: close`).
 - `close.post`: the delivery plugin tears down the code worktree (§11); the tracker pushes the
   balls-state deletion commit (NEVER the project code branch).
@@ -1054,19 +1055,33 @@ file-present tree, and the recency walk reads the PRE-close commit, which predat
 write would simply be eaten by the deletion. Derived + recency-ordered keeps the no-field / no-staleness
 property AND the disambiguation. (A cross-clone miss is reported honestly or resolved by a tracker fetch.)
 
-**Rollback** (specifics; general rule §14): project-repo commits are tier-2 (`git reset`, not covered
-by the change-worktree/store un-seal). `rollback claim.post` = remove the worktree + delete
-`work/<id>` (forge: also remove the just-minted gate child); `rollback close.pre` = `git reset
---hard HEAD~1` un-squash (reversible — nothing pushed; a skipped squash staged nothing, so the
-derive-and-check no-ops). `close.post` teardown removes the worktree DIRECTORY (re-creatable from the branch, so it
-is rollback-safe); deleting `work/<id>` is deferred, non-transactional cleanup (`prime`).
+**Rollback** (specifics; general rule §14 — converge-on-retry): the squash is the delivery's
+BINDING commit point and STANDS through an abort; everything else the plugin makes is derived and
+recomputes. `rollback claim.post` = remove the worktree + delete `work/<id>` (forge: also remove
+the just-minted gate child) — a tidy of derived state, never load-bearing (a retried claim would
+re-create both). `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
+un-squash): the reset raced concurrent integration movement in a shared hub — a sibling's commit
+landing between squash and reset gets eaten by it — and a standing squash without a sealed close
+is exactly the bl-430e state the retried close completes; the squash is always GATED code (the
+gate runs before it), so a standing delivery is never unreviewed work. `close.post` teardown
+removes the worktree DIRECTORY (re-creatable from the branch, so it is rollback-safe); deleting
+`work/<id>` is deferred, non-transactional cleanup (`prime`).
 The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
-And because a rollback is best-effort (§14), deliver itself is RETRY-IDEMPOTENT (bl-430e): a squash
-that survived an aborted close — `work/<id>` fully merged into the integration branch, or a `[bl-id]`
-commit on it since the branch forked (fork-scoped so a reused id's PRIOR delivery, always an ancestor
-of the fork, cannot false-positive) — means this incarnation already delivered, and the re-close
-skips the squash instead of minting an empty duplicate delivery commit; retrying the failed `bl
-close` is the sanctioned recovery.
+Deliver itself CONVERGES ON RETRY (bl-430e): a squash that survived an aborted close — `work/<id>`
+fully merged into the integration branch, or a `[bl-id]` commit on it since the branch forked
+(fork-scoped so a reused id's PRIOR delivery, always an ancestor of the fork, cannot
+false-positive) — means this incarnation already delivered, and the re-close skips the squash
+instead of minting an empty duplicate delivery commit; retrying the failed `bl close` is the
+sanctioned recovery. **The skip predicate is CONTENT-CONTAINMENT, not commit-presence** (bl-c231):
+ancestry cannot distinguish "content included in the delivery" from "added after" — a forge
+squash-merge ALWAYS leaves `work/<id>`'s commits ancestry-unmerged while their content landed — so
+the skip requires that a content-merge of `work/<id>` into the delivery commit (`git merge-tree`,
+its result compared against the delivery's own tree) is a no-op. A branch carrying content BEYOND
+its delivery (the bl-65e0 handoff: a prior incarnation's close squashed then aborted before the
+seal; a later claim re-materialized the surviving branch and committed more) ABORTS the close
+loudly — "already delivered; `work/<id>` carries undelivered changes — file a new task or deliver
+manually" — instead of silently stranding the work, and the prime prune likewise preserves such a
+diverged branch.
 
 ## §12 bl prime & federation (the store pointer)
 
@@ -1399,26 +1414,50 @@ refreshers (rollback is a no-op); the tracker's ff is a local ref move with noth
 partial sync leaves the store at either the old or the new HEAD, never wedged — re-running sync
 converges (§14).
 
-## §14 Rollback — the general rule
+## §14 Converge-on-retry — the rule; rollback — the appendix for external effects
 
-Rollback is the unwind half of §8: any non-zero `pre`/`post` exit aborts the op, calls `rollback` on
-each already-run plugin in REVERSE execution order, then core UN-SEALS its own change. One rule
-governs everything: **every run plugin's rollback is invoked in reverse; the plugin decides what
-"undo" means; core un-seals.** §11 is the worked DERIVED-state example, §13 the no-change-worktree
-(sync/prime) case.
+**Converge-on-retry is the rule (bl-c231; promoted from the bl-430e incident).** Every plugin effect
+is one of two kinds, and both make an aborted op's sanctioned recovery the same act — RETRY it:
+- **BINDING** — ONE atomic, detectable commit point per effect: the `[bl-id]` squash, the store
+  seal, the push. A retry DETECTS the standing artifact (the §11 tag-scan + content-containment,
+  the sealed trailer, the remote ref) and skips re-making it.
+- **NON-BINDING** — derived state, overwritten on retry (the DERIVE pattern below): the worktree,
+  the fold (`merge --abort` leaves nothing), capture artifacts — everything recomputes from
+  `(binding, id)` plus the git/filesystem state the plugin owns.
 
-**Three side-effect tiers — WHERE it landed decides WHO unwinds it.**
+Half-merged states are therefore immaterial BY CONSTRUCTION — never a state to fear, never a state
+someone must repair before retrying. Tiers 1–2 below need no rollback protocol at all:
+converge-on-retry covers them. Rollback proper survives only as the APPENDIX at the end of this
+section, for effects whose binding artifact lives in an EXTERNAL system keyed to an op that never
+sealed (the orphan jira ticket) — a retry mints a new id, so nothing ever converges onto the
+orphan; someone must delete it.
+
+**The mechanics are unchanged** (the unwind half of §8): any non-zero `pre`/`post` exit aborts the
+op, calls `rollback` on each already-run plugin in REVERSE execution order, then core UN-SEALS its
+own change. One rule governs everything: **every run plugin's rollback is invoked in reverse; the
+plugin decides what "undo" means; core un-seals.** What converge-on-retry changes is what "undo"
+should mean: for a binding effect, DECLINE (the retry converges onto it); for a derived effect,
+decline or tidy (a retry overwrites it either way). §11 is the worked example, §13 the
+no-change-worktree (sync/prime) case.
+
+**Three side-effect tiers — WHERE it landed decides WHO converges it.**
 1. **The ball record** — the staged file edits AND core's seal (commit + integrate to the target
-   branch: the store for task ops, the landing for config ops). Core un-seals: a PRE-phase abort
-   discards the un-sealed change worktree (nothing reached the branch); a POST-phase abort `git reset`s
-   the target branch back one commit (local and reversible — core never pushes, so there is nothing
-   remote to chase). **No plugin rollback needed for tier 1.**
+   branch: the store for task ops, the landing for config ops). The seal is core's own binding
+   point and core handles it itself: a PRE-phase abort discards the un-sealed change worktree
+   (nothing reached the branch); a POST-phase abort `git reset`s the target branch back one commit
+   (local and reversible — core never pushes, so there is nothing remote to chase). **No plugin
+   rollback for tier 1.**
 2. **Commits/refs on ANOTHER local git repo** (the delivery plugin's squash onto the project
-   integration branch, its `work/<id>` branch). The un-seal never touches a second repo. **The
-   plugin's `rollback` does the `git reset` / branch delete** — locally reversible because nothing
-   was pushed.
+   integration branch, its `work/<id>` branch). The un-seal never touches a second repo — and no
+   rollback does either: the squash is BINDING and STANDS (the retried close detects it and skips,
+   §11; the un-squash reset this tier once prescribed raced concurrent integration movement and is
+   gone, bl-c231), while the branch/worktree are derived and recompute. A tier-2 rollback may TIDY
+   derived state (`rollback claim.post` discards the just-made worktree + branch) but is never
+   load-bearing. **Converge-on-retry covers tier 2.**
 3. **External side effects** (the tracker pushed the balls branch, jira created a ticket). Not even
-   local. **The plugin's `rollback` is best-effort** and may be irreversible.
+   local. A pushed seal CONVERGES (the retry detects the remote ref); an externally-minted artifact
+   keyed to a never-sealed op does NOT — **this is the appendix below, the one place rollback
+   remains load-bearing,** and it is best-effort and may be irreversible.
 
 One plugin can span tiers (delivery: a tier-2 squash plus tier-1 worktree-discardable files).
 
@@ -1433,9 +1472,10 @@ tells the plugin which of ITS OWN phases is unwinding.
 Core always calls rollback on every prior plugin; whether a side-effect survives the abort is decided
 by that plugin's rollback, by the side-effect's semantics:
 - the jira plugin's `create.pre` rollback **deletes** the issue — an orphan ticket for a ball that
-  never sealed is wrong;
+  never sealed is wrong (the appendix case: nothing ever converges onto it);
 - a plugin whose effect is the correct standing state either way (an idempotent cache refresh, a
-  re-materialized worktree) **declines** — undoing it would be the wrong state.
+  re-materialized worktree, the delivery plugin's BINDING squash — the retried close converges onto
+  it, §11) **declines** — undoing it would be the wrong state.
 
 So an effect persists through a stop IFF the plugin that made it declines to undo it; you can never
 accidentally strand another plugin's effect. Two stop shapes, one rule:
@@ -1443,8 +1483,8 @@ accidentally strand another plugin's effect. Two stop shapes, one rule:
   any plugin runs (§8/§9, bl-7bfe): nothing ran, so there is nothing to unwind. A blocked forge close
   keeps its pushed branch + open PR trivially — they were never op side-effects; submission is
   git-native work (§11), outside the op entirely.
-- **failed** (jira down, squash conflict, push fails) — priors roll back; each undoes its own (jira
-  deletes the issue, the squash `git reset`s).
+- **failed** (jira down, squash conflict, push fails) — priors roll back; each decides its own (jira
+  deletes the issue; delivery declines — the squash stands and the retried close converges onto it).
 
 **Best-effort, no retry, exit code IGNORED.** Core invokes each `rollback` once and CONTINUES
 unwinding whatever it exits — it never retries and cannot verify success. If a stubborn plugin's exit
@@ -1461,12 +1501,12 @@ live on the ball is written in `pre`; a value that only EXISTS post-seal (the in
 DERIVED on read (§11 `delivered_in` is a `git log --grep` query, never a written-back field), so no
 reactor ever needs a return channel. This is why two hooks suffice and post stays purely outward-facing.
 
-**State for rollback: DERIVE first, scratch only when you must.**
+**State for convergence: DERIVE first, scratch only when you must.**
 - **DERIVE (preferred).** If the resource is a pure function of `(binding, id)` plus the git/
-  filesystem state the plugin already owns, store NOTHING: recompute and inspect/undo (remove-if-present;
-  `git reset` if HEAD carries the `[bl-id]` tag). §11's delivery plugin — `worktree_path(binding, id)`
-  recomputed every op — is the worked example; every hook is idempotent by construction. "Don't store
-  what you can compute," applied to rollback.
+  filesystem state the plugin already owns, store NOTHING: recompute and inspect (remove-if-present;
+  detect the `[bl-id]` delivery by its tag and skip). §11's delivery plugin — `worktree_path(binding,
+  id)` recomputed every op — is the worked example; every hook is idempotent by construction. "Don't
+  store what you can compute," applied to retry and rollback alike.
 - **SCRATCH (only for non-derivable state).** A plugin whose intermediate state genuinely cannot be
   recomputed — an id an external service ASSIGNED, a prior value about to be overwritten — persists it
   in its own §1 territory, id-keyed: `$XDG_STATE_HOME/balls/plugins/<name>/<id>/` (prepend
@@ -1490,8 +1530,11 @@ reads no plugin semantics, §0). In a close the only irreversible action is the 
 so it sorts last; delivery `close.post` teardown removes the worktree DIRECTORY (re-creatable from the
 branch, hence rollback-safe) while `work/<id>` deletion is deferred, non-transactional cleanup.
 
-**Reference plugin — the scratch handoff** (the non-derivable counterpart to §11's derived example): a
-plugin mirroring the ball to an external tracker that assigns its OWN id.
+**THE APPENDIX — rollback for external effects** (the non-derivable counterpart to §11's derived
+example, and the one place rollback is load-bearing): a plugin mirroring the ball to an external
+tracker that assigns its OWN id. The binding artifact (the remote issue) lives in an external system
+keyed to an op that never sealed; a retry mints a NEW bl-id and a NEW issue, so nothing ever
+converges onto the orphan — the plugin's rollback must delete it.
 - `create.pre`: create the remote issue; write the returned id into the staged frontmatter (so the
   seal captures it) AND to `plugins/<name>/<bl-id>/id` (scratch covers the window before the
   frontmatter write — the one genuinely non-derivable gap).
@@ -1510,6 +1553,26 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **converge-on-retry is the rule; rollback the appendix for external effects (2026-06-09, bl-c231 —
+  post-freeze).** Promoted bl-430e from incident to principle: every plugin effect is BINDING (one
+  atomic, detectable commit point — the `[bl-id]` squash, the store seal, the push; a retry detects
+  it and skips) or NON-BINDING (derived, overwritten on retry; `merge --abort` leaves nothing), so
+  half-merged states are immaterial BY CONSTRUCTION and tiers 1–2 need no rollback protocol at all.
+  Rollback survives only as the §14 appendix for effects whose binding artifact lives in an EXTERNAL
+  system keyed to an op that never sealed (the orphan jira ticket — a retry mints a new id, nothing
+  converges onto the orphan). Two findings folded in: (a) the §11 un-squash rollback (`git reset
+  --hard HEAD~1` on the integration branch) is REMOVED — it raced concurrent integration movement in
+  a shared hub (a sibling's commit landing between squash and reset gets eaten), and a standing
+  squash without a sealed close is exactly the bl-430e state the retried close completes (the squash
+  is always gated code, never unreviewed work); (b) the already-delivered skip is now
+  CONTENT-CONTAINMENT, not commit-presence — ancestry cannot distinguish "content included in the
+  delivery" from "added after" (a forge squash-merge always leaves `work/<id>` ancestry-unmerged
+  while its content landed, so a commit-presence guard would false-abort every forge close), so the
+  skip requires a `git merge-tree` content-merge of `work/<id>` into the delivery commit to
+  reproduce the delivery tree; a branch carrying content beyond its delivery (the bl-65e0 handoff
+  onto a delivered-but-unsealed close) ABORTS the close loudly instead of silently stranding the
+  work, and the prime prune preserves such a diverged branch. Touched §9 (close path), §11
+  (rollback rows + retry predicate), §14 (inverted).
 - **`-m` narration refuses the no-op seal; notes-via-`-m` is the comment mechanism (2026-06-09,
   bl-cf93 — post-freeze).** The §5 free body lives only in the sealed commit, and a zero-diff op (a
   pure-note `update` whose second-granular `updated` restamp landed on the same second as the ball's
