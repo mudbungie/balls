@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::delivery::Repo;
+use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection};
 use crate::task::Task;
 
 /// The production [`Repo`]: git against one project-repo root.
@@ -93,7 +94,11 @@ impl Project {
     /// away later), so an uncommitted change is never lost at delivery.
     /// `--no-verify`: the delivery gate ([`Self::gate`]) runs ONCE, later, on
     /// the final delivered tree — not here, where it would fire only when the
-    /// worktree happened to be dirty (the bl-ee85 asymmetry).
+    /// worktree happened to be dirty (the bl-ee85 asymmetry). The caller has
+    /// already run the strict-fold guard
+    /// ([`crate::delivery_fold::ensure_no_merge_in_progress`]) — over a
+    /// half-merge, this `add -A` + commit would CONCLUDE the merge with a
+    /// silent work-side resolution (bl-a04a).
     fn capture(path: &Path, subject: &str) -> io::Result<()> {
         Self::run(path, &["add", "-A"])?;
         if Self::ok(path, &["diff", "--cached", "--quiet"])? {
@@ -105,9 +110,11 @@ impl Project {
 
     /// Fold `integration` into the work branch IN the worktree, so the tree the
     /// gate checks IS the tree the squash delivers even when integration moved
-    /// since claim. Already-up-to-date is a commitless no-op; a conflict aborts
-    /// the half-merge (the worktree stays clean for the agent to merge by hand)
-    /// and surfaces as the delivery-conflict error.
+    /// since claim. STRICT (bl-a04a): git's default merge, no `-X`/strategy
+    /// side-picking ever — anything git marks conflicted (modify/delete and
+    /// rename/delete included) aborts. Already-up-to-date is a commitless
+    /// no-op; a conflict aborts the half-merge (the worktree stays clean for
+    /// the agent to merge by hand) and surfaces as the delivery-conflict error.
     fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
         if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", integration]) {
             let _ = Self::run(path, &["merge", "--abort"]); // best-effort: a never-started merge has nothing to abort
@@ -203,6 +210,7 @@ impl Repo for Project {
 
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
         if path.exists() {
+            ensure_no_merge_in_progress(path)?;
             Self::capture(path, subject)?;
         }
         // Nothing to deliver: branch never made, SETTLED (fully merged, or this
@@ -222,6 +230,7 @@ impl Repo for Project {
             return Ok(()); // reintegration dissolved the diff — already delivered
         }
         Self::gate(path)?;
+        ensure_no_resurrection(&self.root, branch, integration)?;
         // After reintegration the branch tree IS the merged tree — the squash
         // is pure plumbing on it, never touching integration's checkout.
         let tree = format!("{branch}^{{tree}}");
