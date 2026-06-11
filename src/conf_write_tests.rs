@@ -151,6 +151,30 @@ fn set_on_a_hooks_key_bare_replaces_the_whole_list() {
 }
 
 #[test]
+fn an_empty_plugin_name_is_refused_and_writes_nothing() {
+    // bl-bee0: `set <hooks-key> ""` wrote [""], which dispatch later resolved
+    // to bin/ itself (EACCES). A plugin name is non-empty — clearing the list
+    // already has its spelling (`set <key>` with no values). Refused at the
+    // front door (the bl-ac89 precedent), nothing written, nothing sealed.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    let before = commits(&clone.landing());
+    for argv in [
+        vec!["set", "close.pre", ""],
+        vec!["set", "close.pre", "a", ""],
+        vec!["append", "close.pre", ""],
+        vec!["prepend", "close.pre", ""],
+        vec!["remove", "close.pre", ""],
+    ] {
+        let err = conf(&e, &argv).unwrap_err().to_string();
+        assert!(err.contains("non-empty"), "{argv:?}: {err}");
+    }
+    assert!(!landing_text(&clone, "plugins.toml").contains("close.pre"));
+    assert_eq!(commits(&clone.landing()), before);
+}
+
+#[test]
 fn foreign_tables_round_trip_untouched() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);
