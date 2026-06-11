@@ -18,6 +18,7 @@ fn edge(tmp: &TempDir) -> Edge {
         default_actor: "tester".into(),
         depth: 0,
         exe_dir: None,
+        path_dirs: Vec::new(),
         color: false,
         log_level: None,
     }

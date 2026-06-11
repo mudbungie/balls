@@ -3,26 +3,39 @@
 //!
 //! [`crate::install`] is the pure path-copy; this sibling gives it the §8
 //! sealing shape. A throwaway detached worktree materializes `--from` (any
-//! local ref — `<ref>` is a *synced* repo/branch, §6; the fetch that syncs a
-//! remote one is the tracker's `install.pre`); [`Copier`] stages the copy into
-//! the change worktree the engine opens on `--to`'s CURRENT tip; the seal
-//! commits + ff-integrates it, swapping only `<path>` — never a whole-tree
-//! replace, never a ref reset (§6 "siblings are never touched") — with §14
-//! rollback on any abort. Identical bytes stage nothing and seal to the
-//! existing tip (the no-op seal, §13 idempotence). `--to` resolves to one of
-//! the two LOCAL checkouts (the landing or the store, §2); sealing to a remote
-//! center is the open bl-66e7 question, so any other ref is refused, not
-//! guessed. A landing-targeted install then resolves + binds every plugin the
-//! landed schedule references ([`bind_referenced`]) and prints the [`Summary`]
-//! — the §6 blast radius, on stdout.
+//! local ref — `<ref>` is a *synced* repo/branch, §6); [`Copier`] stages the
+//! copy into the change worktree the engine opens on `--to`'s CURRENT tip; the
+//! seal commits + ff-integrates it, swapping only `<path>` — never a
+//! whole-tree replace, never a ref reset (§6 "siblings are never touched") —
+//! with §14 rollback on any abort. Identical bytes stage nothing and seal to
+//! the existing tip (the no-op seal, §13 idempotence). `--to` resolves to one
+//! of the two LOCAL checkouts (the landing or the store, §2); sealing to a
+//! remote center is the open bl-66e7 question, so any other ref is refused,
+//! not guessed.
 //!
-//! `prime --install` (§13, [`crate::adopt`]) converges on the same spine: its
-//! tracker fetch runs FIRST (the engine stages before `pre`, so a fetch the
-//! staging depends on cannot ride the engine's own chain — the one M3 leg
-//! still outside the engine trace), then [`seal_copy`] + [`bind_referenced`]
-//! do the rest. One copy path, one seal.
+//! An omitted `--from` is the §6 default — the CONFIGURED UPSTREAM, resolved
+//! by [`upstream`]: the `install.pre` chain (the tracker, the only
+//! remote-talker, §0) fetches the upstream's `balls/config` to the landing's
+//! `FETCH_HEAD` and the copy stages from that git-standard ref. The chain must
+//! run BEFORE the engine stages (staging reads the ref the fetch leaves, so
+//! the fetch cannot ride the engine's own `pre` — the [`crate::adopt`]
+//! precedent, the one leg outside the §14 trace), so the engine's pre chain
+//! then runs EMPTY. `prime --install` converges on the same spine: its tracker
+//! fetch runs first, then [`seal_copy`] + [`bind_referenced`] do the rest.
+//!
+//! A landing-targeted install then resolves + binds every plugin the landed
+//! schedule references ([`bind_referenced`]: explicit `--bin <name>=<path>`,
+//! else the `bl` sibling, else PATH — §6 local binary resolution) and prints
+//! the [`Summary`] — the §6 blast radius, on stdout. Binding runs AFTER the
+//! seal, deliberately (bl-4c45): the copy is committed TEXT (the §6
+//! recommendation — adopting it is the consent step), binding is this box's
+//! LOCAL resolution of it, so a validation refusal exits non-zero with the
+//! schedule landed and `bin/<name>` dangling — exactly §6's clean "referenced
+//! but not installed" state. The commit is the undo; a retry with a fixed
+//! binary converges on the no-op seal and just binds (§14).
 
 use std::cell::Cell;
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -30,11 +43,12 @@ use crate::checkout;
 use crate::edge::Edge;
 use crate::git::{self, Git};
 use crate::hooks::Hooks;
-use crate::install::{install, referenced, resolve_and_bind, Summary, DEFAULT_PATH};
+use crate::install::{install, referenced, resolve_and_bind, Summary};
 use crate::layout::CloneDir;
-use crate::lifecycle::{BaseChange, Engine};
+use crate::lifecycle::{BaseChange, Engine, Plugins};
 use crate::log::{self, Log};
 use crate::message::{Message, PROTOCOL};
+use crate::op::Phase;
 use crate::plugin::Subprocess;
 use crate::registry::{PluginRef, Registry};
 use crate::safegit::reject_option_like;
@@ -42,10 +56,13 @@ use crate::verb::Verb;
 use crate::wire::OpContext;
 use crate::LANDING_BRANCH;
 
-/// `bl install [<path>] --from <ref> [--to <ref>] [--as ID]` (§6): seal a copy
-/// of `<path>` from `--from` onto `--to`'s current tip through the §8 engine +
-/// the `install` plugin chain, then bind the referenced plugins when the
-/// landing was the target, and print the change [`Summary`].
+use args::parse;
+
+/// `bl install [<path>] [--from <ref>] [--to <ref>] [--bin <name>=<path>]…
+/// [--as ID]` (§6): seal a copy of `<path>` from `--from` (default: the
+/// configured upstream) onto `--to`'s current tip through the §8 engine + the
+/// `install` plugin chain, then bind the referenced plugins when the landing
+/// was the target, and print the change [`Summary`].
 pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -65,19 +82,46 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let reg = Registry::at(&landing);
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(opts.actor.clone(), binding), &log, edge.depth);
+    let pre = hooks.resolve(&reg, Verb::Install.token(), "pre");
+    let (pre, from) = match opts.from {
+        Some(ref f) => (pre, f.clone()),
+        None => (Vec::new(), upstream(&plugins, &pre, &landing)?),
+    };
     let chain = Chain {
         plugins: &plugins,
         log: &log,
-        pre: hooks.resolve(&reg, Verb::Install.token(), "pre"),
+        pre,
         post: hooks.resolve(&reg, Verb::Install.token(), "post"),
     };
     let to = if to_landing { &landing } else { &store };
-    let summary = seal_copy(&clone, &opts.path, &opts.from, to, &chain, &opts.actor)?;
+    let summary = seal_copy(&clone, &opts.path, &from, to, &chain, &opts.actor)?;
     if to_landing {
-        bind_referenced(&landing, edge.exe_dir.as_deref())?;
+        bind_referenced(&landing, edge, &opts.bins)?;
     }
     println!("install: {summary}");
     Ok(())
+}
+
+/// Resolve the §6 `--from` default — the CONFIGURED UPSTREAM. Core reaches no
+/// remote itself (§0): the `install.pre` chain (the tracker, §13 — remote =
+/// the one §12 ladder) fetches the upstream's `balls/config` into the
+/// landing's `FETCH_HEAD`, and the copy stages from that git-standard ref —
+/// the same fetch-then-local-copy split as `prime --install`
+/// ([`crate::adopt`]). The chain runs HERE, before the engine stages (see the
+/// module doc); the caller then runs the engine's pre chain EMPTY. A
+/// `FETCH_HEAD` that still does not resolve (a stealth box, a hub carrying no
+/// `balls/config`, no fetch plugin installed) is refused naming the remedy —
+/// never a raw git fatal at materialize.
+fn upstream(plugins: &Subprocess, pre: &[PluginRef], landing: &Path) -> io::Result<String> {
+    for plugin in pre {
+        plugins.run(plugin, Verb::Install, Phase::Pre, landing, None)?;
+    }
+    if git::run(landing, &["rev-parse", "--verify", "--quiet", "FETCH_HEAD"], None).is_err() {
+        return Err(io::Error::other(
+            "install: no --from given and no configured upstream offers a balls/config to adopt — pass --from <ref>",
+        ));
+    }
+    Ok("FETCH_HEAD".to_string())
 }
 
 /// The resolved §8 pieces a sealing install runs with: the subprocess chain,
@@ -150,16 +194,24 @@ impl BaseChange for Copier<'_> {
 }
 
 /// Bind every plugin the just-landed `config/plugins.toml` references to this
-/// machine's sibling binary beside `bl` (`exe_dir`), validating each against
-/// its live `<bin> protocol` self-description before linking (§6
-/// [`resolve_and_bind`] — refuses an op or protocol version the binary does
-/// not declare). A referenced name with no sibling here stays dangling — the
-/// clean "referenced but not installed" dispatch error (§6), never bound
-/// silently. `exe_dir == None` ⇒ a plugin-free box (nothing to bind).
-pub(crate) fn bind_referenced(landing: &Path, exe_dir: Option<&Path>) -> io::Result<()> {
+/// machine's binary, validating each against its live `<bin> protocol`
+/// self-description before linking (§6 [`resolve_and_bind`] — refuses an op
+/// or protocol version the binary does not declare). The candidate is the
+/// explicit `--bin <name>=<path>` entry when given (a `bins` name the schedule
+/// does not reference is refused — never silently dropped), else [`locate`]'s
+/// machine lookup. A referenced name with no candidate anywhere stays dangling
+/// — the clean "referenced but not installed" dispatch error (§6), never
+/// bound silently.
+pub(crate) fn bind_referenced(landing: &Path, edge: &Edge, bins: &BTreeMap<String, PathBuf>) -> io::Result<()> {
+    let worklist = referenced(landing)?;
+    if let Some(name) = bins.keys().find(|n| !worklist.contains_key(*n)) {
+        return Err(io::Error::other(format!(
+            "install: --bin {name}: the landed schedule does not reference that plugin"
+        )));
+    }
     let registry = Registry::at(landing);
-    for (name, ops) in referenced(landing)? {
-        if let Some(bin) = exe_dir.map(|d| d.join(&name)).filter(|p| p.exists()) {
+    for (name, ops) in worklist {
+        if let Some(bin) = bins.get(&name).cloned().or_else(|| locate(&name, edge)) {
             resolve_and_bind(&registry, &name, &bin, &ops, PROTOCOL)
                 .map_err(|e| io::Error::other(e.to_string()))?;
         }
@@ -167,48 +219,24 @@ pub(crate) fn bind_referenced(landing: &Path, exe_dir: Option<&Path>) -> io::Res
     Ok(())
 }
 
-/// Parsed `bl install [<path>] --from <ref> [--to <ref>] [--as ID]`.
-#[derive(Debug)]
-struct Opts {
-    path: String,
-    from: String,
-    to: String,
-    actor: String,
+/// §6 "this machine" resolution for a referenced plugin's binary: the shipped
+/// sibling beside `bl` first (the seed's own rule, [`crate::seed`] — a
+/// freshly built `bl` finds its co-built plugins even off PATH), then a PATH
+/// lookup (`edge.path_dirs`). No hit ⇒ `None` — the caller leaves the name
+/// dangling.
+fn locate(name: &str, edge: &Edge) -> Option<PathBuf> {
+    let dirs = edge.exe_dir.iter().chain(edge.path_dirs.iter());
+    dirs.map(|d| d.join(name)).find(|p| p.is_file())
 }
 
-/// Parse install's argv. `path` defaults to the recommended bundle
-/// ([`DEFAULT_PATH`] — all of `config/`, never the store, §6) and must stay
-/// inside the checkout (relative, no `..`); `--from` is required — core
-/// resolves no implicit upstream (§0); `--to` defaults to the landing (§6).
-fn parse(args: &[String], default_actor: &str) -> io::Result<Opts> {
-    let (mut path, mut from, mut to) = (None, None, None);
-    let mut actor = default_actor.to_string();
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--from" => from = Some(checkout::value(args, &mut i, "--from")?),
-            "--to" => to = Some(checkout::value(args, &mut i, "--to")?),
-            "--as" => actor = checkout::value(args, &mut i, "--as")?,
-            flag if flag.starts_with('-') => {
-                return Err(io::Error::other(format!("install: unexpected flag '{flag}'")));
-            }
-            p => {
-                if path.replace(p.to_string()).is_some() {
-                    return Err(io::Error::other("install: at most one path"));
-                }
-            }
-        }
-        i += 1;
-    }
-    let path = path.unwrap_or_else(|| DEFAULT_PATH.to_string());
-    if Path::new(&path).is_absolute() || path.split('/').any(|c| c == "..") {
-        return Err(io::Error::other(format!("install: path must be checkout-relative: '{path}'")));
-    }
-    let from = from.ok_or_else(|| io::Error::other("install: --from <ref> is required"))?;
-    let opts = Opts { path, from, to: to.unwrap_or_else(|| LANDING_BRANCH.to_string()), actor };
-    Ok(opts)
-}
+// The argv parser lives in a sibling module (the §9 checkout_args convention).
+#[path = "install_args.rs"]
+mod args;
 
 #[cfg(test)]
 #[path = "install_run_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "install_surface_tests.rs"]
+mod surface_tests;
