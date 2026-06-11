@@ -39,12 +39,12 @@ impl Engine<'_> {
     /// and the wire omits `metadata`. No shipped plugin reads them yet; a sync/post
     /// cache-rebuild participant will.
     pub fn diffless(&self, op: Verb, checkout: &Path, pre: &[PluginRef], post: &[PluginRef]) -> Result<(), OpError> {
-        self.log.record(Level::Info, "core", None, "begin");
+        self.log.record(Level::Debug, "core", None, "begin");
         let mut ran = Vec::new();
         let mut moved = None;
         let result = self.diffless_inner(op, checkout, pre, post, &mut ran, &mut moved);
         match &result {
-            Ok(()) => self.log.record(Level::Info, "core", None, "done"),
+            Ok(()) => self.log.record(Level::Debug, "core", None, "done"),
             Err(e) => {
                 unwind(self.plugins, op, checkout, &ran, moved.as_ref());
                 self.log.record(Level::Error, "core", None, &format!("abort {e}"));
@@ -96,7 +96,7 @@ impl Engine<'_> {
         post: &[PluginRef],
         step: &mut dyn FnMut() -> io::Result<Option<String>>,
     ) -> Result<(), OpError> {
-        self.log.record(Level::Info, "core", None, "begin");
+        self.log.record(Level::Debug, "core", None, "begin");
         let mut ran = Vec::new();
         // The fallible body: `pre`, `step`, the moved-dial check, `post`. Neither
         // phase carries §7 facts (`None`) — prime's push reads no seal. An
@@ -113,7 +113,7 @@ impl Engine<'_> {
         })();
         match result {
             Ok(()) => {
-                self.log.record(Level::Info, "core", None, "done");
+                self.log.record(Level::Debug, "core", None, "done");
                 Ok(())
             }
             Err(e) => {

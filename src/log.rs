@@ -43,10 +43,12 @@ const LINE_MAX: usize = 4096;
 const TRUNC_MARKER: &str = "…[truncated]";
 
 /// The §4 severity ladder. Ordered `Debug < Info < Error` so a record is emitted
-/// iff its level is `>=` the configured threshold. Core lifecycle records and
-/// enveloped plugin stderr are `Info`; read-op narration is `Debug` (default
-/// `Info` keeps it out); a plugin's non-zero exit is `Error` (it outranks every
-/// threshold, so the failure locus always lands — §6).
+/// iff its level is `>=` the configured threshold. Severity classifies the VOICE,
+/// not the op kind (bl-cf39): core narration (begin/seal/done/invoke, reads and
+/// mutates alike) is `Debug` — the default `Info` keeps routine ops quiet — a
+/// plugin speaking (enveloped stderr) is `Info`; a plugin's non-zero exit and a
+/// core abort are `Error` (outranking every threshold, so the failure locus
+/// always lands — §6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
     Debug,

@@ -330,9 +330,11 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   never emitted anywhere). A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
   entry and NOT a "run-time default" carve-out: the seed is for capability *sets* (the plugin chain),
   the layer-4 serde fallback is exactly "for a field no layer set." Read order is the normal §4 stack,
-  so `--log-level` (layer 1) overrides for one run. Default mapping: core narrates mutating-op
-  lifecycle at `info` and read-op narration (`show`/`list`) at `debug`, so default-`info`
-  keeps read chatter out of the log; plugin-enveloped stderr is `info`.
+  so `--log-level` (layer 1) overrides for one run. Default mapping: severity classifies the VOICE,
+  not the op kind (bl-cf39, §15) — core narration (`begin`/`seal`/`done`/`invoke`, reads and mutates
+  alike) is `debug`, so default-`info` keeps routine ops quiet; plugin-enveloped stderr is `info`
+  (a plugin speaking is signal — the tracker's warnings ride here); plugin non-zero exits and core
+  aborts are `error`.
 
 The id scheme is deliberately NOT a config field — it is fixed (§ id generation): a team wanting a
 different scheme supplies a `create/pre` plugin, not a config knob.
@@ -1624,6 +1626,26 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **Core narration demoted to `debug` — severity classifies the VOICE, not the op kind
+  (2026-06-10, bl-cf39 — post-freeze, post-0.5.0).** The shipped default printed 3–7 JSON
+  records (`begin` / `invoke <plugin>` / `seal`) on stderr for every routine mutating verb —
+  noise, not signal: the terse confirmation already answers "what happened" and the seal sha
+  duplicates the store commit git history already holds (§0 derive-don't-store, applied to
+  observability). §4's old mapping — mutating-op lifecycle at `info`, read-op narration at
+  `debug` — was a special case keyed on op kind; the reframe keys severity on WHO is talking:
+  core narrating its own mechanics is `debug` everywhere, a plugin speaking (the §6 stderr
+  envelope — where the tracker's ephemeral-remote and founding warnings ride) is `info`, and
+  failure (plugin non-zero exit, core abort on the sealing paths) is `error`, outranking every
+  threshold. The default `log_level` stays `info` — the knob and its ladder are untouched, so
+  every founded landing (which carries `log_level = "info"`) gets quiet routine ops on binary
+  upgrade with no config migration. Rejected: shipping default `error` — moves the knob instead
+  of dissolving the inconsistency, mutes the plugin voice (warnings vanish), and guts the log
+  file's default usefulness. Note the read-path asymmetry is retained where it is real: a READ
+  abort stays `debug` (a read mutates nothing and the error reaches the invoker anyway), while
+  mutating-path aborts stay `error`. Touched §4 (the default-mapping sentence), §15 (this
+  entry); code: `lifecycle.rs`/`lifecycle_diffless.rs` begin/seal/done, `plugin.rs` `invoke`.
+  SKILL.md's "silence the op log with `--log-level error`" ritual is obsolete — the default is
+  quiet; `--log-level debug` is the opt-in to the old verbosity.
 - **`stealth.lock` DELETED — stealth is a VALUE on the one §12 ladder, the per-checkout landing
   `task_remote` sentinel `none`; consent withheld binds every op (2026-06-10, bl-9df0 —
   post-freeze).** The bug: `bl prime --stealth` wrote a lock file NOTHING read back, so the very

@@ -79,7 +79,7 @@ pub(crate) fn fold(edge: &Edge, store: &Path, verb: Verb, id: Option<&str>, cfg:
 /// contribution to fold — unlike the mutating path's inherit; stderr is PIPED
 /// and enveloped into the unified op log line-by-line (`src=<name>`,
 /// `lvl=info` — §6, the same envelope a mutating op writes). Core narrates the
-/// `invoke` first, at `debug` like all read-op narration (§4). A spawn failure
+/// `invoke` first, at `debug` like all core narration (§4). A spawn failure
 /// or non-zero exit is an error the caller logs and treats as "no line" (§6 —
 /// non-fatal).
 fn capture(bin: &Path, name: &str, op: &str, depth: u32, store: &Path, payload: &str, log: &Log) -> io::Result<String> {
