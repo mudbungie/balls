@@ -212,7 +212,7 @@ impl<'a> Subprocess<'a> {
         dir: &Path,
         payload: &str,
     ) -> io::Result<std::process::ExitStatus> {
-        self.log.record(Level::Info, "core", Some(phase), &format!("invoke {name}"));
+        self.log.record(Level::Debug, "core", Some(phase), &format!("invoke {name}"));
         let depth = (self.depth + 1).to_string();
         let mut child = retry_busy(|| {
             Command::new(bin)

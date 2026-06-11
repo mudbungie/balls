@@ -185,8 +185,8 @@ impl Reach {
 
 /// The §8 diffless dispatch for the read verbs: resolve the §4 `log_level`
 /// stack (CLI ▸ XDG ▸ landing ▸ default), narrate the read at `debug` (§4 —
-/// read-op narration sits below the mutating ops' `info`, so the default
-/// threshold keeps read chatter out of the log), then render. `edge.color` is
+/// core narration is `debug` on every op, so the default threshold keeps
+/// routine chatter out of the log), then render. `edge.color` is
 /// the resolved host signal (tty AND no `NO_COLOR`); `--plain` overrides it
 /// off. Reads never touch the landing's git or a remote (§13) — the landing
 /// CONFIG is read (the threshold, the `[hooks]` schedule), like every op.
