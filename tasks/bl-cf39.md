@@ -1,7 +1,8 @@
 +++
 title = "Core narration is debug: demote mutating-op lifecycle records below the default threshold"
 created = 1781149982
-updated = 1781149982
+updated = 1781149990
+claimant = "Smites"
 +++
 Default UX today: every mutating verb prints 3-7 JSON op-log lines (begin / invoke <plugin> / seal) on stderr at the shipped log_level=info. That is noise, not signal - the terse confirmation already tells the operator what happened, and the seal sha duplicates what git history (the store commit) already records.
 
