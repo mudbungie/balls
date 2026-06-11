@@ -84,7 +84,10 @@ impl Engine<'_> {
     /// against `post_dir` (the materialized store — the tracker's fetch-ff +
     /// push). `step`'s failure is an [`OpError::Substrate`] abort; any abort
     /// unwinds the run plugins in reverse (no seal, no §7 facts — `prime`'s push
-    /// reads neither). The whole op logs one begin/done/abort.
+    /// reads neither). A PLUGIN abort is rendered as the §12 catalog's E7 —
+    /// "plugin failed during prime, rolled back K prior" (K = the plugins that
+    /// had run and were unwound) — not the generic abort (bl-3ddb). The whole op
+    /// logs one begin/done/abort.
     pub fn prime(
         &self,
         pre_dir: &Path,
@@ -108,13 +111,27 @@ impl Engine<'_> {
             }
             run_phase(self.plugins, Verb::Prime, Phase::Post, post_dir, post, None, &mut ran)
         })();
-        match &result {
-            Ok(()) => self.log.record(Level::Info, "core", None, "done"),
+        match result {
+            Ok(()) => {
+                self.log.record(Level::Info, "core", None, "done");
+                Ok(())
+            }
             Err(e) => {
                 unwind(self.plugins, Verb::Prime, pre_dir, &ran, None);
+                let e = match e {
+                    // E7: name the prime-specific shape — K prior plugins unwound.
+                    OpError::Plugin { name, source } => OpError::Plugin {
+                        name,
+                        source: io::Error::other(format!(
+                            "plugin failed during prime, rolled back {} prior: {source}",
+                            ran.len()
+                        )),
+                    },
+                    e => e,
+                };
                 self.log.record(Level::Error, "core", None, &format!("abort {e}"));
+                Err(e)
             }
         }
-        result
     }
 }

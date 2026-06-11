@@ -60,13 +60,28 @@ pub fn sync(b: &Binding) -> io::Result<()> {
 /// Identification must be POSITIVE: the tip is re-fetched here (`FETCH_HEAD`),
 /// and any failure to read it reports `false` — the caller's own error stands.
 pub(super) fn not_yet_cut_over(repo: &Path, remote: &str, branch: &str) -> bool {
-    if git(repo, &["fetch", remote, branch]).is_err()
-        || git(repo, &["cat-file", "-e", "FETCH_HEAD:tasks"]).is_ok()
-    {
+    if tip_is_store(repo, remote, branch) != Some(false) {
         return false;
     }
-    eprintln!("tracker: `{remote}`'s `{branch}` is not a greenfield store (its tip has no tasks/) — a legacy store awaiting cutover, left intact; this checkout's store stays local until the ref is cut over (docs/migration-runbook.md)");
+    warn_legacy(remote, branch);
     true
+}
+
+/// The §16 migration-window warning — one spelling, shared by every site that
+/// positively identified a legacy (non-store) tip.
+fn warn_legacy(remote: &str, branch: &str) {
+    eprintln!("tracker: `{remote}`'s `{branch}` is not a greenfield store (its tip has no tasks/) — a legacy store awaiting cutover, left intact; this checkout's store stays local until the ref is cut over (docs/migration-runbook.md)");
+}
+
+/// Is `remote`'s `branch` tip a greenfield STORE (`tasks/` at its root, §2)?
+/// `None` = the tip could not be read at all (unreachable remote, absent
+/// branch) — the caller's own error stands; `Some(false)` is the §16 legacy
+/// window [`not_yet_cut_over`] warns about; `Some(true)` is an ESTABLISHED
+/// store, the E5 precondition. Positive identification by re-fetch
+/// (`FETCH_HEAD`), shared by both reject-interpretation sites.
+fn tip_is_store(repo: &Path, remote: &str, branch: &str) -> Option<bool> {
+    git(repo, &["fetch", remote, branch]).ok()?;
+    Some(git(repo, &["cat-file", "-e", "FETCH_HEAD:tasks"]).is_ok())
 }
 
 /// Does `remote` already carry `branch`? `git ls-remote --heads` is the one
@@ -95,7 +110,21 @@ pub fn push(b: &Binding) -> io::Result<()> {
     reject_option_like(&b.tasks_branch)?;
     let store = Path::new(&b.store);
     if let Err(e) = git(store, &["push", remote, &b.tasks_branch]) {
-        return not_yet_cut_over(store, remote, &b.tasks_branch).then_some(()).ok_or(e);
+        return match tip_is_store(store, remote, &b.tasks_branch) {
+            // The §16 migration window — warn + keep the work local.
+            Some(false) => {
+                warn_legacy(remote, &b.tasks_branch);
+                Ok(())
+            }
+            // E5 proper: the store is ESTABLISHED, so the reject is contention
+            // (or revoked perms) — name the remedy, never a raw non-ff dump.
+            Some(true) => Err(io::Error::other(format!(
+                "push rejected by the established remote store — the mutation did not land; re-run after `bl sync` ({e})"
+            ))),
+            // Unreadable tip (unreachable remote, absent branch): the push's
+            // own error stands — never a silent skip, never a misnamed E5.
+            None => Err(e),
+        };
     }
     Ok(())
 }

@@ -106,6 +106,26 @@ fn create_finds_the_id_after_a_pre_plugin_renamed_it() {
 }
 
 #[test]
+fn create_finalize_names_a_pre_reassignment_that_collided_with_a_live_id() {
+    // bl-3ddb: a create.pre plugin `git mv`s the staged file ONTO an existing
+    // id — finalize sees zero new ids. "expected exactly one new task file,
+    // found 0" was oblique; the staged fingerprint (this op's clock + title)
+    // under a pre-existing id names the collision.
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-old", TASK);
+    let c = create("bl-new", vec!["bl-old".into()]);
+    c.stage(dir).unwrap();
+    fs::rename(dir.join("tasks/bl-new.md"), dir.join("tasks/bl-old.md")).unwrap();
+    let err = c.finalize(dir).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    assert_eq!(
+        err.to_string(),
+        "create: a create.pre plugin reassigned the new task to `bl-old`, which already exists — id collision, nothing sealed"
+    );
+}
+
+#[test]
 fn create_finalize_errors_when_no_new_file_was_staged() {
     let d = tempdir().unwrap();
     let err = create("bl-x", vec![]).finalize(d.path()).unwrap_err();

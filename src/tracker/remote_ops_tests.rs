@@ -120,13 +120,16 @@ fn push_keeps_work_local_when_the_remote_tip_is_not_a_store() {
 fn push_to_an_unreachable_remote_stays_the_original_error() {
     // The not-yet-cut-over skip needs POSITIVE identification of a non-store
     // tip; when even the shape read fails (no such remote), the push's own
-    // error surfaces — never a silent skip.
+    // error surfaces — never a silent skip, and never misnamed as the E5
+    // established-store reject (bl-3ddb).
     let tmp = TempDir::new().unwrap();
     let store = local_unpushed(tmp.path());
     let gone = tmp.path().join("no-such-remote.git");
     let mut b = binding(Some(&gone), &store);
     b.remote = Some(gone.to_string_lossy().into_owned());
-    assert!(push(&b).is_err());
+    let err = push(&b).unwrap_err().to_string();
+    assert!(err.contains("git push"), "{err}");
+    assert!(!err.contains("re-run after `bl sync`"), "{err}");
 }
 
 #[test]
@@ -200,7 +203,11 @@ fn push_fails_when_the_remote_rejects_a_non_fast_forward() {
     git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
     commit(&store, "local.txt", "local");
 
-    assert!(push(&binding(Some(&remote), &store)).is_err());
+    // E5 (bl-3ddb): a reject by an ESTABLISHED store names the catalog remedy,
+    // never a raw non-ff dump alone.
+    let err = push(&binding(Some(&remote), &store)).unwrap_err().to_string();
+    assert!(err.contains("push rejected by the established remote store"), "{err}");
+    assert!(err.contains("re-run after `bl sync`"), "{err}");
 }
 
 #[test]

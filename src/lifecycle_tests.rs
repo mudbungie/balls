@@ -165,11 +165,17 @@ fn op_error_renders_each_variant_and_is_an_error() {
     let author = OpError::Author(ioerr("x"));
     let anvil = OpError::Anvil(ioerr("y"));
     let substrate = OpError::Substrate(ioerr("m"));
-    let plugin = OpError::Plugin { name: "p".into(), source: ioerr("z") };
+    // The Plugin source already names the locus (`crate::plugin` renders
+    // "plugin p aborted the op (…)"); Display must NOT re-prefix it — the
+    // stuttered "plugin p aborted the op: plugin p aborted the op" (bl-3ddb).
+    let plugin = OpError::Plugin {
+        name: "p".into(),
+        source: ioerr("plugin p aborted the op (exit status: 1)"),
+    };
     assert!(author.to_string().contains("authoring the base change failed"));
     assert!(anvil.to_string().contains("sealing onto the anvil failed"));
     assert!(substrate.to_string().contains("materializing the store failed"));
-    assert!(plugin.to_string().contains("plugin p aborted the op"));
+    assert_eq!(plugin.to_string(), "plugin p aborted the op (exit status: 1)");
     assert!(format!("{author:?}").contains("Author"));
     let _: &dyn std::error::Error = &plugin;
 }
