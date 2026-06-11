@@ -63,7 +63,7 @@ pub fn adopt(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: &st
 fn fetch_config(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: &str) -> io::Result<()> {
     let cfg = EffectiveConfig::resolve(landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
-    let binding = checkout::binding(landing, store, &edge.invocation_path, Some(center.to_string()), LANDING_BRANCH.to_string());
+    let binding = checkout::binding(landing, store, &edge.invocation_path, Some(center.to_string()), false, LANDING_BRANCH.to_string());
     let pre = Hooks::effective(landing, &edge.xdg.user_config())?
         .resolve(&Registry::at(landing), Verb::Install.token(), "pre");
     if pre.is_empty() {
@@ -87,7 +87,7 @@ fn fetch_config(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: 
 /// subprocess seam is constructed but never invoked.
 pub(crate) fn install_local(edge: &Edge, landing: &Path) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
-    let (binding, level) = checkout::bind(edge, landing, &clone.store(), None, None, false)?;
+    let (binding, level) = checkout::bind(edge, landing, &clone.store(), None, None)?;
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(edge.default_actor.clone(), binding), &log, edge.depth);
     let chain = install::Chain { plugins: &plugins, log: &log, pre: Vec::new(), post: Vec::new() };

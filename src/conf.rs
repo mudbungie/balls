@@ -5,10 +5,12 @@
 //! them (the "where are my files / what remote am I actually using" answer —
 //! stealth shows as `task-remote (none)`, closing the bl-d234 invisible-stealth
 //! gap); WRITE is scope-keyed CRUD where the KEY implies its canonical home
-//! (no `--scope` flag): `task-remote` is per-machine (XDG `config.toml`, its
-//! only legal home — a URL must not travel on `install`), `task-branch`/
-//! `log-level` live on the landing `balls.toml`, and the `[hooks]` schedule
-//! keys on the landing `plugins.toml` ([`write`], the sibling module).
+//! (no `--scope` flag): `task-remote` routes by VALUE — a URL is per-machine
+//! (XDG `config.toml`; a URL must not travel on `install`), the stealth
+//! sentinel `none` is per-checkout POLICY on the landing `balls.toml` (§12,
+//! bl-9df0) — while `task-branch`/`log-level` live on the landing `balls.toml`
+//! and the `[hooks]` schedule keys on the landing `plugins.toml` ([`write`],
+//! the sibling module).
 //!
 //! `conf` is Diffless (§8) and CHAINLESS: it authors no ball diff, seals
 //! nothing to the store, and dispatches NO plugin — config never syncs (§12),
@@ -30,6 +32,7 @@ use std::path::Path;
 
 #[path = "conf_write.rs"]
 mod write;
+pub(crate) use write::declare_stealth;
 
 /// The §4 key namespace `conf` reads and writes. A key carries its canonical
 /// home (the table in §4): the three scalars name built-in fields, [`Key::Hook`]
@@ -37,8 +40,10 @@ mod write;
 /// bare `show`/`list` a read op dispatches (§6).
 #[derive(Debug)]
 pub(crate) enum Key {
-    /// The per-machine store remote — the XDG `remote` field (§12), the one key
-    /// whose home is NOT the landing (a URL must not travel on `install`, §4).
+    /// The store remote (§12). Its home routes by VALUE: a URL is per-machine
+    /// (the XDG `remote` field — a URL must not travel on `install`, §4); the
+    /// stealth sentinel `none` is the per-checkout landing `task_remote` policy
+    /// rung (bl-9df0).
     TaskRemote,
     /// `tasks_branch` on the landing `balls.toml` (§4).
     TaskBranch,
@@ -144,7 +149,7 @@ fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
 fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Resolved> {
     let landing = clone.landing();
     match key {
-        Key::TaskRemote => Ok(task_remote(edge)),
+        Key::TaskRemote => task_remote(edge, &landing),
         Key::TaskBranch => scalar(edge, &landing, "tasks_branch", crate::DEFAULT_TASKS_BRANCH, None),
         Key::LogLevel => scalar(edge, &landing, "log_level", "info", edge.log_level.as_deref()),
         Key::Hook(k) => {
@@ -163,17 +168,24 @@ fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Resolved> {
 }
 
 /// The store remote per the §12 ladder's DURABLE tiers (`conf` takes no
-/// `--remote`): the XDG `task-remote`, else the project repo's `origin` (a
-/// local `git remote get-url` — naming, not contacting, §12), else `(none)` —
-/// the visible stealth read (bl-d234).
-fn task_remote(edge: &Edge) -> Resolved {
-    if let Some(url) = config::xdg_remote(&edge.xdg.user_config()) {
-        return Resolved { value: url, layer: "xdg".into() };
+/// `--remote`), through the SAME [`config::remote_ladder`] the ops bind with:
+/// the landing `task_remote` policy (declared stealth reads `(none)` from
+/// `landing` — bl-9df0), else the XDG `task-remote`, else the project repo's
+/// `origin` (a local `git remote get-url` — naming, not contacting, §12), else
+/// `(none)` from `stealth` — circumstantial, nothing set. Three distinct
+/// no-remote readouts (bl-d234): declared, unset-with-origin, unset-without.
+fn task_remote(edge: &Edge, landing: &Path) -> io::Result<Resolved> {
+    let (remote, declared) = config::remote_ladder(None, landing, &edge.xdg.user_config())?;
+    if declared {
+        return Ok(Resolved { value: "(none)".into(), layer: "landing".into() });
     }
-    match origin(&edge.invocation_path) {
+    if let Some(url) = remote {
+        return Ok(Resolved { value: url, layer: "xdg".into() });
+    }
+    Ok(match origin(&edge.invocation_path) {
         Some(url) => Resolved { value: url, layer: "origin".into() },
         None => Resolved { value: "(none)".into(), layer: "stealth".into() },
-    }
+    })
 }
 
 /// `git remote get-url origin` on the PROJECT repo (the invocation path, §12) —
