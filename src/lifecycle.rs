@@ -185,12 +185,12 @@ impl<'a> Engine<'a> {
         pre: &[PluginRef],
         post: &[PluginRef],
     ) -> Result<String, OpError> {
-        self.log.record(Level::Info, "core", None, "begin");
+        self.log.record(Level::Debug, "core", None, "begin");
         let mut trace = Trace::default();
         match self.run_inner(base, op, change_dir, pre, post, &mut trace) {
             Ok(sha) => {
                 let _ = self.anvil.close(change_dir); // (5) teardown, best-effort
-                self.log.record(Level::Info, "core", None, &format!("seal {sha}"));
+                self.log.record(Level::Debug, "core", None, &format!("seal {sha}"));
                 Ok(sha)
             }
             Err(e) => {
