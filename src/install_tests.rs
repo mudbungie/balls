@@ -3,6 +3,8 @@
 //! layer's whole job is shape-decided filesystem manipulation plus a `protocol`
 //! round-trip.
 
+#![cfg(unix)]
+
 use super::*;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;

@@ -5,6 +5,8 @@
 //! sibling §6 surface tests ([`super::surface_tests`]) share them; the argv
 //! parse tests live with the parser ([`super::args`]).
 
+#![cfg(unix)]
+
 use super::*;
 use crate::git;
 use crate::layout::Xdg;

@@ -2,6 +2,8 @@
 //! pre-commit hook — once, on the reintegrated tree it is about to land — and
 //! a failure aborts the close before anything reaches integration.
 
+#![cfg(unix)]
+
 use super::tests::{project, tip};
 use super::*;
 use std::os::unix::fs::PermissionsExt;
