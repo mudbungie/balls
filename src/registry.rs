@@ -17,7 +17,10 @@
 
 use std::fs;
 use std::io;
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
 use std::path::{Path, PathBuf};
 
 /// One wired plugin: its name (from the committed [`crate::hooks`] schedule) and
