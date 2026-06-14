@@ -52,6 +52,7 @@ pub fn empty_remote(tmp: &Path) -> PathBuf {
 /// rejected, while `ls-remote` still reports the (absent) branch. Models a box
 /// with no write access: prime founds-on-miss, the push is denied, and §12 says
 /// fall back to stealth-local silently.
+#[cfg(unix)]
 pub fn unpushable_remote(tmp: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let remote = empty_remote(tmp);
@@ -59,6 +60,15 @@ pub fn unpushable_remote(tmp: &Path) -> PathBuf {
     fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
     fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
     remote
+}
+
+/// Windows stub: tests that exercise an unpushable bare remote depend on an
+/// executable shell `pre-receive` hook and are gated with `#![cfg(unix)]`;
+/// this stub exists so the helper symbol resolves on Windows for files that
+/// import it but only call it from gated tests.
+#[cfg(windows)]
+pub fn unpushable_remote(_tmp: &Path) -> PathBuf {
+    panic!("unpushable_remote: pre-receive shell hooks are not supported on Windows");
 }
 
 /// A bare remote carrying a `balls/config` landing branch whose `config/balls.toml`
