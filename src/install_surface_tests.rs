@@ -3,6 +3,8 @@
 //! `--bin <name>=<path>`)" — driven end to end on a founded substrate with the
 //! [`super::tests`] fixtures (bl-4c45).
 
+#![cfg(unix)]
+
 use super::tests::{edge, found, g, head, run_install};
 use super::*;
 use std::fs;

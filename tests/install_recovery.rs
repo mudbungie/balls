@@ -8,6 +8,8 @@
 //! so the schedule is always editable in-band. These tests hold that property
 //! with the real binaries, not by luck.
 
+#![cfg(unix)]
+
 use assert_cmd::Command;
 use predicates::str::contains;
 use std::fs;
