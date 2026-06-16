@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3](https://github.com/mudbungie/balls/compare/v0.5.2...v0.5.3) - 2026-06-16
+
+### Changes
+
+- move inline mod tests to sidecars (message, verb) [bl-ac2c]
+- move inline mod tests to _tests.rs sidecars (layout, encoding, id) [bl-19c4]
+- Decompose config cluster: conf.rs (246) + config.rs (243) [bl-11ae]
+- Decompose install.rs (269) → lift copy-engine to install_copy.rs [bl-793d]
+- Decompose change.rs (276) → lift Create to change_create.rs [bl-2ed5]
+- Decompose mutate cluster: mutate.rs (276) + mutate_build.rs (262) [bl-3ff1]
+- Decompose reads.rs (284) → lift Catalog/Entry to reads/catalog.rs [bl-c5ae]
+- Decompose plugin.rs (291) → lift protocol + relay to siblings [bl-7989]
+- Decompose delivery_repo.rs (296) → lift impl Repo to delivery_repo_acts.rs [bl-43df]
+- Decompose lifecycle.rs (298) → lift contract types to lifecycle_contract.rs [bl-40c6]
+- Plugin stdin EPIPE masks the plugin's exit status: a plugin that exits before draining stdin is reported as 'Broken pipe' not its nonzero exit [bl-0100]
+- Tier 1 — collapse drift to single-source (dedup) [bl-256b]
+- Tier 0 — delete dead code: delivered_in, on_word, Protocol::handles [bl-deac]
+- Flaky create test: new_id trusts unsorted readdir, returns wrong ball when known set is incomplete [bl-8c74]
+
 ## [0.5.2](https://github.com/mudbungie/balls/compare/v0.5.1...v0.5.2) - 2026-06-16
 
 ### Changes
