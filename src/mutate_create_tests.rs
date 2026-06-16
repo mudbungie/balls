@@ -23,7 +23,7 @@ fn create_authors_a_ball_with_its_front_door_structure() {
     let (base, before) = base_change(Verb::Create, dir, &f, 42).unwrap();
     assert!(before.is_none()); // create has no op-start ball
     base.stage(dir).unwrap();
-    let id = new_id(dir, &["bl-1000"]);
+    let id = new_id(dir, &["bl-1000", "bl-9"]); // both pre-existing balls (bl-8c74)
     let t = read_task(dir, &id).unwrap();
     assert_eq!(t.title, "New thing");
     assert_eq!(t.created, 42);
