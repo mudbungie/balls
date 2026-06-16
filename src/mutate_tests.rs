@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::task::{Blocker, On};
-use crate::taskfile::write_task;
+use crate::taskfile::{read_task, task_ids, write_task};
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
@@ -23,7 +23,7 @@ fn flags() -> Flags {
 /// which never no-op. Shadows the real fn so the per-verb tests stay
 /// signature-stable; the `--edit` interaction is exercised in
 /// [`crate::mutate::edit`]'s own tests.
-fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<Authored> {
+fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<super::author::Authored> {
     super::base_change(verb, store, flags, now, &mut edit::Editor::detached())
         .map(|authored| authored.expect("flag-driven authoring never no-ops"))
 }

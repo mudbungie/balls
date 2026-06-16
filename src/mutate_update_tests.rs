@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::reads::test_support::{git_store, task};
+use crate::taskfile::read_task;
 
 #[test]
 fn update_builds_extras_priority_and_tags() {
