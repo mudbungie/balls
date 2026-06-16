@@ -18,9 +18,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::delivery::Repo;
-use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection};
-use crate::delivery_standing::Standing;
 use crate::task::Task;
 
 /// The production [`Repo`]: git against one project-repo root.
@@ -68,7 +65,7 @@ impl Project {
     }
 
     /// Does local branch `branch` exist?
-    fn branch_exists(&self, branch: &str) -> io::Result<bool> {
+    pub(crate) fn branch_exists(&self, branch: &str) -> io::Result<bool> {
         Self::ok(&self.root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
     }
 
@@ -81,7 +78,7 @@ impl Project {
     /// ([`crate::delivery_fold::ensure_no_merge_in_progress`]) — over a
     /// half-merge, this `add -A` + commit would CONCLUDE the merge with a
     /// silent work-side resolution (bl-a04a).
-    fn capture(path: &Path, subject: &str) -> io::Result<()> {
+    pub(crate) fn capture(path: &Path, subject: &str) -> io::Result<()> {
         Self::run(path, &["add", "-A"])?;
         if Self::ok(path, &["diff", "--cached", "--quiet"])? {
             return Ok(()); // nothing staged — the worktree is clean
@@ -97,7 +94,7 @@ impl Project {
     /// rename/delete included) aborts. Already-up-to-date is a commitless
     /// no-op; a conflict aborts the half-merge (the worktree stays clean for
     /// the agent to merge by hand) and surfaces as the delivery-conflict error.
-    fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
+    pub(crate) fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
         if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", integration]) {
             let _ = Self::run(path, &["merge", "--abort"]); // best-effort: a never-started merge has nothing to abort
             return Err(io::Error::other(format!("delivery conflict merging {integration} into the work branch: {e}")));
@@ -115,7 +112,7 @@ impl Project {
     /// close BEFORE the seal, so the task stays claimed and the worktree stays
     /// up for the fix. The hook's stdout joins stderr — diagnostics, never the
     /// product channel (§6).
-    fn gate(path: &Path) -> io::Result<()> {
+    pub(crate) fn gate(path: &Path) -> io::Result<()> {
         let printed = Self::run(path, &["rev-parse", "--git-path", "hooks/pre-commit"])?;
         let hook = path.join(printed.trim());
         let Ok(meta) = fs::metadata(&hook) else {
@@ -149,105 +146,6 @@ impl Project {
     }
 }
 
-impl Repo for Project {
-    fn materialize(&self, path: &Path, branch: &str) -> io::Result<()> {
-        if path.exists() {
-            return Ok(()); // create-if-absent: already materialized
-        }
-        // A deleted dir is the ordinary form of "absent" (crashes, tmp
-        // cleaners, humans), and git may still hold its registration — a bare
-        // `worktree add` then aborts as "missing but already registered"
-        // (bl-b404). Prune clears exactly those stale registrations and
-        // nothing else, so an unregistered absence stays a no-op.
-        Self::run(&self.root, &["worktree", "prune"])?;
-        let dst = path.to_string_lossy();
-        if self.branch_exists(branch)? {
-            Self::run(&self.root, &["worktree", "add", &dst, branch])?;
-        } else {
-            Self::run(&self.root, &["worktree", "add", &dst, "-b", branch])?;
-        }
-        Ok(())
-    }
-
-    fn release(&self, path: &Path) -> io::Result<()> {
-        if !path.exists() {
-            return Ok(()); // remove-if-present
-        }
-        Self::run(&self.root, &["worktree", "remove", "--force", &path.to_string_lossy()])?;
-        Ok(())
-    }
-
-    fn discard(&self, path: &Path, branch: &str) -> io::Result<()> {
-        self.release(path)?;
-        if self.branch_exists(branch)? {
-            Self::run(&self.root, &["branch", "-D", branch])?;
-        }
-        Ok(())
-    }
-
-    fn integration(&self) -> io::Result<String> {
-        Ok(Self::run(&self.root, &["symbolic-ref", "--short", "HEAD"])?.trim().to_string())
-    }
-
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
-        if path.exists() {
-            ensure_no_merge_in_progress(path)?;
-            Self::capture(path, subject)?;
-        }
-        if !self.branch_exists(branch)? {
-            return Ok(()); // branch never made — nothing to deliver
-        }
-        match self.standing(branch, integration, marker)? {
-            // SETTLED (fully merged, or this incarnation's delivery survived an
-            // aborted close and CONTAINS the branch — the bl-430e retry, and the
-            // forge squash-merge): converge by skipping the squash.
-            Standing::Settled => {
-                // A delivery for this branch already stands (retry / forge
-                // squash-merge / a crash between the ref-flip and the sync) —
-                // the owning checkout may still carry the bl-22dd phantom; heal
-                // it. Idempotent: an already-synced checkout fails the gate.
-                self.reconcile(integration)?;
-                return Ok(());
-            }
-            // A delivery stands since the fork but the branch carries content
-            // beyond it — the bl-65e0 handoff onto a delivered-but-unsealed
-            // close. A silent skip would strand that work; abort loudly.
-            Standing::Diverged => {
-                return Err(io::Error::other(format!(
-                    "already delivered: a {marker} delivery commit is on {integration} since {branch} \
-                     forked, but {branch} carries undelivered changes beyond it — \
-                     file a new task or deliver manually"
-                )))
-            }
-            Standing::Undelivered => {}
-        }
-        // Reintegration and the gate both act in the worktree; a close on a box
-        // that never materialized it recreates it (create-if-absent).
-        self.materialize(path, branch)?;
-        Self::reintegrate(path, integration)?;
-        if Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
-            return Ok(()); // no tree change — empty, or reintegration dissolved the diff
-        }
-        Self::gate(path)?;
-        ensure_no_resurrection(&self.root, branch, integration)?;
-        // After reintegration the branch tree IS the merged tree — the squash
-        // is pure plumbing on it, never touching integration's checkout.
-        let tree = format!("{branch}^{{tree}}");
-        let tree = Self::run(&self.root, &["rev-parse", &tree])?.trim().to_string();
-        let parent = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
-        let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &parent, "-m", subject])?
-            .trim()
-            .to_string();
-        // `-m subject`: a plumbing `update-ref` writes a BLANK reflog message;
-        // pass the delivery subject so `git reflog {integration}` is auditable
-        // (carries the `[bl-id]` tag). The ref move is the BINDING commit point
-        // (§14); the checkout sync that follows is its idempotent reconcile.
-        Self::run(&self.root, &["update-ref", "-m", subject, &format!("refs/heads/{integration}"), &commit])?;
-        self.reconcile(integration)?;
-        Ok(())
-    }
-}
-
 /// The ids of every `tasks/<id>.md` in the checkout still
 /// claimed by `actor` — the set `prime.post` re-materializes a worktree for
 /// (§11/§12). The claimed set is not on the diffless prime wire, so the plugin
@@ -276,6 +174,12 @@ pub fn changed_task_paths(cwd: &Path) -> io::Result<Vec<String>> {
     let out = Project::run(cwd, &["diff", "--name-only", "HEAD", "--", "tasks"])?;
     Ok(out.lines().map(str::to_string).collect())
 }
+
+// The [`crate::delivery::Repo`] trait impl (worktree lifecycle + squash
+// delivery) lives in a sibling; an `impl` block registers on [`Project`]
+// regardless of module, so no re-export is needed.
+#[path = "delivery_repo_acts.rs"]
+mod acts;
 
 #[cfg(test)]
 #[path = "delivery_repo_tests.rs"]
