@@ -2,6 +2,7 @@
 //! idempotent re-run, and the direct squash.
 
 use super::*;
+use crate::delivery::Repo;
 use std::fs;
 use tempfile::TempDir;
 
