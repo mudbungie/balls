@@ -203,9 +203,9 @@ fn the_badge_is_a_coloured_glyph_in_rich_mode() {
 
 #[test]
 fn the_status_words_are_stable_tokens() {
-    assert_eq!(status_word(Status::Ready), "ready");
-    assert_eq!(status_word(Status::Claimed), "claimed");
-    assert_eq!(status_word(Status::Blocked), "blocked");
+    assert_eq!(Status::Ready.word(), "ready");
+    assert_eq!(Status::Claimed.word(), "claimed");
+    assert_eq!(Status::Blocked.word(), "blocked");
 }
 
 #[test]

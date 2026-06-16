@@ -41,7 +41,7 @@ mod show;
 
 pub(crate) use flags::parse;
 pub(crate) use history::resolve_dead;
-pub(crate) use record::{json_line, status_word, task_json};
+pub(crate) use record::{json_line, task_json};
 
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -252,7 +252,7 @@ impl Style {
     /// lowercase word in plain mode (`--plain`/`NO_COLOR`/non-tty).
     pub(crate) fn badge(&self, s: Status) -> String {
         if self.plain {
-            return format!("{:<8}", status_word(s));
+            return format!("{:<8}", s.word());
         }
         let (glyph, colour) = match s {
             Status::Ready => ('\u{25cf}', 32),   // ● green
