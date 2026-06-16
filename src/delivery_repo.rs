@@ -35,16 +35,20 @@ impl Project {
         Self { root: root.to_path_buf() }
     }
 
+    /// `git -C <cwd> <args>` as an unspawned [`Command`] — the one place the
+    /// binary name and the `-C` cwd flag are spelled. Callers set only their own
+    /// stdio + exit policy ([`Self::run`] captures, [`Self::ok`] discards,
+    /// `standing` pipes for stdout).
+    pub(crate) fn git(cwd: &Path, args: &[&str]) -> Command {
+        let mut cmd = Command::new("git");
+        cmd.arg("-C").arg(cwd).args(args);
+        cmd
+    }
+
     /// Run `git -C <cwd> <args>`, returning stdout; a non-zero exit becomes an
     /// [`io::Error`] carrying git's stderr (the one failure funnel).
     pub(crate) fn run(cwd: &Path, args: &[&str]) -> io::Result<String> {
-        let out = Command::new("git")
-            .arg("-C")
-            .arg(cwd)
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()?;
+        let out = Self::git(cwd, args).stdout(Stdio::piped()).stderr(Stdio::piped()).output()?;
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).into_owned())
         } else {
@@ -60,14 +64,7 @@ impl Project {
     /// ref exist? do two trees differ?). `Ok(true)` on exit 0, `Ok(false)` on
     /// any non-zero; only a spawn failure is an error.
     pub(crate) fn ok(cwd: &Path, args: &[&str]) -> io::Result<bool> {
-        Ok(Command::new("git")
-            .arg("-C")
-            .arg(cwd)
-            .args(args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?
-            .success())
+        Ok(Self::git(cwd, args).stdout(Stdio::null()).stderr(Stdio::null()).status()?.success())
     }
 
     /// Does local branch `branch` exist?

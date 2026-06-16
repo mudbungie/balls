@@ -5,16 +5,7 @@
 
 use serde_json::{json, Value};
 
-use crate::task::{Status, Task};
-
-/// The §3 status word — the stable token shared by plain output and `--json`.
-pub(crate) fn status_word(s: Status) -> &'static str {
-    match s {
-        Status::Ready => "ready",
-        Status::Claimed => "claimed",
-        Status::Blocked => "blocked",
-    }
-}
+use crate::task::Task;
 
 /// One ball as the **bedrock** JSON record — the single shape every read verb's
 /// `--json` emits (§9). It is the lossless mirror of the stored `tasks/<id>.md`

@@ -73,6 +73,28 @@ pub enum Status {
     Ready,
 }
 
+impl Status {
+    /// The three live rungs, ladder order — the §3 single source `word`/`from_word`
+    /// both read (the `Verb::ALL` shape, so the token table has one home).
+    pub const ALL: [Status; 3] = [Status::Claimed, Status::Blocked, Status::Ready];
+
+    /// The §3 status token — the stable word shared by plain output and `--json`.
+    pub fn word(self) -> &'static str {
+        match self {
+            Status::Claimed => "claimed",
+            Status::Blocked => "blocked",
+            Status::Ready => "ready",
+        }
+    }
+
+    /// Parse a status word back to its rung, DERIVED from [`Status::word`] so the
+    /// `--status` filter token can never drift from the rendered badge. `None`
+    /// for an unknown word (and for `closed` — no live rung, the file is gone).
+    pub fn from_word(word: &str) -> Option<Status> {
+        Status::ALL.into_iter().find(|s| s.word() == word)
+    }
+}
+
 /// Why a `tasks/<id>.md` file could not be parsed.
 #[derive(Debug)]
 pub enum ParseError {
