@@ -13,7 +13,7 @@ use std::io;
 use std::path::Path;
 
 use super::history::{resolve_dead, Dead};
-use super::{json_line, on_word, status_word, task_json, Catalog, Entry, Flags, Style};
+use super::{json_line, status_word, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 use crate::task::Task;
 
@@ -130,7 +130,7 @@ fn blockers(out: &mut String, task: &Task) {
     }
     out.push_str("  blockers\n");
     for b in &task.blockers {
-        let _ = writeln!(out, "    {} (on {})", b.id, on_word(b.on));
+        let _ = writeln!(out, "    {} (on {})", b.id, b.on.token());
     }
 }
 

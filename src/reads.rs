@@ -41,7 +41,7 @@ mod show;
 
 pub(crate) use flags::parse;
 pub(crate) use history::resolve_dead;
-pub(crate) use record::{json_line, on_word, status_word, task_json};
+pub(crate) use record::{json_line, status_word, task_json};
 
 #[cfg(test)]
 pub(crate) mod test_support;

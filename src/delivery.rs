@@ -187,15 +187,15 @@ pub fn work_branch(id: &str) -> String {
 }
 
 /// The delivery commit subject: `<title> [<id>]`. The `[<id>]` tag is delivery
-/// ground truth — the `delivered_in` query (§11) tag-scans the integration
-/// branch for it, and deliver's retry standing detects a landed squash by it.
+/// ground truth — the `marked` tag-scan (§11) reads the integration branch for
+/// it, and deliver's retry standing detects a landed squash by it.
 #[must_use]
 pub fn subject(title: &str, id: &str) -> String {
     format!("{title} [{id}]")
 }
 
 /// `[<id>]` — the delivery tag the squash subject carries and the retry
-/// standing / `delivered_in` tag-scans grep for.
+/// standing / `marked` tag-scan greps for.
 #[must_use]
 pub fn marker(id: &str) -> String {
     format!("[{id}]")

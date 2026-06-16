@@ -184,7 +184,7 @@ fn deliver_skips_when_this_incarnations_delivery_already_landed() {
     Project::run(&root, &["commit", "-qm", "concurrent work"]).unwrap();
 
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
-    assert_eq!(p.delivered_in("main", "[bl-x]").unwrap().len(), 1); // one delivery, no dup
+    assert_eq!(p.marked("main", "[bl-x]").unwrap().len(), 1); // one delivery, no dup
     assert_eq!(tip(&root), "concurrent work"); // the retry minted nothing
 }
 
@@ -206,12 +206,12 @@ fn deliver_skips_a_branch_already_fully_merged_into_integration() {
     Project::run(&root, &["commit", "-qm", "concurrent work"]).unwrap();
 
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
-    assert_eq!(p.delivered_in("main", "[bl-x]").unwrap().len(), 1);
+    assert_eq!(p.marked("main", "[bl-x]").unwrap().len(), 1);
     assert_eq!(tip(&root), "concurrent work");
 }
 
 #[test]
-fn delivered_in_returns_the_marked_commits_newest_first() {
+fn marked_returns_the_marked_commits_newest_first() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
 
@@ -230,12 +230,12 @@ fn delivered_in_returns_the_marked_commits_newest_first() {
     fs::write(wt.join("b.txt"), "2\n").unwrap();
     p.deliver(&wt, "work/bl-x", "main", "second [bl-x]", "[bl-x]").unwrap();
 
-    let shas = p.delivered_in("main", "[bl-x]").unwrap();
+    let shas = p.marked("main", "[bl-x]").unwrap();
     let subject = |sha: &str| Project::run(&root, &["log", "-1", "--format=%s", sha]).unwrap().trim().to_string();
     // Newest first: the k-th-most-recent incarnation maps to the k-th element.
     assert_eq!(shas.iter().map(|s| subject(s)).collect::<Vec<_>>(), ["second [bl-x]", "first [bl-x]"]);
     // A never-delivered id → empty (an honest cross-clone miss, §11).
-    assert!(p.delivered_in("main", "[bl-zzzz]").unwrap().is_empty());
+    assert!(p.marked("main", "[bl-zzzz]").unwrap().is_empty());
 }
 
 #[test]
