@@ -135,23 +135,16 @@ impl Project {
         }
     }
 
-    /// `delivered_in` (§11): the delivery commits carrying `marker` (`[<id>]`) on
-    /// `integration`, NEWEST FIRST — the derived "where was `<id>` delivered?"
-    /// query, no stored field. Recency order resolves the id-reuse ambiguity
-    /// bl-d7a5 deferred: a reused id only begins after the prior incarnation
-    /// CLOSED, so deliveries are monotonic with incarnations and the
-    /// k-th-most-recent incarnation maps to the k-th element here — the same
-    /// live-first-else-most-recent walk §9 applies to the ball file. The
-    /// `--grep` is `--fixed-strings` so the `[`/`]` are matched literally, not as
-    /// a regex. Empty when `<id>` was never delivered. (`git log`'s default order
-    /// IS recency, so this is "do not reverse it", not extra sorting.)
-    pub fn delivered_in(&self, integration: &str, marker: &str) -> io::Result<Vec<String>> {
-        self.marked(integration, marker)
-    }
-
     /// The `marker`-tagged commits reachable from `revs` (a ref or a range),
-    /// newest first — the one tag-scan both [`Project::delivered_in`] and
-    /// the retry standing ([`Project::standing`]) read through.
+    /// NEWEST FIRST — the one tag-scan the retry standing ([`Project::standing`])
+    /// reads through, and the derived "where was `<id>` delivered?" query (§11):
+    /// no stored field. Recency order resolves the id-reuse ambiguity bl-d7a5
+    /// deferred — a reused id only begins after the prior incarnation CLOSED, so
+    /// deliveries are monotonic with incarnations and the k-th-most-recent
+    /// incarnation maps to the k-th element, the same live-first-else-most-recent
+    /// walk §9 applies to the ball file. The `--grep` is `--fixed-strings` so the
+    /// `[`/`]` match literally, not as a regex. Empty when `marker` is absent.
+    /// (`git log`'s default order IS recency, so this is "do not reverse it".)
     pub(crate) fn marked(&self, revs: &str, marker: &str) -> io::Result<Vec<String>> {
         let grep = format!("--grep={marker}");
         let out = Self::run(&self.root, &["log", "--format=%H", "--fixed-strings", &grep, revs])?;
