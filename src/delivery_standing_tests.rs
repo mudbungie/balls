@@ -55,7 +55,7 @@ fn deliver_skips_a_forge_squash_merge_whose_content_landed() {
     Project::run(&root, &["commit", "-qm", "Add feature (#7) [bl-x]"]).unwrap();
 
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
-    assert_eq!(p.delivered_in("main", "[bl-x]").unwrap().len(), 1); // no duplicate squash
+    assert_eq!(p.marked("main", "[bl-x]").unwrap().len(), 1); // no duplicate squash
     assert_eq!(tip(&root), "Add feature (#7) [bl-x]");
 }
 

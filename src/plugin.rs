@@ -90,12 +90,6 @@ struct RawProtocol {
 }
 
 impl Protocol {
-    /// Does this plugin declare that it handles `op`? The install-time check.
-    #[must_use]
-    pub fn handles(&self, op: Verb) -> bool {
-        self.ops.iter().any(|o| o == op.token())
-    }
-
     /// Does this plugin speak protocol `version`? The install-time check.
     #[must_use]
     pub fn speaks(&self, version: u32) -> bool {
