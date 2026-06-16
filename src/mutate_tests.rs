@@ -35,7 +35,9 @@ fn write(dir: &Path, id: &str, md: &str) {
     fs::write(tasks.join(format!("{id}.md")), md).unwrap();
 }
 
-/// The single ball id under `dir/tasks` that is not in `known`.
+/// The single ball id under `dir/tasks` not in `known` (the just-minted one).
+/// `known` MUST list EVERY pre-existing id, else an arbitrary leftover is
+/// returned — a filesystem-order wrong-ball flake (bl-8c74).
 fn new_id(dir: &Path, known: &[&str]) -> String {
     task_ids(dir).unwrap().into_iter().find(|id| !known.contains(&id.as_str())).unwrap()
 }
