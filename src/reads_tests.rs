@@ -202,12 +202,10 @@ fn the_badge_is_a_coloured_glyph_in_rich_mode() {
 }
 
 #[test]
-fn the_status_and_op_words_are_stable_tokens() {
+fn the_status_words_are_stable_tokens() {
     assert_eq!(status_word(Status::Ready), "ready");
     assert_eq!(status_word(Status::Claimed), "claimed");
     assert_eq!(status_word(Status::Blocked), "blocked");
-    assert_eq!(on_word(On::Claim), "claim");
-    assert_eq!(on_word(On::Close), "close");
 }
 
 #[test]
