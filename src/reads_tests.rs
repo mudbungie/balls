@@ -4,7 +4,7 @@
 
 use super::test_support::{blocker, catalog, task};
 use super::*;
-use crate::task::On;
+use crate::task::{On, Task};
 
 /// A claimed ball.
 fn claimed(title: &str, created: i64, by: &str) -> Task {
