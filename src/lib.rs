@@ -102,6 +102,7 @@ pub mod config;
 pub mod delivery;
 pub mod delivery_fold;
 pub mod delivery_prune;
+pub mod delivery_reconcile;
 pub mod delivery_repo;
 pub mod delivery_standing;
 pub mod edge;

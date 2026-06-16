@@ -211,7 +211,14 @@ impl Repo for Project {
             // SETTLED (fully merged, or this incarnation's delivery survived an
             // aborted close and CONTAINS the branch — the bl-430e retry, and the
             // forge squash-merge): converge by skipping the squash.
-            Standing::Settled => return Ok(()),
+            Standing::Settled => {
+                // A delivery for this branch already stands (retry / forge
+                // squash-merge / a crash between the ref-flip and the sync) —
+                // the owning checkout may still carry the bl-22dd phantom; heal
+                // it. Idempotent: an already-synced checkout fails the gate.
+                self.reconcile(integration)?;
+                return Ok(());
+            }
             // A delivery stands since the fork but the branch carries content
             // beyond it — the bl-65e0 handoff onto a delivered-but-unsealed
             // close. A silent skip would strand that work; abort loudly.
@@ -241,7 +248,12 @@ impl Repo for Project {
         let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &parent, "-m", subject])?
             .trim()
             .to_string();
-        Self::run(&self.root, &["update-ref", &format!("refs/heads/{integration}"), &commit])?;
+        // `-m subject`: a plumbing `update-ref` writes a BLANK reflog message;
+        // pass the delivery subject so `git reflog {integration}` is auditable
+        // (carries the `[bl-id]` tag). The ref move is the BINDING commit point
+        // (§14); the checkout sync that follows is its idempotent reconcile.
+        Self::run(&self.root, &["update-ref", "-m", subject, &format!("refs/heads/{integration}"), &commit])?;
+        self.reconcile(integration)?;
         Ok(())
     }
 }
