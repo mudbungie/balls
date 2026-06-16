@@ -19,17 +19,16 @@
 //! not an error — surfacing an un-primed checkout is the tracker's job (§13),
 //! not a read verb's.
 
-use std::collections::HashSet;
 use std::io;
 use std::path::Path;
 
 use crate::config::EffectiveConfig;
 use crate::edge::Edge;
 use crate::log::{self, Level, Log};
-use crate::task::{Status, Task};
-use crate::taskfile;
+use crate::task::Status;
 use crate::verb::Verb;
 
+mod catalog;
 mod filter;
 mod flags;
 mod history;
@@ -38,91 +37,16 @@ mod list;
 mod readop;
 mod record;
 mod show;
+mod style;
 
+pub(crate) use catalog::{Catalog, Entry};
 pub(crate) use flags::parse;
 pub(crate) use history::resolve_dead;
 pub(crate) use record::{json_line, task_json};
+pub(crate) use style::Style;
 
 #[cfg(test)]
 pub(crate) mod test_support;
-
-/// Every live ball on the store, parsed once. The id-set is also the §10
-/// resolver: "resolved" is file-existence (a closed/dropped ball's file is
-/// gone), so a blocker id absent from the catalog is resolved.
-pub(crate) struct Catalog {
-    entries: Vec<Entry>,
-    ids: HashSet<String>,
-    /// Balls whose file exists but no longer parses, with each parse error
-    /// (bl-528c). One bad ball must not blind the whole store: a corrupt file
-    /// is skipped from every listing (warned on stderr at load), but its id
-    /// stays in `ids` — the file EXISTS, so a blocker naming it is unresolved —
-    /// and `show <id>` surfaces the error instead of "no such ball".
-    corrupt: Vec<(String, String)>,
-}
-
-/// One parsed ball: its id (the filename basename, §3) and frontmatter+body.
-pub(crate) struct Entry {
-    pub id: String,
-    pub task: Task,
-}
-
-impl Catalog {
-    /// Load and parse every `tasks/<id>.md` under the store `dir`. An absent
-    /// `tasks/` yields an empty catalog (§13 silent-empty), not an error. A
-    /// file that fails to parse degrades PER-FILE (bl-528c — corruption can
-    /// arrive by hand-edit or merge): it is skipped with a stderr warning
-    /// naming it, never failing the whole read.
-    pub(crate) fn load(dir: &std::path::Path) -> io::Result<Catalog> {
-        let mut ids = taskfile::task_ids(dir)?;
-        ids.sort();
-        let mut pairs = Vec::with_capacity(ids.len());
-        let mut corrupt = Vec::new();
-        for id in ids {
-            match taskfile::read_task(dir, &id) {
-                Ok(task) => pairs.push((id, task)),
-                Err(e) => {
-                    eprintln!("bl: skipping corrupt ball tasks/{id}.md: {e}");
-                    corrupt.push((id, e.to_string()));
-                }
-            }
-        }
-        let mut cat = Catalog::from_pairs(pairs);
-        cat.ids.extend(corrupt.iter().map(|(id, _)| id.clone()));
-        cat.corrupt = corrupt;
-        Ok(cat)
-    }
-
-    /// A catalog over already-parsed `(id, task)` pairs — the store-free
-    /// constructor [`Catalog::load`] reduces to, and the entry point of the §16
-    /// `--legacy` projection (whose balls come from a git ref, not `tasks/`).
-    pub(crate) fn from_pairs(pairs: Vec<(String, Task)>) -> Catalog {
-        let ids = pairs.iter().map(|(id, _)| id.clone()).collect();
-        let entries = pairs.into_iter().map(|(id, task)| Entry { id, task }).collect();
-        Catalog { entries, ids, corrupt: Vec::new() }
-    }
-
-    /// The parse error a corrupt (load-skipped) ball's file carries, by id —
-    /// `None` when `id` is not a corrupt file (bl-528c).
-    pub(crate) fn corruption(&self, id: &str) -> Option<&str> {
-        self.corrupt.iter().find(|(c, _)| c == id).map(|(_, e)| e.as_str())
-    }
-
-    /// Is blocker `id` resolved? True when no live ball carries it (§10 —
-    /// closed/dropped ⇒ file gone ⇒ resolved).
-    pub(crate) fn is_resolved(&self, id: &str) -> bool {
-        !self.ids.contains(id)
-    }
-
-    /// The §3 derived status of `e`, evaluated against this catalog's resolver.
-    pub(crate) fn status(&self, e: &Entry) -> Status {
-        e.task.status(&|id| self.is_resolved(id))
-    }
-
-    /// Find one ball by id.
-    pub(crate) fn get(&self, id: &str) -> Option<&Entry> {
-        self.entries.iter().find(|e| e.id == id)
-    }
-}
 
 /// Parsed read-verb flags: the two output toggles shared by every read, plus
 /// `list`'s optional §3 status filter and the compose-AND history filters (§9).
@@ -239,39 +163,6 @@ fn render(edge: &Edge, verb: Verb, flags: &Flags, store: &Path, cfg: &EffectiveC
             Ok(list::render_list(&cat, &dead, flags, &style) + &fold(None))
         }
         other => Err(io::Error::other(format!("{}: not a read verb", other.token()))),
-    }
-}
-
-/// The human-output style: glyphs + ANSI colour, or stable glyph-free ASCII.
-pub(crate) struct Style {
-    pub plain: bool,
-}
-
-impl Style {
-    /// The status badge for a line: a coloured glyph in rich mode, a padded
-    /// lowercase word in plain mode (`--plain`/`NO_COLOR`/non-tty).
-    pub(crate) fn badge(&self, s: Status) -> String {
-        if self.plain {
-            return format!("{:<8}", s.word());
-        }
-        let (glyph, colour) = match s {
-            Status::Ready => ('\u{25cf}', 32),   // ● green
-            Status::Claimed => ('\u{25d1}', 36), // ◑ cyan
-            Status::Blocked => ('\u{2298}', 33), // ⊘ yellow
-        };
-        format!("\u{1b}[{colour}m{glyph}\u{1b}[0m")
-    }
-
-    /// The badge for a dead (history-served) ball: a dim `✓` glyph in rich mode,
-    /// the padded `closed` word in plain mode — the dead counterpart of
-    /// [`Self::badge`] (§9). Every retirement reads as **closed** — including a
-    /// legacy `drop` deletion (the verb is gone, its history is not); the
-    /// `bl-op:` trailer survives only as git bedrock (§5), never as a status word.
-    pub(crate) fn retired_badge(&self) -> String {
-        if self.plain {
-            return format!("{:<8}", "closed");
-        }
-        "\u{1b}[90m\u{2713}\u{1b}[0m".to_string() // ✓ dim grey — retired, not live
     }
 }
 
