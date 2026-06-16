@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::message::parse;
-use crate::task::On;
+use crate::task::{Blocker, On, Task};
 use tempfile::tempdir;
 
 const TASK: &str = "+++\ntitle = \"A task\"\ncreated = 0\nupdated = 0\n+++\nbody\n";
