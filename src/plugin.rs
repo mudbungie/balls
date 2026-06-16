@@ -221,7 +221,7 @@ impl<'a> Subprocess<'a> {
                 .stderr(Stdio::piped())
                 .spawn()
         })?;
-        child.stdin.take().expect("stdin was configured as a pipe").write_all(payload.as_bytes())?;
+        feed(child.stdin.take().expect("stdin was configured as a pipe"), payload)?;
         self.relay(name, phase, child.stderr.take().expect("stderr was configured as a pipe"));
         child.wait()
     }
@@ -235,6 +235,17 @@ impl<'a> Subprocess<'a> {
         capped_lines(BufReader::new(stderr), RELAY_LINE_MAX, |line| {
             self.log.record(Level::Info, name, Some(phase), line);
         });
+    }
+}
+
+/// Deliver `payload` to a plugin's stdin (consuming the pipe → EOF). A plugin may
+/// reject the op by exiting BEFORE it drains stdin (§7: the exit STATUS, not delivery,
+/// is authoritative), closing the pipe — swallow that one `BrokenPipe` so `child.wait`
+/// reports the plugin's real nonzero exit, not a masking "broken pipe" (bl-0100); any other write error propagates.
+fn feed(mut stdin: impl Write, payload: &str) -> io::Result<()> {
+    match stdin.write_all(payload.as_bytes()) {
+        Err(e) if e.kind() != io::ErrorKind::BrokenPipe => Err(e),
+        _ => Ok(()),
     }
 }
 
@@ -283,3 +294,6 @@ impl Plugins for Subprocess<'_> {
 #[cfg(test)]
 #[path = "plugin_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "plugin_feed_tests.rs"]
+mod feed_tests;
