@@ -74,23 +74,17 @@ fn date(value: &str) -> io::Result<i64> {
 }
 
 /// Apply a `--status`/`-s` rung onto the flags. The three live rungs
-/// (`ready|blocked|claimed`) narrow the live ladder via [`Flags::status`] — the
-/// inverse of [`super::status_word`], so the token matches the rendered badge.
-/// The terminal rung `closed` has no live badge (the file is gone, §2), so it
-/// instead INFERS the dead-set reach (§9), folding the retired `--closed` flag
-/// into this one status axis.
+/// (`ready|blocked|claimed`) narrow the live ladder via [`Flags::status`],
+/// parsed by [`Status::from_word`] — derived from the rendered badge, so the
+/// filter token can't drift from it. The terminal rung `closed` has no live
+/// badge (the file is gone, §2), so it instead INFERS the dead-set reach (§9),
+/// folding the retired `--closed` flag into this one status axis.
 fn apply_status(f: &mut Flags, value: &str) -> io::Result<()> {
-    let rung = match value {
-        "ready" => Status::Ready,
-        "blocked" => Status::Blocked,
-        "claimed" => Status::Claimed,
-        "closed" => return set_reach(f, Reach::Dead),
-        other => {
-            return Err(io::Error::other(format!(
-                "list: unknown --status '{other}' (want ready|blocked|claimed|closed)"
-            )))
-        }
-    };
-    f.status = Some(rung);
+    if value == "closed" {
+        return set_reach(f, Reach::Dead);
+    }
+    f.status = Some(Status::from_word(value).ok_or_else(|| {
+        io::Error::other(format!("list: unknown --status '{value}' (want ready|blocked|claimed|closed)"))
+    })?);
     Ok(())
 }

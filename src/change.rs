@@ -103,8 +103,7 @@ impl BaseChange for Create {
         if !id::is_valid(&id) {
             return Err(invalid(format!("create: invalid task id '{id}'")));
         }
-        let title = read_task(dir, &id)?.title;
-        commit_message(Verb::Create, &self.actor, &id, &title, self.message.as_deref())
+        finalize_titled(dir, Verb::Create, &self.actor, &id, self.message.as_deref())
     }
 }
 
@@ -172,8 +171,7 @@ impl BaseChange for Occupancy {
     }
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {
-        let title = read_task(dir, &self.id)?.title;
-        commit_message(self.verb, &self.actor, &self.id, &title, self.message.as_deref())
+        finalize_titled(dir, self.verb, &self.actor, &self.id, self.message.as_deref())
     }
 }
 
@@ -204,8 +202,7 @@ impl BaseChange for Update {
     }
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {
-        let title = read_task(dir, &self.id)?.title;
-        commit_message(Verb::Update, &self.actor, &self.id, &title, self.message.as_deref())
+        finalize_titled(dir, Verb::Update, &self.actor, &self.id, self.message.as_deref())
     }
 
     /// `update` is the one base that can stage a byte-identical tree (zero
@@ -254,6 +251,15 @@ impl BaseChange for Retire {
     fn finalize(&self, _dir: &Path) -> io::Result<String> {
         commit_message(Verb::Close, &self.actor, &self.id, &self.title, self.message.as_deref())
     }
+}
+
+/// The shared `finalize` body for the three verbs whose file survives the op
+/// (create/claim/unclaim/update): RE-READ the post-`pre` title from `id` and
+/// render its §5 message. `close` ([`Retire`]) can't use it — the file is gone,
+/// so its title was captured at construction.
+fn finalize_titled(dir: &Path, verb: Verb, actor: &str, id: &str, message: Option<&str>) -> io::Result<String> {
+    let title = read_task(dir, id)?.title;
+    commit_message(verb, actor, id, &title, message)
 }
 
 /// Build and render the §5 message: the subject is ALWAYS the ball `title` (the
