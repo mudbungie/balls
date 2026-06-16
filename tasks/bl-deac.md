@@ -1,7 +1,8 @@
 +++
 title = "Tier 0 — delete dead code: delivered_in, on_word, Protocol::handles"
 created = 1781588977
-updated = 1781588977
+updated = 1781589030
+claimant = "Sicknesses"
 parent = "bl-fac7"
 +++
 Pure subtraction, 0 prod callers each (verified by grep):
