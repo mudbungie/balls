@@ -4,6 +4,7 @@
 //! any other write fault propagates (bl-0100).
 
 use super::*;
+use std::io::Write;
 
 /// A `Write` that fails every write with a fixed error kind — stands in for a
 /// plugin's stdin pipe in each delivery outcome without spawning a process.
