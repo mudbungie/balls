@@ -22,7 +22,7 @@ pub(super) fn forbid_foreign_blocks(flags: &Flags, verb: Verb) -> io::Result<()>
     }
     if flags.subtask_of.is_some() {
         return Err(other(format!(
-            "{}: --subtask-of carries a reciprocal close-gate, so it is create-only; set --parent and gate with a fresh gate task",
+            "{}: --subtask-of carries a reciprocal claim-gate, so it is create-only; set --parent and gate with a fresh gate task",
             verb.token()
         )));
     }
