@@ -13,6 +13,12 @@ use std::fmt::Write;
 
 use crate::verb::Verb;
 
+// The per-command help TEXT (usage + flags + examples) lives in a sibling so
+// this file stays the renderer; `command` below is the only reader.
+#[path = "help_command.rs"]
+mod command_data;
+use command_data::command_help;
+
 /// The help OUTPUTS that are not verbs (dispatched directly in [`crate::run`]),
 /// listed in the directory alongside the real commands.
 const META: [(&str, &str); 2] = [
@@ -41,6 +47,28 @@ pub fn directory() -> String {
         let _ = writeln!(out, "  {token:<width$}{summary}");
     }
     out.push_str("\nCommon flags: --json (machine-readable output), --as ID (worker identity).\n");
+    out.push_str("Per-command help (its own flags + examples): bl <command> --help.\n");
+    out
+}
+
+/// Render ONE command's help — the header (its [`Verb::token`] + [`Verb::summary`],
+/// the same single source the directory draws on), its `usage:` line, its own
+/// flags column-aligned, and a worked example or two. Printed to stdout by `bl
+/// <cmd> --help` / `bl help <cmd>`, and to stderr by [`crate::run`] after a usage
+/// error so a mis-invocation surfaces the very flags it was missing. Every verb
+/// carries at least one flag and one example, so the sections never render empty.
+pub fn command(verb: Verb) -> String {
+    let h = command_help(verb);
+    let mut out = format!("bl {} — {}\n\nusage: {}\n\nFlags:\n", verb.token(), verb.summary(), h.usage);
+    let width = h.flags.iter().map(|(flag, _)| flag.len()).fold(0, usize::max) + 2;
+    for (flag, gloss) in h.flags {
+        let _ = writeln!(out, "  {flag:<width$}{gloss}");
+    }
+    out.push_str("\nExamples:\n");
+    for example in h.examples {
+        let _ = writeln!(out, "  {example}");
+    }
+    out.push_str("\nSee `bl skill` for the full guide; `bl help` for every command.\n");
     out
 }
 
@@ -66,5 +94,19 @@ mod tests {
             assert!(dir.contains(summary), "{token}'s summary missing");
         }
         assert!(dir.starts_with("bl —"), "leads with the one-line header");
+    }
+
+    #[test]
+    fn every_command_has_full_help() {
+        // `bl <cmd> --help`: each verb's help names itself, prints a usage line,
+        // and lists its own flags + an example — the discoverability bl-7990 added.
+        for v in Verb::ALL {
+            let help = command(v);
+            assert!(help.starts_with(&format!("bl {} — {}", v.token(), v.summary())), "{} header", v.token());
+            assert!(help.contains("\nusage: bl "), "{} usage line", v.token());
+            assert!(help.contains("\nFlags:\n  "), "{} flags", v.token());
+            assert!(help.contains("\nExamples:\n  "), "{} examples", v.token());
+            assert!(help.contains("bl skill"), "{} points at the full guide", v.token());
+        }
     }
 }

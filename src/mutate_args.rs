@@ -7,7 +7,7 @@
 
 use std::io;
 
-use super::other;
+use crate::usage;
 
 /// The parsed front-door flags + positionals, verb-agnostic. The per-verb
 /// `base_change` validates which it accepts. `message` is the `-m` §5 commit
@@ -108,7 +108,7 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "--no-needs" => f.no_needs.push(value(args, &mut i, "--no-needs")?),
             "-p" | "--priority" => {
                 let v = value(args, &mut i, "-p")?;
-                f.priority = Some(v.parse().map_err(|_| other(format!("-p: '{v}' is not an integer")))?);
+                f.priority = Some(v.parse().map_err(|_| usage(format!("-p: '{v}' is not an integer")))?);
             }
             "--no-priority" => f.no_priority = true,
             "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
@@ -118,7 +118,7 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             flag @ ("--remote" | "--center") => {
                 crate::checkout::apply_remote(&mut f.remote, flag, value(args, &mut i, flag)?);
             }
-            flag if flag.starts_with('-') => return Err(other(format!("unexpected flag '{flag}'"))),
+            flag if flag.starts_with('-') => return Err(usage(format!("unexpected flag '{flag}'"))),
             _ => f.positionals.push(args[i].clone()),
         }
         i += 1;
@@ -129,5 +129,5 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
 /// The value following a `--flag`, advancing the cursor; a missing value errors.
 fn value(args: &[String], i: &mut usize, flag: &str) -> io::Result<String> {
     *i += 1;
-    args.get(*i).cloned().ok_or_else(|| other(format!("{flag} needs a value")))
+    args.get(*i).cloned().ok_or_else(|| usage(format!("{flag} needs a value")))
 }

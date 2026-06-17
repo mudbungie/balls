@@ -75,14 +75,14 @@ pub(super) fn base_change(
             guards::forbid_foreign_blocks(flags, verb)?;
             guards::forbid_contradictions(flags)?;
             let mut positionals = flags.positionals.iter();
-            let id = positionals.next().ok_or_else(|| other("update: needs a task id"))?.clone();
+            let id = positionals.next().ok_or_else(|| crate::usage("update: needs a task id"))?.clone();
             let before = read_task(store, &id)?;
             let edits = if flags.edit {
                 // `--edit`: the buffer IS the payload — field flags and key=value
                 // extras would race over it, so they are mutually exclusive (§9).
                 guards::forbid_fields_with_edit(flags)?;
                 if positionals.next().is_some() {
-                    return Err(other("update: --edit and key=value extras are mutually exclusive — the buffer is the payload"));
+                    return Err(crate::usage("update: --edit and key=value extras are mutually exclusive — the buffer is the payload"));
                 }
                 let Some(after) = editor.edited(&before, &id)? else { return Ok(None) };
                 vec![FieldEdit::Replace(Box::new(after))]
@@ -129,6 +129,6 @@ pub(super) fn command(verb: Verb, flags: &Flags) -> Command {
 fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
     match flags.positionals.as_slice() {
         [only] => Ok(only.clone()),
-        _ => Err(other(format!("{verb}: expects exactly one positional argument"))),
+        _ => Err(crate::usage(format!("{verb}: expects exactly one positional argument"))),
     }
 }
