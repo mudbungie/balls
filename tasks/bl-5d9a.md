@@ -1,7 +1,8 @@
 +++
 title = "subtask-of default gates claim, not close (epics drop out of ready)"
 created = 1781727735
-updated = 1781727735
+updated = 1781732603
+claimant = "Methadon"
 +++
 PROBLEM
 Agents file an epic with subtasks but the epic surfaces as `ready` and gets
