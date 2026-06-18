@@ -1889,7 +1889,9 @@ RESOLVED (folded into the body, no longer open):
   `src/mutate.rs` (`seal_op` — one shared road to the anvil), `scripts/migrate-legacy.py`/
   `tests/migrate.rs` (deleted). Tracked under bl-72a8.
 - **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
-  post-freeze).** §10's explicit-edge model (bl-7d46(6)) is correct — containment never mints a
+  post-freeze; the `on` op SUPERSEDED by bl-5d9a — subtask-of now gates `claim`, not `close`, so the
+  `≡ --parent E --blocks close` below is the original 2026-06-09 wiring, not current).** §10's
+  explicit-edge model (bl-7d46(6)) is correct — containment never mints a
   blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
   a forgotten `--blocks close` left an epic closeable over open children with no signal, and the fix
   had degenerated into a standing skill-doc advisory (the §0 overhead the tool exists to remove).
