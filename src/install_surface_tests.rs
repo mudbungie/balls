@@ -74,7 +74,7 @@ fn the_default_from_fetch_rides_the_install_pre_chain() {
     let tmp = TempDir::new().unwrap();
     let all_ops = r#"["sync","prime","install","claim","unclaim","close","create","update","import"]"#;
     let fetcher = "if [ \"$1\" = install ] && [ \"$2\" = pre ]; then git fetch -q . side; fi";
-    fake_plugin(&tmp.path().join("bin"), "tracker", all_ops, fetcher);
+    fake_plugin(&tmp.path().join("bin"), "bl-tracker", all_ops, fetcher);
     let e = edge(&tmp, Some(tmp.path().join("bin")));
     let (landing, _store) = found(&e);
     side_with(&tmp, &landing, "config/balls.toml", "tasks_branch = \"balls/elsewhere\"\n");

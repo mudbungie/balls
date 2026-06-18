@@ -35,6 +35,7 @@ use crate::log::{Level, Log};
 use crate::message::{self, PROTOCOL};
 use crate::op::Phase;
 use crate::registry::PluginRef;
+use crate::renames::renamed_to;
 use crate::verb::Verb;
 use crate::wire::{OpContext, SealFacts};
 
@@ -79,6 +80,29 @@ impl<'a> Subprocess<'a> {
         self.depth >= DEPTH_CAP
     }
 
+    /// A schedule entry whose `bin/<name>` is missing. A RENAMED first-party
+    /// plugin (§15, [`renamed_to`]) is SKIPPED with a notice — non-fatal, so an
+    /// old committed schedule keeps working locally (just without that plugin)
+    /// until its owner updates the names; any other missing plugin ABORTS the op
+    /// (a genuine "referenced but not installed" misconfig). Returning `Ok` means
+    /// the op proceeds as if the entry were absent.
+    fn unbound(&self, name: &str, phase: Phase) -> io::Result<()> {
+        let Some(current) = renamed_to(name) else {
+            return Err(io::Error::other(format!(
+                "plugin {name} referenced but bin/{name} missing — run bl install"
+            )));
+        };
+        self.log.record(
+            Level::Info,
+            "core",
+            Some(phase),
+            &format!(
+                "plugin {name} was renamed {current}; your config still references {name} — replace it with {current} in the [hooks] schedule (bl conf), then prime to resume"
+            ),
+        );
+        Ok(())
+    }
+
     /// Assemble the §7 payload and spawn the plugin. `rolling_back` is `Some` for
     /// a rollback call (it tags the payload `rolling_back: pre|post`, §7).
     fn invoke(
@@ -90,10 +114,9 @@ impl<'a> Subprocess<'a> {
         sealed: Option<&Sealed>,
         rolling_back: Option<&str>,
     ) -> io::Result<()> {
-        let bin = plugin.bin.as_ref().ok_or_else(|| {
-            let n = &plugin.name;
-            io::Error::other(format!("plugin {n} referenced but bin/{n} missing — run bl install"))
-        })?;
+        let Some(bin) = plugin.bin.as_ref() else {
+            return self.unbound(&plugin.name, phase);
+        };
         // Parse the §5 trailers into the post wire's `metadata` (the engine
         // handed us the raw message — §5 lives on this side of the seam). A
         // diffless op (§13) seals no message, so `s.message` is `None` and the
@@ -206,3 +229,6 @@ mod tests;
 #[cfg(test)]
 #[path = "plugin_feed_tests.rs"]
 mod feed_tests;
+#[cfg(test)]
+#[path = "plugin_unbound_tests.rs"]
+mod unbound_tests;

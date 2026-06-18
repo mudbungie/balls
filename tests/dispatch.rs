@@ -246,7 +246,7 @@ fn center(dir: &Path) -> PathBuf {
         // prime.post wires the tracker's content-settle (founding push on a first
         // prime, then fetch-ff + publish) — without it a fresh clone never founds
         // the remote store (bl-0a23).
-        "[hooks]\n\"sync.pre\" = [\"tracker\"]\n\"prime.pre\" = [\"tracker\"]\n\"prime.post\" = [\"tracker\"]\n\"install.pre\" = [\"tracker\"]\n",
+        "[hooks]\n\"sync.pre\" = [\"bl-tracker\"]\n\"prime.pre\" = [\"bl-tracker\"]\n\"prime.post\" = [\"bl-tracker\"]\n\"install.pre\" = [\"bl-tracker\"]\n",
     )
     .unwrap();
     git(&seed, &["add", "-A"]);
