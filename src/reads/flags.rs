@@ -32,29 +32,29 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
             // show = one projected ball); the spec rides `--legacy=REF`.
             arg if legacy::flag(arg).is_some() => f.legacy = legacy::flag(arg),
             flag if flag.starts_with('-') => {
-                return Err(io::Error::other(format!("{}: unexpected flag '{flag}'", verb.token())));
+                return Err(crate::usage(format!("{}: unexpected flag '{flag}'", verb.token())));
             }
             _ => {
                 if f.target.replace(arg.clone()).is_some() {
-                    return Err(io::Error::other(format!("{}: at most one argument", verb.token())));
+                    return Err(crate::usage(format!("{}: at most one argument", verb.token())));
                 }
             }
         }
     }
     if verb == Verb::Show && f.target.is_none() {
-        return Err(io::Error::other("show: needs a ball id"));
+        return Err(crate::usage("show: needs a ball id"));
     }
     // The legacy store has no greenfield history to reconstruct: `--legacy`
     // serves the LIVE legacy set alone, so a dead-set reach contradicts it.
     if f.legacy.is_some() && f.reach != Reach::Live {
-        return Err(io::Error::other("list: --legacy serves the live legacy set — it has no --all/--status closed reach"));
+        return Err(crate::usage("list: --legacy serves the live legacy set — it has no --all/--status closed reach"));
     }
     Ok(f)
 }
 
 /// The value following a value-taking flag, or a "needs a value" error naming it.
 fn value<'a>(args: &mut std::slice::Iter<'a, String>, flag: &str) -> io::Result<&'a String> {
-    args.next().ok_or_else(|| io::Error::other(format!("list: {flag} needs a value")))
+    args.next().ok_or_else(|| crate::usage(format!("list: {flag} needs a value")))
 }
 
 /// Steer the history reach off its live default, rejecting a second reach
@@ -62,7 +62,7 @@ fn value<'a>(args: &mut std::slice::Iter<'a, String>, flag: &str) -> io::Result<
 /// is a contradiction, not a last-wins.
 fn set_reach(f: &mut Flags, reach: Reach) -> io::Result<()> {
     if f.reach != Reach::Live {
-        return Err(io::Error::other("list: choose one of --status closed / --all"));
+        return Err(crate::usage("list: choose one of --status closed / --all"));
     }
     f.reach = reach;
     Ok(())
@@ -70,7 +70,7 @@ fn set_reach(f: &mut Flags, reach: Reach) -> io::Result<()> {
 
 /// Parse a `--since`/`--until` `YYYY-MM-DD` value to its day-start unix second.
 fn date(value: &str) -> io::Result<i64> {
-    start_of_day(value).ok_or_else(|| io::Error::other(format!("list: bad date '{value}' (want YYYY-MM-DD)")))
+    start_of_day(value).ok_or_else(|| crate::usage(format!("list: bad date '{value}' (want YYYY-MM-DD)")))
 }
 
 /// Apply a `--status`/`-s` rung onto the flags. The three live rungs
@@ -84,7 +84,7 @@ fn apply_status(f: &mut Flags, value: &str) -> io::Result<()> {
         return set_reach(f, Reach::Dead);
     }
     f.status = Some(Status::from_word(value).ok_or_else(|| {
-        io::Error::other(format!("list: unknown --status '{value}' (want ready|blocked|claimed|closed)"))
+        crate::usage(format!("list: unknown --status '{value}' (want ready|blocked|claimed|closed)"))
     })?);
     Ok(())
 }

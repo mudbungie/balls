@@ -185,8 +185,13 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             print!("{SKILL}");
             return 0;
         }
+        // `bl help [<cmd>]`: a known command after `help` gets ITS help (flags +
+        // examples); bare `help`/`--help`/`-h` gets the command directory.
         Some("help" | "--help" | "-h") => {
-            print!("{}", help::directory());
+            match rest.get(1).map(String::as_str).and_then(Verb::parse) {
+                Some(verb) => print!("{}", help::command(verb)),
+                None => print!("{}", help::directory()),
+            }
             return 0;
         }
         _ => {}
@@ -200,6 +205,13 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         eprintln!("bl: unknown command '{token}' — run `bl help` for the list");
         return 2;
     };
+    // `bl <cmd> --help` / `-h`: that command's help, before its parser runs (so
+    // it works on an unprimed checkout and never needs the verb's positionals). A
+    // `--help` past the `--` end-of-options is a positional, not a help request.
+    if rest[1..].iter().take_while(|a| *a != "--").any(|a| a == "--help" || a == "-h") {
+        print!("{}", help::command(verb));
+        return 0;
+    }
     let result = match verb {
         Verb::Prime => checkout::prime(edge, &rest[1..]),
         Verb::Sync => checkout::sync(edge, &rest[1..]),
@@ -223,9 +235,26 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             // by …`, `show: needs a ball id`); the wrapper just tags it as a bl
             // error, so the verb is named ONCE — not the doubled `bl show: show:`.
             eprintln!("bl: {e}");
+            // A USAGE error — the argv was malformed (an unknown flag, a missing
+            // value, the wrong positional count) — surfaces the command's flags
+            // (bl-7990); an operational failure (a blocked op, a missing ball)
+            // stays terse. The [`usage`] tag is the only thing that tells them
+            // apart, so the help is offered exactly where it answers the question.
+            if e.kind() == std::io::ErrorKind::InvalidInput {
+                eprintln!();
+                eprint!("{}", help::command(verb));
+            }
             1
         }
     }
+}
+
+/// A USAGE error — the user's argv is malformed. Tagged
+/// [`std::io::ErrorKind::InvalidInput`] so [`run`] knows to print the command's
+/// help after it (and only after these — an operational failure stays terse).
+/// The one taxonomy bit the per-verb parsers raise; everything else is `Other`.
+pub(crate) fn usage(msg: impl Into<String>) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidInput, msg.into())
 }
 
 /// Pull the global `--log-level LEVEL` flag out of argv (from any position),

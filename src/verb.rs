@@ -101,7 +101,7 @@ impl Verb {
             Verb::Unclaim => "release a claim",
             Verb::Update => "overwrite any field of a task",
             Verb::Close => "deliver the work and archive the task",
-            Verb::Import => "ingest verbatim task JSON from stdin (the inverse of show --json)",
+            Verb::Import => "bulk-create tasks from JSON on stdin (won't overwrite existing ids — use update to modify)",
             Verb::Show => "show one task in full",
             Verb::List => "list tasks (status, tag, and date filters)",
             Verb::Prime => "ready this checkout (run at session start)",

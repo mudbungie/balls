@@ -46,12 +46,12 @@ pub(super) fn parse_prime(args: &[String], default_actor: &str) -> io::Result<Pr
             flag @ ("--remote" | "--center") => apply_remote(&mut o.remote, flag, value(args, &mut i, flag)?),
             "--install" => o.install = Some(value(args, &mut i, "--install")?),
             "--stealth" => o.stealth = true,
-            other => return Err(io::Error::other(format!("prime: unexpected argument '{other}'"))),
+            other => return Err(crate::usage(format!("prime: unexpected argument '{other}'"))),
         }
         i += 1;
     }
     if o.stealth && (o.remote.is_some() || o.install.is_some()) {
-        return Err(io::Error::other(
+        return Err(crate::usage(
             "prime: --stealth contradicts --remote/--center/--install — stealth opts out of any store remote",
         ));
     }
@@ -69,11 +69,11 @@ pub(super) fn parse_sync(args: &[String], default_actor: &str) -> io::Result<Syn
             "--as" => o.actor = value(args, &mut i, "--as")?,
             flag @ ("--remote" | "--center") => apply_remote(&mut o.remote, flag, value(args, &mut i, flag)?),
             flag if flag.starts_with('-') => {
-                return Err(io::Error::other(format!("sync: unexpected flag '{flag}'")));
+                return Err(crate::usage(format!("sync: unexpected flag '{flag}'")));
             }
             _ => {
                 if o.branch.replace(args[i].clone()).is_some() {
-                    return Err(io::Error::other("sync: at most one branch"));
+                    return Err(crate::usage("sync: at most one branch"));
                 }
             }
         }
@@ -103,5 +103,5 @@ pub(crate) fn value(args: &[String], i: &mut usize, flag: &str) -> io::Result<St
     *i += 1;
     args.get(*i)
         .cloned()
-        .ok_or_else(|| io::Error::other(format!("{flag} needs a value")))
+        .ok_or_else(|| crate::usage(format!("{flag} needs a value")))
 }

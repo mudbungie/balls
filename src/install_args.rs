@@ -48,15 +48,15 @@ pub(crate) fn parse(args: &[String], default_actor: &str) -> io::Result<Opts> {
                 let v = checkout::value(args, &mut i, "--bin")?;
                 let (name, bin) = v
                     .split_once('=')
-                    .ok_or_else(|| io::Error::other(format!("install: --bin wants <name>=<path>, got '{v}'")))?;
+                    .ok_or_else(|| crate::usage(format!("install: --bin wants <name>=<path>, got '{v}'")))?;
                 bins.insert(name.to_string(), PathBuf::from(bin));
             }
             flag if flag.starts_with('-') => {
-                return Err(io::Error::other(format!("install: unexpected flag '{flag}'")));
+                return Err(crate::usage(format!("install: unexpected flag '{flag}'")));
             }
             p => {
                 if path.replace(p.to_string()).is_some() {
-                    return Err(io::Error::other("install: at most one path"));
+                    return Err(crate::usage("install: at most one path"));
                 }
             }
         }
@@ -64,17 +64,17 @@ pub(crate) fn parse(args: &[String], default_actor: &str) -> io::Result<Opts> {
     }
     let path = path.unwrap_or_else(|| DEFAULT_PATH.to_string());
     if Path::new(&path).is_absolute() || path.split('/').any(|c| c == "..") {
-        return Err(io::Error::other(format!("install: path must be checkout-relative: '{path}'")));
+        return Err(crate::usage(format!("install: path must be checkout-relative: '{path}'")));
     }
     let to = to.unwrap_or_else(|| LANDING_BRANCH.to_string());
     if to != LANDING_BRANCH {
         if from.is_none() {
-            return Err(io::Error::other(
+            return Err(crate::usage(
                 "install: --from is required when --to is not the landing (the configured-upstream default adopts into the landing, §6)",
             ));
         }
         if !bins.is_empty() {
-            return Err(io::Error::other(
+            return Err(crate::usage(
                 "install: --bin applies only to a landing-targeted install (§6 local binary resolution)",
             ));
         }

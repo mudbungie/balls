@@ -77,6 +77,31 @@ fn help_prints_the_command_directory_to_stdout() {
 }
 
 #[test]
+fn per_command_help_lists_the_commands_own_flags() {
+    // bl-7990: `bl <cmd> --help` and `bl help <cmd>` surface a command's own
+    // flags + examples — the affordance whose absence left `create --body`
+    // undiscoverable. Works with no landing (intercepted before the parser).
+    let body = contains("--body").and(contains("usage: bl create")).and(contains("Examples:"));
+    bl(&TempDir::new().unwrap()).args(["create", "--help"]).assert().success().stdout(body);
+    bl(&TempDir::new().unwrap()).args(["help", "create"]).assert().success().stdout(contains("--subtask-of"));
+}
+
+#[test]
+fn a_usage_error_appends_the_commands_help() {
+    // An arity/parse error now prints the command's help after the terse error
+    // (routed by the InvalidInput tag), so a mis-invocation surfaces the flags.
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    bl_primed(&project, &home, &state).arg("prime").assert().success();
+    bl_primed(&project, &home, &state)
+        .arg("create")
+        .assert()
+        .failure()
+        .stderr(contains("expects exactly one positional argument").and(contains("--body")));
+}
+
+#[test]
 fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
     let tmp = TempDir::new().unwrap();
     let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));

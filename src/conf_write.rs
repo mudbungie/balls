@@ -35,7 +35,7 @@ use toml::value::{Table, Value};
 /// home (§4); a list op on a scalar key is refused, naming the split.
 pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> io::Result<()> {
     let Some((token, values)) = rest.split_first() else {
-        return Err(io::Error::other(format!("conf {op}: needs <key> <value...>")));
+        return Err(crate::usage(format!("conf {op}: needs <key> <value...>")));
     };
     let landing = clone.landing();
     let actor = &edge.default_actor;
@@ -61,7 +61,7 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
             crate::config::forbid_landing(value)?; // the coincident name is refused at the front door (bl-ac89)
             landing_set(&landing, actor, token, "tasks_branch", value)
         }
-        _ => Err(io::Error::other(format!(
+        _ => Err(crate::usage(format!(
             "conf {op}: '{token}' is a scalar — append/prepend/remove compose the [hooks] list keys"
         ))),
     }?;
@@ -73,7 +73,7 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
 fn one<'a>(op: &str, key: &str, values: &'a [String]) -> io::Result<&'a str> {
     match values {
         [only] => Ok(only),
-        _ => Err(io::Error::other(format!("conf {op}: '{key}' takes exactly one value"))),
+        _ => Err(crate::usage(format!("conf {op}: '{key}' takes exactly one value"))),
     }
 }
 
@@ -121,7 +121,7 @@ fn hooks_edit(landing: &Path, actor: &str, op: &str, key: &str, values: &[String
     if values.iter().any(String::is_empty) {
         // bl-bee0: "" is not a plugin name — it would resolve bin/ itself at
         // dispatch. Clearing already has a spelling: `set <key>` with no values.
-        return Err(io::Error::other(format!(
+        return Err(crate::usage(format!(
             "conf {op}: a plugin name must be non-empty — `conf set {key}` clears the list"
         )));
     }

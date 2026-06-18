@@ -69,7 +69,7 @@ impl Key {
             "log-level" => Ok(Key::LogLevel),
             "show" | "list" => Ok(Key::Hook(token.to_string())),
             _ if hook_key(token) => Ok(Key::Hook(token.to_string())),
-            _ => Err(io::Error::other(format!(
+            _ => Err(crate::usage(format!(
                 "conf: unknown key '{token}' — keys: task-remote, task-branch, log-level, <op>.<pre|post>, show, list"
             ))),
         }
@@ -102,7 +102,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
             write::run(edge, &clone, op, rest)
         }
         Some((key, [])) => read_one(edge, &clone, key),
-        Some((key, _)) => Err(io::Error::other(format!(
+        Some((key, _)) => Err(crate::usage(format!(
             "conf: '{key}' takes no value on a read — values go with set/append/prepend/remove"
         ))),
     }

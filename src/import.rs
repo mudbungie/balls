@@ -79,7 +79,7 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             }
             a if legacy::flag(a).is_some() => f.legacy = legacy::flag(a),
             other => {
-                return Err(io::Error::other(format!(
+                return Err(crate::usage(format!(
                     "import: unexpected argument '{other}' — records ride stdin"
                 )))
             }
@@ -90,7 +90,7 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
 
 /// The value following a value-taking flag, or a "needs a value" error.
 fn value(args: &mut std::slice::Iter<'_, String>, flag: &str) -> io::Result<String> {
-    args.next().cloned().ok_or_else(|| io::Error::other(format!("import: {flag} needs a value")))
+    args.next().cloned().ok_or_else(|| crate::usage(format!("import: {flag} needs a value")))
 }
 
 /// Seal `balls` into the store as ONE op through the shared engine wiring
