@@ -214,9 +214,13 @@ have create-time sugar:
 - `--blocks OP` / `--blocks ID:OP` — the reciprocal: gate ANOTHER task's op on
   this one. `--parent X --blocks close` is a gate (X can't close until this does).
 - `--subtask-of E` — **the everyday subtask spelling**: `--parent E --blocks
-  close` in one word (child of E, and E can't close until it does). Prefer this
-  over bare `--parent` when filing subtasks — the gate rides in the flag's name,
-  so it can't be silently forgotten. Mutually exclusive with `--parent`;
+  claim` in one word (child of E, and E can't be CLAIMED until it does). Gating
+  claim, not close, is what keeps an epic-with-open-children out of `bl ready`:
+  the epic derives as *blocked* (unresolved claim-blocker per open child), so
+  `bl ready | head -1 | xargs bl claim` never lands an agent on an unactionable
+  container; when the last child closes the epic auto-readies. Prefer this over
+  bare `--parent` when filing subtasks — the gate rides in the flag's name, so
+  it can't be silently forgotten. Mutually exclusive with `--parent`;
   create-only.
 
 **Every edge target must be LIVE.** `--needs` and `--blocks` (and `--subtask-of`'s

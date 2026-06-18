@@ -63,11 +63,11 @@ pub(super) fn needs_blockers(flags: &Flags) -> io::Result<Vec<Blocker>> {
 }
 
 /// The create-time parent, with the §10 `--subtask-of` sugar folded in:
-/// `--subtask-of E` IS a parent spelling (`--parent E --blocks close` in one
+/// `--subtask-of E` IS a parent spelling (`--parent E --blocks claim` in one
 /// word), so naming both is a conflict, never a silent pick.
 pub(super) fn effective_parent(flags: &Flags) -> io::Result<Option<String>> {
     if flags.subtask_of.is_some() && flags.parent.is_some() {
-        return Err(other("create: --subtask-of and --parent conflict — --subtask-of IS a parent spelling (parent + close-gate)"));
+        return Err(other("create: --subtask-of and --parent conflict — --subtask-of IS a parent spelling (parent + claim-gate)"));
     }
     Ok(flags.subtask_of.clone().or_else(|| flags.parent.clone()))
 }
@@ -77,8 +77,10 @@ pub(super) fn effective_parent(flags: &Flags) -> io::Result<Option<String>> {
 /// is the only target a bare form has), an explicit `ID:OP` gates a non-parent.
 /// This is the §10/§15 front door for the retired `--gates X` (= `--parent X
 /// --blocks close`): containment never mints a blocker, so every gate is spelled
-/// here. `--subtask-of E` contributes its `{child, close}` gate on `E` — the
-/// sugar's blocking half — deduped against an explicit equivalent.
+/// here. `--subtask-of E` contributes its `{child, claim}` gate on `E` — the
+/// sugar's blocking half: it gates the epic's CLAIM (not close), so an epic
+/// with open children derives as *blocked* and drops out of the ready set
+/// (bl-5d9a) — deduped against an explicit equivalent.
 pub(super) fn blocks_edges(flags: &Flags, parent: Option<&str>) -> io::Result<Vec<(String, On)>> {
     let mut edges: Vec<(String, On)> = flags
         .blocks
@@ -95,7 +97,7 @@ pub(super) fn blocks_edges(flags: &Flags, parent: Option<&str>) -> io::Result<Ve
         })
         .collect::<io::Result<_>>()?;
     if let Some(e) = &flags.subtask_of {
-        let gate = (e.clone(), On::Close);
+        let gate = (e.clone(), On::Claim);
         if !edges.contains(&gate) {
             edges.push(gate);
         }

@@ -222,7 +222,7 @@ fn update_refuses_a_non_live_needs_target() {
 
 #[test]
 fn update_rejects_subtask_of() {
-    // --subtask-of carries a reciprocal close-gate, so like --blocks it is
+    // --subtask-of carries a reciprocal claim-gate, so like --blocks it is
     // create-only; update sets --parent (containment) but never a foreign edge.
     let d = tempdir().unwrap();
     write(d.path(), "bl-1", TASK);
