@@ -1,7 +1,8 @@
 +++
 title = "Rename tracker -> bl-tracker; declare bl- = first-party convention; diagnose the rename on a config miss"
 created = 1781807282
-updated = 1781807282
+updated = 1781809672
+claimant = "Entrust"
 tags = ["convention"]
 +++
 DECISION. balls' two first-party plugins should both carry the bl- prefix. bl-delivery already does; tracker is the lone holdout (a calcified inconsistency — the introducing commit bl-f813 records no rationale). Rename the tracker binary + seed to bl-tracker so first-party naming is consistent, and declare bl- RESERVED to first-party plugins as a FORWARD-ONLY convention (mirrors the §5 commit-trailer reservation: 'bl- is RESERVED to core; plugins prefix with their own name'). Third-party plugins name themselves (e.g. the adversary plugin in ~/dev/balls-adversary).
