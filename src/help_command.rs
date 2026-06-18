@@ -40,7 +40,7 @@ pub(crate) fn command_help(verb: Verb) -> CommandHelp {
             ],
             examples: &[
                 "bl create \"Fix the parser\" --body \"repro: bl create -x\"",
-                "bl create \"review the API\" --subtask-of bl-1a2b",
+                "bl create \"wire the auth endpoint\" --subtask-of bl-1a2b",
             ],
         },
         Verb::Claim => CommandHelp {
