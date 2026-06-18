@@ -761,7 +761,7 @@ the RCE gate is unchanged).
 **`create`** (op `create`; no prior state): balls generates a default-scheme id (§ id generation)
 and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p`)/`tags`, plus any
 `blockers` edges spelled out by `--blocks`/`--needs` — §10; `--parent` adds containment only, no
-blocker; `--subtask-of E` is the everyday bundle, `--parent E --blocks close` in one word — §10;
+blocker; `--subtask-of E` is the everyday bundle, `--parent E --blocks claim` in one word — §10;
 no status field is written, §3). A `create/pre`
 plugin may reject or *reassign*
 the id by `git mv`-ing the single staged `tasks/*.md` (it discovers the current name by reading
@@ -873,7 +873,9 @@ late-add gaps. Now every edge is explicit and says exactly what it gates.
   all this — a "review gate" is not a mechanism, it is `--blocks close` plus a skill-doc convention.
 - **epic** = a task with children — a pure CONTAINMENT/display rollup, emergent from `parent`
   pointers, gating NOTHING by itself. If you want "the epic can't START until its children land,"
-  add a `claim` edge per child (`--blocks claim`); if "can't FINISH until they land," a `close` edge
+  add a `claim` edge per child (`--blocks claim`, which `--subtask-of` sugars — the presumptive
+  subtask shape, since an epic's work is usually its children); if "can't FINISH until they land," a
+  `close` edge
   (`--blocks close`); if neither, the epic is freely claimable and closeable alongside open children
   (their `parent:` simply dangles — display-only, §3 — never corruption). The presumptive pattern is
   a skill-doc hint, not a core rule.
@@ -927,13 +929,23 @@ fact — containment and blocking never travel together implicitly:
   finish before the parent can CLOSE). `OP` is required — there is no default-gated transition.
 - `--needs B` (or `--needs B:OP`) → `self.blockers += {B, OP}`, default `OP = claim` — the inverse
   direction: the new task is gated BY `B` (cross-tree dependency).
-- `--subtask-of E` → `parent: E` AND `E.blockers += {child, close}` — the everyday subtask bundle,
-  the intent named by the flag (bl-788e). The explicit-edge model's one failure mode was the SILENT
+- `--subtask-of E` → `parent: E` AND `E.blockers += {child, claim}` — the everyday subtask bundle,
+  the intent named by the flag (bl-788e). The gate is on the epic's CLAIM, not its close (bl-5d9a):
+  an epic whose work IS its children is unactionable until they land, so a claim-gate per open child
+  makes it derive as *blocked* and drop out of the ready set — `bl ready | head -1 | xargs bl claim`
+  can never seat a context-free agent on a container with nothing to do. This is the SAME edge count
+  the close variant laid down (one per child, stored on the blocked epic); only the `on` op swaps,
+  so it is no double-wiring. It also drops no enforcement: `close` never required a prior `claim`
+  (abandonment is unclaim-then-close), so the old close-gate never *enforced* lifecycle — gating
+  claim keeps agents off the paved path to a premature epic close behaviorally, the stray `bl close E`
+  on an unclaimed epic being an off-path case left unpoliced. When the last child closes the
+  claim-blockers resolve by file-absence and the epic flips blocked → ready with no teardown.
+  The explicit-edge model's one failure mode was the SILENT
   forget: `--parent` is the natural spelling and gates nothing, so an unstated gate vanished without
   a signal. The sugar puts the gate in the flag's name; it is pure front-door expansion over the two
   primitives above — zero new schema. Mutually exclusive with `--parent` (it IS a parent spelling),
   create-only like `--blocks` (it carries the reciprocal edge), deduped against an explicit
-  `--blocks close`.
+  `--blocks claim`.
 
 **The edge flags require a LIVE target (bl-6b8c).** `--needs ID[:OP]` and `--blocks ID:OP` /
 `--blocks OP` — create and update alike, `--subtask-of`'s reciprocal gate included — REFUSE a target
@@ -959,7 +971,10 @@ display-only (§3) — so the notice is information about a containment rollup e
 open, exactly the case a forgotten gate produces. The scan is the `show` tree's containment read,
 reduced to a count.
 
-The retired `--gates X` is exactly `--parent X --blocks close` — now spelled `--subtask-of X`. Any
+The retired `--gates X` was exactly `--parent X --blocks close`; since `--subtask-of X` now gates
+CLAIM (bl-5d9a), that close-gate is no longer a one-flag spelling — write it as `--parent X --blocks
+close` when you genuinely want "X can't FINISH until this lands" (a review/build/forge gate, §10's
+gate case) rather than "X can't START." Any
 edge the one-liner can't express
 (gate a third op, multiple blockers, a post-hoc edge) is an ordinary `bl update … blockers` edit —
 the create flags are sugar over the general primitive, never a constraint on it.
@@ -1889,6 +1904,25 @@ RESOLVED (folded into the body, no longer open):
   line). Code: `src/mutate_args.rs` (flag), `src/mutate_build.rs` (`effective_parent` +
   `blocks_edges` sugar/dedup + create-only/shaping guards), `src/mutate_report.rs` (the notice),
   SKILL.md. Tracked under bl-72a8.
+- **`--subtask-of` gates CLAIM, not close — epics drop out of `ready` (2026-06-17, bl-5d9a —
+  post-freeze).** bl-788e wired `--subtask-of E` to `--parent E --blocks close`, which gates the
+  epic's CLOSE but not its CLAIM. But status derivation is "blocked = unresolved CLAIM-blocker only"
+  (`Task::status`), so a close-gate yields NO blocked status: the epic with open children read
+  *ready* and `bl ready | head -1 | xargs bl claim` seated a context-free agent on an unactionable
+  container whose work is its children. RESOLVED by swapping the sugar's `on` op: `--subtask-of E` ≡
+  `--parent E --blocks claim`. Now an open child claim-blocks the epic → it derives *blocked* →
+  excluded from the ready set; the last child's close resolves the claim-blockers by file-absence and
+  the epic auto-readies. NOT double-wiring (same edge count bl-788e already laid down — one per child
+  on the blocked epic — only `on` swaps) and NOT a dropped enforcement (`close` never required a
+  prior `claim`, so the close-gate never *enforced* lifecycle; gating claim keeps agents off the
+  paved path to a premature epic close behaviorally, the stray `bl close E` on an unclaimed epic an
+  accepted off-path case). Residual: re-parenting a child (`update --parent`) leaves a stale
+  claim-edge on the old epic and none on the new — inherent to any explicit-edge scheme; the door
+  back is deriving the gate from the `parent` pointer (zero edges), set aside until stale edges bite.
+  Touched §8 (create staging line), §10 (the flag bullet + epic-pattern + `--gates` line). Code:
+  `src/mutate_build.rs` (`blocks_edges` op = `On::Claim`), `src/mutate_args.rs`/`src/mutate_guards.rs`/
+  `src/mutate_author.rs` (prose), `src/lib_tests.rs`/`src/mutate_create_tests.rs`/
+  `src/mutate_update_tests.rs` (tests), SKILL.md.
 - **stdout single-writer is a default-schedule guarantee, not a discipline — own the contradiction;
   reserve the enveloped-stdout seam (2026-06-09, bl-2bff — post-freeze).** §0 promises every
   load-bearing principle "enforced structurally, not by discipline", yet §11 defended claim-stdout's

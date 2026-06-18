@@ -26,9 +26,11 @@ pub(super) struct Flags {
     pub parent: Option<String>,
     pub no_parent: bool,
     /// `--subtask-of E` (§10): the everyday subtask spelling — `--parent E
-    /// --blocks close` in one word, the intent named by the flag so the
-    /// close-gate cannot be silently forgotten. Create-only (it carries the
-    /// reciprocal edge); mutually exclusive with `--parent`.
+    /// --blocks claim` in one word, the intent named by the flag so the
+    /// claim-gate cannot be silently forgotten. Gating the epic's CLAIM (not
+    /// close) keeps an unactionable container out of the ready set until its
+    /// children land (bl-5d9a). Create-only (it carries the reciprocal edge);
+    /// mutually exclusive with `--parent`.
     pub subtask_of: Option<String>,
     pub blocks: Vec<String>,
     pub needs: Vec<String>,
