@@ -1,7 +1,7 @@
 +++
 title = "bl-chore: generic guarded-mint-at-claim plugin (on-claim chore fanout)"
 created = 1781809816
-updated = 1781809867
+updated = 1781809870
 priority = 2
 tags = ["epic"]
 
@@ -15,6 +15,10 @@ on = "close"
 
 [[blockers]]
 id = "bl-7b90"
+on = "close"
+
+[[blockers]]
+id = "bl-759f"
 on = "close"
 +++
 `bl-chore` — a generic, opt-in plugin that mints tagged gate children at `claim.post`, with the recursion and idempotency guards solved once so other plugins can sit on it.
