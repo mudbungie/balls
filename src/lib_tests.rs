@@ -145,6 +145,17 @@ fn help_prints_the_directory_and_exits_zero() {
 }
 
 #[test]
+fn per_command_help_routes_through_every_entry_point() {
+    // bl-7990: `bl <cmd> --help`/`-h` is intercepted before the verb's parser, so
+    // it needs no landing and no positionals; `bl help <cmd>` reaches the same
+    // per-command help; `bl help <unknown>` falls back to the directory.
+    let tmp = TempDir::new().unwrap();
+    for a in [&["create", "--help"][..], &["create", "-h"], &["help", "update"], &["help", "frobnicate"]] {
+        assert_eq!(run_in(&tmp, a), 0);
+    }
+}
+
+#[test]
 fn run_rejects_an_unknown_verb() {
     assert_eq!(run_in(&TempDir::new().unwrap(), &["frobnicate"]), 2);
 }
