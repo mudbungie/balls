@@ -161,16 +161,16 @@ fn found_landing_without_any_plugin_binary_seeds_an_empty_schedule() {
 fn found_landing_with_the_shipped_binaries_keeps_and_binds_them() {
     let tmp = TempDir::new().unwrap();
     let (landing, _store) = paths(&tmp);
-    let exe = exe_dir(&tmp, &["tracker", "bl-delivery"]);
+    let exe = exe_dir(&tmp, &["bl-tracker", "bl-delivery"]);
     found_landing(&landing, &xdg(&tmp), Some(&exe), "tester").unwrap();
 
     // The committed schedule keeps both shipped plugins (§6).
     let hooks = Hooks::load(&landing).unwrap();
-    assert_eq!(hooks.names("create", "post"), ["tracker"]);
-    assert_eq!(hooks.names("close", "post"), ["bl-delivery", "tracker"]);
+    assert_eq!(hooks.names("create", "post"), ["bl-tracker"]);
+    assert_eq!(hooks.names("close", "post"), ["bl-delivery", "bl-tracker"]);
     // The LOCAL bin/ bindings exist but are gitignored — only the committed text
     // (balls.toml + plugins.toml) is tracked (§2).
-    assert!(landing.join("config/plugins/bin/tracker").symlink_metadata().is_ok());
+    assert!(landing.join("config/plugins/bin/bl-tracker").symlink_metadata().is_ok());
     assert!(landing.join("config/plugins/bin/bl-delivery").symlink_metadata().is_ok());
     let tracked = git(&landing, &["ls-files", "config"], None).unwrap();
     assert!(tracked.contains("config/plugins.toml"));

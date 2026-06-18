@@ -123,6 +123,7 @@ pub mod op;
 pub mod plugin;
 pub mod reads;
 pub mod registry;
+pub mod renames;
 pub(crate) mod safegit;
 pub mod seed;
 pub mod substrate;
