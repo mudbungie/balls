@@ -6,7 +6,7 @@
 
 use std::io;
 
-use super::{other, Flags};
+use super::Flags;
 use crate::verb::Verb;
 
 /// `update` edits this task's OWN fields and blockers; only `--blocks` (a
@@ -15,13 +15,13 @@ use crate::verb::Verb;
 /// `--no-parent`).
 pub(super) fn forbid_foreign_blocks(flags: &Flags, verb: Verb) -> io::Result<()> {
     if !flags.blocks.is_empty() {
-        return Err(other(format!(
+        return Err(crate::usage(format!(
             "{}: --blocks (a reciprocal edge on ANOTHER task) is create-only; update edits this task's own fields",
             verb.token()
         )));
     }
     if flags.subtask_of.is_some() {
-        return Err(other(format!(
+        return Err(crate::usage(format!(
             "{}: --subtask-of carries a reciprocal claim-gate, so it is create-only; set --parent and gate with a fresh gate task",
             verb.token()
         )));
@@ -33,10 +33,10 @@ pub(super) fn forbid_foreign_blocks(flags: &Flags, verb: Verb) -> io::Result<()>
 /// or `-p`+`--no-priority` — rather than silently picking one.
 pub(super) fn forbid_contradictions(flags: &Flags) -> io::Result<()> {
     if flags.parent.is_some() && flags.no_parent {
-        return Err(other("update: --parent and --no-parent conflict"));
+        return Err(crate::usage("update: --parent and --no-parent conflict"));
     }
     if flags.priority.is_some() && flags.no_priority {
-        return Err(other("update: -p and --no-priority conflict"));
+        return Err(crate::usage("update: -p and --no-priority conflict"));
     }
     Ok(())
 }
@@ -45,13 +45,13 @@ pub(super) fn forbid_contradictions(flags: &Flags) -> io::Result<()> {
 /// nonsensical: there is nothing to remove, and the title is the positional.
 pub(super) fn forbid_removals_on_create(flags: &Flags) -> io::Result<()> {
     if flags.title.is_some() {
-        return Err(other("create: the title is the positional argument, not --title"));
+        return Err(crate::usage("create: the title is the positional argument, not --title"));
     }
     if flags.no_parent || flags.no_priority || !flags.no_tags.is_empty() || !flags.no_needs.is_empty() {
-        return Err(other("create: --no-* removal flags are only for update — a fresh ball has nothing to remove"));
+        return Err(crate::usage("create: --no-* removal flags are only for update — a fresh ball has nothing to remove"));
     }
     if flags.edit {
-        return Err(other("create: --edit is update-only — a fresh ball has no stored buffer to edit"));
+        return Err(crate::usage("create: --edit is update-only — a fresh ball has no stored buffer to edit"));
     }
     Ok(())
 }
@@ -80,7 +80,7 @@ fn shapes(flags: &Flags) -> bool {
 /// included. Only the id, `--as`, and the `-m` commit narration are accepted.
 pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
     if shapes(flags) || flags.edit {
-        return Err(other(format!("{}: takes no field edits — only the id, --as, and -m", verb.token())));
+        return Err(crate::usage(format!("{}: takes no field edits — only the id, --as, and -m", verb.token())));
     }
     Ok(())
 }
@@ -90,7 +90,7 @@ pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
 /// fields OR hand-edit, never both.
 pub(super) fn forbid_fields_with_edit(flags: &Flags) -> io::Result<()> {
     if shapes(flags) {
-        return Err(other("update: --edit and the field flags are mutually exclusive — hand-edit OR set fields"));
+        return Err(crate::usage("update: --edit and the field flags are mutually exclusive — hand-edit OR set fields"));
     }
     Ok(())
 }
