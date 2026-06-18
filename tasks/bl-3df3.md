@@ -1,7 +1,8 @@
 +++
 title = "Design doc: bl-chore guarded-mint primitive (docs/design/bl-chore.md)"
 created = 1781809838
-updated = 1781809838
+updated = 1781826036
+claimant = "Soaks"
 parent = "bl-6ee9"
 priority = 1
 +++
