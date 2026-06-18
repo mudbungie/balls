@@ -495,17 +495,17 @@ a list property, not an `NN-` filename convention faking one.
 
 ```toml
 [hooks]
-"sync.pre"     = ["tracker"]                  # import remote state first
-"prime.pre"    = ["tracker"]
-"install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
-"claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
-"unclaim.post" = ["bl-delivery", "tracker"]
-"show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render (§11)
-"close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
-"create.post"  = ["tracker"]
-"update.post"  = ["tracker"]
+"sync.pre"     = ["bl-tracker"]                  # import remote state first
+"prime.pre"    = ["bl-tracker"]
+"install.pre"  = ["bl-tracker"]                  # fetch the center's config to adopt (§13 prime --install)
+"prime.post"   = ["bl-delivery", "bl-tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
+"unclaim.post" = ["bl-delivery", "bl-tracker"]
+"show"         = ["bl-delivery"]                 # read-op (single phase): fold the worktree path into the human render (§11)
+"close.pre"    = ["bl-delivery"]                 # deliver (squash) before the seal
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"create.post"  = ["bl-tracker"]
+"update.post"  = ["bl-tracker"]
 ```
 
 Schedule (committed text) and binary (local symlink) split cleanly:
@@ -2497,6 +2497,32 @@ RESOLVED (folded into the body, no longer open):
   re-serializes to measure real JSON escaping rather than reimplementing serde's escape table (single
   source of that truth). Lossy on giant lines by design — logs shouldn't carry them. Touched §1;
   code is `src/log.rs` (`Log::line`).
+- **`tracker` → `bl-tracker`; the `bl-` first-party reservation; self-diagnosing rename break
+  (2026-06-18, bl-27bf — post-freeze).** The two shipped plugins should both carry the `bl-`
+  prefix; `bl-delivery` already did, `tracker` was the lone holdout (its introducing commit bl-f813
+  records no rationale — a calcified inconsistency, not a slot reservation: `tracker` is as
+  contendable a slot as `delivery`). DECISION: rename the binary + seed to `bl-tracker`, and declare
+  `bl-` RESERVED to first-party plugins as a FORWARD-ONLY convention — the §5 trailer reservation
+  (`bl-` is core's; plugins prefix with their own name), now applied to plugin binaries too.
+  Third-party plugins name themselves (e.g. the out-of-tree `adversary` review gate). NOT an alias
+  / normalizer / version floor: a resolution-time `tracker`⇆`bl-tracker` alias is the PERMANENT
+  DIALECT §16 rejects ("footprint-demarcation, not a permanent dialect"); a rewrite-on-prime
+  normalizer is a permanent DEADNAME (an offline landing might always carry the old name, so it can
+  never retire); a compat floor is overkill for one cosmetic rename. THE BREAK: an established
+  landing rebinds without pruning or rewriting its committed schedule (§12), so a config seeded by
+  balls ≤ 0.5.3 still names `tracker`, which no longer binds — and `tracker` rode
+  `prime.pre`/`install.pre`, the very verbs that would fix it, so a naive rename would brick every
+  plugin-dispatching op (only `bl conf`, which runs no plugins, survives). RESOLUTION: a
+  renamed-away FIRST-PARTY name (the closed [`crate::renames::renamed_to`] map) is SKIPPED at
+  dispatch with an `info` notice naming the new plugin, instead of aborting — non-fatal, the op
+  proceeds locally (without that plugin, e.g. unsynced for the tracker), the owner replaces the name
+  in the schedule via `bl conf` and primes to resume, no data touched. It is a DIAGNOSTIC, not an
+  alias: it never resolves the old name to the new binary, so deleting a map entry merely downgrades
+  to the generic "referenced but not installed" abort — SEVERABLE, prunable once no live config can
+  carry the old name. Touched §6 (the hooks table mirrors the renamed seed). Code:
+  `src/bin/bl-tracker.rs` (was `src/bin/tracker.rs`; the `balls::tracker` library module keeps its
+  name, as `bl-delivery`'s `delivery` module does), `default-config/plugins.toml`, `src/renames.rs`
+  (new), `src/plugin.rs` (`Subprocess::unbound`). Tracked under bl-27bf.
 
 ## §16 Migration from legacy balls
 

@@ -164,7 +164,7 @@ fn a_failing_pre_plugin_aborts_the_seal_and_cleans_up() {
     let tmp = TempDir::new().unwrap();
     let bin = tmp.path().join("bin");
     fs::create_dir_all(&bin).unwrap();
-    let plugin = bin.join("tracker");
+    let plugin = bin.join("bl-tracker");
     fs::write(
         &plugin,
         "#!/bin/sh\nif [ \"$1\" = protocol ]; then printf '{\"protocol\":[1],\"ops\":[\"install\"]}'; exit 0; fi\nexit 1\n",

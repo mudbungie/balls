@@ -161,7 +161,7 @@ fn adopt_runs_the_install_pre_chain_then_the_local_copy() {
     let tmp = TempDir::new().unwrap();
     let bin = tmp.path().join("bin");
     fs::create_dir_all(&bin).unwrap();
-    plugin(&bin, "tracker", "[\"install\"]");
+    plugin(&bin, "bl-tracker", "[\"install\"]");
     let e = edge(&tmp, Some(bin));
     let (landing, store) = found(&e);
     let c = center(tmp.path(), "balls/shared", NO_HOOKS);

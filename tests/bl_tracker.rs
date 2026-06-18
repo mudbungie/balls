@@ -22,7 +22,7 @@ fn tip(cwd: &Path, rev: &str) -> String {
 
 #[test]
 fn protocol_self_describes_to_stdout() {
-    Command::cargo_bin("tracker")
+    Command::cargo_bin("bl-tracker")
         .unwrap()
         .arg("protocol")
         .assert()
@@ -51,7 +51,7 @@ fn a_deliverable_verbs_post_pushes_the_sealed_branch() {
         op.display(),
         op.display()
     );
-    Command::cargo_bin("tracker")
+    Command::cargo_bin("bl-tracker")
         .unwrap()
         .args(["claim", "post"])
         .write_stdin(payload)
@@ -72,7 +72,7 @@ fn prime_pre_with_no_remote_warns_w1_and_self_locks() {
         r#"{{"binding":{{"tasks_branch":"balls","store":"{0}","landing":"{0}","invocation_path":"{0}"}}}}"#,
         repo.display()
     );
-    Command::cargo_bin("tracker")
+    Command::cargo_bin("bl-tracker")
         .unwrap()
         .args(["prime", "pre"])
         .env("HOME", tmp.path())

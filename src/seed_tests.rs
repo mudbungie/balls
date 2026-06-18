@@ -34,7 +34,7 @@ fn seed_writes_the_embedded_default_then_copies_and_binds_present_plugins() {
     let tmp = TempDir::new().unwrap();
     let xdg = xdg_at(tmp.path());
     let landing = tmp.path().join("landing");
-    let exe = exe_dir_with(tmp.path(), &["tracker", "bl-delivery"]);
+    let exe = exe_dir_with(tmp.path(), &["bl-tracker", "bl-delivery"]);
 
     seed_landing(&xdg, &landing, Some(&exe)).unwrap();
 
@@ -45,8 +45,8 @@ fn seed_writes_the_embedded_default_then_copies_and_binds_present_plugins() {
     assert!(landing.join("config/balls.toml").is_file());
     // Both shipped plugins resolved → kept in the schedule and bound locally.
     let hooks = Hooks::load(&landing).unwrap();
-    assert_eq!(hooks.names("close", "post"), ["bl-delivery", "tracker"]);
-    assert!(bin_link(&landing, "tracker").symlink_metadata().is_ok());
+    assert_eq!(hooks.names("close", "post"), ["bl-delivery", "bl-tracker"]);
+    assert!(bin_link(&landing, "bl-tracker").symlink_metadata().is_ok());
     assert!(bin_link(&landing, "bl-delivery").symlink_metadata().is_ok());
     // The default wires no pre-seal staging (bl-0af4 — nothing is stored) but
     // does wire the `show` read-op under its bare key (§6 read dispatch).
@@ -60,15 +60,15 @@ fn seed_prunes_a_plugin_whose_binary_is_absent_here() {
     let tmp = TempDir::new().unwrap();
     let xdg = xdg_at(tmp.path());
     let landing = tmp.path().join("landing");
-    // Only the tracker is installed beside bl — bl-delivery must prune.
-    let exe = exe_dir_with(tmp.path(), &["tracker"]);
+    // Only bl-tracker is installed beside bl — bl-delivery must prune.
+    let exe = exe_dir_with(tmp.path(), &["bl-tracker"]);
 
     seed_landing(&xdg, &landing, Some(&exe)).unwrap();
 
     let hooks = Hooks::load(&landing).unwrap();
-    assert_eq!(hooks.names("close", "post"), ["tracker"]); // bl-delivery dropped
+    assert_eq!(hooks.names("close", "post"), ["bl-tracker"]); // bl-delivery dropped
     assert!(hooks.names("close", "pre").is_empty()); // was [bl-delivery] → emptied
-    assert!(bin_link(&landing, "tracker").symlink_metadata().is_ok());
+    assert!(bin_link(&landing, "bl-tracker").symlink_metadata().is_ok());
     assert!(bin_link(&landing, "bl-delivery").symlink_metadata().is_err());
 }
 
