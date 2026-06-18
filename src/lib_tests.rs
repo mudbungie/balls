@@ -71,10 +71,13 @@ fn create_claim_update_close_round_trip_through_the_engine() {
 }
 
 #[test]
-fn close_notices_open_children_and_subtask_of_gates() {
-    // §10: --subtask-of mints the parent + close-gate through the real engine,
-    // and a close that leaves non-gating children emits the §10 notice (the
-    // n > 0 stderr branch in `mutate::report::emit`).
+fn subtask_of_claim_gates_the_epic_and_close_notices_open_children() {
+    // §10/bl-5d9a: --subtask-of mints the parent + CLAIM-gate through the real
+    // engine, so an epic with an open subtask is *blocked* — it refuses claim
+    // and drops out of the ready set (a context-free agent can't land on an
+    // unactionable container). close is NOT gated (the close-gate was dropped:
+    // no lifecycle enforcement), and a close leaving non-gating children still
+    // emits the §10 notice (the n > 0 stderr branch in `mutate::report::emit`).
     let tmp = TempDir::new().unwrap();
     assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
     let tasks = store(&tmp).join("tasks");
@@ -91,10 +94,13 @@ fn close_notices_open_children_and_subtask_of_gates() {
     let child = new_id(&[&epic]);
     assert_eq!(run_in(&tmp, &["create", "Gate", "--subtask-of", &epic, "--as", "me"]), 0);
     let gate = new_id(&[&epic, &child]);
-    // The sugar's close-gate holds end to end: the epic refuses to close.
-    assert_eq!(run_in(&tmp, &["close", &epic, "--as", "me"]), 1);
-    // Resolve the gate; the close lands and notices the surviving child.
+    // The sugar's claim-gate holds end to end: the epic refuses to be CLAIMED.
+    assert_eq!(run_in(&tmp, &["claim", &epic, "--as", "me"]), 1);
+    // Close the gate (a ready leaf); its claim-blocker resolves by file-absence,
+    // so the epic auto-readies and now claims with no manual edge teardown.
     assert_eq!(run_in(&tmp, &["close", &gate, "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["claim", &epic, "--as", "me"]), 0);
+    // close is ungated: the epic closes over its still-open child, noticing it.
     assert_eq!(run_in(&tmp, &["close", &epic, "--as", "me"]), 0);
     assert!(!tasks.join(format!("{epic}.md")).exists());
     // The child survives, its parent pointer dangling (display-only, §3).

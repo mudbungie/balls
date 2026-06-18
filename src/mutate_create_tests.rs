@@ -163,9 +163,10 @@ fn create_requires_exactly_one_positional() {
 }
 
 #[test]
-fn create_subtask_of_sets_parent_and_close_gates_it() {
-    // §10 sugar: --subtask-of E ≡ --parent E --blocks close — the intent named
-    // by the flag, so the close-gate cannot be silently forgotten.
+fn create_subtask_of_sets_parent_and_claim_gates_it() {
+    // §10 sugar: --subtask-of E ≡ --parent E --blocks claim — the intent named
+    // by the flag, so the claim-gate cannot be silently forgotten. Gating CLAIM
+    // (not close) keeps the epic out of the ready set until children land (bl-5d9a).
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1000", TASK);
@@ -176,7 +177,7 @@ fn create_subtask_of_sets_parent_and_close_gates_it() {
     base.stage(dir).unwrap();
     let id = new_id(dir, &["bl-1000"]);
     assert_eq!(read_task(dir, &id).unwrap().parent.as_deref(), Some("bl-1000"));
-    assert_eq!(read_task(dir, "bl-1000").unwrap().blockers, vec![Blocker { id, on: On::Close }]);
+    assert_eq!(read_task(dir, "bl-1000").unwrap().blockers, vec![Blocker { id, on: On::Claim }]);
 }
 
 #[test]
@@ -192,8 +193,8 @@ fn create_subtask_of_conflicts_with_parent() {
 }
 
 #[test]
-fn create_subtask_of_dedups_an_explicit_close_gate() {
-    // --subtask-of E --blocks close would mint the same {child, close} edge
+fn create_subtask_of_dedups_an_explicit_claim_gate() {
+    // --subtask-of E --blocks claim would mint the same {child, claim} edge
     // twice (the bare OP targets the effective parent = E); it converges to one.
     let d = tempdir().unwrap();
     let dir = d.path();
@@ -201,16 +202,16 @@ fn create_subtask_of_dedups_an_explicit_close_gate() {
     let mut f = flags();
     f.positionals = vec!["Subtask".into()];
     f.subtask_of = Some("bl-1000".into());
-    f.blocks = vec!["close".into()];
+    f.blocks = vec!["claim".into()];
     let (base, _) = base_change(Verb::Create, dir, &f, 0).unwrap();
     base.stage(dir).unwrap();
     let id = new_id(dir, &["bl-1000"]);
-    assert_eq!(read_task(dir, "bl-1000").unwrap().blockers, vec![Blocker { id, on: On::Close }]);
+    assert_eq!(read_task(dir, "bl-1000").unwrap().blockers, vec![Blocker { id, on: On::Claim }]);
 }
 
 #[test]
 fn create_subtask_of_composes_with_a_distinct_blocks_edge() {
-    // The sugar's gate appends alongside (not instead of) an explicit non-close
+    // The sugar's gate appends alongside (not instead of) an explicit non-claim
     // edge — both land on the parent.
     let d = tempdir().unwrap();
     let dir = d.path();
@@ -225,5 +226,5 @@ fn create_subtask_of_composes_with_a_distinct_blocks_edge() {
     let blockers = read_task(dir, "bl-1000").unwrap().blockers;
     assert_eq!(blockers.len(), 2);
     assert!(blockers.contains(&Blocker { id: id.clone(), on: On::Update }));
-    assert!(blockers.contains(&Blocker { id, on: On::Close }));
+    assert!(blockers.contains(&Blocker { id, on: On::Claim }));
 }
