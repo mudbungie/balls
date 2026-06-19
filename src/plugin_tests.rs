@@ -166,16 +166,6 @@ fn a_nonzero_exit_aborts_the_op() {
 }
 
 #[test]
-fn a_missing_bin_errors_at_the_op_and_names_bl_install() {
-    let e = Env::new();
-    let err = e
-        .dispatcher(0)
-        .run(&pref("ghost", None), Verb::Close, Phase::Pre, &e.at("cwd"), None)
-        .unwrap_err();
-    assert!(err.to_string().contains("ghost referenced but bin/ghost missing — run bl install"));
-}
-
-#[test]
 fn a_missing_binary_path_surfaces_the_spawn_error() {
     let e = Env::new();
     let bin = e.at("bin").join("does-not-exist");

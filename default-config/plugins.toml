@@ -7,22 +7,22 @@
 # install`; the local `config/plugins/bin/<name>` symlink (gitignored) resolves
 # each name to this box's binary.
 #
-# This default wires the two shipped capabilities — `tracker` (remote sync) and
+# This default wires the two shipped capabilities — `bl-tracker` (remote sync) and
 # `bl-delivery` (the code worktree). `bl prime` PRUNES any entry whose binary is
 # not installed beside `bl`, so a tracker-less or test box never aborts. Replace
 # this file (or the whole `$XDG_CONFIG_HOME/balls/default-config/` folder) to
 # ship an org's own default capability set without touching core (§1/§12).
 
 [hooks]
-"sync.pre"     = ["tracker"]                  # import remote state first
-"prime.pre"    = ["tracker"]
-"install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
-"claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
-"unclaim.post" = ["bl-delivery", "tracker"]
+"sync.pre"     = ["bl-tracker"]                  # import remote state first
+"prime.pre"    = ["bl-tracker"]
+"install.pre"  = ["bl-tracker"]                  # fetch the center's config to adopt (§13 prime --install)
+"prime.post"   = ["bl-delivery", "bl-tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
+"unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]              # read-op (§6, single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
-"create.post"  = ["tracker"]
-"update.post"  = ["tracker"]
-"import.post"  = ["tracker"]                  # imported records sync like any mutate (§16)
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"create.post"  = ["bl-tracker"]
+"update.post"  = ["bl-tracker"]
+"import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
