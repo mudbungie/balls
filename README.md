@@ -1,8 +1,12 @@
 # balls
 
-**balls** — **B**ranching **A**gent **L**abor and **L**ogistics **S**ystem — is a git-native task tracker for parallel agent workflows. Tasks are markdown files (TOML frontmatter) committed to your repo on dedicated branches. Worktrees provide code isolation. Git provides sync, history, and collaboration. There is no database, no daemon, no external service.
+**balls** — the **B**ranching **A**gent **L**abor and **L**ogistics **S**ystem — is a git-native task tracker for the point where you stop running one agent and start running a fleet.
 
-The CLI is `bl`. State rides two git branches and nothing touches `main` — that property is structural, not a convention. The system is designed for a single developer running many agents, multiple developers each running many agents, and anything in between. It works offline. It degrades gracefully: strip every plugin and balls is a pure local task list.
+That is where ordinary trackers come apart. Two agents claim the same task and overwrite each other's work. A third stops one commit short of done and reports success. `main`'s history turns into a slurry of bookkeeping commits braided through real code. And the tracker that was supposed to coordinate all of this wants a daemon, a second database, or a network round-trip on every read — so the whole fleet stalls the moment one of them is unreachable.
+
+balls is built so none of those failures have anywhere to take root. Tasks are markdown files (TOML frontmatter) committed to dedicated git branches, and **nothing touches `main` — that property is structural, not a convention**: base balls never opens your project repo, so it *cannot* leave a commit there. Every claim hands the agent its own git worktree, so parallel work is isolated by construction, not by etiquette. Status is *derived, never stored* — claimed, blocked, and ready are computed from a single occupancy field, so two agents can't hold conflicting views of who owns what. And every operation is atomic — a claim, a close, a sync either lands whole or leaves nothing to repair. An interrupted op's *entire* recovery protocol is to run it again: it detects whatever already landed and converges onto it, so a crashed agent never wedges the store or strands a half-merge for anyone to untangle. Because the whole system rides one VCS — fetched by `git fetch`, synced by `git push`, its history read by `git log` — there is **no database, no daemon, no external service** to run, nothing that can be down when the work needs it. balls works offline, and it degrades gracefully: strip every plugin and it is a pure local task list any collaborator can read, diff, and hand-edit with stock git.
+
+The CLI is `bl`. It runs the full spectrum — from one operator keeping a standalone backlog (no fleet, no codebase; the whole thing is task files you could keep by hand with `vi` and `git`) through a single developer driving a dozen agents, up to an entire team running enterprise workflows and external integrations across many machines — on the same two branches the whole way up.
 
 > **Companion documents go deeper.** `SKILL.md` (`bl skill`) is the operational guide for an agent driving `bl`. `docs/architecture.md` is the frozen design reference (§0–§16) — the authority for every claim in this README. `docs/release-notes-greenfield.md` narrates the greenfield (0.x) model and what changed from legacy; `docs/demonstration.md` is a captured end-to-end proof run against the shipped binary. This file is the introduction.
 
@@ -14,7 +18,7 @@ One agent takes a task all the way through: `bl claim → work → bl close → 
 
 ## Installation
 
-Balls ships as a small Rust binary `bl` plus two sibling plugin binaries (`tracker`, `bl-delivery`). The only runtime dependency is `git`.
+Balls ships as a small Rust binary `bl` plus two sibling plugin binaries (`bl-tracker`, `bl-delivery`). The only runtime dependency is `git`.
 
 ### From source (recommended)
 
@@ -25,7 +29,7 @@ make install
 make hooks     # one-time per clone: install the repo-local pre-commit hook
 ```
 
-`make install` builds release binaries and installs three executables to `~/.local/bin/`: `bl` (core, plus a `balls` alias symlink), `tracker`, and `bl-delivery`. Wiring is by name: the hook schedule (`config/plugins.toml`) lists plugin names, and `bl prime`/`bl install` bind each name to the binary of that name installed **beside `bl`** — a local, gitignored `config/plugins/bin/<name>` symlink that dispatch then resolves (§6). A core-only install leaves `bl prime` founding a stealth, plugin-less task list: remotes and code worktrees silently never engage. Install the plugins beside `bl` and they wire themselves. Make sure `~/.local/bin` is on your `PATH`.
+`make install` builds release binaries and installs three executables to `~/.local/bin/`: `bl` (core, plus a `balls` alias symlink), `bl-tracker`, and `bl-delivery`. Wiring is by name: the hook schedule (`config/plugins.toml`) lists plugin names, and `bl prime`/`bl install` bind each name to the binary of that name installed **beside `bl`** — a local, gitignored `config/plugins/bin/<name>` symlink that dispatch then resolves (§6). A core-only install leaves `bl prime` founding a stealth, plugin-less task list: remotes and code worktrees silently never engage. Install the plugins beside `bl` and they wire themselves. Make sure `~/.local/bin` is on your `PATH`.
 
 `make hooks` wires the repo-local pre-commit hook (clippy, 300-line cap, tests, 100% coverage). Run it once per clone; it is not part of `make install` because a user installing the binary should not have hooks attached to whatever repo they happen to be in. The coverage check requires `cargo install cargo-tarpaulin`.
 
@@ -41,7 +45,7 @@ make uninstall
 cargo install balls
 ```
 
-`cargo install` places `bl` in `~/.cargo/bin/`. To get the plugins beside it, build and copy `tracker` and `bl-delivery` next to `bl` (or use the source install above).
+`cargo install` places `bl` in `~/.cargo/bin/`. To get the plugins beside it, build and copy `bl-tracker` and `bl-delivery` next to `bl` (or use the source install above).
 
 ### Cross-compilation
 
@@ -182,22 +186,22 @@ The shipped seed (`default-config/plugins.toml`):
 
 ```toml
 [hooks]
-"sync.pre"     = ["tracker"]                  # import remote state first
-"prime.pre"    = ["tracker"]
-"install.pre"  = ["tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
-"claim.post"   = ["bl-delivery", "tracker"]   # worktree (prints its path), then the push (tracker last)
-"unclaim.post" = ["bl-delivery", "tracker"]
+"sync.pre"     = ["bl-tracker"]                  # import remote state first
+"prime.pre"    = ["bl-tracker"]
+"install.pre"  = ["bl-tracker"]                  # fetch the center's config to adopt (§13 prime --install)
+"prime.post"   = ["bl-delivery", "bl-tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
+"unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "tracker"]   # teardown, then push
-"create.post"  = ["tracker"]
-"update.post"  = ["tracker"]
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"create.post"  = ["bl-tracker"]
+"update.post"  = ["bl-tracker"]
 ```
 
 Two plugins ship by default and are wired by the seed config:
 
-- **tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
+- **bl-tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
 - **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim, squash-deliver + tear down on close. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
 
 A third, **bl-chore**, ships but is **opt-in** (not in the seed schedule): wire it with `bl conf prepend claim.post bl-chore` and it mints one tagged close-gate child per configured chore at claim, so the claiming agent must discharge them before `bl close` — a forcing-function checklist, not enforcement.
