@@ -30,6 +30,14 @@ path = "src/main.rs"
 name = "bl-delivery"
 path = "src/bin/bl-delivery.rs"
 
+# §10 guarded-mint primitive (design bl-3df3) — an opt-in SIBLING binary that
+# mints tagged close-gate children at claim.post. Shipped as a default
+# capability + reference impl; NOT in the default [hooks] schedule (opt in with
+# `bl conf prepend claim.post bl-chore`).
+[[bin]]
+name = "bl-chore"
+path = "src/bin/bl-chore.rs"
+
 # Greenfield rewrite: runtime deps are added per phase as the architecture
 # needs them (YAML frontmatter, git plumbing, CLI parsing, ...). The skeleton
 # is std-only.
