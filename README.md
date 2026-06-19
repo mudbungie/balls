@@ -200,6 +200,8 @@ Two plugins ship by default and are wired by the seed config:
 - **tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
 - **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim, squash-deliver + tear down on close. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
 
+A third, **bl-chore**, ships but is **opt-in** (not in the seed schedule): wire it with `bl conf prepend claim.post bl-chore` and it mints one tagged close-gate child per configured chore at claim, so the claiming agent must discharge them before `bl close` — a forcing-function checklist, not enforcement.
+
 A plugin contributes by **editing the change worktree** (the task file), never by a parsed return value — core parses nothing back (there is no return channel, §7). Its stdout is the **user-facing channel**, forwarded verbatim to the invoker's stdout: "`bl claim` prints the worktree path" is bl-delivery printing there, and `bl prime` re-prints the path of every task you still hold the same way. Its stderr is enveloped line-by-line into the per-clone op log. A non-zero exit aborts the op and rolls prior plugins back in reverse. That is the whole protocol. See `docs/architecture.md` §6–§8 for the full contract.
 
 ### Delivery: one path; forge changes who merges
