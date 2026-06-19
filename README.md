@@ -18,7 +18,7 @@ One agent takes a task all the way through: `bl claim → work → bl close → 
 
 ## Installation
 
-Balls ships as a small Rust binary `bl` plus two sibling plugin binaries (`bl-tracker`, `bl-delivery`). The only runtime dependency is `git`.
+Balls ships as a small Rust binary `bl` plus three sibling plugin binaries (`bl-tracker`, `bl-delivery`, and the opt-in `bl-chore`). The only runtime dependency is `git`.
 
 ### From source (recommended)
 
@@ -29,7 +29,7 @@ make install
 make hooks     # one-time per clone: install the repo-local pre-commit hook
 ```
 
-`make install` builds release binaries and installs three executables to `~/.local/bin/`: `bl` (core, plus a `balls` alias symlink), `bl-tracker`, and `bl-delivery`. Wiring is by name: the hook schedule (`config/plugins.toml`) lists plugin names, and `bl prime`/`bl install` bind each name to the binary of that name installed **beside `bl`** — a local, gitignored `config/plugins/bin/<name>` symlink that dispatch then resolves (§6). A core-only install leaves `bl prime` founding a stealth, plugin-less task list: remotes and code worktrees silently never engage. Install the plugins beside `bl` and they wire themselves. Make sure `~/.local/bin` is on your `PATH`.
+`make install` builds release binaries and installs four executables to `~/.local/bin/`: `bl` (core, plus a `balls` alias symlink), `bl-tracker`, `bl-delivery`, and `bl-chore`. Wiring is by name: the hook schedule (`config/plugins.toml`) lists plugin names, and `bl prime`/`bl install` bind each name to the binary of that name installed **beside `bl`** — a local, gitignored `config/plugins/bin/<name>` symlink that dispatch then resolves (§6). The seed wires `bl-tracker` and `bl-delivery`; `bl-chore` installs beside them but stays dormant until you schedule it (opt-in — see Plugins). A core-only install leaves `bl prime` founding a stealth, plugin-less task list: remotes and code worktrees silently never engage. Install the scheduled plugins beside `bl` and they wire themselves. Make sure `~/.local/bin` is on your `PATH`.
 
 `make hooks` wires the repo-local pre-commit hook (clippy, 300-line cap, tests, 100% coverage). Run it once per clone; it is not part of `make install` because a user installing the binary should not have hooks attached to whatever repo they happen to be in. The coverage check requires `cargo install cargo-tarpaulin`.
 
@@ -45,7 +45,7 @@ make uninstall
 cargo install balls
 ```
 
-`cargo install` places `bl` in `~/.cargo/bin/`. To get the plugins beside it, build and copy `bl-tracker` and `bl-delivery` next to `bl` (or use the source install above).
+`cargo install` places `bl` in `~/.cargo/bin/`. To get the plugins beside it, build and copy `bl-tracker`, `bl-delivery`, and `bl-chore` next to `bl` (or use the source install above).
 
 ### Cross-compilation
 
@@ -111,11 +111,13 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail. A closed id still resolves (reconstructed from history). |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body, `-m` the commit note). Prints the new id. |
+| `bl import [--as ID]` | Bulk-create tasks from `--json` bedrock records on stdin — the inverse of `show --json`. Ids and timestamps are ingested verbatim (no minting, stamping, or gating); an existing id is refused (use `update` to modify). For migration, restore, and federation joins (§16). |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. **Prints the worktree path** to stdout. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `PATH` defaults to `config/`, `--from` to the configured upstream, `--to` to the landing; `--bin NAME=PATH` names a referenced plugin's local binary explicitly (else beside `bl`, then `$PATH`). A folder source mirrors (deletions propagate), a file/glob source unions. |
+| `bl conf [KEY]` | Read or write this checkout's **local** config (never synced), with provenance. No arg dumps every resolved value with its layer and source file; one `KEY` reads that value. Write with `bl conf <set\|append\|prepend\|remove> KEY VALUE…`; `KEY` ∈ `task-remote`, `task-branch`, `log-level`, `<op>.<pre\|post>`, `show`, `list`. |
 | `bl skill` | Print the agent guide (`SKILL.md`) — the full manual. |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
@@ -197,6 +199,7 @@ The shipped seed (`default-config/plugins.toml`):
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
+"import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
 ```
 
 Two plugins ship by default and are wired by the seed config:
@@ -299,4 +302,4 @@ Traditional trackers weren't designed for agent workflows. They require network 
 
 ### The balls approach
 
-Balls takes the core insight — structured task files, dependency tracking, agent-native CLI — and implements it on the only infrastructure every developer already has: git. Tasks are files. Sync is push/pull. History is git log. Collaboration is merge. There is nothing to install except a small CLI and two plugins, nothing to configure that isn't a committed TOML file, and nothing to operate except git.
+Balls takes the core insight — structured task files, dependency tracking, agent-native CLI — and implements it on the only infrastructure every developer already has: git. Tasks are files. Sync is push/pull. History is git log. Collaboration is merge. There is nothing to install except a small CLI and its sibling plugins, nothing to configure that isn't a committed TOML file, and nothing to operate except git.

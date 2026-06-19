@@ -17,7 +17,7 @@ check: test
 	scripts/check-coverage.sh
 
 # The whole suite: core + every shipped sibling plugin. A core-only install
-# leaves `bl` resolving no `tracker`/`bl-delivery` beside it (Edge::resolve
+# leaves `bl` resolving no `bl-tracker`/`bl-delivery` beside it (Edge::resolve
 # looks beside the bl binary), so `bl prime` founds stealth-only and federation
 # silently never engages. Installing the plugins next to bl is what wires them.
 install: install-core install-tracker install-delivery install-chore
@@ -32,7 +32,7 @@ install-core: build
 # is the whole wiring (§6 subprocess-uniform, resolved by Edge::resolve).
 install-tracker: build
 	install -d $(BIN_DIR)
-	install -m 0755 target/release/tracker $(BIN_DIR)/tracker
+	install -m 0755 target/release/bl-tracker $(BIN_DIR)/bl-tracker
 
 install-delivery: build
 	install -d $(BIN_DIR)
@@ -45,7 +45,7 @@ install-chore: build
 	install -m 0755 target/release/bl-chore $(BIN_DIR)/bl-chore
 
 uninstall:
-	rm -f $(BIN_DIR)/bl $(BIN_DIR)/balls $(BIN_DIR)/tracker $(BIN_DIR)/bl-delivery $(BIN_DIR)/bl-chore
+	rm -f $(BIN_DIR)/bl $(BIN_DIR)/balls $(BIN_DIR)/bl-tracker $(BIN_DIR)/bl-delivery $(BIN_DIR)/bl-chore
 
 # Install the repo-local pre-commit hook (line-length + clippy + tests
 # + 100% coverage). Run once per clone; not part of `make install`
