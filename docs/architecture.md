@@ -424,8 +424,10 @@ bl-actor: orionriver@gmail.com
 ## §6 Plugin contract & dispatch
 
 A plugin is a single binary, dispatched **subprocess-uniform** — no in-process path, no privileged
-plugins. The shipped `tracker` and delivery plugins are fully separate binaries, in-repo only as
-default capabilities + reference implementations, invoked identically to any third party. Core
+plugins. The shipped `bl-tracker`, delivery, and `bl-chore` plugins are fully separate binaries, in-repo
+only as default capabilities + reference implementations, invoked identically to any third party
+(`bl-chore` ships but is OPT-IN — a shipped capability is not a wired one; see the `[hooks]` seed
+below). Core
 spawns every plugin directly as `<bin> <op> <phase>` — uniformity is carried by that spawn
 contract, not by a dispatch verb (there is none; bl-587f, §15). Hand-testing a wiring is just
 running the binary by hand with the same argv.
@@ -506,6 +508,8 @@ a list property, not an `NN-` filename convention faking one.
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
+# bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.post bl-chore`
+# (shipped ≠ scheduled: default-wiring would mint chore gates for every claim, system-wide).
 ```
 
 Schedule (committed text) and binary (local symlink) split cleanly:
@@ -884,8 +888,9 @@ late-add gaps. Now every edge is explicit and says exactly what it gates.
 resolved. ready(A) true is exactly the **ready** display state (§3); claimed and blocked are the
 other two. `bl list` orders the ready set — and every listing — by `priority` ascending (lower =
 higher; absent last), then `created` ascending; ordering is display-only, never part of the predicate
-(§3). The old `bl ready` is now `bl list --status ready` (§9). (A gate child is a live child that does NOT affect readiness — it's a close-blocker, so it
-never shows as a status either.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker's file is gone.
+(§3). The old `bl ready` is now `bl list --status ready` (§9). (A gate child does NOT affect its PARENT's readiness — it gates the parent's CLOSE, not its claim, so
+the parent stays ready/claimed; the gate child ITSELF, having no blocker on itself, is an ordinary
+ready task and DOES show in `bl list` until closed.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker's file is gone.
 
 **Deadlock avoidance is now structural-by-default.** Because no edge is ever auto-minted (containment
 implies none), the reciprocal edge that would deadlock is simply never created unless you spell out
@@ -982,8 +987,23 @@ the create flags are sugar over the general primitive, never a constraint on it.
 **Gates are tasks only** — every gate-check is "is task X closed?". Build/test = a build-gate child a
 build plugin creates and closes on pass; forge/PR approval = a child the forge plugin creates and a
 forge `sync` closes on merge; human approval = a child a person closes. Creation rides `claim.post`
-(the deliverable signal) so non-deliverables stay clutter-free. The resolution mechanism is pluggable;
-the blocking mechanism is one thing.
+(the deliverable signal). A close-gate child — `--parent X --blocks close` — never makes its PARENT
+non-ready (only claim-blockers do that; the parent stays claimed/ready and the gate just denies its
+*close*); the gate child itself is an ordinary ready task that DOES surface in `bl list` until closed.
+The resolution mechanism is pluggable; the blocking mechanism is one thing.
+
+The reference create-side guarded-mint primitive is **`bl-chore`** (opt-in, shipped beside `bl`, §6).
+At `claim.post`, for each configured chore it renders `bl create --parent <id> --blocks close -t
+bl-chore --as <claimant> -- "<title>"` — one tagged close-gate child the claimant must discharge
+before `bl close`. The mint authors each gate as the CLAIMANT (`--as` the §7 wire `actor`), not
+bl-chore's inherited env identity. Two guards keep it sound: **tag-skip** (always-on, structural —
+bail if the claimed task carries the `bl-chore` tag, which breaks chore-of-a-chore since a chore is a
+leaf the has-children check would miss) and **epic-skip** (a default-on knob in bl-chore's own config —
+bail if the task already has children, which also buys idempotency on reclaim). Core never mints these
+edges (the auto-mint rejection below holds — a PLUGIN mints the explicit `--blocks close`, core only
+ENFORCES the close-blocker). **Resolution is a separate, orthogonal plugin** — closing a chore on a
+mechanism (e.g. close-the-gate-on-`make test`) is NOT bl-chore's job; bl-chore is create-side only, so
+"just have bl-chore also run the tests" is out of scope by construction.
 
 (The old "late-added subtask doesn't gate a claimed epic's close" gap is DISSOLVED, not patched: it
 existed only because `--parent` auto-minted a *claim* edge. With containment and blocking separated,
@@ -1082,10 +1102,17 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   existing refs, zero new state (derive-don't-store, §0). Integration branch is the delivery plugin's own config (default
   `HEAD@project-repo`); a per-task override, if ever needed, rides as a preserved frontmatter key
   (§3 seam), NEVER a core field — core opens no project repo, so it has no integration branch to name.
-- FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. The forge plugin mints an
-  **approval gate child** at `claim.post` (a normal close-blocker, §10 — NOT a special mechanism;
-  identical to a build or audit gate; it skips minting on its own gate children, so no gates-for-gates)
-  and resolves it at `sync` (PR merged ⇒ close the gate child → the next close unblocks). Core enforces
+- FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. Forge is a COMPOSITION over
+  the §10 create-side primitive: **`bl-chore` (mint the approval gate child at `claim.post`) +
+  forge-`sync` (resolve it on PR merge)**. It mints an **approval gate child** at `claim.post` (a
+  normal close-blocker, §10 — NOT a special mechanism; identical to a build or audit gate; it skips
+  minting on its own gate children, so no gates-for-gates) and resolves it at `sync` (PR merged ⇒
+  close the gate child → the next close unblocks). Forge sits on the same mint pattern **with its own
+  tag** (`forge-review`, not `bl-chore`) — a plugin reuses the mint code/pattern, NOT bl-chore's
+  config (the `chores.toml` titles are the human/team surface, not a plugin API). (The shipped forge
+  plugin in the sibling repo `~/dev/balls-github-plugin` is STALE: it assumes the ABOLISHED `bl review`
+  op / `review` status — "There is no `review` verb" below — and needs a rewrite onto the bl-chore
+  mint.) Core enforces
   the block (the close-blocker guard, §10), not a bundle-private check. SUBMISSION IS GIT-NATIVE WORK:
   the worker pushes `work/<id>` and opens the PR themselves, the `[bl-id]` tag in the PR title — which
   is what the bl-430e already-delivered check (below) greps, so the close that follows the merge SKIPS
@@ -1114,7 +1141,11 @@ property AND the disambiguation. (A cross-clone miss is reported honestly or res
 BINDING commit point and STANDS through an abort; everything else the plugin makes is derived and
 recomputes. `rollback claim.post` = remove the worktree + delete `work/<id>` (forge: also remove
 the just-minted gate child) — a tidy of derived state, never load-bearing (a retried claim would
-re-create both). `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
+re-create both). (bl-chore, by contrast, ships NO rollback: each chore it shells is an independently
+SEALED `bl create` — published state the moment it returns, not the claim op's private derived state —
+so the gates correctly persist through a `claim.post` abort to gate the task's next holder, and a
+reclaim is de-duped by epic-skip. The forge teardown above is for a single UNPUSHED gate edge and is
+NOT inherited.) `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
 un-squash): the reset raced concurrent integration movement in a shared hub — a sibling's commit
 landing between squash and reset gets eaten by it — and a standing squash without a sealed close
 is exactly the bl-430e state the retried close completes; the squash is always GATED code (the
