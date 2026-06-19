@@ -21,13 +21,17 @@ configured chore ("Run the test suite", "Review and update the docs") so the
 claiming agent must discharge them before `bl close` succeeds. **Create-side
 only** — bl-chore never *resolves* a gate; a human (or an orthogonal resolver
 plugin) closes it. A gate child is `bl create --parent <id> --blocks close` (§10):
-it does not affect readiness and never shows as a status, so N parallel claims
-cause zero ready-list clutter — the chores surface exactly where wanted, at
-`bl close`, "blocked by: run the test suite."
+it is a tagged (`bl-chore`) **ready** child that gates the *parent's close* — it
+does NOT make the parent non-ready (only a claim-blocker does that; the parent
+stays claimed/ready). Each chore is itself an ordinary ready task, so it DOES
+appear in `bl list` until closed (the "zero ready-list clutter" / "never shows as
+a status" framing the epic carried is wrong against current code — see correction
+3 below); what the close-gate buys is that the chores surface exactly where
+wanted, at `bl close`, "blocked by: run the test suite."
 
-## Two corrections to the epic's framing (bl-6ee9)
+## Three corrections to the epic's framing (bl-6ee9)
 
-The epic is mostly right, but two load-bearing claims are false against current
+The epic is mostly right, but three load-bearing claims are false against current
 code and the design is cleaner once corrected (CLAUDE.md: *amend and correct
 previous conclusions; fix the doc, don't deviate silently*).
 
@@ -51,6 +55,17 @@ previous conclusions; fix the doc, don't deviate silently*).
    safe render), copied. bl-chore earns core-shipping as **the reference
    chore-fanout every repo wants**, not as a library everyone links. The
    config surface stays titles-only; reuse is a code seam, not a config API.
+
+3. **"Zero ready-list clutter" / "the gate never shows as a status" is FALSE —
+   EMPIRICALLY VERIFIED.** A `--parent X --blocks close` child has NO blocker on
+   *itself*, so it computes as **ready** and DOES appear in `bl list`. The
+   accurate statement is narrower: a close-gate child never makes its **PARENT**
+   non-ready (only a claim-blocker does that — the parent stays claimed/ready, the
+   gate just denies its *close*); the chore CHILD is an ordinary tagged
+   (`bl-chore`) ready task that surfaces in `bl list` until someone closes it.
+   What the gate buys is enforcement at `bl close`, not invisibility. (The epic
+   and an earlier draft of "What it is" above said "causes zero ready-list
+   clutter"; corrected here and in `architecture.md` §10.)
 
 ## The config schema — lead with subtraction
 
@@ -80,13 +95,18 @@ bl-chore renders each spec into exactly one command, executed via **argv (no
 shell)** with `cwd = binding.invocation_path`:
 
 ```
-bl create --parent <bl-id> --blocks close -t bl-chore [-p N] [--body B] -- "<title>"
+bl create --parent <bl-id> --blocks close -t bl-chore --as <actor> [-p N] [--body B] -- "<title>"
 ```
 
 - **Dissolves flag-injection** — there is nothing to inject *into*; bl-chore
   builds the command, puts its flags before `--`, and passes the title as one
   literal argv positional (a body with quotes/`$()`/newlines is inert — never
   interpolated, because there is no shell).
+- **Authored as the CLAIMANT** — `--as <actor>` reads the §7 post wire's
+  `actor` (the agent who just claimed) so the gate is attributed to the
+  claimant. Without it, the shelled `bl create` inherits bl-chore's own env
+  identity and falls back to "unknown" — the chore would be authored by the
+  plugin, not the person on the hook for discharging it.
 - **Closes the recursion hole structurally** — the caller supplies only a
   title and *cannot* forget (or override) `-t bl-chore`; the plugin always
   injects it. The one interface invariant — "minted children carry the tag" —
@@ -243,8 +263,8 @@ bl-chore`, before bl-tracker. bl-chore is the create-side reference capability;
 resolution is orthogonal (a separate plugin), said explicitly to block scope
 creep. Net mechanism: **+1 first-party binary, +1 tag convention (`bl-chore`),
 0 new core config surface, 0 new flags, 0 new verbs, 4 spec amendments**, and
-−1 false framing (the "factors forge's mint" / "primitive others sit on" claims,
-both corrected).
+−3 false framings (the "factors forge's mint" / "primitive others sit on" /
+"zero ready-list clutter" claims, all corrected).
 
 ## Open questions — RESOLVED (maintainer dialogue, 2026-06-18)
 

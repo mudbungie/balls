@@ -242,12 +242,23 @@ block: the children survive with dangling, display-only parent pointers.
 
 Behavior beyond the base (commit task files) is plugins — subprocesses wired in
 `config/plugins.toml` under `[hooks]` (`<op>.<phase>` → an ordered list of plugin
-names). Two ship by default:
+names). Two ship wired by default; a third (`bl-chore`) ships but is opt-in:
 
-- **tracker** — the only component that talks to a remote: fetch + ff on sync,
+- **bl-tracker** — the only component that talks to a remote: fetch + ff on sync,
   push after each op, found/adopt on prime.
 - **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim,
   squash-deliver + tear down on close.
+- **bl-chore** (opt-in, NOT wired by default) — at `claim.post`, mints one
+  close-gate child per configured chore ("Run the test suite", "Review the
+  docs") for the just-claimed task, so you must discharge them before `bl close`
+  succeeds. It is the **agentic create-side, not enforcement** — a forcing-
+  function checklist, not CI; the pre-commit hook stays the hard gate. Each chore
+  is a tagged (`bl-chore`) ready child that blocks the parent's *close* (it does
+  not make the parent non-ready). Opt in with `bl conf prepend claim.post
+  bl-chore`, then write `config/plugins/bl-chore/chores.toml` — a list of
+  `[[chore]]` entries, each a `title` (optional `body`/`priority`). bl-chore is
+  create-side only; resolving a gate (closing it on `make test`) is a separate
+  plugin.
 
 **Hook-list order is yours.** Plugins run in list order; on abort, whatever ran
 rolls back in reverse, then core un-seals. Nothing enforces the seeded order —
