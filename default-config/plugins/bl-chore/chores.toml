@@ -1,0 +1,25 @@
+# bl-chore — the chores minted as close-gate children when a task is claimed
+# (design bl-3df3). This is the shipped SAMPLE; it is NOT auto-seeded. To opt in,
+# copy it to your landing's `config/plugins/bl-chore/chores.toml` and wire the
+# plugin: `bl conf prepend claim.post bl-chore`.
+#
+# Each `[[chore]]` mints `bl create --parent <claimed-id> --blocks close
+# -t bl-chore --as <claimant> -- "<title>"` — the gate edge, the recursion-break
+# tag, and the claiming actor are injected by the plugin; you supply only data
+# (title, and optional body/priority), never flags. The chore gates the claimed
+# task's `bl close` until someone closes it; it surfaces as a tagged (`bl-chore`)
+# ready child.
+
+# epic_skip (default true): skip minting when the claimed task ALREADY has any
+# child. Keeps epics chore-free and makes a re-claim idempotent (it finds the
+# chores it minted before). SURPRISE: a leaf task you happened to give one real
+# subtask therefore gets NO chores — the conservative call. Set false to mint
+# regardless.
+epic_skip = true
+
+[[chore]]
+title = "Run the test suite"
+
+[[chore]]
+title = "Review and update the docs"
+body = "Check that the change is reflected in the relevant docs; update the README if it advertises this."

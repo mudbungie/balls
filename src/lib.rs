@@ -96,6 +96,8 @@
 pub mod adopt;
 pub mod change;
 pub mod checkout;
+pub mod chore;
+pub mod chore_cli;
 pub mod civil;
 pub mod conf;
 pub mod config;

@@ -1,5 +1,5 @@
 .PHONY: build test check \
-	install install-core install-tracker install-delivery \
+	install install-core install-tracker install-delivery install-chore \
 	uninstall clean hooks
 
 PREFIX ?= $(HOME)/.local
@@ -20,7 +20,7 @@ check: test
 # leaves `bl` resolving no `tracker`/`bl-delivery` beside it (Edge::resolve
 # looks beside the bl binary), so `bl prime` founds stealth-only and federation
 # silently never engages. Installing the plugins next to bl is what wires them.
-install: install-core install-tracker install-delivery
+install: install-core install-tracker install-delivery install-chore
 
 # Just the bl core binary + the `balls` alias.
 install-core: build
@@ -38,8 +38,14 @@ install-delivery: build
 	install -d $(BIN_DIR)
 	install -m 0755 target/release/bl-delivery $(BIN_DIR)/bl-delivery
 
+# §10 guarded-mint primitive (opt-in). Shipped beside bl like any plugin; wire
+# it per checkout with `bl conf prepend claim.post bl-chore`.
+install-chore: build
+	install -d $(BIN_DIR)
+	install -m 0755 target/release/bl-chore $(BIN_DIR)/bl-chore
+
 uninstall:
-	rm -f $(BIN_DIR)/bl $(BIN_DIR)/balls $(BIN_DIR)/tracker $(BIN_DIR)/bl-delivery
+	rm -f $(BIN_DIR)/bl $(BIN_DIR)/balls $(BIN_DIR)/tracker $(BIN_DIR)/bl-delivery $(BIN_DIR)/bl-chore
 
 # Install the repo-local pre-commit hook (line-length + clippy + tests
 # + 100% coverage). Run once per clone; not part of `make install`
