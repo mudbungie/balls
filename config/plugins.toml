@@ -1,6 +1,6 @@
 [hooks]
 "claim.post" = ["bl-delivery", "tracker"]
-"close.post" = ["bl-delivery", "tracker"]
+"close.post" = ["bl-delivery", "github-issues", "tracker"]
 "close.pre" = ["bl-delivery"]
 "create.post" = ["github-issues", "tracker"]
 "install.pre" = ["tracker"]
