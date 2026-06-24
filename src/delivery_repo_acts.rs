@@ -54,6 +54,16 @@ impl Repo for Project {
         Ok(Self::run(&self.root, &["symbolic-ref", "--short", "HEAD"])?.trim().to_string())
     }
 
+    fn is_git_repo(&self) -> io::Result<bool> {
+        // An EXIT-CODE predicate, not the stdout value: `--is-inside-work-tree`
+        // prints "false" for a BARE repo (the common balls deployment, where
+        // delivery works fine) yet still EXITS 0 there, and exits non-zero only
+        // when `root` is not a git repo at all. Reading the status (via `ok`)
+        // thus accepts bare + normal worktrees and rejects only the non-repo dir
+        // — and swallows the raw `fatal` so the gate can speak in balls' voice.
+        Self::ok(&self.root, &["rev-parse", "--is-inside-work-tree"])
+    }
+
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
         if path.exists() {
             ensure_no_merge_in_progress(path)?;

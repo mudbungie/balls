@@ -12,7 +12,8 @@ use std::io::{self, Read};
 use std::path::Path;
 use std::process::exit;
 
-use balls::delivery::{self, Spec, Wire};
+use balls::delivery::{self, Repo, Spec, Wire};
+use balls::delivery_precondition::{precondition_unmet, require_repo};
 use balls::delivery_repo::{changed_task_paths, claimed_ids, Project};
 use balls::layout::Xdg;
 
@@ -69,6 +70,10 @@ fn run(args: &[String]) -> io::Result<()> {
         subject: &subject,
         marker: &marker,
     };
+    // bl-4a88: the delivery precondition gate — claim.post / close.pre abort
+    // cleanly here when `root` is not a git repo, in balls' voice, rather than
+    // git's raw `fatal: not a git repository` from the first worktree act.
+    require_repo(op, phase, rolling_back, &repo, invocation)?;
     delivery::dispatch(op, phase, rolling_back, &repo, &spec)?;
     // §11 surfacing on stdout, forwarded/folded by balls (§6): `claim.post`
     // prints the just-materialized path (the verb's one product); the `show`
@@ -98,6 +103,14 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
     // mechanically: the unwind invokes rollbacks with cwd = the LANDING, which
     // has no tasks/, so the claimed-set scan below would die with ENOENT.
     if wire.rolling_back.is_some() {
+        return Ok(());
+    }
+    // bl-4a88: a non-repo invocation path makes delivery unusable. WARN once, at
+    // founding (before any task is filed) — and no-op, do NOT abort prime (the
+    // house style: prime warns, never refuses). The per-ball gate
+    // ([`require_repo`]) aborts later if you claim/close anyway.
+    if !repo.is_git_repo()? {
+        eprintln!("bl-delivery: {}", precondition_unmet(&wire.binding.invocation_path));
         return Ok(());
     }
     let store = env::current_dir()?;

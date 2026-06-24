@@ -94,6 +94,23 @@ fn integration_is_the_project_head_branch() {
 }
 
 #[test]
+fn is_git_repo_holds_for_a_worktree_and_a_bare_repo_but_not_a_plain_dir() {
+    // The bl-4a88 precondition predicate, read by EXIT CODE: a normal work tree
+    // is a repo, and so is a BARE one (the common balls deployment — delivery
+    // works against it, so the gate must NOT reject it), while a plain dir is
+    // not — the only case `claim`/`close` should abort on.
+    let (_tmp, _root, p) = project();
+    assert!(p.is_git_repo().unwrap());
+
+    let bare = TempDir::new().unwrap();
+    Project::run(bare.path(), &["init", "-q", "--bare", "-b", "main"]).unwrap();
+    assert!(Project::at(bare.path()).is_git_repo().unwrap());
+
+    let plain = TempDir::new().unwrap();
+    assert!(!Project::at(plain.path()).is_git_repo().unwrap());
+}
+
+#[test]
 fn deliver_captures_pending_work_and_squashes_it_onto_integration() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
