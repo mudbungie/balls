@@ -108,6 +108,15 @@ impl Hooks {
         self.table.iter()
     }
 
+    /// Is `key` wired in this schedule (even to an empty list)? Exactly the set
+    /// the `bl conf` dump surfaces — so `conf`'s per-key ops accept it too, even
+    /// when its op is a retired verb the strict slot-grammar no longer knows
+    /// (bl-03a1: what the dump shows, you can read and remove).
+    #[must_use]
+    pub fn has(&self, key: &str) -> bool {
+        self.table.contains_key(key)
+    }
+
     /// The ordered plugin names wired for `<op>.<phase>` (empty when un-wired).
     #[must_use]
     pub fn names(&self, op: &str, phase: &str) -> &[String] {
