@@ -166,12 +166,15 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 > `claim` prints the worktree path, and `prime` prints the path of each
 > still-held task's worktree. Every other mutating verb
 > (`unclaim`/`update`/`close`) prints nothing to stdout. The terse
-> confirmations and the op log (JSON lines) are on **stderr**. At the default
-> `log_level` (`info`) routine ops are quiet — core narration is `debug`; what
-> reaches stderr is a plugin speaking (warnings) or a failure. Opt into the
-> narration with the global `bl --log-level debug <verb>` (levels
-> `debug`/`info`/`error`; there is no `warn` — an unrecognised level is a usage
-> error naming the ladder).
+> confirmations are on **stderr**, and so is the op log — but the two sinks have
+> different SHAPES: the per-clone log FILE is JSON lines (the machine record),
+> while what you SEE on stderr is human text. At the default `log_level`
+> (`info`) routine ops are quiet — core narration is `debug` — so the terminal
+> stays empty unless a plugin actually speaks (a warning or a failure), and when
+> one does it reaches you as its own readable line, never the raw JSON envelope.
+> Opt into the full narration with the global `bl --log-level debug <verb>`
+> (levels `debug`/`info`/`error`; there is no `warn` — an unrecognised level is
+> a usage error naming the ladder).
 
 ## Status is derived, never stored
 

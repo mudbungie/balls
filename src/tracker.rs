@@ -11,7 +11,7 @@
 //!   non-ff is the contention signal (§13).
 //! - [`remote_ops::push`] — `*/post`: publish the sealed balls branch (§12).
 //! - [`prime::prime`] — `prime/pre`: settle the store name, clone an established
-//!   remote branch into a local ref, or warn the stealth W1 (§12).
+//!   remote branch into a local ref, or stop SILENTLY when stealth (§12).
 //! - [`prime::prime_post`] — `prime/post`: settle content — fetch-ff an
 //!   established remote then push, or found an absent branch by pushing (§12).
 //!

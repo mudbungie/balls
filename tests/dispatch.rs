@@ -107,15 +107,16 @@ fn prime_founds_a_stealth_landing_and_runs_the_tracker_chain() {
     let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
     std::fs::create_dir_all(&project).unwrap();
 
-    // Fresh box, no remote → prime founds the landing AND runs the prime chain,
-    // whose tracker handler emits the stealth W1 on stderr (§12, bl-9df0 — the
-    // self-lock is gone; stealth persists nothing). The warning is proof the
-    // full engine→subprocess→tracker path ran, not just bootstrap.
+    // Fresh box, no remote → prime founds the landing AND runs the prime chain.
+    // Stealth is now SILENT (bl-2013 dropped the routine W1 line; bl-9df0 dropped
+    // the self-lock — stealth persists nothing). At debug the core narration
+    // names the tracker invocation, which is proof the full
+    // engine→subprocess→tracker path ran, not just bootstrap.
     bl_primed(&project, &home, &state)
-        .arg("prime")
+        .args(["--log-level", "debug", "prime"])
         .assert()
         .success()
-        .stderr(contains("store is stealth (local)"));
+        .stderr(contains("invoke bl-tracker"));
 
     // Idempotent: a second prime converges to a no-op, and `sync` runs the
     // tracker's sync/pre against the store.

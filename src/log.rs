@@ -18,7 +18,10 @@
 //! truncated with a [`TRUNC_MARKER`] so the whole record fits (§1, bl-e6a0).
 //!
 //! A single threshold ([`Log::record`]) gates BOTH file persistence and the
-//! terminal echo: a record below it is emitted nowhere. The threshold is the §4
+//! terminal echo: a record below it is emitted nowhere. The two sinks differ in
+//! SHAPE, not in gating — the file gets the JSON line (the machine record), the
+//! terminal renders a plugin record as its own `msg` text (the human line),
+//! core records echo their JSON line. The threshold is the §4
 //! `log_level` (CLI `--log-level` ▸ XDG ▸ landing ▸ serde-default `info`).
 //! Logging is best-effort — it never aborts an op, so I/O errors are swallowed.
 
@@ -116,11 +119,16 @@ impl Log {
 
     /// Emit one record at `lvl` from `src` (`core` or a plugin name), tagged with
     /// the op and optional `phase`. Below threshold ⇒ nothing, anywhere. Otherwise
-    /// the JSON line is appended to the file (best-effort `O_APPEND`) AND echoed to
-    /// stderr — the single threshold gates both (§4). Never errors: logging must
-    /// not abort an op, so a failed open/write is swallowed. Crate-internal (the
-    /// log sink is not a public interface; `Log` is `pub` only for the dispatcher
-    /// signature).
+    /// the FILE sink always gets the full JSON line (best-effort `O_APPEND`, the §6
+    /// machine record + metrics source — byte-for-byte JSON), while the TERMINAL
+    /// echo is HUMAN-facing: a plugin record (`src != "core"`) is shown as its bare
+    /// `msg` text (the plugin already self-prefixes, e.g. `tracker: …`), not the
+    /// raw envelope — so a multi-line plugin error reads as N readable lines, not N
+    /// JSON objects (bl-2013); a `core` record (lifecycle narration, aborts) still
+    /// echoes its JSON line. The single threshold gates both sinks (§4). Never
+    /// errors: logging must not abort an op, so a failed open/write is swallowed.
+    /// Crate-internal (the log sink is not a public interface; `Log` is `pub` only
+    /// for the dispatcher signature).
     pub(crate) fn record(&self, lvl: Level, src: &str, phase: Option<Phase>, msg: &str) {
         if lvl < self.threshold {
             return;
@@ -129,7 +137,11 @@ impl Log {
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&self.path) {
             let _ = file.write_all(line.as_bytes());
         }
-        eprint!("{line}");
+        if src == "core" {
+            eprint!("{line}"); // core: the JSON line is the human line too
+        } else {
+            eprintln!("{msg}"); // plugin: render its own text, never the envelope
+        }
     }
 
     /// Serialize one record to its JSON line (newline-terminated), bounding the
