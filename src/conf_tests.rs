@@ -45,21 +45,29 @@ fn landing_file(clone: &CloneDir, name: &str, body: &str) {
 
 /// Resolve one key to its `(value, layer)` pair.
 fn res(e: &Edge, clone: &CloneDir, key: &str) -> (String, String) {
-    let r = prov::resolve(e, clone, &Key::parse(key).unwrap()).unwrap();
+    let r = prov::resolve(e, clone, &Key::parse(key, &Hooks::default()).unwrap()).unwrap();
     (r.value, r.layer)
 }
 
 #[test]
 fn the_key_namespace_accepts_each_home_and_rejects_the_rest() {
+    let none = Hooks::default();
     for ok in ["task-remote", "task-branch", "log-level", "claim.pre", "close.post", "show", "list"] {
-        assert!(Key::parse(ok).is_ok(), "{ok} should parse");
+        assert!(Key::parse(ok, &none).is_ok(), "{ok} should parse");
     }
     // No such key; `conf` is chainless; reads dispatch BARE keys (§6), so a
     // phased read key and a bare phased-op key are both refused.
     for bad in ["frob", "conf.pre", "show.pre", "list.post", "claim.mid", "claim"] {
-        let err = Key::parse(bad).unwrap_err().to_string();
+        let err = Key::parse(bad, &none).unwrap_err().to_string();
         assert!(err.contains("unknown key"), "{bad}: {err}");
     }
+    // bl-03a1: a key the slot-grammar rejects but the schedule already WIRES is
+    // valid — so what the dump surfaces stays reachable (a retired-verb hook
+    // like `drop.post`), while the same token absent from the schedule is still
+    // refused (a typo can't mint dead wiring).
+    let wired = Hooks::parse("[hooks]\n\"drop.post\" = [\"bl-delivery\"]\n").unwrap();
+    assert!(Key::parse("drop.post", &wired).is_ok(), "a wired retired-verb key parses");
+    assert!(Key::parse("drop.post", &none).unwrap_err().to_string().contains("unknown key"));
 }
 
 #[test]

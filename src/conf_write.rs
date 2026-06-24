@@ -22,6 +22,7 @@
 use super::Key;
 use crate::edge::Edge;
 use crate::git;
+use crate::hooks::Hooks;
 use crate::layout::CloneDir;
 use crate::log::Level;
 use crate::message::Message;
@@ -39,7 +40,8 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
     };
     let landing = clone.landing();
     let actor = &edge.default_actor;
-    match (Key::parse(token)?, op) {
+    let present = Hooks::effective(&landing, &edge.xdg.user_config())?;
+    match (Key::parse(token, &present)?, op) {
         (Key::Hook(k), _) => hooks_edit(&landing, actor, op, &k, values),
         (Key::TaskRemote, "set") => match one(op, token, values)? {
             crate::config::STEALTH_REMOTE => declare_stealth(&landing, actor),

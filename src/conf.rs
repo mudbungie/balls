@@ -58,17 +58,21 @@ pub(crate) enum Key {
 }
 
 impl Key {
-    /// Resolve a key token, or the §4-namespace error. A hooks key must name a
-    /// real dispatch slot: `<op>.<pre|post>` for the phased ops, bare `show`/
-    /// `list` for the reads (one phase, bare key — §6); `conf` itself dispatches
-    /// no chain, so `conf.*` is not a key.
-    pub(crate) fn parse(token: &str) -> io::Result<Key> {
+    /// Resolve a key token against the `present` schedule, or the §4-namespace
+    /// error. A hooks key is valid when it names a real dispatch slot — to
+    /// *create* — `<op>.<pre|post>` for the phased ops, bare `show`/`list` for
+    /// the reads (one phase, bare key — §6); `conf` itself dispatches no chain,
+    /// so `conf.*` is not a key. It is ALSO valid when already wired in
+    /// `present`: what the dump surfaces stays readable and removable even for a
+    /// retired verb the slot-grammar no longer knows (bl-03a1 — the dump and the
+    /// per-key path agree on the key set, the dump's being a subset).
+    pub(crate) fn parse(token: &str, present: &Hooks) -> io::Result<Key> {
         match token {
             "task-remote" => Ok(Key::TaskRemote),
             "task-branch" => Ok(Key::TaskBranch),
             "log-level" => Ok(Key::LogLevel),
             "show" | "list" => Ok(Key::Hook(token.to_string())),
-            _ if hook_key(token) => Ok(Key::Hook(token.to_string())),
+            _ if hook_key(token) || present.has(token) => Ok(Key::Hook(token.to_string())),
             _ => Err(crate::usage(format!(
                 "conf: unknown key '{token}' — keys: task-remote, task-branch, log-level, <op>.<pre|post>, show, list"
             ))),
@@ -110,7 +114,8 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
 
 /// `bl conf <key>`: the one resolved value on stdout, its provenance on stderr.
 fn read_one(edge: &Edge, clone: &CloneDir, key: &str) -> io::Result<()> {
-    let r = prov::resolve(edge, clone, &Key::parse(key)?)?;
+    let present = Hooks::effective(&clone.landing(), &edge.xdg.user_config())?;
+    let r = prov::resolve(edge, clone, &Key::parse(key, &present)?)?;
     println!("{}", r.value);
     eprintln!("conf: {key} from {}", r.layer);
     Ok(())
@@ -119,12 +124,12 @@ fn read_one(edge: &Edge, clone: &CloneDir, key: &str) -> io::Result<()> {
 /// `bl conf`: every resolved value + its layer, then the file paths (§4) — the
 /// scalars first, then each effective `[hooks]` key in schedule order.
 fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
-    let mut rows = Vec::new();
-    for key in ["task-remote", "task-branch", "log-level"] {
-        rows.push((key.to_string(), prov::resolve(edge, clone, &Key::parse(key)?)?));
-    }
     let landing = clone.landing();
     let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
+    let mut rows = Vec::new();
+    for key in ["task-remote", "task-branch", "log-level"] {
+        rows.push((key.to_string(), prov::resolve(edge, clone, &Key::parse(key, &hooks)?)?));
+    }
     for (key, names) in hooks.entries() {
         let value = if names.is_empty() { "(none)".into() } else { names.join(", ") };
         rows.push((key.clone(), prov::Resolved { value, layer: prov::hook_layer(edge, clone, key)? }));
