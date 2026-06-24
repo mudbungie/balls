@@ -4,7 +4,9 @@
 //! are tested directly on `toml::Table`s so the list-compose directives are
 //! covered without a built-in list field.
 
+use super::merge::{list_directive, ListOp};
 use super::*;
+use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 

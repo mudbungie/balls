@@ -17,7 +17,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::registry::{PluginRef, Registry};
 
@@ -72,7 +72,7 @@ impl Hooks {
     /// must not redirect what the seed prunes or `install` binds).
     pub fn effective(landing: &Path, user_config: &Path) -> io::Result<Hooks> {
         let mut merged = toml::value::Table::new();
-        if let Some(hooks) = hooks_layer(&landing.join("config").join("plugins.toml"))? {
+        if let Some(hooks) = hooks_layer(&plugins_toml(landing))? {
             crate::config::layer_over(&mut merged, hooks);
         }
         if let Some(hooks) = hooks_layer(&user_config.with_file_name("plugins.toml"))? {
@@ -94,7 +94,7 @@ impl Hooks {
     /// Load the schedule from a landing's `config/plugins.toml` (§2). The
     /// dispatch + rebind entry point ([`crate::mutate`]/[`crate::checkout`]).
     pub fn load(landing: &Path) -> io::Result<Hooks> {
-        Hooks::load_from(&landing.join("config").join("plugins.toml"))
+        Hooks::load_from(&plugins_toml(landing))
     }
 
     /// The ordered plugin names under one schedule `key` (empty when un-wired).
@@ -183,6 +183,13 @@ impl Hooks {
         root.insert("hooks".to_string(), toml::Value::Table(hooks));
         toml::to_string(&toml::Value::Table(root)).expect("a hooks table always serializes")
     }
+}
+
+/// The committed landing's plugin schedule, `config/plugins.toml` (§2) — the one
+/// place that path is spelled (the seed prunes it, `install` binds it, dispatch
+/// reads it through [`Hooks::load`]/[`Hooks::effective`]).
+fn plugins_toml(landing: &Path) -> PathBuf {
+    landing.join("config").join("plugins.toml")
 }
 
 /// Read one `plugins.toml` layer's `[hooks]` sub-table for [`Hooks::effective`].

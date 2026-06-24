@@ -6,6 +6,7 @@
 
 use super::tests::{project, tip};
 use super::*;
+use crate::delivery::Repo;
 use std::os::unix::fs::PermissionsExt;
 
 /// Install `script` as the project repo's `pre-commit` hook (the shared
