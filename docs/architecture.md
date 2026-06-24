@@ -361,7 +361,13 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
   no durable remote reads `task-remote (none)`: stealth is VISIBLE, closing the bl-d234 gap where
   "deliberately stealth" and "meant to federate, nothing set" were indistinguishable — and the two
   are DISTINCT readouts (bl-9df0): declared stealth reads `(none)` from `landing` (the sentinel),
-  circumstantial stealth reads `(none)` from `stealth` (nothing set, no origin).
+  circumstantial stealth reads `(none)` from `stealth` (nothing set, no origin). The dump and the
+  per-key path agree on the key set, the dump's being a subset (bl-03a1): a per-key op accepts the
+  three scalars, a live dispatch SLOT to *create* (`<op>.<pre|post>` for a current verb, bare
+  `show`/`list`), AND any key the effective schedule already WIRES — so every key the dump surfaces
+  stays readable and removable, even one for a retired verb the slot-grammar no longer knows (a stale
+  `drop.post` — §15 — is editable through `conf`, not orphaned to a hand-edit), while a token both
+  unwired and not a live slot is still refused (a typo cannot mint dead wiring).
 - **Write = scope-keyed CRUD on the canonical home.** `bl conf set <key> <value...>` replaces (a
   scalar, or a hooks key's whole list); `bl conf append|prepend|remove <key> <value>` composes a
   list. The list verbs are the §4 directive vocabulary APPLIED AT WRITE TIME to the canonical bare

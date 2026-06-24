@@ -192,6 +192,31 @@ fn foreign_tables_round_trip_untouched() {
 }
 
 #[test]
+fn a_wired_retired_verb_hook_is_readable_and_removable_but_uncreatable() {
+    // bl-03a1: the dump surfaces every wired `[hooks]` key; the per-key path
+    // once rejected any whose op was not a live verb — so a default-seeded /
+    // stale `drop.post` (the `drop` verb is gone) showed in the dump yet failed
+    // read/set/remove with `unknown key`, clearable only by hand-editing the
+    // landing. Now what the dump shows, the per-key path operates on: read it,
+    // and REMOVE it (the workaround the bug filer wanted). A token the schedule
+    // does NOT wire is still refused — a typo can't mint wiring for a dead verb.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    fs::write(
+        clone.landing().join("config").join("plugins.toml"),
+        "[hooks]\n\"drop.post\" = [\"bl-delivery\"]\n",
+    )
+    .unwrap();
+    conf(&e, &["drop.post"]).unwrap(); // read the wired key — no `unknown key`
+    conf(&e, &["remove", "drop.post", "bl-delivery"]).unwrap(); // and clear it
+    assert!(!landing_text(&clone, "plugins.toml").contains("drop.post"));
+    // Absent from the schedule, the same dead-verb token is refused for create.
+    let err = conf(&e, &["set", "drop.post", "bl-tracker"]).unwrap_err().to_string();
+    assert!(err.contains("unknown key"), "{err}");
+}
+
+#[test]
 fn a_non_table_hooks_root_is_refused() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);
