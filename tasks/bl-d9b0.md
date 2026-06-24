@@ -1,7 +1,8 @@
 +++
 title = "bl prime dumps raw tracker JSON op-log to stderr on founding (poor first-run UX)"
 created = 1782312688
-updated = 1782312688
+updated = 1782312737
+claimant = "Savored-inv"
 priority = 2
 tags = ["ux", "prime"]
 +++
