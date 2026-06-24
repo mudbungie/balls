@@ -5,22 +5,7 @@
 
 use serde_json::{json, Value};
 
-use crate::task::{On, Status, Task};
-
-/// The §3 status word — the stable token shared by plain output and `--json`.
-pub(crate) fn status_word(s: Status) -> &'static str {
-    match s {
-        Status::Ready => "ready",
-        Status::Claimed => "claimed",
-        Status::Blocked => "blocked",
-    }
-}
-
-/// The blocker-op token for `--json` and `show`. `on` is ANY op (§10/§15), so it
-/// is exactly the verb's canonical token.
-pub(crate) fn on_word(on: On) -> &'static str {
-    on.token()
-}
+use crate::task::Task;
 
 /// One ball as the **bedrock** JSON record — the single shape every read verb's
 /// `--json` emits (§9). It is the lossless mirror of the stored `tasks/<id>.md`
@@ -44,7 +29,7 @@ pub(crate) fn task_json(id: &str, task: &Task) -> Value {
     let blockers: Vec<Value> = task
         .blockers
         .iter()
-        .map(|b| json!({ "id": b.id, "on": on_word(b.on) }))
+        .map(|b| json!({ "id": b.id, "on": b.on.token() }))
         .collect();
     let mut record = serde_json::to_value(&task.extra).expect("a toml table serializes to a json object");
     let map = record.as_object_mut().expect("a toml table is a json object");

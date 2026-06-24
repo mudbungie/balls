@@ -45,7 +45,7 @@ fn landing_file(clone: &CloneDir, name: &str, body: &str) {
 
 /// Resolve one key to its `(value, layer)` pair.
 fn res(e: &Edge, clone: &CloneDir, key: &str) -> (String, String) {
-    let r = resolve(e, clone, &Key::parse(key).unwrap()).unwrap();
+    let r = prov::resolve(e, clone, &Key::parse(key).unwrap()).unwrap();
     (r.value, r.layer)
 }
 
