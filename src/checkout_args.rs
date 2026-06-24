@@ -43,11 +43,7 @@ pub(super) fn parse_prime(args: &[String], default_actor: &str) -> io::Result<Pr
     while i < args.len() {
         match args[i].as_str() {
             "--as" => o.actor = value(args, &mut i, "--as")?,
-            "--remote" => o.remote = Some(value(args, &mut i, "--remote")?),
-            "--center" => {
-                let center = value(args, &mut i, "--center")?;
-                o.remote.get_or_insert(center);
-            }
+            flag @ ("--remote" | "--center") => apply_remote(&mut o.remote, flag, value(args, &mut i, flag)?),
             "--install" => o.install = Some(value(args, &mut i, "--install")?),
             "--stealth" => o.stealth = true,
             other => return Err(io::Error::other(format!("prime: unexpected argument '{other}'"))),
@@ -71,11 +67,7 @@ pub(super) fn parse_sync(args: &[String], default_actor: &str) -> io::Result<Syn
     while i < args.len() {
         match args[i].as_str() {
             "--as" => o.actor = value(args, &mut i, "--as")?,
-            "--remote" => o.remote = Some(value(args, &mut i, "--remote")?),
-            "--center" => {
-                let center = value(args, &mut i, "--center")?;
-                o.remote.get_or_insert(center);
-            }
+            flag @ ("--remote" | "--center") => apply_remote(&mut o.remote, flag, value(args, &mut i, flag)?),
             flag if flag.starts_with('-') => {
                 return Err(io::Error::other(format!("sync: unexpected flag '{flag}'")));
             }
@@ -88,6 +80,20 @@ pub(super) fn parse_sync(args: &[String], default_actor: &str) -> io::Result<Syn
         i += 1;
     }
     Ok(o)
+}
+
+/// Apply the §12 `--remote`/`--center` ladder to the store-remote `slot`:
+/// `--remote` always assigns, `--center` fills only an empty slot — the ONE
+/// precedence rule (bl-c2de) every verb that names a store remote shares
+/// (`prime`/`sync` here, the mutating verbs, `import`). `value` is the URL the
+/// caller already pulled from argv (cursor styles differ); this owns only the
+/// rule, so it cannot drift across the parsers.
+pub(crate) fn apply_remote(slot: &mut Option<String>, flag: &str, value: String) {
+    if flag == "--center" {
+        slot.get_or_insert(value);
+    } else {
+        *slot = Some(value);
+    }
 }
 
 /// The value following a `--flag`, advancing the cursor; missing value is an

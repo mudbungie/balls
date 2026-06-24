@@ -242,8 +242,7 @@ fn describe_reads_a_scalar_protocol_version() {
     let bin = script(&e.at("bin"), "p", PROTO);
     let p = describe(&bin).unwrap();
     assert_eq!(p.protocol, [1]);
-    assert!(p.handles(Verb::Close));
-    assert!(!p.handles(Verb::Sync));
+    assert_eq!(p.ops, ["close", "claim"]);
     assert!(p.speaks(1));
 }
 
@@ -255,7 +254,7 @@ fn describe_reads_a_list_protocol_version() {
     assert_eq!(p.protocol, [1, 2]);
     assert!(p.speaks(2));
     assert!(!p.speaks(9));
-    assert!(!p.handles(Verb::Close));
+    assert!(p.ops.is_empty());
 }
 
 #[test]

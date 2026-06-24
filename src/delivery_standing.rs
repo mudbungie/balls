@@ -16,7 +16,7 @@
 //! silent skip would strand — the close must abort loudly instead.
 
 use std::io;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use crate::delivery_repo::Project;
 
@@ -66,10 +66,7 @@ impl Project {
     /// the forge squash-merge a skip (same content, rewritten commits) while
     /// catching a genuinely undelivered commit.
     fn contained(&self, branch: &str, delivery: &str) -> io::Result<bool> {
-        let out = Command::new("git")
-            .arg("-C")
-            .arg(&self.root)
-            .args(["merge-tree", "--write-tree", delivery, branch])
+        let out = Project::git(&self.root, &["merge-tree", "--write-tree", delivery, branch])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .output()?;

@@ -5,8 +5,11 @@
 
 #![cfg(unix)]
 
+use super::copy::matches;
 use super::*;
+use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 /// A `from` root, a `to` root, and helpers to populate / inspect committed files.
