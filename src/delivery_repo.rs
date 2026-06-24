@@ -17,9 +17,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::delivery::Repo;
-use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection};
-use crate::delivery_standing::Standing;
 use crate::task::Task;
 
 /// The production [`Repo`]: git against one project-repo root.
@@ -34,16 +31,20 @@ impl Project {
         Self { root: root.to_path_buf() }
     }
 
+    /// `git -C <cwd> <args>` as an unspawned [`Command`] — the one place the
+    /// binary name and the `-C` cwd flag are spelled. Callers set only their own
+    /// stdio + exit policy ([`Self::run`] captures, [`Self::ok`] discards,
+    /// `standing` pipes for stdout).
+    pub(crate) fn git(cwd: &Path, args: &[&str]) -> Command {
+        let mut cmd = Command::new("git");
+        cmd.arg("-C").arg(cwd).args(args);
+        cmd
+    }
+
     /// Run `git -C <cwd> <args>`, returning stdout; a non-zero exit becomes an
     /// [`io::Error`] carrying git's stderr (the one failure funnel).
     pub(crate) fn run(cwd: &Path, args: &[&str]) -> io::Result<String> {
-        let out = Command::new("git")
-            .arg("-C")
-            .arg(cwd)
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()?;
+        let out = Self::git(cwd, args).stdout(Stdio::piped()).stderr(Stdio::piped()).output()?;
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).into_owned())
         } else {
@@ -59,18 +60,11 @@ impl Project {
     /// ref exist? do two trees differ?). `Ok(true)` on exit 0, `Ok(false)` on
     /// any non-zero; only a spawn failure is an error.
     pub(crate) fn ok(cwd: &Path, args: &[&str]) -> io::Result<bool> {
-        Ok(Command::new("git")
-            .arg("-C")
-            .arg(cwd)
-            .args(args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?
-            .success())
+        Ok(Self::git(cwd, args).stdout(Stdio::null()).stderr(Stdio::null()).status()?.success())
     }
 
     /// Does local branch `branch` exist?
-    fn branch_exists(&self, branch: &str) -> io::Result<bool> {
+    pub(crate) fn branch_exists(&self, branch: &str) -> io::Result<bool> {
         Self::ok(&self.root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
     }
 
@@ -83,7 +77,7 @@ impl Project {
     /// ([`crate::delivery_fold::ensure_no_merge_in_progress`]) — over a
     /// half-merge, this `add -A` + commit would CONCLUDE the merge with a
     /// silent work-side resolution (bl-a04a).
-    fn capture(path: &Path, subject: &str) -> io::Result<()> {
+    pub(crate) fn capture(path: &Path, subject: &str) -> io::Result<()> {
         Self::run(path, &["add", "-A"])?;
         if Self::ok(path, &["diff", "--cached", "--quiet"])? {
             return Ok(()); // nothing staged — the worktree is clean
@@ -99,7 +93,7 @@ impl Project {
     /// rename/delete included) aborts. Already-up-to-date is a commitless
     /// no-op; a conflict aborts the half-merge (the worktree stays clean for
     /// the agent to merge by hand) and surfaces as the delivery-conflict error.
-    fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
+    pub(crate) fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
         if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", integration]) {
             let _ = Self::run(path, &["merge", "--abort"]); // best-effort: a never-started merge has nothing to abort
             return Err(io::Error::other(format!("delivery conflict merging {integration} into the work branch: {e}")));
@@ -117,7 +111,7 @@ impl Project {
     /// close BEFORE the seal, so the task stays claimed and the worktree stays
     /// up for the fix. The hook's stdout joins stderr — diagnostics, never the
     /// product channel (§6).
-    fn gate(path: &Path) -> io::Result<()> {
+    pub(crate) fn gate(path: &Path) -> io::Result<()> {
         let printed = Self::run(path, &["rev-parse", "--git-path", "hooks/pre-commit"])?;
         let hook = path.join(printed.trim());
         let Ok(meta) = fs::metadata(&hook) else {
@@ -134,114 +128,20 @@ impl Project {
         }
     }
 
-    /// `delivered_in` (§11): the delivery commits carrying `marker` (`[<id>]`) on
-    /// `integration`, NEWEST FIRST — the derived "where was `<id>` delivered?"
-    /// query, no stored field. Recency order resolves the id-reuse ambiguity
-    /// bl-d7a5 deferred: a reused id only begins after the prior incarnation
-    /// CLOSED, so deliveries are monotonic with incarnations and the
-    /// k-th-most-recent incarnation maps to the k-th element here — the same
-    /// live-first-else-most-recent walk §9 applies to the ball file. The
-    /// `--grep` is `--fixed-strings` so the `[`/`]` are matched literally, not as
-    /// a regex. Empty when `<id>` was never delivered. (`git log`'s default order
-    /// IS recency, so this is "do not reverse it", not extra sorting.)
-    pub fn delivered_in(&self, integration: &str, marker: &str) -> io::Result<Vec<String>> {
-        self.marked(integration, marker)
-    }
-
     /// The `marker`-tagged commits reachable from `revs` (a ref or a range),
-    /// newest first — the one tag-scan both [`Project::delivered_in`] and
-    /// the retry standing ([`Project::standing`]) read through.
+    /// NEWEST FIRST — the one tag-scan the retry standing ([`Project::standing`])
+    /// reads through, and the derived "where was `<id>` delivered?" query (§11):
+    /// no stored field. Recency order resolves the id-reuse ambiguity bl-d7a5
+    /// deferred — a reused id only begins after the prior incarnation CLOSED, so
+    /// deliveries are monotonic with incarnations and the k-th-most-recent
+    /// incarnation maps to the k-th element, the same live-first-else-most-recent
+    /// walk §9 applies to the ball file. The `--grep` is `--fixed-strings` so the
+    /// `[`/`]` match literally, not as a regex. Empty when `marker` is absent.
+    /// (`git log`'s default order IS recency, so this is "do not reverse it".)
     pub(crate) fn marked(&self, revs: &str, marker: &str) -> io::Result<Vec<String>> {
         let grep = format!("--grep={marker}");
         let out = Self::run(&self.root, &["log", "--format=%H", "--fixed-strings", &grep, revs])?;
         Ok(out.lines().map(str::to_string).collect())
-    }
-}
-
-impl Repo for Project {
-    fn materialize(&self, path: &Path, branch: &str) -> io::Result<()> {
-        if path.exists() {
-            return Ok(()); // create-if-absent: already materialized
-        }
-        // A deleted dir is the ordinary form of "absent" (crashes, tmp
-        // cleaners, humans), and git may still hold its registration — a bare
-        // `worktree add` then aborts as "missing but already registered"
-        // (bl-b404). Prune clears exactly those stale registrations and
-        // nothing else, so an unregistered absence stays a no-op.
-        Self::run(&self.root, &["worktree", "prune"])?;
-        let dst = path.to_string_lossy();
-        if self.branch_exists(branch)? {
-            Self::run(&self.root, &["worktree", "add", &dst, branch])?;
-        } else {
-            Self::run(&self.root, &["worktree", "add", &dst, "-b", branch])?;
-        }
-        Ok(())
-    }
-
-    fn release(&self, path: &Path) -> io::Result<()> {
-        if !path.exists() {
-            return Ok(()); // remove-if-present
-        }
-        Self::run(&self.root, &["worktree", "remove", "--force", &path.to_string_lossy()])?;
-        Ok(())
-    }
-
-    fn discard(&self, path: &Path, branch: &str) -> io::Result<()> {
-        self.release(path)?;
-        if self.branch_exists(branch)? {
-            Self::run(&self.root, &["branch", "-D", branch])?;
-        }
-        Ok(())
-    }
-
-    fn integration(&self) -> io::Result<String> {
-        Ok(Self::run(&self.root, &["symbolic-ref", "--short", "HEAD"])?.trim().to_string())
-    }
-
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
-        if path.exists() {
-            ensure_no_merge_in_progress(path)?;
-            Self::capture(path, subject)?;
-        }
-        if !self.branch_exists(branch)? {
-            return Ok(()); // branch never made — nothing to deliver
-        }
-        match self.standing(branch, integration, marker)? {
-            // SETTLED (fully merged, or this incarnation's delivery survived an
-            // aborted close and CONTAINS the branch — the bl-430e retry, and the
-            // forge squash-merge): converge by skipping the squash.
-            Standing::Settled => return Ok(()),
-            // A delivery stands since the fork but the branch carries content
-            // beyond it — the bl-65e0 handoff onto a delivered-but-unsealed
-            // close. A silent skip would strand that work; abort loudly.
-            Standing::Diverged => {
-                return Err(io::Error::other(format!(
-                    "already delivered: a {marker} delivery commit is on {integration} since {branch} \
-                     forked, but {branch} carries undelivered changes beyond it — \
-                     file a new task or deliver manually"
-                )))
-            }
-            Standing::Undelivered => {}
-        }
-        // Reintegration and the gate both act in the worktree; a close on a box
-        // that never materialized it recreates it (create-if-absent).
-        self.materialize(path, branch)?;
-        Self::reintegrate(path, integration)?;
-        if Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
-            return Ok(()); // no tree change — empty, or reintegration dissolved the diff
-        }
-        Self::gate(path)?;
-        ensure_no_resurrection(&self.root, branch, integration)?;
-        // After reintegration the branch tree IS the merged tree — the squash
-        // is pure plumbing on it, never touching integration's checkout.
-        let tree = format!("{branch}^{{tree}}");
-        let tree = Self::run(&self.root, &["rev-parse", &tree])?.trim().to_string();
-        let parent = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
-        let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &parent, "-m", subject])?
-            .trim()
-            .to_string();
-        Self::run(&self.root, &["update-ref", &format!("refs/heads/{integration}"), &commit])?;
-        Ok(())
     }
 }
 
@@ -290,6 +190,12 @@ fn is_executable(meta: &fs::Metadata) -> bool {
 fn is_executable(_meta: &fs::Metadata) -> bool {
     true
 }
+
+// The [`crate::delivery::Repo`] trait impl (worktree lifecycle + squash
+// delivery) lives in a sibling; an `impl` block registers on [`Project`]
+// regardless of module, so no re-export is needed.
+#[path = "delivery_repo_acts.rs"]
+mod acts;
 
 #[cfg(test)]
 #[path = "delivery_repo_tests.rs"]
