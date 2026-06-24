@@ -103,6 +103,7 @@ pub mod conf;
 pub mod config;
 pub mod delivery;
 pub mod delivery_fold;
+pub mod delivery_precondition;
 pub mod delivery_prune;
 pub mod delivery_reconcile;
 pub mod delivery_repo;

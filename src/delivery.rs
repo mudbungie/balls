@@ -76,6 +76,14 @@ pub trait Repo {
     /// content beyond it (the bl-65e0 handoff) ABORTS loudly instead of
     /// stranding the work (bl-c231).
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()>;
+    /// Is the invocation path (`root`) a git repository at all — BARE (the
+    /// common balls deployment) or with a work tree? The delivery PRECONDITION
+    /// (bl-4a88): every other act shells out to git against `root`, so a `root`
+    /// that is not a git repo makes the whole `work/<id>` lifecycle unusable.
+    /// Surfaced explicitly and early — a clean abort on claim.post / close.pre
+    /// ([`require_repo`]), a warning on prime.post — instead of git's raw
+    /// `fatal: not a git repository` from the first worktree call.
+    fn is_git_repo(&self) -> io::Result<bool>;
 }
 
 /// The resolved facts one hook acts on — the derived worktree, its branch, and

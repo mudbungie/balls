@@ -6,6 +6,7 @@
 //! The `prime` re-materialization scenarios live in the [`prime`] sibling
 //! module — same crate, same harness, split for the 300-line cap.
 
+mod non_git;
 mod prime;
 
 use std::fs;
