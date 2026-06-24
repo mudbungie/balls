@@ -4,7 +4,7 @@
 //! handler branches; this proves the process boundary (argv, stdin, exit code).
 
 use assert_cmd::Command;
-use predicates::str::contains;
+use predicates::str::{contains, is_empty};
 use std::path::Path;
 use std::process::Command as Git;
 use tempfile::TempDir;
@@ -62,9 +62,12 @@ fn a_deliverable_verbs_post_pushes_the_sealed_branch() {
 }
 
 #[test]
-fn prime_pre_with_no_remote_warns_w1_and_self_locks() {
-    // §12 W1 (bl-3ddb): a stealth prime says so on stderr — "deliberately
-    // local" must be visible, not discoverable only via `bl conf`.
+fn prime_pre_with_no_remote_is_a_silent_success() {
+    // bl-2013: a stealth prime is the EXPECTED first-run shape, so it says
+    // NOTHING — the once-routine W1 line was the wart (it fired every op and,
+    // enveloped, leaked as raw JSON to the terminal). The DECLARED-vs-inferred
+    // distinction it drew is re-derivable on demand via `bl conf` (the landing
+    // `task_remote` sentinel, bl-9df0); persisting nothing, it just stops.
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path().join("repo");
     git(tmp.path(), &["init", "-q", &repo.to_string_lossy()]); // no origin → stealth
@@ -80,5 +83,5 @@ fn prime_pre_with_no_remote_warns_w1_and_self_locks() {
         .write_stdin(payload)
         .assert()
         .success()
-        .stderr(contains("tracker: store is stealth (local), not auto-syncing"));
+        .stderr(is_empty()); // no W1 line, no enveloped JSON
 }

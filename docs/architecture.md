@@ -327,7 +327,11 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   landing branch itself is path-derived (`balls/config`), NOT a config field (bootstrap fixed point).
 - `log_level` (string, default `"info"`) — the single threshold for the unified op log (§1/§6),
   applied at WRITE time so it gates BOTH file persistence and terminal echo (a line below threshold is
-  never emitted anywhere). A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
+  never emitted anywhere). The two sinks differ in SHAPE, not gating: the FILE always gets the JSON
+  line (the §6 machine record + metrics source), while the human-facing TERMINAL echo renders a plugin
+  record (`src != core`) as its bare `msg` text (the plugin self-prefixes) — so an enveloped plugin
+  line, and a multi-line plugin error, reach the reader as readable text, not raw JSON envelopes
+  (bl-2013); a `core` record still echoes its JSON line. A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
   entry and NOT a "run-time default" carve-out: the seed is for capability *sets* (the plugin chain),
   the layer-4 serde fallback is exactly "for a field no layer set." Read order is the normal §4 stack,
   so `--log-level` (layer 1) overrides for one run. Default mapping: severity classifies the VOICE,
@@ -1399,12 +1403,16 @@ Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store re
 remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an ESTABLISHED remote store
 (non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts — the push is
 the contention check, re-run after `bl sync` (bl-336a) — NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
-prime, rolled back K prior; W1 [tracker] store is stealth (local), not auto-syncing; W2 [tracker]
+prime, rolled back K prior; W2 [tracker]
 prime ran on an ephemeral explicit remote the durable ladder (XDG > origin) does not reproduce —
 plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
 "already initialized" — re-running prime is a no-op-converge; E3 "remote already established" —
 established vs absent is the adopt-vs-bootstrap fork, not an error. Retired by the trail's removal: N3
-downstream-layer-introduces-plugins — there is no downstream layer. E6 was never assigned — the
+downstream-layer-introduces-plugins — there is no downstream layer. Retired as routine noise: W1
+"store is stealth (local), not auto-syncing" — it fired on EVERY stealth prime (the expected
+first-run shape) and, enveloped at info, leaked as raw JSON to the terminal; the declared-stealth
+fact it announced is re-derivable on demand via `bl conf` and the W2 ephemeral-remote case still
+warns on a "forgot to federate" prime (bl-2013). E6 was never assigned — the
 catalog arrived from the bl-2e26 extraction with the gap; codes are stable, never renumbered.)
 
 ## § id generation

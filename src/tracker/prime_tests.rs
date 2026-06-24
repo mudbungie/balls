@@ -12,9 +12,11 @@ use std::fs;
 use tempfile::TempDir;
 
 #[test]
-fn a_no_remote_prime_warns_and_persists_nothing() {
+fn a_no_remote_prime_is_silent_and_persists_nothing() {
     // bl-9df0: stealth leaves NO tracker-side state (the lock file is gone) —
     // a DECLARED opt-out lives in core's config, an inferred one re-derives.
+    // bl-2013: it is also SILENT (the routine W1 line is gone) — stealth is the
+    // expected first-run, so narrating it every op was the wart.
     let tmp = TempDir::new().unwrap();
     let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
     let b = binding(None, &tmp.path().join("landing"));

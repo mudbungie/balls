@@ -66,6 +66,21 @@ fn an_error_record_outranks_a_raised_threshold() {
 }
 
 #[test]
+fn a_plugin_record_keeps_full_json_in_the_file_even_though_the_terminal_shows_msg() {
+    // bl-2013: the terminal echo of a plugin record (`src != "core"`) is its bare
+    // `msg` text, but the FILE sink stays byte-for-byte JSON — the §6 machine
+    // record is unchanged; only the human-facing terminal shape differs.
+    let tmp = TempDir::new().unwrap();
+    let (log, path) = log_at(&tmp, Level::Info);
+    log.record(Level::Info, "tracker", Some(Phase::Pre), "tracker: store is stealth");
+    let recs = lines(&path);
+    assert_eq!(recs.len(), 1);
+    assert_eq!(recs[0]["src"], "tracker");
+    assert_eq!(recs[0]["lvl"], "info");
+    assert_eq!(recs[0]["msg"], "tracker: store is stealth");
+}
+
+#[test]
 fn appends_accumulate_in_order() {
     let tmp = TempDir::new().unwrap();
     let (log, path) = log_at(&tmp, Level::Debug);
