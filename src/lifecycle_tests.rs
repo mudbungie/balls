@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::message::Message;
+use std::io;
 use std::path::Path;
 
 // The journaling fakes for the three seams live in a sibling module, shared

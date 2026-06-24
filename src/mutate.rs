@@ -19,7 +19,6 @@ use std::io;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
 use crate::checkout;
 use crate::edge::Edge;
 use crate::git::Git;
@@ -30,16 +29,21 @@ use crate::log::{self, Log};
 use crate::plugin::Subprocess;
 use crate::registry::Registry;
 use crate::task::Task;
-use crate::taskfile::{read_task, task_ids};
 use crate::verb::Verb;
 use crate::wire::{Command, OpContext};
 
+#[path = "mutate_author.rs"]
+mod author;
 #[path = "mutate_build.rs"]
 mod build;
 #[path = "mutate_edit.rs"]
 mod edit;
+#[path = "mutate_guards.rs"]
+mod guards;
 #[path = "mutate_report.rs"]
 mod report;
+
+use author::{base_change, command};
 
 /// Run a mutating verb (§9) end to end: parse `args`, author the verb's base
 /// change against the STORE checkout, and seal it onto `tasks_branch` through the
@@ -125,123 +129,6 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
     Engine::new(&anvil, &plugins, &log)
         .seal(base, verb, &change_dir, &pre, &post)
         .map_err(|e| other(e.to_string()))
-}
-
-/// A verb's authored change plus the ball's op-start state (the §7
-/// `current_state` a `pre` plugin sees — `None` on `create`, which has no prior
-/// ball).
-type Authored = (Box<dyn BaseChange>, Option<Task>);
-
-/// Author the verb's [`BaseChange`] from the parsed `flags` (see [`Authored`]).
-/// `now` is injected, so the change stays pure (it never reads a clock); the
-/// `editor` seam serves only `update --edit`. `Ok(None)` is `--edit`'s
-/// unchanged-buffer no-op — there is nothing to author. Only the five mutating
-/// verbs reach here.
-fn base_change(
-    verb: Verb,
-    store: &Path,
-    flags: &Flags,
-    now: i64,
-    editor: &mut edit::Editor,
-) -> io::Result<Option<Authored>> {
-    let actor = flags.actor.clone();
-    match verb {
-        Verb::Create => {
-            build::forbid_removals_on_create(flags)?;
-            let title = one_positional(flags, "create")?;
-            // `--subtask-of` folds into the parent + a close-gate edge (§10).
-            let parent = build::effective_parent(flags)?;
-            let blockers = build::needs_blockers(flags)?;
-            let blocks = build::blocks_edges(flags, parent.as_deref())?;
-            build::require_live(
-                store,
-                verb,
-                blockers.iter().map(|b| b.id.as_str()).chain(blocks.iter().map(|(id, _)| id.as_str())),
-            )?;
-            let base = Create {
-                id: IdScheme::default().generate(),
-                actor,
-                now,
-                title,
-                parent: parent.clone(),
-                priority: flags.priority,
-                tags: flags.tags.clone(),
-                blockers,
-                blocks,
-                body: flags.body.clone(),
-                message: flags.message.clone(),
-                existing: task_ids(store)?,
-            };
-            Ok(Some((Box::new(base), None)))
-        }
-        Verb::Claim | Verb::Unclaim => {
-            build::forbid_shaping(flags, verb)?;
-            let id = one_positional(flags, verb.token())?;
-            let before = read_task(store, &id)?;
-            let claimant = (verb == Verb::Claim).then(|| actor.clone());
-            let base = Occupancy { verb, id, claimant, actor, now, message: flags.message.clone() };
-            Ok(Some((Box::new(base), Some(before))))
-        }
-        Verb::Update => {
-            build::forbid_foreign_blocks(flags, verb)?;
-            build::forbid_contradictions(flags)?;
-            let mut positionals = flags.positionals.iter();
-            let id = positionals.next().ok_or_else(|| other("update: needs a task id"))?.clone();
-            let before = read_task(store, &id)?;
-            let edits = if flags.edit {
-                // `--edit`: the buffer IS the payload — field flags and key=value
-                // extras would race over it, so they are mutually exclusive (§9).
-                build::forbid_fields_with_edit(flags)?;
-                if positionals.next().is_some() {
-                    return Err(other("update: --edit and key=value extras are mutually exclusive — the buffer is the payload"));
-                }
-                let Some(after) = editor.edited(&before, &id)? else { return Ok(None) };
-                vec![FieldEdit::Replace(Box::new(after))]
-            } else {
-                build::edits(positionals, flags)?
-            };
-            // Only the flag-minted edges are validated (§10, bl-6b8c): `--edit`'s
-            // whole-buffer Replace is the blessed hand-stitch escape hatch, and a
-            // RemoveBlocker unlink is the dangling-edge remedy — never refused.
-            build::require_live(
-                store,
-                verb,
-                edits.iter().filter_map(|e| match e {
-                    FieldEdit::AddBlocker(b) => Some(b.id.as_str()),
-                    _ => None,
-                }),
-            )?;
-            let base = Update { id, actor, now, edits, message: flags.message.clone() };
-            Ok(Some((Box::new(base), Some(before))))
-        }
-        Verb::Close => {
-            build::forbid_shaping(flags, verb)?;
-            let id = one_positional(flags, verb.token())?;
-            let before = read_task(store, &id)?;
-            let base = Retire { id, title: before.title.clone(), actor, message: flags.message.clone() };
-            Ok(Some((Box::new(base), Some(before))))
-        }
-        // The diffless verbs never reach run()'s mutating branch; reject defensively.
-        _ => Err(other(format!("{}: not a mutating verb", verb.token()))),
-    }
-}
-
-/// The §7 `command` — the op plus its body intent. `body_change` is the new
-/// markdown ball body (`--body`) when the op rewrites it (§7). Field-level
-/// changes are NOT carried here (single source of truth, bl-3bfd §15): a plugin
-/// reads them from the change worktree / the `before`/`after` states, not a
-/// second diff description. Its presence (vs the diffless `None`) marks this a
-/// ball-mutating op (§7).
-fn command(verb: Verb, flags: &Flags) -> Command {
-    Command { op: verb.token().to_string(), body_change: flags.body.clone() }
-}
-
-/// The single positional `verb` expects (a `create` title, else a task id).
-fn one_positional(flags: &Flags, verb: &str) -> io::Result<String> {
-    match flags.positionals.as_slice() {
-        [only] => Ok(only.clone()),
-        _ => Err(other(format!("{verb}: expects exactly one positional argument"))),
-    }
 }
 
 // The argv→[`Flags`] front-door parse lives in a sibling module (the §9 flag

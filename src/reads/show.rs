@@ -13,7 +13,7 @@ use std::io;
 use std::path::Path;
 
 use super::history::{resolve_dead, Dead};
-use super::{json_line, on_word, status_word, task_json, Catalog, Entry, Flags, Style};
+use super::{json_line, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 use crate::task::Task;
 
@@ -53,7 +53,7 @@ fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &
     }
     let badge = style.badge(cat.status(e));
     let mut out = header(&badge, &e.id, &e.task);
-    field(&mut out, "status", status_word(cat.status(e)));
+    field(&mut out, "status", cat.status(e).word());
     body_block(&mut out, &e.task, |out| {
         kids(out, cat, &child_ids(cat, &e.id), style);
         out.push_str(folded);
@@ -130,7 +130,7 @@ fn blockers(out: &mut String, task: &Task) {
     }
     out.push_str("  blockers\n");
     for b in &task.blockers {
-        let _ = writeln!(out, "    {} (on {})", b.id, on_word(b.on));
+        let _ = writeln!(out, "    {} (on {})", b.id, b.on.token());
     }
 }
 

@@ -74,10 +74,8 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
         match arg.as_str() {
             "--as" => f.actor = value(&mut args, "--as")?,
             "-m" | "--message" => f.message = Some(value(&mut args, "-m")?),
-            "--remote" => f.remote = Some(value(&mut args, "--remote")?),
-            "--center" => {
-                let center = value(&mut args, "--center")?;
-                f.remote.get_or_insert(center);
+            flag @ ("--remote" | "--center") => {
+                crate::checkout::apply_remote(&mut f.remote, flag, value(&mut args, flag)?);
             }
             a if legacy::flag(a).is_some() => f.legacy = legacy::flag(a),
             other => {

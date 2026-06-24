@@ -26,11 +26,9 @@
 //! plugins on a nested call — that would let a runaway defeat its own backstop.
 //! `rollback` cannot spawn at the cap either, so it no-ops (best-effort, §14).
 
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
-
-use serde::Deserialize;
 
 use crate::lifecycle::{Plugins, Sealed};
 use crate::log::{Level, Log};
@@ -40,86 +38,20 @@ use crate::registry::PluginRef;
 use crate::verb::Verb;
 use crate::wire::{OpContext, SealFacts};
 
+// The `protocol` self-describe and the subprocess IO plumbing live in siblings;
+// re-exported so consumers keep reaching `crate::plugin::{describe, Protocol,
+// retry_busy}` (install validates a binding, reads spawns the same binaries).
+#[path = "plugin_protocol.rs"]
+mod protocol;
+pub use protocol::{describe, Protocol};
+
+#[path = "plugin_io.rs"]
+mod plugin_io;
+pub(crate) use plugin_io::retry_busy;
+use plugin_io::{capped_lines, feed, RELAY_LINE_MAX};
+
 /// The built-in recursion cap (§6, bl-7110): reaching this depth ABORTS the op.
 pub const DEPTH_CAP: u32 = 8;
-
-/// Bounded retries for a transient `ETXTBSY` when exec'ing a plugin binary —
-/// see [`retry_busy`].
-const BUSY_RETRIES: u32 = 6;
-const BUSY_BACKOFF_MS: u64 = 2;
-
-/// Retry `exec` while it reports `ExecutableFileBusy`. Exec'ing a file any
-/// process holds open for writing yields `ETXTBSY` — transient when a plugin
-/// binary is being (re)written concurrently (a parallel agent's `bl install`,
-/// §6). Bounded, then gives up with the last error. Shared with the §6 read-op
-/// dispatch ([`crate::reads`]), which spawns the same plugin binaries.
-pub(crate) fn retry_busy<T>(mut exec: impl FnMut() -> io::Result<T>) -> io::Result<T> {
-    for _ in 0..BUSY_RETRIES {
-        match exec() {
-            Err(e) if e.kind() == io::ErrorKind::ExecutableFileBusy => {
-                std::thread::sleep(std::time::Duration::from_millis(BUSY_BACKOFF_MS));
-            }
-            other => return other,
-        }
-    }
-    exec()
-}
-
-/// A plugin's self-description from `<bin> protocol`: the protocol version(s) it
-/// speaks and the ops it handles. balls never persists it — it is read at
-/// install time to validate a binding, and is diagnostics otherwise (§6).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Protocol {
-    pub protocol: Vec<u32>,
-    pub ops: Vec<String>,
-}
-
-/// Accept a scalar `protocol: 1` or a list `protocol: [1, 2]` on the wire — both
-/// are valid §6 self-descriptions ("version(s)").
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Versions {
-    One(u32),
-    Many(Vec<u32>),
-}
-
-#[derive(Deserialize)]
-struct RawProtocol {
-    protocol: Versions,
-    ops: Vec<String>,
-}
-
-impl Protocol {
-    /// Does this plugin declare that it handles `op`? The install-time check.
-    #[must_use]
-    pub fn handles(&self, op: Verb) -> bool {
-        self.ops.iter().any(|o| o == op.token())
-    }
-
-    /// Does this plugin speak protocol `version`? The install-time check.
-    #[must_use]
-    pub fn speaks(&self, version: u32) -> bool {
-        self.protocol.contains(&version)
-    }
-}
-
-/// Run `<bin> protocol` and parse its `{ protocol, ops }` self-description (§6).
-/// A spawn failure, a non-zero exit, or unparseable JSON is an [`io::Error`].
-pub fn describe(bin: &Path) -> io::Result<Protocol> {
-    let out = retry_busy(|| Command::new(bin).arg("protocol").output())?;
-    if !out.status.success() {
-        return Err(io::Error::other(format!(
-            "plugin protocol self-describe exited {}",
-            out.status
-        )));
-    }
-    let raw: RawProtocol = serde_json::from_slice(&out.stdout).map_err(io::Error::other)?;
-    let protocol = match raw.protocol {
-        Versions::One(v) => vec![v],
-        Versions::Many(vs) => vs,
-    };
-    Ok(Protocol { protocol, ops: raw.ops })
-}
 
 /// The production [`Plugins`] seam: spawns each plugin as a subprocess with the
 /// §7 wire on stdin (§6). Borrows the op's [`Log`] for the run's lifetime — it
@@ -227,7 +159,7 @@ impl<'a> Subprocess<'a> {
                 .stderr(Stdio::piped())
                 .spawn()
         })?;
-        child.stdin.take().expect("stdin was configured as a pipe").write_all(payload.as_bytes())?;
+        feed(child.stdin.take().expect("stdin was configured as a pipe"), payload)?;
         self.relay(name, phase, child.stderr.take().expect("stderr was configured as a pipe"));
         child.wait()
     }
@@ -241,24 +173,6 @@ impl<'a> Subprocess<'a> {
         capped_lines(BufReader::new(stderr), RELAY_LINE_MAX, |line| {
             self.log.record(Level::Info, name, Some(phase), line);
         });
-    }
-}
-
-/// A very generous per-line ceiling on enveloped plugin stderr (1 MiB): far above
-/// any real diagnostic, but bounded, so a no-newline flood cannot OOM the parent.
-const RELAY_LINE_MAX: u64 = 1 << 20;
-
-/// Hand `reader`'s lines to `sink`, never buffering more than `cap` bytes at once:
-/// a line longer than `cap` is flushed in `cap`-sized pieces rather than grown
-/// without bound. The trailing newline is trimmed; a read error ends the relay.
-fn capped_lines(mut reader: impl BufRead, cap: u64, mut sink: impl FnMut(&str)) {
-    let mut buf = Vec::new();
-    while reader.by_ref().take(cap).read_until(b'\n', &mut buf).unwrap_or(0) != 0 {
-        if buf.last() == Some(&b'\n') {
-            buf.pop();
-        }
-        sink(&String::from_utf8_lossy(&buf));
-        buf.clear();
     }
 }
 
@@ -289,3 +203,6 @@ impl Plugins for Subprocess<'_> {
 #[cfg(test)]
 #[path = "plugin_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "plugin_feed_tests.rs"]
+mod feed_tests;

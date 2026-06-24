@@ -112,12 +112,9 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
             "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
             "--edit" => f.edit = true,
-            // Both name the store remote (§12); `--remote` always assigns,
-            // `--center` fills only an empty slot — prime's exact precedence.
-            "--remote" => f.remote = Some(value(args, &mut i, "--remote")?),
-            "--center" => {
-                let center = value(args, &mut i, "--center")?;
-                f.remote.get_or_insert(center);
+            // The store-remote ladder, shared verbatim with prime/sync/import.
+            flag @ ("--remote" | "--center") => {
+                crate::checkout::apply_remote(&mut f.remote, flag, value(args, &mut i, flag)?);
             }
             flag if flag.starts_with('-') => return Err(other(format!("unexpected flag '{flag}'"))),
             _ => f.positionals.push(args[i].clone()),

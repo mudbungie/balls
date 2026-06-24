@@ -4,7 +4,7 @@
 
 use super::test_support::{blocker, catalog, task};
 use super::*;
-use crate::task::On;
+use crate::task::{On, Task};
 
 /// A claimed ball.
 fn claimed(title: &str, created: i64, by: &str) -> Task {
@@ -202,12 +202,10 @@ fn the_badge_is_a_coloured_glyph_in_rich_mode() {
 }
 
 #[test]
-fn the_status_and_op_words_are_stable_tokens() {
-    assert_eq!(status_word(Status::Ready), "ready");
-    assert_eq!(status_word(Status::Claimed), "claimed");
-    assert_eq!(status_word(Status::Blocked), "blocked");
-    assert_eq!(on_word(On::Claim), "claim");
-    assert_eq!(on_word(On::Close), "close");
+fn the_status_words_are_stable_tokens() {
+    assert_eq!(Status::Ready.word(), "ready");
+    assert_eq!(Status::Claimed.word(), "claimed");
+    assert_eq!(Status::Blocked.word(), "blocked");
 }
 
 #[test]

@@ -214,7 +214,7 @@ pub(crate) fn binding(landing: &Path, store: &Path, invocation: &Path, remote: O
 #[path = "checkout_args.rs"]
 mod args;
 use args::{parse_prime, parse_sync};
-pub(crate) use args::value;
+pub(crate) use args::{apply_remote, value};
 
 #[cfg(test)]
 #[path = "checkout_tests.rs"]
