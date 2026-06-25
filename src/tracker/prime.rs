@@ -2,7 +2,8 @@
 //! per axis of "make this checkout ready" (bl-0a23).
 //!
 //! - **`prime/pre` settles the NAME + clones the store in** ([`prime`]). With no
-//!   remote it is STEALTH: touch no remote, warn (W1), persist nothing — the
+//!   remote it is STEALTH: touch no remote, persist nothing, say nothing (the
+//!   expected first-run shape, bl-2013) — the
 //!   opt-out is structural (no remote, nothing to leave on `origin`) and the
 //!   DECLARED opt-out is a config fact core re-derives every op (the landing
 //!   `task_remote` sentinel, bl-9df0), so there is no tracker-side state.
@@ -33,17 +34,20 @@ use std::io;
 use std::path::Path;
 
 /// `prime/pre`: settle the store NAME and clone an established store in (§12).
-/// Stealth (no remote) warns (W1) and stops — persisting nothing; the declared
-/// opt-out already lives in config (bl-9df0). Otherwise warn on a
+/// Stealth (no remote) is SILENT and stops — persisting nothing; it is the
+/// expected first-run shape and the declared opt-out already lives in config,
+/// re-derivable via `bl conf` (bl-9df0/bl-2013). Otherwise warn on a
 /// store-elsewhere mismatch and on an ephemeral remote (both diagnostic, never
 /// fatal), then [`clone_in`] the
 /// remote store branch if it is established and absent locally. Idempotent: a
 /// re-prime finds the local branch present and clones nothing.
 pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
     let Some(remote) = b.remote.clone() else {
-        // W1 (§12): say so — a stealth store is fine, but invisible-until-`bl
-        // conf` left "deliberately local" and "forgot to federate" identical.
-        eprintln!("tracker: store is stealth (local), not auto-syncing");
+        // Stealth (no remote): the EXPECTED first-run shape, so it stays SILENT —
+        // narrating it every op was the wart (bl-2013). The DECLARED-vs-inferred
+        // distinction it once drew is re-derivable on demand via `bl conf` (the
+        // landing `task_remote` sentinel, bl-9df0), and the W2 ephemeral-remote
+        // warning still covers the "forgot to federate via --remote" case.
         return Ok(());
     };
     let landing = Path::new(&b.landing);
