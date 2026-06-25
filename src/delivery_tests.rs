@@ -48,6 +48,9 @@ impl Repo for FakeRepo {
         self.log(format!("deliver {} {branch} -> {integration} : {subject} : {marker}", path.display()));
         Ok(())
     }
+    fn is_git_repo(&self) -> io::Result<bool> {
+        unreachable!("dispatch never gates on the precondition (see delivery_precondition)")
+    }
 }
 
 fn spec() -> Spec<'static> {
