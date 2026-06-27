@@ -83,8 +83,9 @@ no listing of its own; once primed, read the two sets you care about with
 The store remote resolves the same way on **every** command: `--remote URL` (a
 per-op override — it is **not** remembered) > the per-checkout stealth sentinel
 (`bl conf set task-remote none` — "no remote, on purpose", resolution stops) >
-the per-machine `task-remote`
-(`bl conf set task-remote <url>`) > the project repo's `origin`. A fresh clone
+this checkout's own `task-remote` (`bl conf set task-remote <url>` — a
+per-clone binding, ranked above a legacy machine-wide config kept only as a
+read-only fallback) > the project repo's `origin`. A fresh clone
 whose `origin` carries the store just works: `bl prime; bl list`. To point a
 checkout with no such `origin` at a shared project, set a durable pointer —
 `git remote add origin <hub>` or `bl conf set task-remote <hub>` — then
@@ -105,14 +106,14 @@ a config without it. It contradicts
 ## Local config (`bl conf`)
 
 `bl conf` dumps every resolved config value, the layer it came from
-(`cli`/`xdg`/`landing`/`origin`/`default`), and the paths of the files behind
+(`cli`/`binding`/`xdg`/`landing`/`origin`/`default`), and the paths of the files behind
 them; `bl conf <key>` prints one value (stdout) with its provenance (stderr).
 A checkout with no durable remote shows `task-remote (none)` — that checkout
 is stealth. Writes are scope-keyed — the key implies the file, there is no
 `--scope` flag:
 
-- `bl conf set task-remote <url>` — per-machine store remote (XDG config; also
-  clears a declared stealth sentinel). `bl conf set task-remote none` — declare
+- `bl conf set task-remote <url>` — per-checkout store remote (this clone's
+  binding; also clears a declared stealth sentinel). `bl conf set task-remote none` — declare
   stealth: a landing-committed per-checkout sentinel, what `prime --stealth`
   sugars to.
 - `bl conf set task-branch <name>` / `bl conf set log-level <level>` — landing
@@ -143,7 +144,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 |---------|-------------|
 | `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. `--stealth` opts out of any store remote durably (a landing sentinel every later op derives; store stays local). Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID] [--remote URL]` | Pull the store from the remote (fetch + fast-forward; the remote resolves `--remote` > `task-remote` > `origin`, like every op). No arg syncs the configured store branch. |
-| `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-machine XDG), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
+| `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-checkout binding), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--from` the configured upstream (fetched by the `install.pre` tracker), `--to` the landing. A landing-targeted install then binds each plugin the landed schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding per plugin — validated against its live `protocol`; a refusal lands AFTER the sealed copy (the commit is the undo; the retry converges and just binds). Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
 | `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). `--json` is the lossless bedrock record — `bl import` ingests the same shape back. |

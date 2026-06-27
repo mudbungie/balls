@@ -193,27 +193,64 @@ fn remote_ladder_resolves_cli_over_sentinel_over_xdg() {
     let tmp = TempDir::new().unwrap();
     let user = tmp.path().join("config.toml");
     fs::write(&user, "remote = \"git@hub:xdg\"\n").unwrap();
-    // No landing rung → the XDG tier, not declared.
+    let no_binding = tmp.path().join("absent-binding.toml");
+    // No landing rung, no binding → the legacy XDG tier, not declared.
     let empty = landing(&tmp, "empty", "");
-    assert_eq!(remote_ladder(None, &empty, &user).unwrap(), (Some("git@hub:xdg".into()), false));
-    // The sentinel declares stealth and stops resolution, XDG unread.
+    assert_eq!(remote_ladder(None, &empty, &no_binding, &user).unwrap(), (Some("git@hub:xdg".into()), false));
+    // The sentinel declares stealth and stops resolution, binding+XDG unread.
     let stealth = landing(&tmp, "stealth", "task_remote = \"none\"\n");
-    assert_eq!(remote_ladder(None, &stealth, &user).unwrap(), (None, true));
+    assert_eq!(remote_ladder(None, &stealth, &no_binding, &user).unwrap(), (None, true));
     // Consent given supersedes withheld — the per-op tier outranks the sentinel.
     assert_eq!(
-        remote_ladder(Some("git@hub:op".into()), &stealth, &user).unwrap(),
+        remote_ladder(Some("git@hub:op".into()), &stealth, &no_binding, &user).unwrap(),
         (Some("git@hub:op".into()), false)
     );
 }
 
 #[test]
+fn remote_ladder_binding_outranks_the_legacy_xdg_remote() {
+    // bl-d081: the per-clone `binding.toml` remote is the durable tier ABOVE the
+    // legacy per-machine XDG remote — a satellite's remote is scoped to its own
+    // checkout and can no longer shadow another repo's store. XDG remains a
+    // READ-ONLY fallback for a machine that wrote a global remote before the
+    // per-clone home existed.
+    let tmp = TempDir::new().unwrap();
+    let user = tmp.path().join("config.toml");
+    fs::write(&user, "remote = \"git@hub:xdg\"\n").unwrap();
+    let empty = landing(&tmp, "empty", "");
+    // binding present → it wins over the legacy XDG remote.
+    let binding = tmp.path().join("binding.toml");
+    fs::write(&binding, "remote = \"git@hub:binding\"\n").unwrap();
+    assert_eq!(remote_ladder(None, &empty, &binding, &user).unwrap(), (Some("git@hub:binding".into()), false));
+    // binding absent → the legacy XDG remote still resolves (back-compat).
+    let no_binding = tmp.path().join("absent-binding.toml");
+    assert_eq!(remote_ladder(None, &empty, &no_binding, &user).unwrap(), (Some("git@hub:xdg".into()), false));
+}
+
+#[test]
+fn binding_remote_reads_the_remote_key_else_none() {
+    // The per-clone tier core reads above the legacy XDG one (bl-d081): a
+    // `binding.toml` naming a remote → Some; a binding present but without the
+    // key, or no binding file at all → None (same read shape as `xdg_remote`).
+    let tmp = TempDir::new().unwrap();
+    let with = tmp.path().join("with.toml");
+    fs::write(&with, "remote = \"git@hub:bind\"\ntasks_branch = \"balls/x\"\n").unwrap();
+    assert_eq!(binding_remote(&with).as_deref(), Some("git@hub:bind"));
+    let without = tmp.path().join("without.toml");
+    fs::write(&without, "tasks_branch = \"balls/x\"\n").unwrap();
+    assert_eq!(binding_remote(&without), None);
+    assert_eq!(binding_remote(&tmp.path().join("absent.toml")), None);
+}
+
+#[test]
 fn remote_ladder_refuses_a_url_in_the_landing_rung() {
-    // A URL's home is per-machine (§4/§12 — it must never travel on `install`,
-    // and an installed config silently redirecting your store pushes is exactly
-    // the surprise that rule prevents); the landing rung holds only the
-    // sentinel, anything else refused NAMED.
+    // A URL's durable home is this clone's binding (§4/§12 — it must never travel
+    // on `install`, and an installed config silently redirecting your store
+    // pushes is exactly the surprise that rule prevents); the landing rung holds
+    // only the sentinel, anything else refused NAMED.
     let tmp = TempDir::new().unwrap();
     let poison = landing(&tmp, "poison", "task_remote = \"git@hub:evil\"\n");
-    let err = remote_ladder(None, &poison, &tmp.path().join("absent.toml")).unwrap_err().to_string();
-    assert!(err.contains("per-machine"), "{err}");
+    let absent = tmp.path().join("absent.toml");
+    let err = remote_ladder(None, &poison, &absent, &absent).unwrap_err().to_string();
+    assert!(err.contains("clone's binding"), "{err}");
 }

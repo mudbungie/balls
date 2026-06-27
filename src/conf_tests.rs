@@ -115,10 +115,15 @@ fn task_remote_reads_the_durable_ladder_and_shows_stealth() {
     crate::git::run(&e.invocation_path, &["init", "-q"], None).unwrap();
     crate::git::run(&e.invocation_path, &["remote", "add", "origin", "git@hub:o"], None).unwrap();
     assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:o".into(), "origin".into()));
-    // The XDG `task-remote` outranks origin.
+    // The legacy global XDG remote outranks origin, labelled `xdg (global)` so a
+    // per-machine value is told apart from a per-clone one (bl-d081).
     user_file(&e, "config.toml", "remote = \"git@hub:x\"\n");
-    assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:x".into(), "xdg".into()));
-    // A landing sentinel outranks both: DECLARED stealth, distinct from the
+    assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:x".into(), "xdg (global)".into()));
+    // The per-clone binding remote outranks the legacy global one — the durable
+    // per-checkout home that can never shadow another repo (bl-d081).
+    fs::write(clone.binding(), "remote = \"git@hub:b\"\n").unwrap();
+    assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:b".into(), "binding".into()));
+    // A landing sentinel outranks all: DECLARED stealth, distinct from the
     // nothing-set readout above (bl-9df0 — three no-remote provenances).
     let balls_toml = clone.landing().join("config").join("balls.toml");
     let mut body = fs::read_to_string(&balls_toml).unwrap_or_default();

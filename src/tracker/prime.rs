@@ -52,7 +52,7 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
     };
     let landing = Path::new(&b.landing);
     if let Some(durable) = ephemeral_gap(b, env, &remote) {
-        eprintln!("tracker: primed on `{remote}` via an explicit remote; the durable ladder (XDG > origin) resolves {durable} — set `origin` or `bl conf set task-remote` to federate durably");
+        eprintln!("tracker: primed on `{remote}` via an explicit remote; the durable ladder (binding > XDG > origin) resolves {durable} — set `origin` or `bl conf set task-remote` to federate durably");
     }
     if let Some(named) = store_elsewhere(b, landing, &remote) {
         eprintln!("tracker: this repo's tasks are on `{named}` — run `bl install` / `bl prime --install`");
@@ -61,12 +61,14 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
 }
 
 /// The §12 ephemeral-remote gap (W2, bl-c2de): prime is acting on `remote`, but
-/// the DURABLE ladder (landing `task_remote` > XDG `task-remote` > `origin`)
-/// resolves to something else
+/// the DURABLE ladder (landing `task_remote` > per-clone `binding` remote > legacy
+/// XDG remote > `origin`) resolves to something else
 /// — so it arrived via a per-op `--remote`/`--center` and plain commands will
 /// not reproduce it (the bl-d234 silent-stealth failure). A landing stealth
 /// sentinel is the strongest durable answer: plain commands run DECLARED
-/// stealth, named as such (bl-9df0). Returns what durable
+/// stealth, named as such (bl-9df0). The binding tier mirrors core's
+/// [`crate::config::remote_ladder`] (bl-d081) so a per-clone remote read by core
+/// is not misreported here as ephemeral. Returns what durable
 /// resolution yields, rendered for the warning; `None` = no gap (the remote in
 /// use IS the durable one, however it was spelled).
 fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
@@ -74,7 +76,9 @@ fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
     if declared.is_some_and(|v| v == crate::config::STEALTH_REMOTE) {
         return Some("declared stealth (the landing `task_remote` sentinel)".to_string());
     }
-    let durable = crate::config::xdg_remote(&env.xdg.user_config())
+    let binding = env.xdg.clone_dir(Path::new(&b.invocation_path)).binding();
+    let durable = crate::config::binding_remote(&binding)
+        .or_else(|| crate::config::xdg_remote(&env.xdg.user_config()))
         .or_else(|| super::origin_of(Path::new(&b.invocation_path)));
     match durable {
         Some(d) if d == remote => None,
