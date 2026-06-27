@@ -55,10 +55,11 @@ impl Xdg {
         self.config_home.join("balls").join("config.toml")
     }
 
-    /// `$XDG_CONFIG_HOME/balls/default-config/` — the seed source `bl prime`
-    /// copies into a fresh landing (§1/§12). Present = an org/user override;
-    /// absent = the embedded default is written here on first prime
-    /// ([`crate::seed`]).
+    /// `$XDG_CONFIG_HOME/balls/default-config/` — a DELIBERATE seed override
+    /// (§1/§12). Present = an org/user customizes the seed (its files win
+    /// per-file); absent = the embedded default is used directly. Core NEVER
+    /// creates it ([`crate::seed`], bl-8088), so a once-materialized copy can't go
+    /// stale and shadow the embedded default.
     #[must_use]
     pub fn default_config(&self) -> PathBuf {
         self.config_home.join("balls").join("default-config")
