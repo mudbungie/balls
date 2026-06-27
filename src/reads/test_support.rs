@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -14,6 +15,7 @@ use super::Catalog;
 use crate::edge::Edge;
 use crate::layout::Xdg;
 use crate::log::{self, Level, Log};
+#[cfg(unix)]
 use crate::registry::Registry;
 use crate::task::{Blocker, On, Task};
 use crate::verb::Verb;
@@ -42,11 +44,21 @@ pub(crate) fn landing_with(edge: &Edge, plugins_toml: &str) -> PathBuf {
 }
 
 /// Drop an executable `script` named `name` in `tmp` and bind it on `landing`.
+#[cfg(unix)]
 pub(crate) fn bind_script(tmp: &Path, landing: &Path, name: &str, script: &str) {
     let bin = tmp.join(name);
     fs::write(&bin, script).unwrap();
     fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
     Registry::at(landing).bind(name, &bin).unwrap();
+}
+
+/// Windows stub: tests that need executable shell-script plugins are gated
+/// with `#![cfg(unix)]` at the file level; this stub exists so the helper
+/// symbol resolves on Windows for files that import it but only call it from
+/// gated tests.
+#[cfg(windows)]
+pub(crate) fn bind_script(_tmp: &Path, _landing: &Path, _name: &str, _script: &str) {
+    panic!("bind_script: shell-script plugins are not supported on Windows");
 }
 
 /// A [`Log`] sink at `tmp/oplog` with the given threshold — read its records

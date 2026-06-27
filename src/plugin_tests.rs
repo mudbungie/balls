@@ -3,6 +3,8 @@
 //! exit-code-to-abort, the recursion guard, and `protocol` self-describe — is
 //! exercised end to end.
 
+#![cfg(unix)]
+
 use super::*;
 use crate::lifecycle::{Plugins, Sealed};
 use crate::log::{Level, Log};

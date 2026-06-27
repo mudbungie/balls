@@ -14,7 +14,6 @@
 
 use std::fs;
 use std::io;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -118,7 +117,7 @@ impl Project {
         let Ok(meta) = fs::metadata(&hook) else {
             return Ok(()); // no hook → an ungated project delivers as before
         };
-        if meta.permissions().mode() & 0o111 == 0 {
+        if !is_executable(&meta) {
             return Ok(()); // git's rule: a non-executable hook is ignored
         }
         let status = Command::new(&hook).current_dir(path).stdout(Stdio::from(io::stderr())).status()?;
@@ -173,6 +172,23 @@ pub fn claimed_ids(checkout: &Path, actor: &str) -> io::Result<Vec<String>> {
 pub fn changed_task_paths(cwd: &Path) -> io::Result<Vec<String>> {
     let out = Project::run(cwd, &["diff", "--name-only", "HEAD", "--", "tasks"])?;
     Ok(out.lines().map(str::to_string).collect())
+}
+
+/// Whether `meta` describes an executable regular file. On Unix this is the
+/// owner-or-group-or-other `+x` bit — git's own rule for hook execution. On
+/// Windows there is no executable bit and git-for-Windows resolves hook
+/// runnability at launch time (extension / shebang), so we report every file
+/// as executable here and let [`Command::new`] surface a real failure if the
+/// hook can't actually be launched.
+#[cfg(unix)]
+fn is_executable(meta: &fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    meta.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(windows)]
+fn is_executable(_meta: &fs::Metadata) -> bool {
+    true
 }
 
 // The [`crate::delivery::Repo`] trait impl (worktree lifecycle + squash

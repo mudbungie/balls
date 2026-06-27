@@ -6,6 +6,8 @@
 //! `bl` (the [`crate::install_tests`] pattern). The real end-to-end (the shipped
 //! tracker doing the fetch) is `tests/dispatch.rs`.
 
+#![cfg(unix)]
+
 use super::*;
 use crate::edge::Edge;
 use crate::git;
