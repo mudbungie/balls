@@ -1,7 +1,8 @@
 +++
 title = "terminal plugin op-log lines lost their severity marker after bl-2013 (warning reads same as routine narration)"
 created = 1782586050
-updated = 1782586050
+updated = 1782594161
+claimant = "Crony"
 priority = 3
 tags = ["ux", "log"]
 +++
