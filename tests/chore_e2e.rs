@@ -10,6 +10,8 @@
 //! schedule (an unbound hooked name aborts the op); `bl-chore` shells `bl` on
 //! `$PATH`, so we put the cargo bin dir on the child's PATH.
 
+#![cfg(unix)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as Sys;
