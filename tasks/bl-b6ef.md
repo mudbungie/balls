@@ -1,7 +1,8 @@
 +++
 title = "core op-log lines still print as raw JSON to the terminal on error paths (follow-up to bl-2013)"
 created = 1782586026
-updated = 1782586026
+updated = 1782594159
+claimant = "Crony"
 priority = 3
 tags = ["ux", "log"]
 +++
