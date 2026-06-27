@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4](https://github.com/mudbungie/balls/compare/v0.5.3...v0.5.4) - 2026-06-27
+
+### Changes
+
+- bl conf set task-remote writes a MACHINE-WIDE remote that silently shadows every other repo's own store [bl-d081]
+- terminal plugin op-log lines lost their severity marker after bl-2013 (warning reads same as routine narration) [bl-e7b8]
+- core op-log lines still print as raw JSON to the terminal on error paths (follow-up to bl-2013) [bl-b6ef]
+- install-default seed: once-materialized XDG default-config silently shadows the updated embedded default (drift) [bl-8088]
+- Re-verify larabail's Windows port still holds after subsequent decomposition (cfg-gating audit) [bl-9a38]
+- Quiet tracker prime stealth-founding noise + render plugin op-log as human text at info [bl-2013]
+- Non-git stealth tracker accepts create but claim/close die on a raw bl-delivery git fatal [bl-4a88]
+- bl conf dumps 'drop.post' but every per-key op (get/set/append/remove) rejects it as unknown key [bl-03a1]
+- Fix README drift + stale Makefile from bl-tracker rename [bl-be50]
+- Redraft README opening (sell/pain framing) + tracker→bl-tracker rename [bl-2c63]
+- Doc update: register bl-chore in architecture.md §6/§11 + SKILL + README [bl-759f]
+- Implement bl-chore plugin (binary, two guards, sample config) [bl-c370]
+- Design doc: bl-chore guarded-mint primitive (docs/design/bl-chore.md) [bl-3df3]
+- Rename tracker -> bl-tracker; declare bl- = first-party convention; diagnose the rename on a config miss [bl-27bf]
+- help-example uses --subtask-of for a 'review' (claim-gate) where the review-gate convention is --blocks close [bl-6524]
+- Mark bl-788e amendment-log entry superseded by bl-5d9a (subtask-of gates claim) [bl-97f7]
+- no per-command help — bl <cmd> --help / bl help <cmd> should list that command's flags [bl-7990]
+- subtask-of default gates claim, not close (epics drop out of ready) [bl-5d9a]
+- Merge remote-tracking branch 'upstream/main' into windows-port
+
 ## [0.5.3](https://github.com/mudbungie/balls/compare/v0.5.2...v0.5.3) - 2026-06-16
 
 ### Changes
