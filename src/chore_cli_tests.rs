@@ -1,6 +1,8 @@
 //! `Cli` seam tests — drive the real shelling against a fake `bl` script: a
 //! zero-exit capture, a non-zero abort, and a missing binary (spawn failure).
 
+#![cfg(unix)]
+
 use super::*;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
