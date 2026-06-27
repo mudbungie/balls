@@ -153,8 +153,9 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// the parsed `--remote`/`--center` per-op override — the top tier of the ONE §12
 /// ladder, accepted by every store-touching verb alike (bl-c2de). The rest of
 /// core's remote handling is [`crate::config::remote_ladder`] — the landing
-/// `task_remote` policy rung (the stealth sentinel, bl-9df0) over the
-/// per-machine XDG `remote`, all plain config reads; core never resolves an
+/// `task_remote` policy rung (the stealth sentinel, bl-9df0) over this clone's
+/// `binding.toml` remote (bl-d081) over the legacy per-machine XDG `remote`, all
+/// plain config reads; core never resolves an
 /// implicit remote (§0). `None` here is NOT stealth: it means "no EXPLICIT remote",
 /// and the binding carries `remote: None` to the tracker, which discovers the
 /// project-repo `origin` (the bottom §12 tier — remote-talk, so the tracker's
@@ -164,9 +165,10 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// opt-out bind the checkout rather than one invocation.
 pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option<String>, target: Option<String>) -> io::Result<(Binding, Level)> {
     let user_config = edge.xdg.user_config();
+    let binding_path = edge.xdg.clone_dir(&edge.invocation_path).binding();
     let cfg = EffectiveConfig::resolve(landing, &user_config)?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
-    let (remote, stealth) = crate::config::remote_ladder(cli_remote, landing, &user_config)?;
+    let (remote, stealth) = crate::config::remote_ladder(cli_remote, landing, &binding_path, &user_config)?;
     let tasks_branch = target.unwrap_or(cfg.tasks_branch);
     Ok((binding(landing, store, &edge.invocation_path, remote, stealth, tasks_branch), level))
 }

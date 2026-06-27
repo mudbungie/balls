@@ -24,7 +24,7 @@ pub(super) struct Resolved {
 pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Resolved> {
     let landing = clone.landing();
     match key {
-        Key::TaskRemote => task_remote(edge, &landing),
+        Key::TaskRemote => task_remote(edge, &landing, &clone.binding()),
         Key::TaskBranch => scalar(edge, &landing, "tasks_branch", crate::DEFAULT_TASKS_BRANCH, None),
         Key::LogLevel => scalar(edge, &landing, "log_level", "info", edge.log_level.as_deref()),
         Key::Hook(k) => {
@@ -45,17 +45,22 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
 /// The store remote per the §12 ladder's DURABLE tiers (`conf` takes no
 /// `--remote`), through the SAME [`config::remote_ladder`] the ops bind with:
 /// the landing `task_remote` policy (declared stealth reads `(none)` from
-/// `landing` — bl-9df0), else the XDG `task-remote`, else the project repo's
-/// `origin` (a local `git remote get-url` — naming, not contacting, §12), else
-/// `(none)` from `stealth` — circumstantial, nothing set. Three distinct
-/// no-remote readouts (bl-d234): declared, unset-with-origin, unset-without.
-fn task_remote(edge: &Edge, landing: &Path) -> io::Result<Resolved> {
-    let (remote, declared) = config::remote_ladder(None, landing, &edge.xdg.user_config())?;
+/// `landing` — bl-9df0), else this clone's `binding` remote, else the legacy
+/// global XDG remote, else the project repo's `origin` (a local `git remote
+/// get-url` — naming, not contacting, §12), else `(none)` from `stealth` —
+/// circumstantial, nothing set. A non-stealth URL is labelled by its tier:
+/// `binding` (per-clone, this checkout's own) vs `xdg (global)` (per-machine,
+/// shared by every repo — the bl-d081 disambiguation, so a global value is told
+/// apart from a per-clone one). Three distinct no-remote readouts (bl-d234):
+/// declared, unset-with-origin, unset-without.
+fn task_remote(edge: &Edge, landing: &Path, binding: &Path) -> io::Result<Resolved> {
+    let (remote, declared) = config::remote_ladder(None, landing, binding, &edge.xdg.user_config())?;
     if declared {
         return Ok(Resolved { value: "(none)".into(), layer: "landing".into() });
     }
     if let Some(url) = remote {
-        return Ok(Resolved { value: url, layer: "xdg".into() });
+        let layer = if config::binding_remote(binding).is_some() { "binding" } else { "xdg (global)" };
+        return Ok(Resolved { value: url, layer: layer.into() });
     }
     Ok(match origin(&edge.invocation_path) {
         Some(url) => Resolved { value: url, layer: "origin".into() },
