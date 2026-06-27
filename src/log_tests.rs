@@ -81,6 +81,22 @@ fn a_plugin_record_keeps_full_json_in_the_file_even_though_the_terminal_shows_ms
 }
 
 #[test]
+fn a_core_record_keeps_full_json_in_the_file_even_though_the_terminal_shows_msg() {
+    // bl-b6ef: a `core` record's terminal echo is now its bare `msg` text too
+    // (symmetric with the plugin path) — the raw JSON envelope no longer reaches
+    // the terminal on error paths. The FILE sink stays byte-for-byte JSON: the §6
+    // machine record is unchanged, only the human-facing terminal shape differs.
+    let tmp = TempDir::new().unwrap();
+    let (log, path) = log_at(&tmp, Level::Error);
+    log.record(Level::Error, "core", None, "prime failed: remote /nonexistent/repo.git");
+    let recs = lines(&path);
+    assert_eq!(recs.len(), 1);
+    assert_eq!(recs[0]["src"], "core");
+    assert_eq!(recs[0]["lvl"], "error");
+    assert_eq!(recs[0]["msg"], "prime failed: remote /nonexistent/repo.git");
+}
+
+#[test]
 fn appends_accumulate_in_order() {
     let tmp = TempDir::new().unwrap();
     let (log, path) = log_at(&tmp, Level::Debug);

@@ -328,10 +328,10 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
 - `log_level` (string, default `"info"`) — the single threshold for the unified op log (§1/§6),
   applied at WRITE time so it gates BOTH file persistence and terminal echo (a line below threshold is
   never emitted anywhere). The two sinks differ in SHAPE, not gating: the FILE always gets the JSON
-  line (the §6 machine record + metrics source), while the human-facing TERMINAL echo renders a plugin
-  record (`src != core`) as its bare `msg` text (the plugin self-prefixes) — so an enveloped plugin
-  line, and a multi-line plugin error, reach the reader as readable text, not raw JSON envelopes
-  (bl-2013); a `core` record still echoes its JSON line. A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
+  line (the §6 machine record + metrics source), while the human-facing TERMINAL echo renders EVERY
+  record — plugin and core alike — as its bare `msg` text (a plugin self-prefixes, e.g. `tracker: …`) — so an
+  enveloped line, and a multi-line error, reach the reader as readable text, not raw JSON envelopes
+  (bl-2013, bl-b6ef). A serde-default scalar like `tasks_branch` — NOT a `default-config/` seed
   entry and NOT a "run-time default" carve-out: the seed is for capability *sets* (the plugin chain),
   the layer-4 serde fallback is exactly "for a field no layer set." Read order is the normal §4 stack,
   so `--log-level` (layer 1) overrides for one run. Default mapping: severity classifies the VOICE,
