@@ -30,7 +30,7 @@ fn bin_link(landing: &Path, name: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn seed_writes_the_embedded_default_then_copies_and_binds_present_plugins() {
+fn seed_uses_the_embedded_default_without_materializing_the_xdg_override() {
     let tmp = TempDir::new().unwrap();
     let xdg = xdg_at(tmp.path());
     let landing = tmp.path().join("landing");
@@ -38,11 +38,11 @@ fn seed_writes_the_embedded_default_then_copies_and_binds_present_plugins() {
 
     seed_landing(&xdg, &landing, Some(&exe)).unwrap();
 
-    // The embedded default was materialized to the XDG override slot (absent → write).
-    assert!(xdg.default_config().join("balls.toml").is_file());
-    assert!(xdg.default_config().join("plugins.toml").is_file());
-    // The landing's config/ was seeded from it.
-    assert!(landing.join("config/balls.toml").is_file());
+    // The embedded default is used DIRECTLY: the XDG override slot is NEVER
+    // auto-created, so it can't go stale and shadow a moved embedded default (bl-8088).
+    assert!(!xdg.default_config().exists());
+    // The landing's config/ carries the CURRENT embedded default verbatim.
+    assert!(fs::read_to_string(landing.join("config/balls.toml")).unwrap().contains("balls/tasks"));
     // Both shipped plugins resolved → kept in the schedule and bound locally.
     let hooks = Hooks::load(&landing).unwrap();
     assert_eq!(hooks.names("close", "post"), ["bl-delivery", "bl-tracker"]);
@@ -110,7 +110,7 @@ fn an_xdg_override_wins_over_the_embedded_default() {
 }
 
 #[test]
-fn an_override_missing_a_file_seeds_only_what_it_has() {
+fn an_override_missing_a_file_falls_back_to_the_embedded_default() {
     let tmp = TempDir::new().unwrap();
     let xdg = xdg_at(tmp.path());
     // An override with a plugins.toml but no balls.toml.
@@ -122,8 +122,9 @@ fn an_override_missing_a_file_seeds_only_what_it_has() {
     let exe = exe_dir_with(tmp.path(), &["tracker"]);
     seed_landing(&xdg, &landing, Some(&exe)).unwrap();
 
-    // No balls.toml in the override → none in the landing (the field defaults stand).
-    assert!(!landing.join("config/balls.toml").exists());
+    // The override's plugins.toml travels; the absent balls.toml falls back to the
+    // CURRENT embedded default (per-file overlay, bl-8088) — not to nothing.
+    assert!(fs::read_to_string(landing.join("config/balls.toml")).unwrap().contains("balls/tasks"));
     assert_eq!(Hooks::load(&landing).unwrap().names("create", "post"), ["tracker"]);
 }
 
