@@ -340,6 +340,19 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   (a plugin speaking is signal — the tracker's warnings ride here); plugin non-zero exits and core
   aborts are `error`.
 
+**No per-line severity sigil on the terminal — severity lives in the file, not the glyphs (bl-e7b8).**
+The human terminal render above carries no severity cue of its own: a plugin *warning* and a routine
+plugin line are both bare `msg` text and read identically on screen. This is deliberate, not an
+oversight. A sigil keyed off `lvl` would be empty anyway — the `Level` ladder is intentionally three
+rungs (`debug`/`info`/`error`, NO `warn`, above) AND §6 relays every plugin-stderr line at one site
+uniformly at `info`, so today a plugin warning and a plugin info line are the SAME level; a `lvl`-keyed
+sigil could not tell them apart without first giving plugins a per-line warn channel. That channel is
+DECLINED as over-mechanism — the bl-2013 investigation already weighed and deferred it (§15). In
+practice the rare, exceptional conditional warnings self-prefix (`tracker: …`) so they stay legible as
+text. Severity is never *lost*: the JSON-lines FILE sink keeps the full `lvl` on every record (§1/§6),
+recoverable by grep or `--log-level`, so the flat terminal is deliberate subtraction — severity graded
+in the machine record, the live render kept to plain human text.
+
 The id scheme is deliberately NOT a config field — it is fixed (§ id generation): a team wanting a
 different scheme supplies a `create/pre` plugin, not a config knob.
 
