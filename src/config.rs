@@ -124,16 +124,36 @@ pub(crate) fn forbid_landing(tasks_branch: &str) -> io::Result<()> {
 /// (bl-9df0).
 pub const STEALTH_REMOTE: &str = "none";
 
-/// The per-machine store remote named in the XDG user config's `remote` key — the
-/// §12 precedence layer between the per-checkout landing policy and auto-discovered
-/// `origin`. A remote URL is per-machine, not shared config (§4): it never travels
-/// on `install`, so URLs live only in this layer or are discovered from `origin`.
-/// An absent file/key ⇒ `None`; a malformed file ⇒ `None` too — the
-/// same file is read by [`EffectiveConfig::resolve`], which surfaces the parse
-/// error, so this stays quiet rather than double-reporting.
-pub fn xdg_remote(user_config: &Path) -> Option<String> {
-    let table = read_layer(user_config).ok().flatten()?;
+/// Read a `remote` URL key from a §12 store-remote TOML layer — the XDG user
+/// config or a clone's `binding.toml`, read identically. An absent file/key ⇒
+/// `None`; a malformed file ⇒ `None` too — a remote URL never travels on
+/// `install` (§4), so its only homes are these layers or a discovered `origin`.
+fn remote_key(path: &Path) -> Option<String> {
+    let table = read_layer(path).ok().flatten()?;
     table.get("remote")?.as_str().map(str::to_string)
+}
+
+/// The per-clone store remote named in this checkout's `binding.toml` `remote`
+/// key — the §12 DURABLE tier between the landing stealth sentinel and the legacy
+/// XDG remote (bl-d081). The store remote is a PER-CHECKOUT fact (which center
+/// THIS clone tracks), so its authoritative home is the per-clone binding — local
+/// state that never travels on `install` and can never shadow another repo's
+/// store, the machine-wide-XDG footgun this layer replaces. Absent/malformed ⇒
+/// `None`; `bl conf set task-remote <url>` writes it ([`crate::conf`]).
+pub fn binding_remote(binding: &Path) -> Option<String> {
+    remote_key(binding)
+}
+
+/// The per-machine store remote named in the XDG user config's `remote` key — the
+/// §12 LEGACY tier beneath the per-clone binding (bl-d081). Kept READ-ONLY for
+/// back-compat: a machine that wrote a global `remote` before the per-clone home
+/// still resolves it, but new writes land per-clone, so one repo's setup can no
+/// longer redirect every other repo's store. Absent file/key ⇒ `None`; a
+/// malformed file ⇒ `None` too — the same file is read by
+/// [`EffectiveConfig::resolve`], which surfaces the parse error, so this stays
+/// quiet rather than double-reporting.
+pub fn xdg_remote(user_config: &Path) -> Option<String> {
+    remote_key(user_config)
 }
 
 /// The per-checkout store-remote POLICY — the landing `balls.toml` `task_remote`
@@ -148,15 +168,19 @@ pub fn landing_remote(landing: &Path) -> io::Result<Option<String>> {
 }
 
 /// Resolve the EXPLICIT tiers of the ONE §12 remote ladder — per-op
-/// `--remote`/`--center` > landing `task_remote` > XDG `remote` — returning the
-/// explicit remote and whether stealth is DECLARED. Consent given supersedes
-/// consent withheld: a per-op remote outranks the sentinel for that one op. A
-/// declared sentinel STOPS resolution — no XDG fallback, and the stealth bit
-/// rides the binding so the tracker skips even its implicit `origin` discovery
-/// beneath (the §12 "locks the store local" promise, now derived per op from
-/// config instead of written once to a lock file — bl-9df0). A landing value
-/// other than the sentinel is refused: a URL's home is per-machine.
-pub fn remote_ladder(cli: Option<String>, landing: &Path, user_config: &Path) -> io::Result<(Option<String>, bool)> {
+/// `--remote`/`--center` > landing `task_remote` > per-clone `binding.toml`
+/// remote > legacy XDG `remote` — returning the explicit remote and whether
+/// stealth is DECLARED. Consent given supersedes consent withheld: a per-op
+/// remote outranks the sentinel for that one op. A declared sentinel STOPS
+/// resolution — no binding/XDG fallback, and the stealth bit rides the binding so
+/// the tracker skips even its implicit `origin` discovery beneath (the §12 "locks
+/// the store local" promise, now derived per op from config instead of written
+/// once to a lock file — bl-9df0). The per-clone binding outranks the legacy
+/// per-machine XDG remote (bl-d081): a remote is a per-checkout fact, so the
+/// per-clone home is more specific; XDG remains only a read-only back-compat
+/// fallback. A landing value other than the sentinel is refused: a URL's durable
+/// home is the per-clone binding, not the shared landing config.
+pub fn remote_ladder(cli: Option<String>, landing: &Path, binding: &Path, user_config: &Path) -> io::Result<(Option<String>, bool)> {
     if cli.is_some() {
         return Ok((cli, false));
     }
@@ -164,9 +188,9 @@ pub fn remote_ladder(cli: Option<String>, landing: &Path, user_config: &Path) ->
         Some(v) if v == STEALTH_REMOTE => Ok((None, true)),
         Some(v) => Err(io::Error::other(format!(
             "task_remote '{v}' in the landing config — the landing holds only the stealth sentinel \
-             '{STEALTH_REMOTE}' (a remote URL is per-machine: `bl conf set task-remote <url>`, §4/§12)"
+             '{STEALTH_REMOTE}' (a remote URL's home is this clone's binding: `bl conf set task-remote <url>`, §4/§12)"
         ))),
-        None => Ok((xdg_remote(user_config), false)),
+        None => Ok((binding_remote(binding).or_else(|| xdg_remote(user_config)), false)),
     }
 }
 

@@ -8,9 +8,11 @@
 //! appending a present name or removing an absent one is a no-op, and a list
 //! emptied by `remove` drops its key (absent/empty = run nothing, §4/§6).
 //!
-//! Homes: `task-remote` routes by VALUE — a URL ⇒ the XDG `config.toml` (a
-//! plain per-machine file edit, clearing any landing stealth sentinel so the
-//! set changes what the ladder resolves), the sentinel `none` ⇒ the landing
+//! Homes: `task-remote` routes by VALUE — a URL ⇒ this clone's `binding.toml` (a
+//! plain per-checkout local-state file edit, clearing any landing stealth
+//! sentinel so the set changes what the ladder resolves — never the machine-wide
+//! XDG file that silently shadowed every other repo's store, bl-d081), the
+//! sentinel `none` ⇒ the landing
 //! `task_remote` policy rung (§12, bl-9df0); `task-branch`/`log-level` ⇒ the
 //! landing `balls.toml` and the hooks
 //! keys ⇒ the landing `plugins.toml`, each an ordinary commit on `balls/config`
@@ -47,10 +49,10 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
             crate::config::STEALTH_REMOTE => declare_stealth(&landing, actor),
             url => {
                 // Clear a declared stealth first: the landing rung outranks the
-                // XDG one, so leaving the sentinel would make this set change
+                // binding one, so leaving the sentinel would make this set change
                 // nothing the ladder resolves — the bl-d234 trap, inverted.
                 clear_stealth(&landing, actor, url)?;
-                xdg_set(edge, url)
+                binding_set(clone, url)
             }
         },
         (Key::LogLevel, "set") => {
@@ -97,14 +99,17 @@ fn clear_stealth(landing: &Path, actor: &str, url: &str) -> io::Result<()> {
     })
 }
 
-/// Set the per-machine XDG `remote` (§12) — a plain file edit on the user
-/// config, every other key in it untouched. A remote URL's only home: it must
-/// not travel on `install` (§4).
-fn xdg_set(edge: &Edge, url: &str) -> io::Result<()> {
-    let path = edge.xdg.user_config();
+/// Set the per-clone store remote (§12) in THIS checkout's `binding.toml` — a
+/// plain local-state file edit, every other key in it untouched. The store remote
+/// is a PER-CHECKOUT fact (which center this clone tracks), so its home is the
+/// per-clone binding, never the machine-wide XDG file that every other repo
+/// silently inherited (bl-d081). Local state: never travels on `install`, never
+/// committed — it lives beside the landing/store checkouts in the clone bundle.
+fn binding_set(clone: &CloneDir, url: &str) -> io::Result<()> {
+    let path = clone.binding();
     let mut table = read_table(&path)?;
     table.insert("remote".into(), Value::String(url.to_string()));
-    fs::create_dir_all(path.parent().expect("the XDG user config always has a parent"))?;
+    fs::create_dir_all(path.parent().expect("the clone binding always has a parent"))?;
     fs::write(&path, toml::to_string(&Value::Table(table)).expect("a string field always serializes"))
 }
 

@@ -372,7 +372,7 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
 `conf` is that surface, local-only by construction:
 
 - **Read = resolution + provenance.** `bl conf` dumps every resolved value, the layer it came from
-  (`cli`/`xdg`/`landing`/`origin`/`default`), and the file paths (the XDG config, the landing, the
+  (`cli`/`binding`/`xdg`/`landing`/`origin`/`default`), and the file paths (the binding, the XDG config, the landing, the
   store) — the "where are my files / what remote am I actually using" answer. `bl conf <key>` prints
   one resolved value (stdout — the verb's one product) with its provenance on stderr. A checkout with
   no durable remote reads `task-remote (none)`: stealth is VISIBLE, closing the bl-d234 gap where
@@ -395,22 +395,23 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
 
 | key | underlying field | type | `set`/list-op writes to |
 |---|---|---|---|
-| `task-remote` | the store remote (§12) | scalar | routes by VALUE (bl-9df0): a URL ⇒ XDG `config.toml` `remote` (a remote URL is per-machine and must not travel on `install` — URLs are NOT landing fields by design; the write also clears any landing sentinel, so the set changes what the ladder resolves); the stealth sentinel `none` ⇒ the landing `task_remote` (per-checkout POLICY — it travels on `install` like any team policy) |
+| `task-remote` | the store remote (§12) | scalar | routes by VALUE (bl-9df0): a URL ⇒ this clone's `binding.toml` `remote` (per-checkout, never travels on `install` — URLs are NOT landing fields by design; the legacy global XDG `config.toml` `remote` stays a read-only fallback tier below it, bl-d081; the write also clears any landing sentinel, so the set changes what the ladder resolves); the stealth sentinel `none` ⇒ the landing `task_remote` (per-checkout POLICY — it travels on `install` like any team policy) |
 | `task-branch` | `tasks_branch` | scalar | landing `config/balls.toml` (committed on `balls/config`) |
 | `log-level` | `log_level` | scalar | landing `config/balls.toml` |
 | `<op>.<pre\|post>`, bare `show`/`list` | the `[hooks]` schedule (§6) | list | landing `config/plugins.toml` |
 
 The KEY implies its home — no `--scope` flag. A landing write is an ordinary commit on `balls/config`
-(`balls: conf set <key> …` — checkout-scoped, §5); an XDG write is a plain file edit; neither seals
+(`balls: conf set <key> …` — checkout-scoped, §5); a binding write is a plain local-state file edit; neither seals
 the store nor dispatches a plugin (config never syncs, §12 — a conf edit is purely local, so there is
 nothing to react to and `conf` has no `[hooks]` keys of its own). `conf` cannot cross a checkout
 boundary (that stays `install`'s consent-gated job, §6) and never touches a binary: it writes the
 *schedule*; the `bin/<name>` adjacency stays the RCE gate, and a schedule entry with no local binary
 stays the §6 dangling-ref error / §12 seed-time prune, exactly as today. `conf set task-branch`
 carries §12's re-home discipline unchanged — move the store BEFORE the name; the provenance read is
-what makes a mispoint visible. Per-repo remote durability stays git-native (`git remote add origin
-<hub>`, read as the ladder's bottom tier): `conf` does not wrap `git remote` — bl writes bl's files,
-git owns `origin`.
+what makes a mispoint visible. Per-repo remote durability has two homes: `bl conf set task-remote
+<hub>` writes this clone's `binding.toml` (the durable per-checkout tier, bl-d081), and `git remote
+add origin <hub>` is read as the ladder's bottom tier — `conf` owns the binding, git owns `origin`,
+and `conf` does not wrap `git remote`.
 
 ## §5 Commit-message protocol
 
@@ -775,11 +776,11 @@ checkout's local config (§4 — the "by you" path).
 resolved value, its source layer, and the file paths; `bl conf <key>` prints one resolved value
 (stdout, the verb's one product) with provenance on stderr. WRITE — `bl conf set <key> <value...>`
 (scalar replace, or whole-list replace on a hooks key), `bl conf append|prepend|remove <key> <value>`
-(list compose, applied at write to the canonical bare list — §4). Keys: `task-remote` (per-machine,
-XDG `config.toml`), `task-branch`/`log-level` (landing `balls.toml`), `<op>.<pre|post>` and the bare
+(list compose, applied at write to the canonical bare list — §4). Keys: `task-remote` (per-checkout,
+this clone's `binding.toml`), `task-branch`/`log-level` (landing `balls.toml`), `<op>.<pre|post>` and the bare
 read keys `show`/`list` (landing `plugins.toml` `[hooks]`); the key implies its home, there is no
 `--scope` flag. A landing write commits on `balls/config` (the no-change write converges on the
-existing tip, §13 idempotence); an XDG write is a plain file edit. Diffless (§8) and CHAINLESS: conf
+existing tip, §13 idempotence); a binding write is a plain local-state file edit. Diffless (§8) and CHAINLESS: conf
 authors no ball diff, seals nothing to the store, and dispatches no plugin — config never syncs
 (§12), so a conf edit is purely local and there is nothing to react to. It edits only this checkout's
 local config: crossing a checkout boundary stays `install`'s (§6), and it never touches `bin/` (§4 —
@@ -1227,8 +1228,8 @@ rides the same chain (the delivery plugin's `prime.post`, idempotent create-if-a
 delete-if-settled, §11/§13).
 
 **Tracker's prime — two slots, one per axis (bl-0a23).** With no remote it is STEALTH (store stays
-local, a self-lock written). With a remote (the one §12 ladder below — `--remote`/`--center` > XDG
-`task-remote` > `origin`):
+local, a self-lock written). With a remote (the one §12 ladder below — `--remote`/`--center` >
+this clone's binding `task-remote` > legacy XDG `task-remote` > `origin`):
 - **`prime/pre` settles the NAME and clones the store in.** It WARNS when the store sits elsewhere (a
   default-named clone of a repo whose canonical store is a non-default branch — diagnostic only; it
   NEVER rewrites `tasks_branch`, because config crosses into a landing solely by `install`, §0/§12).
@@ -1307,9 +1308,10 @@ remote. Federating is two edits, both consented:
   it. It is NEVER read off the landing: the landing is local-only (§2 install-transport), founded by a
   bare `git init`, and carries no origin — reading origin there is meaningless. And like all
   remote-talk it is the **tracker's** job, not core's (§0): core resolves only the EXPLICIT tiers —
-  three tiers with different lifetimes, not one set: the per-op `--remote`/`--center` flag (argv,
+  four tiers with different lifetimes, not one set: the per-op `--remote`/`--center` flag (argv,
   ephemeral) over the landing `task_remote` (per-checkout POLICY — today only the stealth sentinel
-  `none`, where resolution STOPS; bl-9df0) over the XDG `task-remote` (per-machine config, durable) —
+  `none`, where resolution STOPS; bl-9df0) over this clone's binding `task-remote` (per-checkout
+  config, durable; bl-d081) over the legacy XDG `task-remote` (per-machine config, read-only fallback) —
   and hands the tracker
   `remote: None` when none is
   set; the tracker then discovers `origin` from the invocation path as its single fallback, in ONE
@@ -1321,9 +1323,10 @@ store-touching verb: `--remote`/`--center` (a PER-OP override, accepted by the d
 `sync` exactly as by `prime`) > the landing `task_remote` (per-checkout POLICY, durable — holds only
 the stealth sentinel `none`, "no remote, on purpose", where resolution STOPS; written by `bl conf set
 task-remote none` or its sugar `bl prime --stealth`, cleared by a durable URL set or an adopted
-config without it — bl-9df0; a URL there is REFUSED, a remote URL is per-machine and must not travel
-on `install`) > the XDG `task-remote` (per-machine, durable — `bl conf set
-task-remote <url>`) > discovered `origin` (per-repo, durable, git-native). Stealth is not a mode or a
+config without it — bl-9df0; a URL there is REFUSED, its durable home is this clone's binding, not the
+shared landing) > this clone's binding `task-remote` (per-checkout, durable — `bl conf set
+task-remote <url>` writes it; never travels on `install`, bl-d081) > the legacy XDG `task-remote`
+(per-machine, read-only back-compat fallback) > discovered `origin` (per-repo, durable, git-native). Stealth is not a mode or a
 lock file: it is federation's zero case, a VALUE on this one ladder — "point it local and you are
 stealth" made durable. prime is not special — the old
 prime-only flags were the missing reframe (bl-d234): `--remote` shaped one invocation's binding and
@@ -1339,9 +1342,9 @@ remote is a local config fact; *contacting* one stays the tracker's alone (§0),
 the dump shows is exactly the one the tracker will act on.
 
 **prime WARNS when its remote is ephemeral.** When prime founds/joins on an explicit
-`--remote`/`--center` that the durable ladder (landing > XDG > `origin`) does not reproduce, the
+`--remote`/`--center` that the durable ladder (landing > binding > XDG > `origin`) does not reproduce, the
 tracker warns
-(W2): *"primed on `<hub>` via an explicit remote; the durable ladder (XDG > origin) resolves
+(W2): *"primed on `<hub>` via an explicit remote; the durable ladder (binding > XDG > origin) resolves
 `<other>`/nothing/declared stealth — set `origin` or `bl conf set task-remote` to federate
 durably."* The same §12
 pattern as the non-default-store warning below — diagnostic, never authority — applied to the remote
@@ -1417,7 +1420,7 @@ remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an EST
 (non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts — the push is
 the contention check, re-run after `bl sync` (bl-336a) — NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
 prime, rolled back K prior; W2 [tracker]
-prime ran on an ephemeral explicit remote the durable ladder (XDG > origin) does not reproduce —
+prime ran on an ephemeral explicit remote the durable ladder (binding > XDG > origin) does not reproduce —
 plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
 "already initialized" — re-running prime is a no-op-converge; E3 "remote already established" —
 established vs absent is the adopt-vs-bootstrap fork, not an error. Retired by the trail's removal: N3
