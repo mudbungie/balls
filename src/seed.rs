@@ -8,11 +8,14 @@
 //! (severability, §1).
 //!
 //! **Bootstrap source.** The default-config is EMBEDDED in the binary
-//! ([`include_str!`]) and written out to `$XDG_CONFIG_HOME/balls/default-config/`
-//! on first prime when that folder is ABSENT — so a fresh `cargo install` or a
-//! test binary run from `/tmp` always has a seed (no "run a script to get set
-//! up"). The XDG folder is an OPTIONAL override: present, it wins, letting an
-//! org/user customize the default capability set without touching core (§1).
+//! ([`include_str!`]) and used DIRECTLY as the seed — so a fresh `cargo install`
+//! or a test binary run from `/tmp` always carries the CURRENT default (no "run a
+//! script to get set up"). `$XDG_CONFIG_HOME/balls/default-config/` is a
+//! DELIBERATE, never-auto-written override: present, its files win per-file (an
+//! override that omits a file falls back to the embedded default for that file),
+//! letting an org/user customize the default capability set without touching core
+//! (§1). Core NEVER creates that folder, so a once-materialized copy can't go
+//! stale and silently shadow a moved embedded default (bl-8088).
 //!
 //! **Bind + prune.** Seeding binds each plugin the schedule names to its sibling
 //! binary beside `bl` ([`Registry::bind`]) and PRUNES the hook entries whose
@@ -30,26 +33,29 @@ use crate::hooks::Hooks;
 use crate::layout::Xdg;
 use crate::registry::Registry;
 
-/// The embedded install-default `balls.toml` (§4) — the seed of last resort, used
-/// to populate `$XDG_CONFIG_HOME/balls/default-config/` on first prime.
+/// The embedded install-default `balls.toml` (§4) — the authoritative default a
+/// fresh landing seeds from unless an XDG override `balls.toml` is present.
 const EMBEDDED_BALLS: &str = include_str!("../default-config/balls.toml");
 
 /// The embedded install-default `plugins.toml` (§6) — the `[hooks]` schedule
-/// wiring the shipped `tracker` + `bl-delivery` capabilities.
+/// wiring the shipped `bl-tracker` + `bl-delivery` capabilities, used directly
+/// unless an XDG override `plugins.toml` is present.
 const EMBEDDED_PLUGINS: &str = include_str!("../default-config/plugins.toml");
 
-/// Seed a fresh landing's `config/` from the default-config source (§12). Copies
+/// Seed a fresh landing's `config/` from the default-config (§12). Writes
 /// `balls.toml` verbatim, then writes `plugins.toml` with each named plugin bound
-/// to its sibling binary beside `bl` and every absent-binary entry PRUNED.
-/// `exe_dir` is the directory holding `bl` (where the shipped siblings live);
-/// `None` ⇒ a tracker-less box (every entry prunes, the chain runs empty).
+/// to its sibling binary beside `bl` and every absent-binary entry PRUNED. Each
+/// file's content is the embedded install-default unless an XDG override file is
+/// present ([`default_body`]). `exe_dir` is the directory holding `bl` (where the
+/// shipped siblings live); `None` ⇒ a tracker-less box (every entry prunes, the
+/// chain runs empty).
 pub fn seed_landing(xdg: &Xdg, landing: &Path, exe_dir: Option<&Path>) -> io::Result<()> {
-    let source = ensure_default_config(xdg)?;
+    let override_dir = xdg.default_config();
     let config = landing.join("config");
     fs::create_dir_all(&config)?;
-    copy_if_present(&source.join("balls.toml"), &config.join("balls.toml"))?;
+    fs::write(config.join("balls.toml"), default_body(&override_dir, "balls.toml", EMBEDDED_BALLS)?)?;
 
-    let mut hooks = Hooks::load_from(&source.join("plugins.toml"))?;
+    let mut hooks = Hooks::parse(&default_body(&override_dir, "plugins.toml", EMBEDDED_PLUGINS)?)?;
     let present = bind_present(landing, exe_dir, &hooks)?;
     hooks.retain(|name| present.contains(name));
     fs::write(config.join("plugins.toml"), hooks.to_toml())?;
@@ -89,27 +95,19 @@ fn sibling(exe_dir: Option<&Path>, name: &str) -> Option<PathBuf> {
     path.exists().then_some(path)
 }
 
-/// Resolve the default-config source folder (§1): the XDG override
-/// `$XDG_CONFIG_HOME/balls/default-config/` if it exists, else materialize the
-/// embedded default there on first prime and use that. Either way the return is a
-/// real on-disk folder [`seed_landing`] reads the two files from.
-fn ensure_default_config(xdg: &Xdg) -> io::Result<PathBuf> {
-    let dir = xdg.default_config();
-    if !dir.exists() {
-        fs::create_dir_all(&dir)?;
-        fs::write(dir.join("balls.toml"), EMBEDDED_BALLS)?;
-        fs::write(dir.join("plugins.toml"), EMBEDDED_PLUGINS)?;
+/// The default-config content for `name` (§1): the XDG override file
+/// `$XDG_CONFIG_HOME/balls/default-config/<name>` when a user/org has already
+/// authored it, else the `embedded` install-default. The override folder is read
+/// ONLY when present — never created — so the live embedded default can never be
+/// shadowed by a stale once-materialized copy (bl-8088, "don't store what you can
+/// compute").
+fn default_body(override_dir: &Path, name: &str, embedded: &str) -> io::Result<String> {
+    let file = override_dir.join(name);
+    if file.is_file() {
+        fs::read_to_string(&file)
+    } else {
+        Ok(embedded.to_string())
     }
-    Ok(dir)
-}
-
-/// Copy `src` → `dest` when `src` exists; an absent source contributes nothing
-/// (an override folder may omit a file — that field then falls to its default).
-fn copy_if_present(src: &Path, dest: &Path) -> io::Result<()> {
-    if src.is_file() {
-        fs::copy(src, dest)?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
