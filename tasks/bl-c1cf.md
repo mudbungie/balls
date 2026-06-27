@@ -1,7 +1,8 @@
 +++
 title = "amend adversary docs/design.md §5 to reflect completion-gate.md resolutions (doc debt from bl-c005)"
 created = 1782590476
-updated = 1782590476
+updated = 1782594326
+claimant = "Crony"
 priority = 3
 tags = ["adversary", "docs"]
 +++
