@@ -1,7 +1,8 @@
 +++
 title = "bl close delivery squash drops the work-branch commit body — main commit is only the ball title, losing all rich context"
 created = 1782610051
-updated = 1782610051
+updated = 1782614388
+claimant = "Crony"
 priority = 2
 tags = ["core"]
 +++
