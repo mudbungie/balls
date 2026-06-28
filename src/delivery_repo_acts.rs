@@ -67,6 +67,31 @@ impl Repo for Project {
         Ok(out.split('\u{0}').map(str::to_string).collect())
     }
 
+    fn push_integration(&self) -> io::Result<()> {
+        // Stealth: `origin` is git's to own (bl writes bl's files, not git
+        // remotes), so its absence is the structural no-op — exactly like the
+        // store push with no remote (bl-2656). `get-url` exits non-zero (→ `ok`
+        // false) when there is no `origin`.
+        if !Self::ok(&self.root, &["remote", "get-url", "origin"])? {
+            return Ok(());
+        }
+        let branch = self.integration()?;
+        // FAIL-SOFT: close.pre already squashed the delivery onto local `main`
+        // irreversibly, so a rejected push (origin moved, a history rewrite)
+        // must never abort the close. Warn LOUDLY and leave local ahead — the
+        // worn recovery is `git pull --rebase && git push` (no auto-sync,
+        // matching bl-c3c0), not a rollback.
+        if let Err(e) = Self::run(&self.root, &["push", "origin", &branch]) {
+            eprintln!(
+                "bl-delivery: code push to origin/{branch} pending — the delivery is on \
+                 local {branch}; recover with `git -C {root} pull --rebase && git push origin \
+                 {branch}` ({e})",
+                root = self.root.display()
+            );
+        }
+        Ok(())
+    }
+
     fn is_git_repo(&self) -> io::Result<bool> {
         // An EXIT-CODE predicate, not the stdout value: `--is-inside-work-tree`
         // prints "false" for a BARE repo (the common balls deployment, where

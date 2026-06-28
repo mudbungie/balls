@@ -529,7 +529,7 @@ a list property, not an `NN-` filename convention faking one.
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]                 # read-op (single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]                 # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown + push code main to origin (fail-soft), then push the store
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
 # bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.post bl-chore`
@@ -853,16 +853,29 @@ self-merge default DELIVER and RETIRE are one act:
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
   already-delivered check (§11) — delivery converges on retry whoever performed the merge.
 - balls seals the `tasks/<id>.md` DELETION (`bl-op: close`).
-- `close.post`: the delivery plugin tears down the code worktree (§11); the tracker pushes the
-  balls-state deletion commit (NEVER the project code branch).
+- `close.post`: the delivery plugin tears down the code worktree (§11) and then PUSHES the
+  just-delivered integration branch to the project repo's `origin` (bl-2656) — the symmetric twin of
+  the tracker's store push, so delivered code reaches the code remote (and release CI auto-prepares)
+  with zero manual steps. It is FAIL-SOFT: the squash already landed on local `main` irreversibly
+  (close.pre), so a rejected push (origin moved, a history rewrite) WARNS "push pending" and leaves
+  local ahead — never aborting the close or losing the delivery; recovery is the worn
+  `git pull --rebase && git push` (no auto-sync — same stance as the bl-c3c0 lagging-clone surface).
+  A repo with no `origin` (git owns the remote, not balls) is a silent no-op — the structural stealth
+  opt-out, exactly like the store push with no remote. The tracker then pushes the balls-state
+  deletion commit.
 
-Core close ships no code, pushes no project remote, runs no source-state check. Forge review is **not
+Core close ships no code and runs no source-state check; PROPAGATING the delivery to the code remote
+is the delivery PLUGIN's fail-soft job (bl-2656), not core's — base balls still opens no project
+remote of its own. The single deliberate human gate on what SHIPS is preserved structurally: close
+pushes `main`, which auto-PREPARES the release PR (version bump + changelog), but never wires
+automatic crates.io PUBLICATION — that stays the one explicit PR-merge. Forge review is **not
 a mode** — it is the ordinary close plus an approval gate child the forge plugin mints at claim
 (§10/§11), enforced by core's close-blocker guard (§10). Submission is GIT-NATIVE WORK, not a close
 phase (bl-7bfe): the worker pushes `work/<id>` and opens the PR (the `[bl-id]` tag in its title, §11);
 a forge `sync` closes the gate on merge; the next close retires the parent. `bl close` is purely
-retire — it never submits. "Close is related to remotes" = the tracker pushes the *balls* branch,
-nothing more.
+retire — it never submits. "Close is related to remotes" = two SEPARATE plugins push two branches —
+the delivery plugin the *code* (`origin`, fail-soft), the tracker the *balls* branch — core itself
+pushes neither.
 
 **`import`** (op `import`; bl-e614, §16): ingest one or a stream of VERBATIM, fully-identified
 bedrock task records (`show --json` objects, `list --json` arrays, or any concatenation) on stdin
@@ -1095,7 +1108,8 @@ there is no field that can drift out of sync with whether the worktree exists.
 **Hooks:** `claim.post` materialize (create-if-absent) + print the path — the ONLY moment a worktree
 materializes (bl-c2bf; re-priming a lost one is `unclaim` + `claim`); `prime.post` prunes settled
 `work/<id>` branches (it makes no worktree); `unclaim.post` releases (remove-if-present);
-**`close.pre` deliver** (sorts last); **`close.post` teardown**; **`show` (read-op)** print the path for
+**`close.pre` deliver** (sorts last); **`close.post` teardown + fail-soft code-main push to `origin`
+(bl-2656)**; **`show` (read-op)** print the path for
 the named ball (§6 read dispatch). balls does not guard against tearing a
 worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
 cwd is not deleted underneath it (a recommendation in the skill guide, not an enforced precondition).
@@ -1176,8 +1190,10 @@ landing between squash and reset gets eaten by it — and a standing squash with
 is exactly the bl-430e state the retried close completes; the squash is always GATED code (the
 gate runs before it), so a standing delivery is never unreviewed work. `close.post` teardown
 removes the worktree DIRECTORY (re-creatable from the branch, so it is rollback-safe); deleting
-`work/<id>` is deferred, non-transactional cleanup (`prime`).
-The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
+`work/<id>` is deferred, non-transactional cleanup (`prime`). The code-main push that `close.post`
+runs next (bl-2656) is FAIL-SOFT — a rejected push warns and returns Ok, never an abort point — so it
+does not change this: the only irreversible action in a close is the tracker's final push, which sorts
+LAST.
 Deliver itself CONVERGES ON RETRY (bl-430e): a squash that survived an aborted close — `work/<id>`
 fully merged into the integration branch, or a `[bl-id]` commit on it since the branch forked
 (fork-scoped so a reused id's PRIOR delivery, always an ancestor of the fork, cannot

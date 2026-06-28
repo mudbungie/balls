@@ -22,7 +22,7 @@
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]              # read-op (§6, single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown + push code main to origin (fail-soft), then push the store
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
 "import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
