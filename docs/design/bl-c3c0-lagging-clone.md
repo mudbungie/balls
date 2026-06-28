@@ -114,9 +114,37 @@ Work:
    close — delivery touching the already-torn-down worktree. Make
    deliver-from-missing-worktree a clean no-op (the squash already converges,
    bl-430e), so the worn path emits no scary error.
-2. **Sharpen the rejection message** so `bl sync` + retry is unmistakable.
+   **CHECKED (bl-547f, 2026-06-28): not reproducible on current `main`.** The
+   delivery already no-ops on a missing worktree by construction — `deliver`
+   guards capture with `if path.exists()` (`src/delivery_repo_acts.rs`), returns
+   at the `!branch_exists` early-out, and the retry's `Standing::Settled` path
+   converges via `reconcile` (which touches only `integration`'s checkouts, never
+   `work/<id>`). Re-running the full half-close → `bl sync` → retry close in both
+   a **bare** and a non-bare clone exits 0 with no error; and `bl`'s own edge
+   tolerates a deleted cwd (`env::current_dir().unwrap_or_default()`,
+   `src/main.rs`) — a stale shell sitting in the torn-down worktree gets the clean
+   "no balls checkout here", not `os error 2`. The error was an artifact of the
+   pre-bl-c2bf prime re-materialization (Fix 1, now deleted). So Fix 3 (1) needs
+   **no code change** — it is LOCKED instead by a regression test
+   (`deliver_on_a_torn_down_worktree_is_a_clean_no_op`, `src/delivery_repo_tests.rs`)
+   so any future code that touches the absent worktree reintroduces the error
+   loudly.
+2. **Sharpen the rejection message** so `bl sync` + retry is unmistakable. DONE
+   (bl-547f): the established-store reject in `src/tracker/remote_ops.rs` now
+   leads with the crisp two-step recovery —
+
+   > push rejected: the remote store moved ahead, so this change did not publish
+   > — run `bl sync`, then re-run the command (…)
+
+   op-generic (the half-close's "re-run the command" *is* `bl close`) so it reads
+   as a recoverable convergence, not a broken close.
 3. **Lock the direction with a test** (rejected push ⇒ delivered + open, never
    done + leftover) so a future `close.post` reorder can't silently flip it.
+   DONE (bl-547f): the end-to-end
+   `a_rejected_close_post_push_leaves_delivered_plus_open_never_done_plus_leftover`
+   (`tests/dispatch.rs`) drives the real `bl` + both shipped plugins against a
+   shared remote a sibling moved ahead, and asserts squash-on-main + task-re-opened
+   + worktree-gone, then that `bl sync` + retry converges with no duplicate delivery.
 
 **Rejected alternative (the first pass):** a core-driven pre-reconcile / auto-sync
 before the irreversible act. Rejected — it shrinks a common, paved path into a

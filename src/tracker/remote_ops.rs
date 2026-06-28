@@ -119,9 +119,12 @@ pub fn push(b: &Binding) -> io::Result<()> {
                 Ok(())
             }
             // E5 proper: the store is ESTABLISHED, so the reject is contention
-            // (or revoked perms) — name the remedy, never a raw non-ff dump.
+            // (or revoked perms). Lead with the crisp two-step recovery — `bl
+            // sync` then re-run the command — so the worn half-close path
+            // (bl-547f) reads as a recoverable convergence, not a raw non-ff
+            // dump the user mistakes for a broken close.
             Some(true) => Err(io::Error::other(format!(
-                "push rejected by the established remote store — the mutation did not land; re-run after `bl sync` ({e})"
+                "push rejected: the remote store moved ahead, so this change did not publish — run `bl sync`, then re-run the command ({e})"
             ))),
             // Unreadable tip (unreachable remote, absent branch): the push's
             // own error stands — never a silent skip, never a misnamed E5.

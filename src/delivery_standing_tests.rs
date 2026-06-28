@@ -79,3 +79,31 @@ fn prune_preserves_a_diverged_branch_carrying_work_beyond_its_delivery() {
     p.prune().unwrap();
     assert!(Project::ok(&root, &["rev-parse", "--verify", "--quiet", "refs/heads/work/bl-x"]).unwrap());
 }
+
+#[test]
+fn deliver_on_a_torn_down_worktree_is_a_clean_no_op() {
+    // The bl-547f half-close retry: close.pre squash-delivered (irreversible),
+    // then close.post tore the worktree DOWN before the archival push was
+    // rejected, re-opening the task. The retry close runs deliver AGAIN against
+    // a worktree that no longer exists on disk (the branch is kept). It must
+    // converge silently off the standing delivery — never touch the absent dir
+    // and surface git's `No such file or directory (os error 2)`. This locks
+    // Fix 3 (1): deliver-from-missing-worktree is a clean no-op, so the worn
+    // path emits no scary error.
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+    Project::run(&wt, &["add", "-A"]).unwrap();
+    Project::run(&wt, &["commit", "-qm", "Add feature [bl-x]"]).unwrap();
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
+    // close.post teardown: the worktree DIR is gone, the branch is kept.
+    p.release(&wt).unwrap();
+    assert!(!wt.exists() && p.branch_exists("work/bl-x").unwrap());
+
+    // The retry: deliver against the torn-down worktree converges cleanly.
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
+    assert_eq!(p.marked("main", "[bl-x]").unwrap().len(), 1); // no duplicate delivery
+    assert_eq!(tip(&root), "Add feature [bl-x]"); // integration unmoved
+    assert!(!wt.exists()); // deliver never re-materialized the worktree
+}

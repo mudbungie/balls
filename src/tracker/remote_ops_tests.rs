@@ -129,7 +129,7 @@ fn push_to_an_unreachable_remote_stays_the_original_error() {
     b.remote = Some(gone.to_string_lossy().into_owned());
     let err = push(&b).unwrap_err().to_string();
     assert!(err.contains("git push"), "{err}");
-    assert!(!err.contains("re-run after `bl sync`"), "{err}");
+    assert!(!err.contains("bl sync"), "{err}");
 }
 
 #[test]
@@ -204,10 +204,11 @@ fn push_fails_when_the_remote_rejects_a_non_fast_forward() {
     commit(&store, "local.txt", "local");
 
     // E5 (bl-3ddb): a reject by an ESTABLISHED store names the catalog remedy,
-    // never a raw non-ff dump alone.
+    // never a raw non-ff dump alone. The remedy is the crisp two-step recovery
+    // (bl-547f) — `bl sync`, then re-run — so the half-close reads recoverable.
     let err = push(&binding(Some(&remote), &store)).unwrap_err().to_string();
-    assert!(err.contains("push rejected by the established remote store"), "{err}");
-    assert!(err.contains("re-run after `bl sync`"), "{err}");
+    assert!(err.contains("push rejected: the remote store moved ahead"), "{err}");
+    assert!(err.contains("run `bl sync`, then re-run the command"), "{err}");
 }
 
 #[test]
