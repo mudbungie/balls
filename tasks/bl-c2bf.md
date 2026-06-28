@@ -1,7 +1,8 @@
 +++
 title = "Delete prime's worktree re-materialization — materialize at claim only (bl-c3c0 fix 1)"
 created = 1782631081
-updated = 1782631081
+updated = 1782635159
+claimant = "Broadest"
 priority = 2
 tags = ["core"]
 +++
