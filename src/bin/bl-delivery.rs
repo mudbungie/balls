@@ -64,10 +64,13 @@ fn run(args: &[String]) -> io::Result<()> {
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
     let subject = delivery::subject(title, &id);
     let marker = delivery::marker(&id);
+    // bl-b9a6: a close's `-m` note overrides the delivery message in full.
+    let override_msg = wire.command.as_ref().and_then(|c| c.message.as_deref());
     let spec = Spec {
         worktree: &worktree,
         branch: &branch,
         subject: &subject,
+        override_msg,
         marker: &marker,
     };
     // bl-4a88: the delivery precondition gate — claim.post / close.pre abort
@@ -117,7 +120,7 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
     for id in claimed_ids(&store, &wire.actor)? {
         let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
         let branch = delivery::work_branch(&id);
-        let spec = Spec { worktree: &worktree, branch: &branch, subject: "", marker: "" };
+        let spec = Spec { worktree: &worktree, branch: &branch, subject: "", override_msg: None, marker: "" };
         delivery::dispatch("prime", phase, false, repo, &spec)?;
         if let Some(line) = delivery::surfaced("prime", phase, false, &worktree, worktree.is_dir()) {
             println!("{line}");

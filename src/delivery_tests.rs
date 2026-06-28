@@ -48,6 +48,9 @@ impl Repo for FakeRepo {
         self.log(format!("deliver {} {branch} -> {integration} : {subject} : {marker}", path.display()));
         Ok(())
     }
+    fn work_messages(&self, _branch: &str, _integration: &str) -> io::Result<Vec<String>> {
+        Ok(Vec::new()) // no authored work → deliver_close falls back to the subject
+    }
     fn is_git_repo(&self) -> io::Result<bool> {
         unreachable!("dispatch never gates on the precondition (see delivery_precondition)")
     }
@@ -58,6 +61,7 @@ fn spec() -> Spec<'static> {
         worktree: Path::new("/wt"),
         branch: "work/bl-f813",
         subject: "Title [bl-f813]",
+        override_msg: None,
         marker: "[bl-f813]",
     }
 }
@@ -237,7 +241,7 @@ fn wire_deserializes_the_slice_the_plugin_needs() {
     let json = r#"{
         "protocol": 1, "op": "close", "phase": "post", "plugin_name": "delivery",
         "actor": "me", "binding": {"branch": "balls", "store": "/s", "invocation_path": "/proj"},
-        "command": {"op": "close"},
+        "command": {"op": "close", "message": "Full override [bl-f813]"},
         "current_state": {"title": "Refactor foo", "created": 0, "updated": 0},
         "metadata": {"bl-id": ["bl-f813"]}, "commit": "c", "previous_commit": "p"
     }"#;
@@ -245,6 +249,8 @@ fn wire_deserializes_the_slice_the_plugin_needs() {
     assert_eq!(wire.actor, "me");
     assert_eq!(wire.binding.invocation_path, "/proj");
     assert_eq!(wire.current_state.unwrap().title, "Refactor foo");
+    // The `-m` note rides the command for the delivery-message override (bl-b9a6).
+    assert_eq!(wire.command.unwrap().message.as_deref(), Some("Full override [bl-f813]"));
     assert_eq!(wire.metadata.unwrap()["bl-id"], ["bl-f813"]);
     assert!(wire.rolling_back.is_none());
 }
@@ -257,6 +263,7 @@ fn wire_tolerates_a_minimal_pre_payload_and_a_rollback_tag() {
     assert_eq!(wire.actor, ""); // absent actor defaults empty (per-ball ops ignore it)
     assert!(wire.metadata.is_none());
     assert!(wire.current_state.is_none());
+    assert!(wire.command.is_none()); // no command on this slice → no override
 }
 
 #[test]

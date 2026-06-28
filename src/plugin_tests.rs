@@ -44,7 +44,7 @@ fn ctx() -> OpContext {
             landing: "/landing".into(),
             invocation_path: "/proj".into(),
         },
-        command: Some(Command { op: "close".into(), body_change: None }),
+        command: Some(Command { op: "close".into(), body_change: None, message: None }),
         before: None,
     }
 }

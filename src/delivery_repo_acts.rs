@@ -54,6 +54,19 @@ impl Repo for Project {
         Ok(Self::run(&self.root, &["symbolic-ref", "--short", "HEAD"])?.trim().to_string())
     }
 
+    fn work_messages(&self, branch: &str, integration: &str) -> io::Result<Vec<String>> {
+        if !self.branch_exists(branch)? {
+            return Ok(Vec::new()); // never worked → the caller falls back to the title
+        }
+        // `integration..branch` is the commits the work branch ADDED since it
+        // forked; `--no-merges` drops the reintegration fold (and any author
+        // hand-merge). `%B%x00` NUL-terminates each raw message so a multi-line
+        // body never collides with the record boundary; the caller trims/filters.
+        let range = format!("{integration}..{branch}");
+        let out = Self::run(&self.root, &["log", "--no-merges", "--reverse", "--format=%B%x00", &range])?;
+        Ok(out.split('\u{0}').map(str::to_string).collect())
+    }
+
     fn is_git_repo(&self) -> io::Result<bool> {
         // An EXIT-CODE predicate, not the stdout value: `--is-inside-work-tree`
         // prints "false" for a BARE repo (the common balls deployment, where
