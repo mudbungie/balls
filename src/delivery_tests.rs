@@ -79,10 +79,11 @@ fn claim_post_materializes() {
 }
 
 #[test]
-fn prime_post_re_materializes_like_a_claim() {
-    // The binary drives one `prime`/`post` per still-claimed ball; each runs the
-    // same `materialize` act a `claim` would (§11/§12).
-    assert_eq!(drive("prime", "post", false), ["materialize /wt work/bl-f813"]);
+fn prime_post_does_not_materialize() {
+    // Worktrees materialize at CLAIM only (bl-c2bf): prime is not in the
+    // dispatch matrix, so it drives no `Repo` act here — the binary's prime
+    // path only prunes settled branches, outside dispatch.
+    assert_eq!(drive("prime", "post", false), Vec::<String>::new());
 }
 
 #[test]
@@ -189,12 +190,12 @@ fn resolve_id_propagates_a_lister_error() {
 }
 
 #[test]
-fn claim_and_prime_post_surface_the_bare_path() {
+fn claim_post_surfaces_the_bare_path() {
     // The verb's one product, the way `create` prints the id (§11) — printed
-    // whether or not the dir pre-existed (claim.post just materialized it).
+    // whether or not the dir pre-existed (claim.post just materialized it). It
+    // is the ONLY moment a worktree surfaces: prime no longer does (bl-c2bf).
     let wt = Path::new("/wt/bl-x");
     assert_eq!(surfaced("claim", "post", false, wt, true).as_deref(), Some("/wt/bl-x"));
-    assert_eq!(surfaced("prime", "post", false, wt, true).as_deref(), Some("/wt/bl-x"));
 }
 
 #[test]
@@ -214,6 +215,7 @@ fn no_other_hook_or_rollback_surfaces_anything() {
     for (op, phase, rb, exists) in [
         ("claim", "post", true, true), // a rolled-back claim is not a product
         ("claim", "pre", false, true),
+        ("prime", "post", false, true), // prime materializes nothing now (bl-c2bf)
         ("unclaim", "post", false, true),
         ("close", "pre", false, true),
         ("show", "read", true, true), // a read has nothing to roll back, but stay strict
@@ -246,7 +248,8 @@ fn wire_deserializes_the_slice_the_plugin_needs() {
         "metadata": {"bl-id": ["bl-f813"]}, "commit": "c", "previous_commit": "p"
     }"#;
     let wire: Wire = serde_json::from_str(json).unwrap();
-    assert_eq!(wire.actor, "me");
+    // The wire still carries `actor` (core writes it); the delivery slice no
+    // longer reads it (bl-c2bf), so an unknown-to-us field is tolerated.
     assert_eq!(wire.binding.invocation_path, "/proj");
     assert_eq!(wire.current_state.unwrap().title, "Refactor foo");
     // The `-m` note rides the command for the delivery-message override (bl-b9a6).
@@ -260,7 +263,6 @@ fn wire_tolerates_a_minimal_pre_payload_and_a_rollback_tag() {
     let json = r#"{"binding": {"invocation_path": "/p"}, "rolling_back": "pre"}"#;
     let wire: Wire = serde_json::from_str(json).unwrap();
     assert_eq!(wire.rolling_back.as_deref(), Some("pre"));
-    assert_eq!(wire.actor, ""); // absent actor defaults empty (per-ball ops ignore it)
     assert!(wire.metadata.is_none());
     assert!(wire.current_state.is_none());
     assert!(wire.command.is_none()); // no command on this slice → no override

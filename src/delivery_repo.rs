@@ -17,8 +17,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::task::Task;
-
 /// The production [`Repo`]: git against one project-repo root.
 pub struct Project {
     pub(crate) root: PathBuf,
@@ -143,27 +141,6 @@ impl Project {
         let out = Self::run(&self.root, &["log", "--format=%H", "--fixed-strings", &grep, revs])?;
         Ok(out.lines().map(str::to_string).collect())
     }
-}
-
-/// The ids of every `tasks/<id>.md` in the checkout still
-/// claimed by `actor` — the set `prime.post` re-materializes a worktree for
-/// (§11/§12). The claimed set is not on the diffless prime wire, so the plugin
-/// reads it straight off the checkout, filtering on the ball's sole occupancy
-/// field ([`Task::claimant`]). Non-`.md` entries and unparseable balls are
-/// skipped (a prime is best-effort and converges, not a store validator).
-pub fn claimed_ids(checkout: &Path, actor: &str) -> io::Result<Vec<String>> {
-    let mut ids = Vec::new();
-    for entry in fs::read_dir(checkout.join("tasks"))? {
-        let path = entry?.path();
-        let Some(id) = path.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_suffix(".md")) else {
-            continue; // not a ball file (e.g. a stray non-`.md` entry)
-        };
-        let claimant = Task::parse(&fs::read_to_string(&path)?).ok().and_then(|t| t.claimant);
-        if claimant.as_deref() == Some(actor) {
-            ids.push(id.to_string());
-        }
-    }
-    Ok(ids)
 }
 
 /// The `tasks/<id>.md` paths the op changed in the change worktree at `cwd` —

@@ -3,8 +3,9 @@
 //! `plugin::Subprocess` would — §7 payload on stdin, §6 env, `<op> <phase>`
 //! argv. The git all happens on throwaway repos in a temp dir.
 //!
-//! The `prime` re-materialization scenarios live in the [`prime`] sibling
-//! module — same crate, same harness, split for the 300-line cap.
+//! The `prime` housekeeping scenarios (worktrees materialize at claim only,
+//! bl-c2bf) live in the [`prime`] sibling module — same crate, same harness,
+//! split for the 300-line cap.
 
 mod non_git;
 mod prime;
@@ -59,7 +60,8 @@ fn pre(invocation: &str, title: &str) -> String {
 }
 
 /// A `prime` diffless wire (§13): the actor + the binding's invocation. No ball
-/// state — prime authors none; the store it scans is the cwd, not a wire field.
+/// state — prime authors none and derives no worktree (bl-c2bf); `actor` rides
+/// the wire (core writes it) but the delivery slice no longer reads it.
 fn prime(actor: &str, invocation: &str) -> String {
     format!(r#"{{"actor":"{actor}","binding":{{"invocation_path":"{invocation}"}}}}"#)
 }

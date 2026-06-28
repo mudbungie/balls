@@ -40,8 +40,9 @@ captures the worktree's diff, so a stray `main` edit is invisible to it — the
 task closes cleanly while leaving your change behind, undelivered.
 
 `bl claim` prints the worktree path to **stdout** — the verb's one product, the
-way `create` prints the id — and `bl prime` re-prints the path of every task you
-still hold. `bl show <id>` (human view) also folds a `worktree` line in when the
+way `create` prints the id, and the one moment a worktree materializes (lose it
+and you re-make it with `unclaim` then `claim`). `bl show <id>` (human view)
+also folds a `worktree` line in when the
 worktree exists on this machine. The path is computed, never stored: `bl show
 --json` stays the lossless mirror of stored frontmatter and never carries it (it
 is machine-local). `git worktree list` (the `work/<id>` line) is the git-side read.
@@ -69,10 +70,11 @@ bl prime --as YOUR_IDENTITY
 
 `prime` is idempotent: on first run it **founds** the local substrate (there is
 no separate `bl init`) — seeding `config/` from the install defaults and creating
-the store — then syncs with the remote and re-materializes the worktrees of any
-tasks you still hold. It also prunes the settled `work/<id>` branches that
-delivered closes leave behind (a branch carrying committed, undelivered work —
-e.g. after an unclaim — is kept; a later claim + close delivers it). It prints
+the store — then syncs with the remote. It also prunes the settled `work/<id>`
+branches that delivered closes leave behind (a branch carrying committed,
+undelivered work — e.g. after an unclaim — is kept; a later claim + close
+delivers it). Worktrees materialize at **claim** and nowhere else; if you lose
+a held worktree, re-make it with `unclaim` then `claim`. It prints
 no listing of its own; once primed, read the two sets you care about with
 `bl list` (the single listing verb):
 
@@ -142,7 +144,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + re-materialize the worktrees of tasks you still hold (prints their paths). Prints no listing of its own. `--stealth` opts out of any store remote durably (a landing sentinel every later op derives; store stays local). Run at session start, then `bl list`. |
+| `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + prune settled `work/<id>` branches. Prints no listing of its own (worktrees materialize at `claim`, not here). `--stealth` opts out of any store remote durably (a landing sentinel every later op derives; store stays local). Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID] [--remote URL]` | Pull the store from the remote (fetch + fast-forward; the remote resolves `--remote` > `task-remote` > `origin`, like every op). No arg syncs the configured store branch. |
 | `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-checkout binding), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--from` the configured upstream (fetched by the `install.pre` tracker), `--to` the landing. A landing-targeted install then binds each plugin the landed schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding per plugin — validated against its live `protocol`; a refusal lands AFTER the sealed copy (the commit is the undo; the retry converges and just binds). Prints `N added / M deleted`. |
@@ -164,9 +166,9 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 >
 > **Output streams:** stdout carries a verb's one product and nothing else:
 > `create` prints the minted id (so `id=$(bl create "…")` captures it clean),
-> `claim` prints the worktree path, and `prime` prints the path of each
-> still-held task's worktree. Every other mutating verb
-> (`unclaim`/`update`/`close`) prints nothing to stdout. The terse
+> and `claim` prints the worktree path (the one moment a worktree
+> materializes). Every other mutating verb
+> (`prime`/`unclaim`/`update`/`close`) prints nothing to stdout. The terse
 > confirmations are on **stderr**, and so is the op log — but the two sinks have
 > different SHAPES: the per-clone log FILE is JSON lines (the machine record),
 > while what you SEE on stderr is human text. At the default `log_level`

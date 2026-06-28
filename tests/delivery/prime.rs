@@ -1,7 +1,7 @@
-//! The `prime` re-materialization scenarios (§11/§12) — the per-session scan
-//! over the actor's still-claimed balls, its idempotence, and its §14 rollback
-//! decline. A sibling of the [`crate`] harness (same crate, shared helpers),
-//! split out for the 300-line cap.
+//! The `prime` housekeeping scenarios — that worktrees materialize at CLAIM
+//! ONLY (bl-c2bf: prime re-creates nothing), and its §14 rollback decline. A
+//! sibling of the [`crate`] harness (same crate, shared helpers), split out for
+//! the 300-line cap.
 
 use std::fs;
 use std::path::Path;
@@ -25,36 +25,30 @@ fn claimed_ball(store: &Path, id: &str, claimant: &str) {
 }
 
 #[test]
-fn prime_re_materializes_only_the_actors_still_claimed_worktrees() {
+fn prime_does_not_materialize_a_claimed_worktree() {
+    // bl-c2bf: worktrees materialize at CLAIM and nowhere else. Even a ball the
+    // actor still holds gets NO worktree from prime (re-priming a lost one is
+    // `unclaim` + `claim`), and prime prints no path. This is the fix for the
+    // lagging-clone bug: a stale store still reading `claimed` can no longer
+    // make a bogus worktree off THIS checkout's `main`.
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
     fs::create_dir_all(&home).unwrap();
     let root = project(tmp.path());
     let inv = root.to_str().unwrap();
-    // balls invokes the plugin with cwd at the store checkout (§13 diffless), so
-    // prime scans the store from the cwd, not a wire field.
+    // balls invokes the plugin with cwd at the store checkout (§13 diffless).
     let store = tmp.path().join("store");
     claimed_ball(&store, "bl-mine", "me");
-    claimed_ball(&store, "bl-theirs", "you"); // another actor — left alone
 
     let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
     let mine = worktree_path(&xdg, "delivery", inv, "bl-mine");
-    let theirs = worktree_path(&xdg, "delivery", inv, "bl-theirs");
 
-    // The path of each re-materialized worktree prints — the resume-session
-    // counterpart of claim.post's print (§11) — and only mine.
     delivery(&store, &home, "prime", "post", &prime("me", inv))
         .assert()
         .success()
-        .stdout(format!("{}\n", mine.display()));
+        .stdout(""); // no worktree path surfaces — prime materializes nothing
 
-    assert!(mine.join("seed.txt").exists()); // my claim re-materialized
-    assert!(!theirs.exists()); // a different actor's claim is not mine to make
-
-    // Idempotent: a second prime over the same set converges to a no-op (the
-    // path still prints — prime re-surfaces it every session).
-    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success().stdout(format!("{}\n", mine.display()));
-    assert!(mine.join("seed.txt").exists());
+    assert!(!mine.exists()); // the bogus-worktree bug, closed
 }
 
 /// The §7 wire of a rolled-back `prime` (§14): the diffless payload plus the

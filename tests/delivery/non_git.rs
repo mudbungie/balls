@@ -24,7 +24,7 @@ const RAW_FATAL: &str = "fatal: not a git repository";
 #[test]
 fn prime_in_a_non_git_dir_warns_and_no_ops_instead_of_aborting() {
     // The founding moment (`bl prime --stealth` in a non-repo): prime succeeds
-    // (exit 0, does NOT refuse), prints no worktree paths, and emits the single
+    // (exit 0, does NOT refuse), prints nothing, and emits the single
     // balls-voice warning naming both drains — before any task is filed.
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
@@ -36,7 +36,7 @@ fn prime_in_a_non_git_dir_warns_and_no_ops_instead_of_aborting() {
     delivery(&non_git, &home, "prime", "post", &prime("me", inv))
         .assert()
         .success()
-        .stdout("") // warned + no-op'd: no re-materialized worktree paths
+        .stdout("") // warned + no-op'd: nothing surfaces
         .stderr(contains("is not a git repository"))
         .stderr(contains("git init"))
         .stderr(contains("bl conf remove"))
