@@ -17,8 +17,9 @@ fn paths(tmp: &TempDir) -> (std::path::PathBuf, std::path::PathBuf) {
     (tmp.path().join("config"), tmp.path().join("tasks"))
 }
 
-/// An `Xdg` rooted under `tmp` so the embedded default-config materializes in the
-/// tempdir, never the real `$XDG_CONFIG_HOME`.
+/// An `Xdg` rooted under `tmp` so the seed resolves its default-config (the
+/// embedded default, or an override authored under the tempdir's config slot)
+/// without touching the real `$XDG_CONFIG_HOME`.
 fn xdg(tmp: &TempDir) -> Xdg {
     Xdg::with(tmp.path(), Some(&tmp.path().join("cfg").to_string_lossy()), Some(&tmp.path().join("st").to_string_lossy()))
 }
