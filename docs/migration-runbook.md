@@ -9,10 +9,12 @@ code.
 
 1. **Quiesce.** Finish or release every claimed legacy task (merge/close/
    unclaim in-flight work). `import` carries `claimant` verbatim, but a
-   claimed task's in-flight code worktree is NOT reproduced — `bl prime` would
-   re-materialize a fresh `work/<id>`, stranding the old one. This is the
-   operator's guard, deliberately not enforced in code: `import` is a general
-   primitive (federation, restore) and must not carry one caller's policy.
+   claimed task's in-flight code worktree is NOT reproduced — worktrees
+   materialize at `claim` only (bl-c2bf), so an imported-claimed task has none
+   until you `unclaim` + re-`claim`, which won't restore the original's lost
+   uncommitted work. This is the operator's guard, deliberately not enforced in
+   code: `import` is a general primitive (federation, restore) and must not
+   carry one caller's policy.
 
 2. **Prime.** `bl prime` founds the greenfield substrate — the `balls/config`
    landing (the seed IS the migrated config; the legacy knob pile dissolves,

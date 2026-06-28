@@ -14,13 +14,11 @@
 //! ([`resolve_id`]). Every hook recomputes its resource and checks the
 //! filesystem, so every hook is idempotent by construction.
 //!
-//! **Per-session re-materialization (§11/§12).** `prime.post` carries no single
-//! ball (it is a diffless checkout-lifecycle op, §13), so it does not derive one
-//! `<id>`: instead it scans the anvil checkout for every task still claimed
-//! by the actor ([`crate::delivery_repo::claimed_ids`]) and re-materializes each
-//! one's worktree — the SAME `materialize` act `claim.post` performs, just
-//! driven per-claimed-task. Create-if-absent makes it idempotent, so a prime on
-//! a session whose worktrees already exist converges to a no-op.
+//! **Worktrees materialize at CLAIM only (bl-c2bf).** A `work/<id>` worktree is
+//! a durable filesystem entity, so `prime` re-creates nothing — re-priming a
+//! lost worktree is `unclaim` + `claim`. `prime.post` is a diffless
+//! checkout-lifecycle op (§13) that derives no `<id>`; the binary's prime path
+//! only prunes settled `work/<id>` branches, outside this dispatch matrix.
 //!
 //! This module is the policy: [`dispatch`] maps `(op, phase, rolling_back)` to
 //! the [`Repo`] act it performs (§11 hooks + §14 rollback). The git itself is
@@ -38,7 +36,7 @@ use crate::message::Metadata;
 
 /// The protocol self-description (`<bin> protocol`, §6): this plugin speaks
 /// protocol 1 and handles the ops whose hooks it wires into — the four per-ball
-/// lifecycle ops, `prime` for re-materialization, and the `show` read-op (§6
+/// lifecycle ops, `prime` for settled-branch pruning, and the `show` read-op (§6
 /// read dispatch). balls reads it at install time, validates the wiring against
 /// it, and never persists it.
 pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","close","prime","show"]}"#;
@@ -110,9 +108,7 @@ pub struct Spec<'a> {
 /// is wired).
 pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     match (op, phase, rolling_back) {
-        // `prime.post` re-materializes per still-claimed ball (the binary loops
-        // and calls one dispatch per id) — the same act as a fresh `claim.post`.
-        ("claim" | "prime", "post", false) => repo.materialize(spec.worktree, spec.branch),
+        ("claim", "post", false) => repo.materialize(spec.worktree, spec.branch),
         ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec),
         // Every worktree-deleting teardown is the same act — release the
         // worktree directory — whichever deleting op (close.post, unclaim)
@@ -132,16 +128,16 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
 /// The §11 path surfacing — the stdout line a hook prints, if any (the §6
 /// product channel; balls forwards it verbatim). The path is NEVER stored: it is
 /// recomputed per surfacing (derive-don't-store, §11; bl-0af4 deleted the staged
-/// `delivery-worktree` field). `claim.post` and each `prime.post`
-/// re-materialization print the BARE path — the verb's one product, the way
-/// `create` prints the id. The `show` read-op (§6 read dispatch) prints a human
+/// `delivery-worktree` field). `claim.post` prints the BARE path — the verb's
+/// one product, the way `create` prints the id (the only moment a worktree
+/// materializes, bl-c2bf). The `show` read-op (§6 read dispatch) prints a human
 /// field line instead, folded into `bl show`'s render — and only when the
 /// worktree actually `exists`: a released or other-machine claim has no local
 /// worktree, and the plugin asserts nothing git doesn't know.
 #[must_use]
 pub fn surfaced(op: &str, phase: &str, rolling_back: bool, worktree: &Path, exists: bool) -> Option<String> {
     match (op, phase, rolling_back) {
-        ("claim" | "prime", "post", false) => Some(worktree.display().to_string()),
+        ("claim", "post", false) => Some(worktree.display().to_string()),
         ("show", "read", false) if exists => Some(format!("  {:<9}{}", "worktree", worktree.display())),
         _ => None,
     }
@@ -246,11 +242,6 @@ pub fn resolve_id(
 /// `rolling_back` tag.
 #[derive(Debug, Deserialize)]
 pub struct Wire {
-    /// The invoking identity (`--as`). Only `prime` reads it (to pick out the
-    /// actor's still-claimed balls); the per-ball ops act on a single derived
-    /// id and ignore it, so it defaults empty when a payload omits it.
-    #[serde(default)]
-    pub actor: String,
     pub binding: WireBinding,
     /// The §7 command — read only for its `-m` note, the delivery message
     /// override (bl-b9a6). Absent on a diffless op, `message` absent without `-m`.
@@ -265,9 +256,7 @@ pub struct Wire {
 }
 
 /// The one binding field the plugin needs: where `bl` was invoked (§7/§11) —
-/// the project-repo root the derived worktree paths hang off. The store
-/// checkout `prime` scans is the diffless cwd balls invokes us in (§13), not a
-/// wire field, so it is not carried here.
+/// the project-repo root the derived worktree paths hang off.
 #[derive(Debug, Deserialize)]
 pub struct WireBinding {
     pub invocation_path: String,

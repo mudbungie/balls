@@ -65,7 +65,8 @@ self-test: OK
 
 `bl-ch02` is `claimed`. The script is one-shot, **not** idempotent-converge
 (that is `prime`'s contract), and refuses rather than strand the claimant's
-worktree when `prime` later re-materializes a fresh `work/<id>`:
+in-flight worktree — which `import` does not reproduce and (worktrees
+materialize at `claim` only, bl-c2bf) re-claiming cannot restore:
 
 ```console
 $ python3 migrate-legacy.py --repo $LEGACY --dry-run

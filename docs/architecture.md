@@ -524,7 +524,7 @@ a list property, not an `NN-` filename convention faking one.
 "sync.pre"     = ["bl-tracker"]                  # import remote state first
 "prime.pre"    = ["bl-tracker"]
 "install.pre"  = ["bl-tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "bl-tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"prime.post"   = ["bl-delivery", "bl-tracker"]   # prune settled work/<id> branches (worktrees materialize at claim only), then settle store content (fetch-ff + push)
 "claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]                 # read-op (single phase): fold the worktree path into the human render (§11)
@@ -765,8 +765,8 @@ tombstones — the same most-recent-down walk that `list -s closed/--all` uses.
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`, `conf`**
 (§13, §6, §4).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
-bootstrap-on-miss path. `prime` makes the checkout ready (substrate + onboarding + worktree
-re-materialization, seeding a fresh landing from the app `default-config/` folder — §12); `sync` keeps
+bootstrap-on-miss path. `prime` makes the checkout ready (substrate + onboarding + settled-branch
+pruning, seeding a fresh landing from the app `default-config/` folder — §12); `sync` keeps
 it current (data only); `install` copies a committed path between branches (§6 — config/plugins
 adoption + store re-homing, always sealing to a LOCAL checkout, bl-b8d6; the recommended bundle is
 `config/` minus `tasks/`); `conf` reads and writes THIS
@@ -1092,8 +1092,9 @@ every hook stays idempotent (the pure-function/stateless property above). The wo
 XDG territory, not the project tree; its existence is git's to know, never a ball field's to assert, so
 there is no field that can drift out of sync with whether the worktree exists.
 
-**Hooks:** `claim.post` materialize (create-if-absent) + print the path; `prime.post` re-materialize
-each still-claimed worktree + print its path; `unclaim.post` releases (remove-if-present);
+**Hooks:** `claim.post` materialize (create-if-absent) + print the path — the ONLY moment a worktree
+materializes (bl-c2bf; re-priming a lost one is `unclaim` + `claim`); `prime.post` prunes settled
+`work/<id>` branches (it makes no worktree); `unclaim.post` releases (remove-if-present);
 **`close.pre` deliver** (sorts last); **`close.post` teardown**; **`show` (read-op)** print the path for
 the named ball (§6 read dispatch). balls does not guard against tearing a
 worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
@@ -1222,10 +1223,9 @@ ref) then `materialize(tasks_branch)` (check the cloned-in ref out, or found a f
 exists) — aborting if the configured name MOVED across `pre` (bl-698d, §8) — THEN runs `prime/post`.
 Founding the orphan eagerly,
 before the tracker could clone the remote in, was the unrelated-histories divergence bl-fa00 had to
-reset away; lazy materialize means it is never created. Per-session worktree re-materialization for
-still-claimed tasks — and the prune of settled `work/<id>` branches whose delivery already landed —
-rides the same chain (the delivery plugin's `prime.post`, idempotent create-if-absent /
-delete-if-settled, §11/§13).
+reset away; lazy materialize means it is never created. The prune of settled `work/<id>` branches
+whose delivery already landed rides the same chain (the delivery plugin's `prime.post`, idempotent
+delete-if-settled, §11/§13); worktrees materialize at `claim` only (bl-c2bf), never on prime.
 
 **Tracker's prime — two slots, one per axis (bl-0a23).** With no remote it is STEALTH (store stays
 local, a self-lock written). With a remote (the one §12 ladder below — `--remote`/`--center` >
@@ -1485,15 +1485,15 @@ not a consent breach, because consent governs config + executable plugins, never
   ff-only already decides in one step (contention is the ff-failure path, not a phase of its own).
 - **Where the integration sits.** With no core commit, sync's pre/post boundary IS the tracker's
   fetch+ff: the tracker is wired into **`sync/pre`** so it imports remote store state first;
-  **`sync/post`** plugins (cache rebuild, worktree re-materialize) react to the now-current store. A
+  **`sync/post`** plugins (e.g. cache rebuild) react to the now-current store. A
   non-ff aborts in pre and never reaches post. This is the one op whose boundary action belongs to a
   plugin, not core — because remote-talk is plugin-exclusive (§0).
 
 **`bl prime` — readiness, built FROM sync.** prime is not a hook-superset of sync; it is an
 **orchestrator of syncs** (§12): found the landing, run the `prime` chain to materialize the store,
-then `bl sync` it. "Ready to start the engine" = substrate exists + store synced + claimed-task
-worktrees re-materialized + settled `work/<id>` branches pruned (both delivery's `prime.post`, §11 —
-the prune deletes a branch whose delivery already landed on integration and KEEPS one carrying
+then `bl sync` it. "Ready to start the engine" = substrate exists + store synced + settled
+`work/<id>` branches pruned (delivery's `prime.post`, §11 — worktrees materialize at claim only,
+so prime makes none; the prune deletes a branch whose delivery already landed on integration and KEEPS one carrying
 committed undelivered work, so a later claim + close still delivers it; this is the §11 "deferred,
 non-transactional cleanup" made concrete). Idempotent: on an established checkout every
 step is create-if-absent/already-current, so re-running converges to a no-op. The whole verb is the §12
@@ -2612,7 +2612,7 @@ verbs refuse (foreign ids, historical timestamps). The dissolution is three smal
   `update --needs` ops. It carries no policy the pipe can't express — that constraint is what keeps
   it severable and prevents a second code path for one job.
 
-Everything ongoing — XDG bootstrap, config seeding, worktree re-materialization — is already
+Everything ongoing — XDG bootstrap, config seeding, settled-branch pruning — is already
 `bl prime`'s idempotent job (§12/§13): prime founds, import fills, the tracker pushes.
 
 **Governing principle — migrate-clean-or-delink, never guess.** The shim projects only what maps
@@ -2695,11 +2695,12 @@ commit-subject tags stay untouched: forward-compatible with §11's delivery tag,
 The one-shot-ness is idempotent-BY-REFUSAL: re-running `bl import --legacy` against an already-migrated
 store collides on every id and refuses the whole stream (§9), so there is no separate "already
 migrated" guard. The QUIESCE guard — finish or release every claimed legacy task first, because a
-claimed task's in-flight code worktree is not reproduced and `prime` would re-materialize a fresh
-`work/<id>` — is an operator step, deliberately NOT enforced in `import`: the primitive is general
+claimed task's in-flight code worktree is not reproduced, and worktrees materialize only at `claim`
+(bl-c2bf), so re-claiming an imported task won't restore its lost uncommitted work — is an operator
+step, deliberately NOT enforced in `import`: the primitive is general
 (federation, restore legitimately import claimed balls) and must not carry one caller's policy.
 Sequence: quiesce → `bl prime` (founds substrate + config, §12) → `bl list --legacy` (preview) →
 `bl import --legacy` → cut the shared ref over → each plugin's port runs its one-time adoption.
 Any residual drift surfaces at point-of-use: the next op that needs a missing or stale piece fails
-naming the verb that fixes it (`prime` re-materializes, `install` re-resolves a `bin/`, `sync`
+naming the verb that fixes it (`claim` re-materializes a worktree, `install` re-resolves a `bin/`, `sync`
 refreshes the store, `update` unlinks a bad edge) — there is no separate scan verb.

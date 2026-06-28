@@ -14,7 +14,7 @@ use std::process::exit;
 
 use balls::delivery::{self, Repo, Spec, Wire};
 use balls::delivery_precondition::{precondition_unmet, require_repo};
-use balls::delivery_repo::{changed_task_paths, claimed_ids, Project};
+use balls::delivery_repo::{changed_task_paths, Project};
 use balls::layout::Xdg;
 
 fn main() {
@@ -48,10 +48,11 @@ fn run(args: &[String]) -> io::Result<()> {
     let invocation = &wire.binding.invocation_path;
     let repo = Project::at(Path::new(invocation));
 
-    // `prime` carries no single ball (§13 diffless) — it re-materializes one
-    // worktree per still-claimed ball, so it takes its own path here.
+    // `prime` carries no single ball (§13 diffless) — it derives no worktree
+    // (worktrees materialize at CLAIM only, bl-c2bf), only prunes settled
+    // `work/<id>` branches, so it takes its own path here.
     if op == "prime" {
-        return prime(phase, &wire, &xdg, &plugin, &repo);
+        return prime(phase, &wire, &repo);
     }
 
     let cwd = env::current_dir()?;
@@ -88,23 +89,15 @@ fn run(args: &[String]) -> io::Result<()> {
     Ok(())
 }
 
-/// `prime.post` re-materialization (§11/§12): for every ball in the store
-/// checkout still claimed by the actor, run the same `materialize` act a
-/// `claim.post` would, behind the dispatch matrix — then PRINT each worktree's
-/// path (§11: prime is the resume moment, so it re-surfaces what claim printed).
-/// The claimed set replaces the single derived id; each worktree is recomputed
-/// from `(invocation, id)`, so a re-prime whose worktrees already exist is a
-/// no-op (create-if-absent). The store is the diffless cwd balls invokes us in
-/// (§13), not a wire field. Once the claimed set is re-materialized (their
-/// branches now checked out, so the prune cannot touch them) prime PRUNES the
-/// settled `work/<id>` branches close/unclaim teardown left behind — the §11
-/// deferred, non-transactional branch cleanup ([`Project::prune`]).
-fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> io::Result<()> {
-    // §14: prime is an idempotent refresher — a re-materialized worktree is
-    // exactly the state a re-prime converges to, so its rollback DECLINES
-    // before touching anything (bl-62eb). Declining first also matters
-    // mechanically: the unwind invokes rollbacks with cwd = the LANDING, which
-    // has no tasks/, so the claimed-set scan below would die with ENOENT.
+/// `prime.post` housekeeping (§11/§12): worktrees materialize at CLAIM and
+/// nowhere else (bl-c2bf — re-priming a lost worktree is `unclaim` + `claim`),
+/// so prime derives no worktree at all. It PRUNES the settled `work/<id>`
+/// branches close/unclaim teardown left behind — the §11 deferred,
+/// non-transactional branch cleanup ([`Project::prune`]).
+fn prime(phase: &str, wire: &Wire, repo: &Project) -> io::Result<()> {
+    // §14: prime is an idempotent refresher — its prune is exactly the state a
+    // re-prime converges to, so its rollback DECLINES before touching anything
+    // (bl-62eb).
     if wire.rolling_back.is_some() {
         return Ok(());
     }
@@ -115,16 +108,6 @@ fn prime(phase: &str, wire: &Wire, xdg: &Xdg, plugin: &str, repo: &Project) -> i
     if !repo.is_git_repo()? {
         eprintln!("bl-delivery: {}", precondition_unmet(&wire.binding.invocation_path));
         return Ok(());
-    }
-    let store = env::current_dir()?;
-    for id in claimed_ids(&store, &wire.actor)? {
-        let worktree = delivery::worktree_path(xdg, plugin, &wire.binding.invocation_path, &id);
-        let branch = delivery::work_branch(&id);
-        let spec = Spec { worktree: &worktree, branch: &branch, subject: "", override_msg: None, marker: "" };
-        delivery::dispatch("prime", phase, false, repo, &spec)?;
-        if let Some(line) = delivery::surfaced("prime", phase, false, &worktree, worktree.is_dir()) {
-            println!("{line}");
-        }
     }
     if phase == "post" {
         repo.prune()?;
