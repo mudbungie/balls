@@ -1,7 +1,8 @@
 +++
 title = "Multi-clone cross-tracking: a lagging clone half-closes + bl prime materializes bogus worktrees for already-closed tasks"
 created = 1782610049
-updated = 1782610049
+updated = 1782614953
+claimant = "Demagogy"
 priority = 3
 tags = ["core"]
 +++
