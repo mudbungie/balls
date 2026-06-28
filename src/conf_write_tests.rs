@@ -1,6 +1,6 @@
 //! Tests for `bl conf` writes (bl-c2de) — each key's canonical home, the
-//! landing seal with its no-change convergence, the XDG file edit, and the §4
-//! list compose applied at write time.
+//! landing seal with its no-change convergence, the per-clone binding edit
+//! (bl-d081), and the §4 list compose applied at write time.
 
 use crate::conf;
 use crate::edge::Edge;
@@ -103,19 +103,24 @@ fn set_log_level_validates_against_the_ladder() {
 }
 
 #[test]
-fn set_task_remote_writes_the_xdg_file_preserving_other_keys() {
+fn set_task_remote_writes_the_per_clone_binding_preserving_other_keys() {
+    // bl-d081: a URL's durable home is THIS clone's binding.toml (per-checkout
+    // local state), not the machine-wide XDG file that silently shadowed every
+    // other repo's store.
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);
-    founded(&e);
-    // Works with no user config yet (dirs + file created)…
+    let clone = founded(&e);
+    // Works with no binding file yet (file created)…
     conf(&e, &["set", "task-remote", "git@hub:r"]).unwrap();
-    let body = fs::read_to_string(e.xdg.user_config()).unwrap();
+    let body = fs::read_to_string(clone.binding()).unwrap();
     assert!(body.contains("remote = \"git@hub:r\""), "{body}");
     // …and edits ONE key when one exists, the rest round-tripping.
-    fs::write(e.xdg.user_config(), "log_level = \"debug\"\nremote = \"old\"\n").unwrap();
+    fs::write(clone.binding(), "tasks_branch = \"balls/x\"\nremote = \"old\"\n").unwrap();
     conf(&e, &["set", "task-remote", "git@hub:new"]).unwrap();
-    let body = fs::read_to_string(e.xdg.user_config()).unwrap();
-    assert!(body.contains("remote = \"git@hub:new\"") && body.contains("log_level = \"debug\""), "{body}");
+    let body = fs::read_to_string(clone.binding()).unwrap();
+    assert!(body.contains("remote = \"git@hub:new\"") && body.contains("tasks_branch = \"balls/x\""), "{body}");
+    // The machine-wide XDG file is NEVER touched — no cross-repo shadowing.
+    assert!(!e.xdg.user_config().exists(), "the global XDG config must not be written");
 }
 
 #[test]
@@ -250,9 +255,10 @@ fn the_write_grammar_is_enforced() {
 fn set_task_remote_sentinel_is_a_landing_policy_write_a_url_clears_it() {
     // bl-9df0: the key's home routes by VALUE. The stealth sentinel is
     // per-checkout policy → a sealed landing edit (what `prime --stealth`
-    // sugars to); a URL is per-machine → the XDG file, AND the sentinel is
-    // cleared so the set changes what the ladder actually resolves (the
-    // landing rung outranks XDG — leaving it would be the bl-d234 trap).
+    // sugars to); a URL is per-clone → this clone's binding.toml (bl-d081), AND
+    // the sentinel is cleared so the set changes what the ladder actually
+    // resolves (the landing rung outranks binding — leaving it would be the
+    // bl-d234 trap).
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);
     let clone = founded(&e);
@@ -262,6 +268,6 @@ fn set_task_remote_sentinel_is_a_landing_policy_write_a_url_clears_it() {
     conf(&e, &["set", "task-remote", "git@hub:r"]).unwrap();
     assert!(!landing_text(&clone, "balls.toml").contains("task_remote"));
     assert_eq!(subject(&clone.landing()), "balls: conf set task-remote git@hub:r");
-    let xdg = fs::read_to_string(e.xdg.user_config()).unwrap();
-    assert!(xdg.contains("remote = \"git@hub:r\""), "{xdg}");
+    let binding = fs::read_to_string(clone.binding()).unwrap();
+    assert!(binding.contains("remote = \"git@hub:r\""), "{binding}");
 }

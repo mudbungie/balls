@@ -149,8 +149,8 @@ fn prime_post_in_stealth_is_a_no_op() {
 #[test]
 fn the_ephemeral_gap_compares_the_acting_remote_to_the_durable_ladder() {
     // W2 (bl-c2de): warn iff the remote prime acts on is NOT what the durable
-    // ladder (landing `task_remote` > XDG `task-remote` > `origin`) resolves —
-    // a per-op `--remote` that
+    // ladder (landing `task_remote` > per-clone binding > legacy XDG > `origin`)
+    // resolves — a per-op `--remote` that
     // plain commands will silently not reproduce (the bl-d234 failure).
     let tmp = TempDir::new().unwrap();
     let env = env(&tmp.path().join("home"), &tmp.path().join("state"));
@@ -170,6 +170,13 @@ fn the_ephemeral_gap_compares_the_acting_remote_to_the_durable_ladder() {
     fs::write(&cfg, "remote = \"git@hub:durable\"\n").unwrap();
     assert_eq!(ephemeral_gap(&b, &env, "git@hub:r").as_deref(), Some("`git@hub:durable`"));
     assert_eq!(ephemeral_gap(&b, &env, "git@hub:durable"), None);
+    // The per-clone binding remote outranks the legacy XDG one (bl-d081): a remote
+    // core read from this clone's binding is NOT misreported as ephemeral.
+    let binding_path = env.xdg.clone_dir(std::path::Path::new(&b.invocation_path)).binding();
+    fs::create_dir_all(binding_path.parent().unwrap()).unwrap();
+    fs::write(&binding_path, "remote = \"git@hub:bind\"\n").unwrap();
+    assert_eq!(ephemeral_gap(&b, &env, "git@hub:r").as_deref(), Some("`git@hub:bind`"));
+    assert_eq!(ephemeral_gap(&b, &env, "git@hub:bind"), None);
     // A landing stealth sentinel outranks everything durable: plain commands
     // run DECLARED stealth, named as such (bl-9df0).
     let stealth_landing = tmp.path().join("stealth-landing");
