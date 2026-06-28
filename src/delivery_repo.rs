@@ -181,3 +181,7 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "delivery_repo_gate_tests.rs"]
 mod gate_tests;
+
+#[cfg(test)]
+#[path = "delivery_repo_push_tests.rs"]
+mod push_tests;
