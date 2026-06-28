@@ -1,7 +1,8 @@
 +++
 title = "Claim guards on the project's root-commit hash — reject wrong-repo claims (bl-c3c0 fix 2)"
 created = 1782631094
-updated = 1782633350
+updated = 1782668406
+claimant = "Celebrates"
 priority = 3
 tags = ["core"]
 
