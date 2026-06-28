@@ -245,6 +245,15 @@ refused, naming the blocker. Closing a task that still has live children prints
 a notice ("closed with N open children, none gating") — informational, never a
 block: the children survive with dangling, display-only parent pointers.
 
+**Splitting work? Wire the gates.** Filing N balls with no edges declares them
+fully independent — and since one agent is dispatched per UNBLOCKED ball, that
+reads as "claim all N in parallel, now," colliding on shared files. If the
+pieces have an order (a foundation that lands first, a companion that builds on
+it), encode it: `--needs <id>` makes a ball un-claimable until its blocker
+closes. Filing flat IS a parallelism decision — "independent" is a deliberate
+choice, not the default. The order lives in the **ball graph** (what the
+dispatcher reads), never only in a design doc or commit note.
+
 ## Plugins
 
 Behavior beyond the base (commit task files) is plugins — subprocesses wired in
