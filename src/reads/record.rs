@@ -39,6 +39,7 @@ pub(crate) fn task_json(id: &str, task: &Task) -> Value {
         ("claimant", json!(task.claimant)),
         ("priority", json!(task.priority)),
         ("parent", json!(task.parent)),
+        ("root_commit", json!(task.root_commit)),
         ("tags", json!(task.tags)),
         ("blockers", json!(blockers)),
         ("created", json!(task.created)),

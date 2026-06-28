@@ -154,10 +154,12 @@ pub(super) fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags)
 /// not a preserved extra. `id` is the filename and `body` is the markdown after
 /// the fence (the [`crate::task`] shadow keys — a stored line would be a lossy
 /// shadow the bedrock projection drops, §3/§9); `created`/`updated` are the
-/// seal's stamps, so a hand-set value never survives. The string-typed §3
-/// fields (`title=`/`claimant=`/`parent=`) are NOT here: overwriting them is
-/// the update contract, just spelled without the flag.
-const RESERVED: [&str; 4] = ["id", "body", "created", "updated"];
+/// seal's stamps and `root_commit` is the create-time repo identity (bl-1ce7),
+/// so a hand-set value never survives (and would forge the claim guard, which
+/// has no override). The string-typed §3 fields (`title=`/`claimant=`/`parent=`)
+/// are NOT here: overwriting them is the update contract, just spelled without
+/// the flag.
+const RESERVED: [&str; 5] = ["id", "body", "created", "updated", "root_commit"];
 
 /// A `key=value` extra edit: an empty `value` REMOVES the key (the §3 clear),
 /// any other value sets it as a string. Setting an extra to "" is the degenerate
@@ -167,7 +169,7 @@ const RESERVED: [&str; 4] = ["id", "body", "created", "updated"];
 fn extra_edit(k: &str, v: &str) -> io::Result<FieldEdit> {
     if RESERVED.contains(&k) {
         return Err(other(format!(
-            "update: '{k}' is reserved, not an extra — the id is the filename, the body is --body, created/updated are the seal's stamps"
+            "update: '{k}' is reserved, not an extra — the id is the filename, the body is --body, created/updated are the seal's stamps, root_commit is the create-time repo identity"
         )));
     }
     Ok(if v.is_empty() {

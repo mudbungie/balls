@@ -34,6 +34,15 @@ pub struct Task {
     /// The one ordering input for `bl list`. Lower = higher; absent sorts last.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub priority: Option<i64>,
+    /// The project repo's root-commit hash, stamped at `create` so `claim` can
+    /// reject a wrong-repo checkout (bl-1ce7). The canonical, REMOTE-FREE repo
+    /// identity (`git rev-list --max-parents=0 HEAD`): intrinsic to history,
+    /// identical across clones/hosts, distinct per project. Absent ⇒ the ball
+    /// predates the guard, or was created off a checkout with no code repo —
+    /// either way unconstrained (back-compat). Core READS it (the claim guard),
+    /// so it is first-class, not an [`Task::extra`] team key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_commit: Option<String>,
     /// The relational primitive (§10): `{id, on}` edges on the BLOCKED task.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blockers: Vec<Blocker>,

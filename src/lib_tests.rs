@@ -70,6 +70,54 @@ fn create_claim_update_close_round_trip_through_the_engine() {
     assert!(!tasks.join(format!("{id}.md")).exists());
 }
 
+/// Init a git repo at `tmp/proj` (the edge's invocation path) with one
+/// `seed`-content commit; returns its root-commit hash. Distinct `seed`s ⇒
+/// distinct roots, so a re-root test never trips the same-second SHA flake.
+fn git_root(tmp: &TempDir, seed: &str) -> String {
+    use crate::delivery_repo::Project;
+    let proj = tmp.path().join("proj");
+    std::fs::create_dir_all(&proj).unwrap();
+    let g = |args: &[&str]| Project::run(&proj, args).unwrap();
+    g(&["init", "-q", "-b", "main"]);
+    g(&["config", "user.name", "t"]);
+    g(&["config", "user.email", "t@e.com"]);
+    std::fs::write(proj.join("f.txt"), seed).unwrap();
+    g(&["add", "-A"]);
+    g(&["commit", "-q", "-m", "seed"]);
+    Project::at(&proj).root_commit().unwrap()
+}
+
+#[test]
+fn create_stamps_the_repo_root_and_claim_accepts_the_matching_checkout() {
+    // bl-1ce7 end to end: when the invocation path IS a code repo, `create`
+    // stamps its root-commit on the ball; a `claim` from that same checkout
+    // matches and seals.
+    let tmp = TempDir::new().unwrap();
+    let root = git_root(&tmp, "one\n");
+    assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
+    let tasks = store(&tmp).join("tasks");
+    let id = sole_task_id(&tasks);
+    let md = std::fs::read_to_string(tasks.join(format!("{id}.md"))).unwrap();
+    assert!(md.contains(&format!("root_commit = \"{root}\"")), "frontmatter records the root:\n{md}");
+    assert_eq!(run_in(&tmp, &["claim", &id, "--as", "me"]), 0);
+}
+
+#[test]
+fn claim_rejects_a_ball_created_against_a_different_repo_root() {
+    // The wrong-repo guard: a ball stamped against root R1, claimed from a
+    // checkout re-rooted to R2 (a history rewrite, or simply the wrong repo at
+    // this path), is refused (exit 1) — no override.
+    let tmp = TempDir::new().unwrap();
+    git_root(&tmp, "one\n"); // R1, stamped on the ball at create
+    assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
+    let id = sole_task_id(&store(&tmp).join("tasks"));
+    std::fs::remove_dir_all(tmp.path().join("proj").join(".git")).unwrap();
+    git_root(&tmp, "two\n"); // R2 ≠ R1 (distinct seed ⇒ distinct root)
+    assert_eq!(run_in(&tmp, &["claim", &id, "--as", "me"]), 1);
+}
+
 #[test]
 fn subtask_of_claim_gates_the_epic_and_close_notices_open_children() {
     // §10/bl-5d9a: --subtask-of mints the parent + CLAIM-gate through the real

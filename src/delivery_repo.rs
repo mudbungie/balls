@@ -66,6 +66,20 @@ impl Project {
         Self::ok(&self.root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
     }
 
+    /// This project's canonical, REMOTE-FREE root-commit identity:
+    /// `git rev-list --max-parents=0 HEAD`, the first (newest) root reachable
+    /// from HEAD. Intrinsic to history and identical across clones/hosts, it is
+    /// what the claim guard (bl-1ce7) records at create and rejects a mismatch
+    /// against. `None` when `root` is not a git repo, or carries no commit yet —
+    /// a ball created there records nothing and is unconstrained (back-compat);
+    /// any git failure collapses the same way, fail-open (the guard grants
+    /// nothing it could withhold).
+    #[must_use]
+    pub fn root_commit(&self) -> Option<String> {
+        let out = Self::run(&self.root, &["rev-list", "--max-parents=0", "HEAD"]).ok()?;
+        out.lines().next().map(str::to_string)
+    }
+
     /// Capture any pending worktree work onto `branch` as a commit (squashed
     /// away later), so an uncommitted change is never lost at delivery.
     /// `--no-verify`: the delivery gate ([`Self::gate`]) runs ONCE, later, on

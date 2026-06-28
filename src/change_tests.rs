@@ -59,6 +59,43 @@ fn unclaim_clears_the_claimant() {
 }
 
 #[test]
+fn guard_repo_rejects_only_a_definite_cross_repo_mismatch() {
+    // bl-1ce7: the wrong-repo claim guard fires ONLY when the ball's recorded
+    // root and this checkout's root are BOTH present and DIFFER; every other
+    // shape passes (back-compat / fail-open, no override).
+    let with = |r: Option<&str>| Task { root_commit: r.map(str::to_string), ..Task::default() };
+    // Both present, equal → the same project → pass.
+    super::guard_repo(&with(Some("aaa")), Some("aaa"), "bl-1").unwrap();
+    // Both present, differ → reject, naming BOTH roots so the message points at
+    // the right checkout (identity is remote-free — no path, no remote).
+    let err = super::guard_repo(&with(Some("aaa")), Some("bbb"), "bl-1").unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    let msg = err.to_string();
+    assert!(msg.contains("rooted at aaa") && msg.contains("rooted at bbb"), "{msg}");
+    // No recorded root (pre-feature ball, or born off no code repo) → unconstrained.
+    super::guard_repo(&with(None), Some("bbb"), "bl-1").unwrap();
+    // No current root (claim off a checkout with no code repo) → unprovable → pass.
+    super::guard_repo(&with(Some("aaa")), None, "bl-1").unwrap();
+}
+
+#[test]
+fn claim_stage_rejects_a_wrong_repo_ball() {
+    // The guard is wired into `claim`'s stage: a ball recorded against root
+    // `aaa`, claimed from a checkout rooted at `bbb`, is refused before the seal.
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1", "+++\ntitle = \"A\"\ncreated = 0\nupdated = 0\nroot_commit = \"aaa\"\n+++\n");
+    let mut o = Occupancy::claim("bl-1".into(), "me".into(), 0);
+    o.current_root = Some("bbb".into());
+    let err = o.stage(dir).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    // The matching-root claim seals (the ball is recorded against this checkout).
+    o.current_root = Some("aaa".into());
+    o.stage(dir).unwrap();
+    assert_eq!(read_task(dir, "bl-1").unwrap().claimant.as_deref(), Some("me"));
+}
+
+#[test]
 fn update_applies_every_field_edit_and_bumps_updated() {
     let d = tempdir().unwrap();
     let dir = d.path();
