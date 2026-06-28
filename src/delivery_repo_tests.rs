@@ -275,3 +275,16 @@ fn a_git_failure_surfaces_with_stderr() {
     let err = changed_task_paths(outside.path()).unwrap_err();
     assert!(err.to_string().starts_with("git diff"));
 }
+
+#[test]
+fn root_commit_is_the_seed_root_or_none_off_a_non_repo() {
+    // bl-1ce7: the canonical, remote-free repo identity. On a one-commit repo
+    // the root IS that seed commit; off a non-repo dir it is None (a ball
+    // created there records nothing — back-compat).
+    let (_tmp, root, p) = project();
+    let r = p.root_commit().expect("a committed repo has a root");
+    let seed = Project::run(&root, &["rev-parse", "HEAD"]).unwrap().trim().to_string();
+    assert_eq!(r, seed, "the sole commit is the root");
+    let outside = TempDir::new().unwrap(); // not a git repo
+    assert!(Project::at(outside.path()).root_commit().is_none());
+}

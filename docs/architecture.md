@@ -796,7 +796,7 @@ the id by `git mv`-ing the single staged `tasks/*.md` (it discovers the current 
 that file, never hardcoding — so reassigns compose under hook-list order). balls validates (exactly one
 new `tasks/*.md`; regex-valid; no collision) and commits.
 
-**`claim`** (acquire occupancy; core's guards refuse a ball whose `claimant` is already set, or whose claim-blockers are unresolved — `!ready()`, §10): stage `claimant`, bump `updated` — the ONLY field it writes. There is no status to set:
+**`claim`** (acquire occupancy; core's guards refuse a ball whose `claimant` is already set, whose claim-blockers are unresolved — `!ready()`, §10 — or whose recorded `root_commit` (the project's `git rev-list --max-parents=0 HEAD`, stamped at create) differs from THIS checkout's, a wrong-repo claim off the wrong `main` — bl-1ce7; remote-free, no override, an absent root either side passes): stage `claimant`, bump `updated` — the ONLY field it writes. There is no status to set:
 "claimed" is the derived view of `claimant` (§3), so claim stores the one occupancy fact in the one
 field (the only field CORE writes). `claim.post`: the delivery plugin materializes the code worktree and
 PRINTS its path on stdout (§11), which balls forwards verbatim — the natural product of the verb, the way

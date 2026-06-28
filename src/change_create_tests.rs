@@ -20,6 +20,7 @@ fn create(id: &str, existing: Vec<String>) -> Create {
         blocks: vec![],
         body: None,
         message: None,
+        root_commit: None,
         existing,
     }
 }
@@ -65,6 +66,20 @@ fn create_writes_the_ball_body_from_the_body_flag() {
     let bare = create("bl-cccc", vec![]);
     bare.stage(dir).unwrap();
     assert_eq!(read_task(dir, "bl-cccc").unwrap().body, "");
+}
+
+#[test]
+fn create_stamps_the_injected_repo_root_and_omits_it_when_absent() {
+    // bl-1ce7: `create` records the checkout's root-commit identity (injected
+    // like the clock) so a later `claim` can reject a wrong-repo checkout. A
+    // create off a checkout with no code repo records nothing (unconstrained).
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    let c = Create { root_commit: Some("91c6469b".into()), ..create("bl-r", vec![]) };
+    c.stage(dir).unwrap();
+    assert_eq!(read_task(dir, "bl-r").unwrap().root_commit.as_deref(), Some("91c6469b"));
+    create("bl-n", vec![]).stage(dir).unwrap();
+    assert!(read_task(dir, "bl-n").unwrap().root_commit.is_none());
 }
 
 #[test]

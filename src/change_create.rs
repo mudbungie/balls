@@ -42,6 +42,10 @@ pub struct Create {
     pub body: Option<String>,
     /// The `-m` free commit-message narration (§5); the subject is the title.
     pub message: Option<String>,
+    /// The project repo's root-commit identity (bl-1ce7), computed once at the
+    /// CLI boundary and INJECTED like `now` so this authoring stays git-free.
+    /// `None` off a checkout with no code repo — the ball is then unconstrained.
+    pub root_commit: Option<String>,
     pub existing: Vec<String>,
 }
 
@@ -55,6 +59,7 @@ impl BaseChange for Create {
             priority: self.priority,
             blockers: self.blockers.clone(),
             tags: self.tags.clone(),
+            root_commit: self.root_commit.clone(),
             body: self.body.clone().unwrap_or_default(),
             ..Task::default()
         };

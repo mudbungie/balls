@@ -29,6 +29,7 @@ use std::path::Path;
 use crate::enforce;
 use crate::lifecycle::BaseChange;
 use crate::message::Message;
+use crate::task::Task;
 use crate::taskfile::{read_task, task_path, write_task};
 use crate::verb::Verb;
 
@@ -49,17 +50,22 @@ pub struct Occupancy {
     pub now: i64,
     /// The `-m` free commit-message narration (§5); occupancy edits no ball field.
     pub message: Option<String>,
+    /// This checkout's root-commit identity (bl-1ce7), INJECTED at the CLI
+    /// boundary. `claim` rejects when the ball recorded a DIFFERENT root; only
+    /// read on `claim`, ignored on `unclaim`. `None` off a checkout with no code
+    /// repo — a mismatch is then unprovable, so the guard passes (fail-open).
+    pub current_root: Option<String>,
 }
 
 impl Occupancy {
     /// `claim`: take occupancy as `actor` (guarded against an existing claim).
     pub fn claim(id: String, actor: String, now: i64) -> Self {
-        Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, message: None }
+        Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, message: None, current_root: None }
     }
 
     /// `unclaim`: release occupancy (clear `claimant`).
     pub fn unclaim(id: String, actor: String, now: i64) -> Self {
-        Self { verb: Verb::Unclaim, id, claimant: None, actor, now, message: None }
+        Self { verb: Verb::Unclaim, id, claimant: None, actor, now, message: None, current_root: None }
     }
 }
 
@@ -73,6 +79,7 @@ impl BaseChange for Occupancy {
                     format!("claim: {} is already claimed by {who}", self.id),
                 ));
             }
+            guard_repo(&task, self.current_root.as_deref(), &self.id)?;
             enforce::claim(&task, &self.id, dir)?;
         } else {
             enforce::gate(&task, Verb::Unclaim, &self.id, dir)?;
@@ -85,6 +92,30 @@ impl BaseChange for Occupancy {
     fn finalize(&self, dir: &Path) -> io::Result<String> {
         finalize_titled(dir, self.verb, &self.actor, &self.id, self.message.as_deref())
     }
+}
+
+/// The wrong-repo claim guard (bl-1ce7): reject when the ball recorded a project
+/// [`Task::root_commit`] that DIFFERS from `current` (this checkout's root). The
+/// ONLY rejection is both-present-and-differ — a ball with no recorded root
+/// (predates the guard, or born off no code repo) and a checkout with no root
+/// both PASS (back-compat / fail-open, no override). The recorded hash NAMES the
+/// project the ball belongs to: identity is the git root commit, remote-free, so
+/// the message points at the right checkout without a path or a remote. A
+/// same-root collision (only via a shared root commit) grants nothing — the
+/// claimant would already be working from that very directory.
+fn guard_repo(task: &Task, current: Option<&str>, id: &str) -> io::Result<()> {
+    if let (Some(recorded), Some(current)) = (task.root_commit.as_deref(), current) {
+        if recorded != current {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!(
+                    "claim: {id} belongs to the project rooted at {recorded}, but this checkout is \
+                     rooted at {current} — claim it from that project's checkout"
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// `update` (§9): the generic field/body edit. Applies an ordered [`FieldEdit`]

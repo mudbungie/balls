@@ -20,6 +20,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::checkout;
+use crate::delivery_repo::Project;
 use crate::edge::Edge;
 use crate::git::Git;
 use crate::hooks::Hooks;
@@ -66,7 +67,11 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let (landing, store) = (clone.landing(), clone.store());
     primed(&landing)?;
 
-    let Some((base, before)) = base_change(verb, &store, &flags, now(), editor)? else {
+    // This checkout's remote-free repo identity (bl-1ce7), read ONCE at the
+    // boundary and injected: `create` stamps it, `claim` rejects a wrong-repo
+    // mismatch against it. `None` off a checkout with no code repo.
+    let root = Project::at(&edge.invocation_path).root_commit();
+    let Some((base, before)) = base_change(verb, &store, &flags, now(), root, editor)? else {
         return Ok(());
     };
     let ctx = Op {

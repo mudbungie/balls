@@ -24,7 +24,7 @@ fn flags() -> Flags {
 /// signature-stable; the `--edit` interaction is exercised in
 /// [`crate::mutate::edit`]'s own tests.
 fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<super::author::Authored> {
-    super::base_change(verb, store, flags, now, &mut edit::Editor::detached())
+    super::base_change(verb, store, flags, now, None, &mut edit::Editor::detached())
         .map(|authored| authored.expect("flag-driven authoring never no-ops"))
 }
 

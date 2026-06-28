@@ -22,15 +22,18 @@ use super::{build, edit, guards, other, Flags};
 pub(super) type Authored = (Box<dyn BaseChange>, Option<Task>);
 
 /// Author the verb's [`BaseChange`] from the parsed `flags` (see [`Authored`]).
-/// `now` is injected, so the change stays pure (it never reads a clock); the
-/// `editor` seam serves only `update --edit`. `Ok(None)` is `--edit`'s
-/// unchanged-buffer no-op — there is nothing to author. Only the five mutating
-/// verbs reach here.
+/// `now` and `root` (this checkout's [`crate::delivery_repo::Project::root_commit`])
+/// are injected, so the change stays pure (it reads no clock and shells no git):
+/// `create` STAMPS `root` on the ball, `claim` REJECTS a mismatch against it
+/// (bl-1ce7), the other verbs ignore it. The `editor` seam serves only
+/// `update --edit`. `Ok(None)` is `--edit`'s unchanged-buffer no-op — there is
+/// nothing to author. Only the five mutating verbs reach here.
 pub(super) fn base_change(
     verb: Verb,
     store: &Path,
     flags: &Flags,
     now: i64,
+    root: Option<String>,
     editor: &mut edit::Editor,
 ) -> io::Result<Option<Authored>> {
     let actor = flags.actor.clone();
@@ -59,6 +62,7 @@ pub(super) fn base_change(
                 blocks,
                 body: flags.body.clone(),
                 message: flags.message.clone(),
+                root_commit: root,
                 existing: task_ids(store)?,
             };
             Ok(Some((Box::new(base), None)))
@@ -68,7 +72,8 @@ pub(super) fn base_change(
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
-            let base = Occupancy { verb, id, claimant, actor, now, message: flags.message.clone() };
+            let base =
+                Occupancy { verb, id, claimant, actor, now, message: flags.message.clone(), current_root: root };
             Ok(Some((Box::new(base), Some(before))))
         }
         Verb::Update => {
