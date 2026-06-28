@@ -50,6 +50,12 @@ pub struct Command {
     pub op: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body_change: Option<String>,
+    /// The op's `-m` note. A close reads it as the FULL delivery message
+    /// override (bl-b9a6); it is the SAME input that seals the §5 archive
+    /// commit, threaded onto the pre wire where the squash (close.pre) can see
+    /// it before the seal. Absent without `-m`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 /// The op-constant §7 wire data: everything identical across a plugin's `pre`

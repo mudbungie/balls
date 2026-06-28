@@ -116,13 +116,14 @@ pub(super) fn base_change(
 }
 
 /// The §7 `command` — the op plus its body intent. `body_change` is the new
-/// markdown ball body (`--body`) when the op rewrites it (§7). Field-level
-/// changes are NOT carried here (single source of truth, bl-3bfd §15): a plugin
-/// reads them from the change worktree / the `before`/`after` states, not a
-/// second diff description. Its presence (vs the diffless `None`) marks this a
-/// ball-mutating op (§7).
+/// markdown ball body (`--body`) when the op rewrites it (§7); `message` is the
+/// `-m` note, threaded for a close's delivery-message override (bl-b9a6).
+/// Field-level changes are NOT carried here (single source of truth, bl-3bfd
+/// §15): a plugin reads them from the change worktree / the `before`/`after`
+/// states, not a second diff description. Its presence (vs the diffless `None`)
+/// marks this a ball-mutating op (§7).
 pub(super) fn command(verb: Verb, flags: &Flags) -> Command {
-    Command { op: verb.token().to_string(), body_change: flags.body.clone() }
+    Command { op: verb.token().to_string(), body_change: flags.body.clone(), message: flags.message.clone() }
 }
 
 /// The single positional `verb` expects (a `create` title, else a task id).

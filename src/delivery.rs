@@ -76,6 +76,12 @@ pub trait Repo {
     /// content beyond it (the bl-65e0 handoff) ABORTS loudly instead of
     /// stranding the work (bl-c231).
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()>;
+    /// The author's substantive `work/<id>` commit messages for the delivery
+    /// message (bl-b9a6): every NON-MERGE commit on `branch` since it forked
+    /// from `integration`, oldest-first. Empty when the branch is absent (never
+    /// worked) or carries only merge folds. Read by [`crate::delivery_message`]
+    /// BEFORE `deliver` runs, so it sees only the author's own commits.
+    fn work_messages(&self, branch: &str, integration: &str) -> io::Result<Vec<String>>;
     /// Is the invocation path (`root`) a git repository at all — BARE (the
     /// common balls deployment) or with a work tree? The delivery PRECONDITION
     /// (bl-4a88): every other act shells out to git against `root`, so a `root`
@@ -93,6 +99,9 @@ pub struct Spec<'a> {
     pub worktree: &'a Path,
     pub branch: &'a str,
     pub subject: &'a str,
+    /// The close's `-m` note, when given — a FULL override of the delivery
+    /// message (bl-b9a6). `None` on every op but a close that carried `-m`.
+    pub override_msg: Option<&'a str>,
     pub marker: &'a str,
 }
 
@@ -104,9 +113,7 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
         // `prime.post` re-materializes per still-claimed ball (the binary loops
         // and calls one dispatch per id) — the same act as a fresh `claim.post`.
         ("claim" | "prime", "post", false) => repo.materialize(spec.worktree, spec.branch),
-        ("close", "pre", false) => {
-            repo.deliver(spec.worktree, spec.branch, &repo.integration()?, spec.subject, spec.marker)
-        }
+        ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec),
         // Every worktree-deleting teardown is the same act — release the
         // worktree directory — whichever deleting op (close.post, unclaim)
         // triggers it.
@@ -245,6 +252,10 @@ pub struct Wire {
     #[serde(default)]
     pub actor: String,
     pub binding: WireBinding,
+    /// The §7 command — read only for its `-m` note, the delivery message
+    /// override (bl-b9a6). Absent on a diffless op, `message` absent without `-m`.
+    #[serde(default)]
+    pub command: Option<WireCommand>,
     #[serde(default)]
     pub metadata: Option<Metadata>,
     #[serde(default)]
@@ -267,6 +278,14 @@ pub struct WireBinding {
 pub struct WireState {
     #[serde(default)]
     pub title: String,
+}
+
+/// The one §7 command field the plugin needs: the `-m` `message`, read as the
+/// FULL delivery message override (bl-b9a6) when a close carried one.
+#[derive(Debug, Default, Deserialize)]
+pub struct WireCommand {
+    #[serde(default)]
+    pub message: Option<String>,
 }
 
 #[cfg(test)]

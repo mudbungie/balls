@@ -104,7 +104,7 @@ fn ingest(edge: &Edge, flags: &Flags, balls: Vec<(String, Task)>) -> io::Result<
     let op = Op {
         actor: flags.actor.clone(),
         remote: flags.remote.clone(),
-        command: Command { op: Verb::Import.token().to_string(), body_change: None },
+        command: Command { op: Verb::Import.token().to_string(), body_change: None, message: None },
     };
     mutate::seal_op(edge, Verb::Import, &op, &base, None)?;
     eprintln!("import {n} ball{}", if n == 1 { "" } else { "s" });
