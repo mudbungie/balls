@@ -1,7 +1,8 @@
 +++
 title = "Scope root_commit computation to create+claim — drop the per-op full-history rev-list walk"
 created = 1782795209
-updated = 1782795209
+updated = 1782795281
+claimant = "Tightens"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["core"]
