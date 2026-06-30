@@ -12,11 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changes
 
 - Scope root_commit compute to create+claim; the full-history rev-list walk (git rev-list --max-parents=0 HEAD) no longer runs on update/unclaim/close. No behavior change — the value was None-equivalent for those verbs. Per docs/design/bl-c3c0-lagging-clone.md Fix 2, follow-up to bl-1ce7. [bl-9bee]
-- Revert bl-2656: bl close must not push the code remote [bl-e3d6]
 - Pave the half-close: kill cosmetic retry error + sharpen hint + lock direction (bl-c3c0 Fix 3) [bl-547f]
 - Per docs/design/bl-c3c0-lagging-clone.md Fix 2. New first-class Task.root_commit, computed once at the CLI boundary (Project::root_commit = git rev-list --max-parents=0 HEAD) and injected like the clock: create stamps it, claim rejects when the ball's recorded root differs from this checkout's, naming both roots. Remote-free identity, NO override — only a definite Some!=Some mismatch rejects; an absent root on either side passes (back-compat / fail-open). Companion to bl-c2bf: the guard runs in core at claim's stage, BEFORE bl-delivery materializes a worktree, so a worktree can no longer land off the wrong main. root_commit is reserved against key=value forging and rides the bedrock JSON round-trip. 100% coverage; architecture.md claim-guard enumeration updated. [bl-1ce7]
 - Add split-work DISCIPLINE norm to bl skill: filing flat IS a parallelism decision; encode stated order as --needs gates because the ball graph is the dispatcher's SSOT, not a design doc [bl-a711]
-- bl close auto-pushes delivered code to origin (fail-soft) [bl-2656]
 - Delete prime's worktree re-materialization (bl-c3c0 Fix 1) [bl-c2bf]
 - Design delivered: docs/design/bl-c3c0-lagging-clone.md. Converged via maintainer dialogue into two bugs + three small fixes (impl balls bl-c2bf/bl-1ce7/bl-547f). Records the problem per the ball's scope. [bl-c3c0]
 - bl close delivery squash drops the work-branch commit body — main commit is only the ball title, losing all rich context [bl-b9a6]
