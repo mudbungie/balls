@@ -34,9 +34,6 @@ impl Repo for FakeRepo {
     fn work_messages(&self, _: &str, _: &str) -> io::Result<Vec<String>> {
         unreachable!("the gate consults only is_git_repo")
     }
-    fn push_integration(&self) -> io::Result<()> {
-        unreachable!("the gate consults only is_git_repo")
-    }
 }
 
 fn gate(op: &str, phase: &str, rolling_back: bool, is_repo: bool) -> io::Result<()> {

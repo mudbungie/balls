@@ -54,10 +54,6 @@ impl Repo for FakeRepo {
     fn is_git_repo(&self) -> io::Result<bool> {
         unreachable!("dispatch never gates on the precondition (see delivery_precondition)")
     }
-    fn push_integration(&self) -> io::Result<()> {
-        self.log("push_integration".into());
-        Ok(())
-    }
 }
 
 fn spec() -> Spec<'static> {
@@ -106,11 +102,8 @@ fn close_pre_resolves_integration_then_delivers() {
 }
 
 #[test]
-fn close_post_releases_then_pushes_the_code_remote() {
-    // bl-2656: teardown THEN the fail-soft code-main push (the twin of the
-    // tracker's store push). unclaim.post (above) stays release-only — only a
-    // delivery propagates to the code remote.
-    assert_eq!(drive("close", "post", false), ["release /wt", "push_integration"]);
+fn close_post_releases() {
+    assert_eq!(drive("close", "post", false), ["release /wt"]);
 }
 
 #[test]

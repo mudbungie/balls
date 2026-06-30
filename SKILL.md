@@ -10,10 +10,9 @@ Git provides sync; there is no server.
 
 **One agent takes a task all the way through: `claim → work → close → done`.**
 There is no `review` step and no separate reviewer — claiming gives you a code
-worktree, and `bl close` delivers it (squashes your work to `main`, then pushes
-`main` to the code remote) and tears the worktree down in one move. Do not stop
-after the work is written; an agent that claims and walks away has not finished
-its job.
+worktree, and `bl close` delivers it (squashes your work to `main`) and tears the
+worktree down in one move. Do not stop after the work is written; an agent that
+claims and walks away has not finished its job.
 
 If you want a split submit/approve flow, add a review gate as an ordinary
 close-blocker subtask (`bl create "review X" --parent X --blocks close`, or a
@@ -155,7 +154,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree (prints its path), take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--edit] [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`, set or clear the `--parent`/`-p` scalar, add (`-t`) or drop (`--no-tag`) a tag, set (`key=value`) or remove (`key=`) a preserved extra, add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. `--edit` (human-only) sources the whole change from `$EDITOR` instead — see below. |
-| `bl close <id> [-m MSG] [--as ID]` | Deliver (fold `main` in, run the repo's pre-commit hook — a failure aborts the close — then squash `work/<id>` to `main`) + archive the task + tear down the worktree + push `main` to the code remote (`origin`), fail-soft: a rejected push warns "push pending" and leaves local ahead, never aborting the close; a no-op without an `origin`. |
+| `bl close <id> [-m MSG] [--as ID]` | Deliver (fold `main` in, run the repo's pre-commit hook — a failure aborts the close — then squash `work/<id>` to `main`) + archive the task + tear down the worktree. |
 | `bl import [--legacy[=REF]] [-m MSG] [--as ID]` | Ingest verbatim task JSON (the `show --json`/`list --json` shape) from stdin — ids and timestamps preserved, one commit, all-or-nothing; an id that already exists refuses the whole stream. `--legacy` instead migrates a pre-greenfield store (preview first with `bl list --legacy`). |
 | `bl skill` | Print this guide (the full manual). |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |

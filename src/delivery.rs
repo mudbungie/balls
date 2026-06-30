@@ -29,6 +29,8 @@
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
+use serde::Deserialize;
+
 use crate::layout::Xdg;
 use crate::message::Metadata;
 
@@ -86,16 +88,6 @@ pub trait Repo {
     /// ([`require_repo`]), a warning on prime.post — instead of git's raw
     /// `fatal: not a git repository` from the first worktree call.
     fn is_git_repo(&self) -> io::Result<bool>;
-    /// `close.post`: propagate the just-delivered integration branch to the
-    /// code repo's `origin` — the symmetric twin of the tracker's store push
-    /// (bl-2656). FAIL-SOFT by construction: `close.pre` already squashed the
-    /// delivery onto LOCAL `main` irreversibly, so a push problem must never
-    /// abort the close or lose the delivery. No `origin` → a silent no-op (the
-    /// structural stealth opt-out, like the store push with no remote); an
-    /// `origin` that rejects (it moved, a history rewrite) → a LOUD "push
-    /// pending" warning and `Ok`, leaving local ahead for the worn
-    /// `git pull --rebase && git push` (no auto-sync — matching bl-c3c0).
-    fn push_integration(&self) -> io::Result<()>;
 }
 
 /// The resolved facts one hook acts on — the derived worktree, its branch, and
@@ -118,16 +110,10 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
     match (op, phase, rolling_back) {
         ("claim", "post", false) => repo.materialize(spec.worktree, spec.branch),
         ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec),
-        // unclaim.post just releases the worktree directory (the branch is kept,
-        // re-creatable — deleting it is deferred to prime, §14).
-        ("unclaim", "post", false) => repo.release(spec.worktree),
-        // close.post releases the worktree too, THEN propagates the delivery to
-        // the code remote (bl-2656) — fail-soft, so a rejected push never aborts
-        // the close (the squash already landed on local main in close.pre).
-        ("close", "post", false) => {
-            repo.release(spec.worktree)?;
-            repo.push_integration()
-        }
+        // Every worktree-deleting teardown is the same act — release the
+        // worktree directory — whichever deleting op (close.post, unclaim)
+        // triggers it.
+        ("close" | "unclaim", "post", false) => repo.release(spec.worktree),
         ("claim", "post", true) => repo.discard(spec.worktree, spec.branch),
         // close.pre rollback DECLINES (§14): the squash is the delivery's
         // BINDING commit point — a standing squash without a sealed close is
@@ -249,11 +235,47 @@ pub fn resolve_id(
     }
 }
 
-// The §7 wire types live in a sibling so this file stays the dispatch POLICY
-// (bl-2656); re-exported so the plugin edge still reads `crate::delivery::Wire`.
-#[path = "delivery_wire.rs"]
-mod wire;
-pub use wire::Wire;
+/// The §7 fields the delivery plugin reads off stdin. balls only ever
+/// serializes the wire ([`crate::wire`]); the plugin owns the matching
+/// deserialize for the slice it needs — `invocation_path` (the project root),
+/// the `bl-id` metadata, the ball `title` for the squash subject, and the
+/// `rolling_back` tag.
+#[derive(Debug, Deserialize)]
+pub struct Wire {
+    pub binding: WireBinding,
+    /// The §7 command — read only for its `-m` note, the delivery message
+    /// override (bl-b9a6). Absent on a diffless op, `message` absent without `-m`.
+    #[serde(default)]
+    pub command: Option<WireCommand>,
+    #[serde(default)]
+    pub metadata: Option<Metadata>,
+    #[serde(default)]
+    pub current_state: Option<WireState>,
+    #[serde(default)]
+    pub rolling_back: Option<String>,
+}
+
+/// The one binding field the plugin needs: where `bl` was invoked (§7/§11) —
+/// the project-repo root the derived worktree paths hang off.
+#[derive(Debug, Deserialize)]
+pub struct WireBinding {
+    pub invocation_path: String,
+}
+
+/// The one ball field the plugin needs: the title, for the squash subject.
+#[derive(Debug, Default, Deserialize)]
+pub struct WireState {
+    #[serde(default)]
+    pub title: String,
+}
+
+/// The one §7 command field the plugin needs: the `-m` `message`, read as the
+/// FULL delivery message override (bl-b9a6) when a close carried one.
+#[derive(Debug, Default, Deserialize)]
+pub struct WireCommand {
+    #[serde(default)]
+    pub message: Option<String>,
+}
 
 #[cfg(test)]
 #[path = "delivery_tests.rs"]
