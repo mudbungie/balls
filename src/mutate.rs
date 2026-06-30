@@ -67,10 +67,14 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let (landing, store) = (clone.landing(), clone.store());
     primed(&landing)?;
 
-    // This checkout's remote-free repo identity (bl-1ce7), read ONCE at the
-    // boundary and injected: `create` stamps it, `claim` rejects a wrong-repo
-    // mismatch against it. `None` off a checkout with no code repo.
-    let root = Project::at(&edge.invocation_path).root_commit();
+    // This checkout's remote-free repo identity (bl-1ce7): `create` stamps it,
+    // `claim` rejects a wrong-repo mismatch against it; the other verbs ignore
+    // it, so skip the full-history root walk for them (bl-9bee). `None` off a
+    // checkout with no code repo.
+    let root = match verb {
+        Verb::Create | Verb::Claim => Project::at(&edge.invocation_path).root_commit(),
+        _ => None,
+    };
     let Some((base, before)) = base_change(verb, &store, &flags, now(), root, editor)? else {
         return Ok(());
     };
