@@ -1,7 +1,8 @@
 +++
 title = "bl close must not push the code remote — revert bl-2656"
 created = 1782794444
-updated = 1782794444
+updated = 1782794488
+claimant = "Mailbombs"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["core", "cicd"]
 +++
