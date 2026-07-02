@@ -35,9 +35,11 @@ fn rich_task() -> Task {
 }
 
 #[test]
-fn show_renders_every_present_field_and_the_body() {
-    let cat = catalog(&[("bl-1", rich_task()), ("bl-kid", child_of("bl-1"))]);
-    let out = dispatch(nostore(), &cat, &flags(false, "bl-1"), &plain(), "").unwrap();
+fn show_renders_every_present_field_the_body_and_the_journal() {
+    let s = git_store();
+    s.create("bl-1", &rich_task(), 100).create("bl-kid", &child_of("bl-1"), 200);
+    let cat = Catalog::load(s.dir()).unwrap();
+    let out = dispatch(s.dir(), &cat, &flags(false, "bl-1"), &plain(), "").unwrap();
     for fragment in [
         "bl-1  Refactor",
         "claimant alice",
@@ -50,6 +52,12 @@ fn show_renders_every_present_field_and_the_body() {
     ] {
         assert!(out.contains(fragment), "missing {fragment:?} in:\n{out}");
     }
+    // The journal (bl-0e16) folds in one paragraph AFTER the body — the
+    // ball's own store history, oldest-first.
+    assert!(
+        out.ends_with("Some body text.\n\n  journal\n    1970-01-01T00:01:40Z  create   t\n"),
+        "journal after the body:\n{out}"
+    );
 }
 
 /// A child pointing at `parent`.
@@ -58,11 +66,16 @@ fn child_of(parent: &str) -> Task {
 }
 
 #[test]
-fn show_omits_absent_optional_fields_blockers_children_and_body() {
-    let cat = catalog(&[("bl-bare", task("Bare", 0))]);
-    let out = dispatch(nostore(), &cat, &flags(false, "bl-bare"), &plain(), "").unwrap();
+fn show_omits_absent_optional_fields_blockers_children_body_and_journal() {
+    // The bare ball's file is live but UNCOMMITTED: no store history yet, so
+    // the journal section is absent too, not an empty header.
+    let s = git_store();
+    s.create("bl-other", &task("Other", 5), 5);
+    crate::taskfile::write_task(s.dir(), "bl-bare", &task("Bare", 0)).unwrap();
+    let cat = Catalog::load(s.dir()).unwrap();
+    let out = dispatch(s.dir(), &cat, &flags(false, "bl-bare"), &plain(), "").unwrap();
     assert!(out.contains("status   ready"));
-    for absent in ["claimant", "priority", "parent", "tags", "blockers", "children"] {
+    for absent in ["claimant", "priority", "parent", "tags", "blockers", "children", "journal"] {
         assert!(!out.contains(absent), "unexpected {absent:?} in:\n{out}");
     }
     // No body ⇒ no trailing blank line + text.
@@ -70,8 +83,22 @@ fn show_omits_absent_optional_fields_blockers_children_and_body() {
 }
 
 #[test]
+fn show_folds_the_journal_after_the_field_block_when_there_is_no_body() {
+    let s = git_store();
+    s.create("bl-1", &task("Bare", 100), 100);
+    let cat = Catalog::load(s.dir()).unwrap();
+    let out = dispatch(s.dir(), &cat, &flags(false, "bl-1"), &plain(), "").unwrap();
+    assert!(
+        out.ends_with("updated  1970-01-01T00:01:40Z\n\n  journal\n    1970-01-01T00:01:40Z  create   t\n"),
+        "one blank line between the block and the journal:\n{out}"
+    );
+}
+
+#[test]
 fn show_json_is_the_bedrock_record_total_with_no_derived_fields() {
     let cat = catalog(&[("bl-1", rich_task()), ("bl-kid", child_of("bl-1"))]);
+    // nostore() doubles as the journal guard: `--json` never walks the store
+    // for history (bl-0e16) — a walk against this path would error.
     let out = dispatch(nostore(), &cat, &flags(true, "bl-1"), &plain(), "").unwrap();
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     // Stored frontmatter round-trips; the i64 timestamp is literal.
@@ -91,12 +118,14 @@ fn show_json_is_the_bedrock_record_total_with_no_derived_fields() {
 fn show_folds_the_read_dispatch_lines_into_the_field_block_not_json() {
     // §6 read dispatch: a wired plugin's captured stdout (the delivery worktree
     // line, §11) is folded verbatim between the field block and the body…
-    let cat = catalog(&[("bl-1", rich_task())]);
-    let out = dispatch(nostore(), &cat, &flags(false, "bl-1"), &plain(), "  worktree /wt/bl-1\n").unwrap();
+    let s = git_store();
+    s.create("bl-1", &rich_task(), 100);
+    let cat = Catalog::load(s.dir()).unwrap();
+    let out = dispatch(s.dir(), &cat, &flags(false, "bl-1"), &plain(), "  worktree /wt/bl-1\n").unwrap();
     assert!(out.contains("  worktree /wt/bl-1\n\nSome body text."), "fold precedes the body:\n{out}");
     // …and `--json` stays the bedrock store mirror whatever the caller passes
     // (reads::run never dispatches for it; this guards the render half).
-    let json = dispatch(nostore(), &cat, &flags(true, "bl-1"), &plain(), "  worktree /wt/bl-1\n").unwrap();
+    let json = dispatch(s.dir(), &cat, &flags(true, "bl-1"), &plain(), "  worktree /wt/bl-1\n").unwrap();
     assert!(!json.contains("worktree"));
 }
 
@@ -113,7 +142,8 @@ fn show_falls_through_to_history_for_a_dead_ball() {
     let mut t = task("Closed work", 100);
     t.priority = Some(2);
     t.body = "what it did".into();
-    s.create("bl-dead", &t, 100).retire("bl-dead", "close", 500);
+    s.create("bl-dead", &t, 100).note("bl-dead", &t, "midway note", 300);
+    s.retire("bl-dead", "close", 500);
     let cat = Catalog::load(s.dir()).unwrap(); // bl-dead is NOT live
 
     let out = dispatch(s.dir(), &cat, &flags(false, "bl-dead"), &plain(), "").unwrap();
@@ -121,13 +151,23 @@ fn show_falls_through_to_history_for_a_dead_ball() {
     assert!(out.contains("status   closed"));
     assert!(out.contains("retired  1970-01-01T00:08:20Z")); // 500s past the epoch
     assert!(out.contains("priority 2"));
-    assert!(out.ends_with("what it did")); // reconstructed body
+    assert!(out.contains("\nwhat it did\n")); // reconstructed body
+    // A closed id renders its journal too (bl-0e16) — the same walk, its
+    // deletion the last entry, the `-m` note under its update line.
+    assert!(
+        out.ends_with(
+            "  journal\n    1970-01-01T00:01:40Z  create   t\n    1970-01-01T00:05:00Z  update   t\n\
+             \x20     midway note\n    1970-01-01T00:08:20Z  close    t\n"
+        ),
+        "dead-ball journal:\n{out}"
+    );
 }
 
 #[test]
 fn show_renders_a_dropped_ball_as_closed() {
     // A `drop` retirement projects as `closed` like any other dead ball — the
     // verb survives only in git history (`bl-op: drop`), not as a status word.
+    // The journal IS that history rendered, so the op shows there and only there.
     let s = git_store();
     s.create("bl-gone", &task("Abandoned", 1), 1).retire("bl-gone", "drop", 9);
     let cat = Catalog::load(s.dir()).unwrap();
@@ -135,6 +175,7 @@ fn show_renders_a_dropped_ball_as_closed() {
     assert!(out.contains("closed   bl-gone  Abandoned"));
     assert!(out.contains("status   closed"));
     assert!(!out.contains("dropped"));
+    assert!(out.contains("  journal\n") && out.contains("drop     t\n"), "{out}");
 }
 
 #[test]

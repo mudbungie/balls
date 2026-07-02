@@ -187,9 +187,24 @@ impl GitStore {
         self
     }
 
+    /// Re-commit `tasks/<id>.md` as an `update` carrying `note` as the §5 free
+    /// body (the `-m` narration the journal renders, §9), restamping `updated`
+    /// so the commit stages a diff — the note-append shape (bl-cf93).
+    pub(crate) fn note(&self, id: &str, task: &Task, note: &str, at: i64) -> &Self {
+        let t = Task { updated: at, ..task.clone() };
+        crate::taskfile::write_task(&self.dir, id, &t).unwrap();
+        self.seal(id, "update", Some(note), at);
+        self
+    }
+
     fn commit(&self, id: &str, op: &str, at: i64) {
+        self.seal(id, op, None, at);
+    }
+
+    fn seal(&self, id: &str, op: &str, note: Option<&str>, at: i64) {
         crate::git::run(&self.dir, &["add", "-A"], None).unwrap();
-        let msg = format!("{op} {id}\n\nbl-protocol: 1\nbl-op: {op}\nbl-id: {id}\nbl-actor: t\n");
+        let body = note.map(|n| format!("{n}\n\n")).unwrap_or_default();
+        let msg = format!("{op} {id}\n\n{body}bl-protocol: 1\nbl-op: {op}\nbl-id: {id}\nbl-actor: t\n");
         let date = format!("@{at} +0000");
         let mut child = Command::new("git")
             .arg("-C")

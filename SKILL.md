@@ -149,7 +149,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 | `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-checkout binding), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--from` the configured upstream (fetched by the `install.pre` tracker), `--to` the landing. A landing-targeted install then binds each plugin the landed schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding per plugin — validated against its live `protocol`; a refusal lands AFTER the sealed copy (the commit is the undo; the retry converges and just binds). Prints `N added / M deleted`. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
-| `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body). A closed id still resolves (reconstructed from history). `--json` is the lossless bedrock record — `bl import` ingests the same shape back. |
+| `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body, journal — the ball's store history with its `-m` notes, oldest-first). A closed id still resolves (reconstructed from history). `--json` is the lossless bedrock record — `bl import` ingests the same shape back. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--subtask-of ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID] [-- TITLE]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. A `--` ends option parsing (getopt; create and update alike), so an untrusted `-`-leading title can't hijack a flag: `bl create -- "$TITLE"`. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree (prints its path), take occupancy. |
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
@@ -204,7 +204,11 @@ bl update <id> -m "waiting on upstream release"
 state changes); `-m` is the append-only journal entry, riding the update
 commit's message on the store branch. There is no `comment` verb and no
 body-append flag — the journal IS git history (`git log -- tasks/<id>.md` in
-the store checkout under `$XDG_STATE_HOME/balls/clones/…/tasks`). A pure-note
+the store checkout under `$XDG_STATE_HOME/balls/clones/…/tasks`), and human
+`bl show <id>` renders it: a `journal` section after the body, oldest-first,
+one entry per store commit — timestamp, op, actor, and the note. Taking over
+a ball, read the prior agent's notes right there; `--json` stays the bedrock
+frontmatter mirror and never carries it (derived — it is history). A pure-note
 update always commits (the `updated` restamp); if truly nothing changed — a
 second write inside the same wall-clock second — the op FAILS rather than drop
 the note. Retry a second later.

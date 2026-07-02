@@ -3,9 +3,10 @@
 //! reconstructed from history. The human view is a labelled field block (only
 //! present fields shown), its derived status badge, its `blockers` edges
 //! annotated by what each gates (§10), the containment children that point at it
-//! (§3 — `parent` is display-only), and the markdown body. `--json` is the
-//! bedrock record. A dead ball renders the same block with its retirement
-//! and deletion date in place of the live status; an id that
+//! (§3 — `parent` is display-only), the markdown body, and the journal — the
+//! ball's store-branch history rendered oldest-first ([`journal`], bl-0e16).
+//! `--json` is the bedrock record. A dead ball renders the same block with its
+//! retirement and deletion date in place of the live status; an id that
 //! resolves to neither a live nor a dead ball is an error.
 
 use std::fmt::Write;
@@ -13,7 +14,7 @@ use std::io;
 use std::path::Path;
 
 use super::history::{resolve_dead, Dead};
-use super::{json_line, task_json, Catalog, Entry, Flags, Style};
+use super::{journal, json_line, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 use crate::task::Task;
 
@@ -31,15 +32,35 @@ pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style
         return Err(io::Error::other(format!("tasks/{id}.md: {err}")));
     }
     match cat.get(id) {
-        Some(e) => Ok(render_live(cat, e, flags, style, folded)),
+        Some(e) => journaled(render_live(cat, e, flags, style, folded), store, id, flags),
         // A `--legacy` miss never falls through to the GREENFIELD store's
         // history — the legacy set is the whole world the flag names (§16).
         None if flags.legacy.is_some() => Err(io::Error::other(format!("no such legacy ball: {id}"))),
         None => match resolve_dead(store, id)? {
-            Some(dead) => Ok(render_dead(&dead, flags, style, folded)),
+            Some(dead) => journaled(render_dead(&dead, flags, style, folded), store, id, flags),
             None => Err(io::Error::other(format!("no such ball: {id}"))),
         },
     }
+}
+
+/// Append the §9 journal fold (bl-0e16) — the store history of this ball's
+/// file, one paragraph after the body, live and dead alike. Human-only, the
+/// worktree-line precedent: the journal is DERIVED (it is history), so bedrock
+/// `--json` never carries it and never pays the walk; `--legacy` reads skip it
+/// too (the projected set's history lives on the legacy ref, not this store).
+fn journaled(mut out: String, store: &Path, id: &str, flags: &Flags) -> io::Result<String> {
+    if flags.json || flags.legacy.is_some() {
+        return Ok(out);
+    }
+    let section = journal::section(store, id)?;
+    if !section.is_empty() {
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push('\n');
+        out.push_str(&section);
+    }
+    Ok(out)
 }
 
 /// Render a live ball: the bedrock record under `--json`, else the human field

@@ -109,7 +109,7 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 | `bl prime [--as ID] [--remote URL] [--center URL] [--install URL]` | Ready this checkout: **founds the substrate on first run** (no separate `init`), then syncs. Re-prints the worktree path of every task you still hold. Run at session start. `--remote`/`--center` both name the store remote (`--remote` wins if both are given). |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
-| `bl show <id> [--json]` | Task detail. A closed id still resolves (reconstructed from history). |
+| `bl show <id> [--json]` | Task detail, journal included (the ball's store history with its `-m` notes, oldest-first — human render only). A closed id still resolves (reconstructed from history). |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID]` | File a task (`--body` sets the markdown body, `-m` the commit note). Prints the new id. |
 | `bl import [--as ID]` | Bulk-create tasks from `--json` bedrock records on stdin — the inverse of `show --json`. Ids and timestamps are ingested verbatim (no minting, stamping, or gating); an existing id is refused (use `update` to modify). For migration, restore, and federation joins (§16). |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree, take occupancy. **Prints the worktree path** to stdout. |
