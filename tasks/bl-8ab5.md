@@ -1,7 +1,7 @@
 +++
 title = "Design: query surface — packaged derived reads over the store (filter, search, age, count), no index"
 created = 1782968223
-updated = 1782968775
+updated = 1782969169
 claimant = "Paint"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
