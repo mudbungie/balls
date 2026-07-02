@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::chore::Bl;
+use crate::plugin::retry_busy;
 
 /// The production [`Bl`]: every chore op is `bl <argv>` run in the project repo.
 pub struct Cli {
@@ -28,7 +29,9 @@ impl Cli {
 
 impl Bl for Cli {
     fn run(&self, cwd: &Path, argv: &[String]) -> io::Result<String> {
-        let out = Command::new(&self.bl).current_dir(cwd).args(argv).output()?;
+        // retry_busy: exec'ing a just-written file races a parallel fork holding
+        // its write-fd (ETXTBSY) — the same transient every core spawn site guards.
+        let out = retry_busy(|| Command::new(&self.bl).current_dir(cwd).args(argv).output())?;
         if out.status.success() {
             return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
         }
