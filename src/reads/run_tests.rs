@@ -28,7 +28,11 @@ fn edge_with(tmp: &TempDir, tasks: &[(&str, Task)]) -> Edge {
 #[test]
 fn run_dispatches_each_read_verb() {
     let tmp = TempDir::new().unwrap();
-    let edge = edge_with(&tmp, &[("bl-1", task("One", 1))]);
+    let edge = edge_with(&tmp, &[]);
+    // `show` walks the store's git history for the journal (bl-0e16), so the
+    // seeded ball rides a real store commit, as in any primed checkout.
+    let gs = test_support::git_store_at(&edge.xdg.clone_dir(&edge.invocation_path).store());
+    gs.create("bl-1", &task("One", 1), 1);
     run(&edge, Verb::List, &[]).unwrap();
     run(&edge, Verb::List, &["--status".into(), "ready".into()]).unwrap();
     run(&edge, Verb::Show, &["bl-1".into()]).unwrap();

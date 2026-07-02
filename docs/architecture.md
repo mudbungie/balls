@@ -760,7 +760,13 @@ ordering was never special. Filters COMPOSE (AND):
 first; on a miss it walks `balls/tasks` history newest→oldest and reconstructs from the most recent
 commit whose tree still holds `tasks/<id>.md`, stopping at the FIRST hit (a dead ball renders with its
 retirement derived from the deletion's `bl-op:` trailer, §5). Closed tasks are searchable content, not
-tombstones — the same most-recent-down walk that `list -s closed/--all` uses.
+tombstones — the same most-recent-down walk that `list -s closed/--all` uses. The HUMAN render also
+folds in the **journal** (bl-0e16): the store-branch history of `tasks/<id>.md`, oldest-first, one
+entry per commit — timestamp, op, actor, and the §5 free-body note (`-m`), never the raw
+envelope/trailers (git itself splits the block — `%(trailers)` subtracted from `%b`, the read-side
+twin of the §5 no-hand-rolled-parser rule). Live and dead ids render it alike (one extra git-log walk
+per human show), so a handoff reads the prior agent's notes in place; like the §11 worktree line, the
+journal is DERIVED (it is history), so bedrock `--json` never carries it and never pays the walk.
 
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`, `conf`**
 (§13, §6, §4).

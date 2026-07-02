@@ -32,6 +32,7 @@ mod catalog;
 mod filter;
 mod flags;
 mod history;
+mod journal;
 pub(crate) mod legacy;
 mod list;
 mod readop;
