@@ -14,7 +14,7 @@ use std::io;
 use std::path::Path;
 
 use super::history::{resolve_dead, Dead};
-use super::{journal, json_line, task_json, Catalog, Entry, Flags, Style};
+use super::{claim_age, journal, json_line, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 use crate::task::Task;
 
@@ -24,7 +24,8 @@ use crate::task::Task;
 /// `folded` is the §6 read-dispatch contribution — wired plugins' captured stdout
 /// (the delivery worktree line, §11) — inserted verbatim into the human field
 /// block; empty under `--json` (which never dispatches) or when nothing printed.
-pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style, folded: &str) -> io::Result<String> {
+/// `now` is the render clock the derived claim-age is measured against (bl-46ef).
+pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style, folded: &str, now: i64) -> io::Result<String> {
     let id = flags.target.as_deref().expect("parser guarantees show has a target");
     // A corrupt ball is PRESENT, not dead (bl-528c): surface its parse error
     // rather than fall through to history and resurrect a stale incarnation.
@@ -32,7 +33,7 @@ pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style
         return Err(io::Error::other(format!("tasks/{id}.md: {err}")));
     }
     match cat.get(id) {
-        Some(e) => journaled(render_live(cat, e, flags, style, folded), store, id, flags),
+        Some(e) => journaled(render_live(cat, e, flags, style, folded, store, now)?, store, id, flags),
         // A `--legacy` miss never falls through to the GREENFIELD store's
         // history — the legacy set is the whole world the flag names (§16).
         None if flags.legacy.is_some() => Err(io::Error::other(format!("no such legacy ball: {id}"))),
@@ -65,21 +66,38 @@ fn journaled(mut out: String, store: &Path, id: &str, flags: &Flags) -> io::Resu
 
 /// Render a live ball: the bedrock record under `--json`, else the human field
 /// block (badge, fields, blockers, children + the folded plugin lines, body).
-fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &str) -> String {
+fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &str, store: &Path, now: i64) -> io::Result<String> {
     if flags.json {
         // `--json` is the bedrock record (§9) — the whole stored file (body
         // included, no derived `children`), identical to a `list` row and
         // re-ingestable by `bl import`. The rich view is the human projection.
-        return json_line(&task_json(&e.id, &e.task));
+        return Ok(json_line(&task_json(&e.id, &e.task)));
     }
     let badge = style.badge(cat.status(e));
     let mut out = header(&badge, &e.id, &e.task);
     field(&mut out, "status", cat.status(e).word());
-    body_block(&mut out, &e.task, |out| {
+    let claimed = claimed_line(e, flags, store, now)?;
+    body_block(&mut out, &e.task, &claimed, |out| {
         kids(out, cat, &child_ids(cat, &e.id), style);
         out.push_str(folded);
     });
-    out
+    Ok(out)
+}
+
+/// The derived `claimed <ISO> (<age> ago)` line a LIVE, currently-claimed ball
+/// hangs under its `claimant` field (bl-46ef) — human-only and store-derived,
+/// so a `--legacy` read (its history lives on the legacy ref, not this store,
+/// §16) skips it, exactly as the journal fold does; `""` for an unclaimed ball
+/// or a claimant with no `bl-op: claim` commit behind it.
+fn claimed_line(e: &Entry, flags: &Flags, store: &Path, now: i64) -> io::Result<String> {
+    if flags.legacy.is_some() || e.task.claimant.is_none() {
+        return Ok(String::new());
+    }
+    let mut line = String::new();
+    if let Some(t) = claim_age::claimed_at(store, &e.id)? {
+        field(&mut line, "claimed", &format!("{} ({} ago)", iso8601(t), claim_age::humanize(now - t)));
+    }
+    Ok(line)
 }
 
 /// Render a dead (history-served) ball: the same bedrock `--json` record (its
@@ -93,9 +111,10 @@ fn render_dead(d: &Dead, flags: &Flags, style: &Style, folded: &str) -> String {
     let mut out = header(&badge, &d.id, &d.task);
     field(&mut out, "status", "closed");
     field(&mut out, "retired", &iso8601(d.retired_at));
-    // Dead balls render no children rollup; a read-dispatch line still folds
-    // (in practice none — a retired ball's worktree is torn down, §11).
-    body_block(&mut out, &d.task, |out| out.push_str(folded));
+    // Dead balls render no children rollup and no claim-age (retirement, not
+    // occupancy, §9); a read-dispatch line still folds (in practice none — a
+    // retired ball's worktree is torn down, §11).
+    body_block(&mut out, &d.task, "", |out| out.push_str(folded));
     out
 }
 
@@ -105,12 +124,15 @@ fn header(badge: &str, id: &str, task: &Task) -> String {
 }
 
 /// The fields, blockers, kind-specific `extra` section, and body common to both
-/// renders. `extra` injects the live children rollup (dead balls pass a no-op).
-fn body_block(out: &mut String, task: &Task, extra: impl FnOnce(&mut String)) {
+/// renders. `extra` injects the live children rollup (dead balls pass a no-op);
+/// `claimed` is the derived claim-age line pushed under `claimant` (`""` for a
+/// dead ball or an unaged live one, bl-46ef).
+fn body_block(out: &mut String, task: &Task, claimed: &str, extra: impl FnOnce(&mut String)) {
     field(out, "created", &iso8601(task.created));
     field(out, "updated", &iso8601(task.updated));
     if let Some(c) = &task.claimant {
         field(out, "claimant", c);
+        out.push_str(claimed);
     }
     if let Some(p) = task.priority {
         field(out, "priority", &p.to_string());

@@ -29,6 +29,7 @@ use crate::task::Status;
 use crate::verb::Verb;
 
 mod catalog;
+mod claim_age;
 mod filter;
 mod flags;
 mod history;
@@ -71,6 +72,11 @@ pub(crate) struct Flags {
     pub since: Option<i64>,
     /// `bl list --until DATE`: upper date bound, inclusive of the whole day.
     pub until: Option<i64>,
+    /// `bl list --claimant NAME`: exact-match predicate over the stored
+    /// `claimant` field (§3) — the last schema axis. `list`-only; applied
+    /// uniformly to live and reconstructed-dead rows, so `-s closed --claimant
+    /// X` answers "what did X deliver".
+    pub claimant: Option<String>,
     /// `--legacy[=REF]` (§16): point this read at the PRE-greenfield JSON store
     /// instead of `tasks/` — the bounded migration shim, projected into the
     /// greenfield wire shape by [`legacy`]. `Some` holds the `<ref>:<dir>` spec
@@ -156,12 +162,14 @@ fn render(edge: &Edge, verb: Verb, flags: &Flags, store: &Path, cfg: &EffectiveC
     let fold =
         |id: Option<&str>| if flags.json { String::new() } else { readop::fold(edge, store, verb, id, cfg, log) };
     match verb {
-        Verb::Show => show::dispatch(store, &cat, flags, &style, &fold(flags.target.as_deref())),
+        // `now` is the render clock the derived claim-age is measured against
+        // (bl-46ef); like the journal walk, it is paid only on the human path.
+        Verb::Show => show::dispatch(store, &cat, flags, &style, &fold(flags.target.as_deref()), log::wall()),
         Verb::List => {
             // The dead set is reconstructed from history only when the reach
             // calls for it — the live-only default never touches git (§9).
             let dead = if flags.reach.dead() { history::dead_balls(store, &cat)? } else { Vec::new() };
-            Ok(list::render_list(&cat, &dead, flags, &style) + &fold(None))
+            Ok(list::render_list(&cat, &dead, flags, &style, store, log::wall())? + &fold(None))
         }
         other => Err(io::Error::other(format!("{}: not a read verb", other.token()))),
     }

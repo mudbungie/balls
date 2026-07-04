@@ -81,6 +81,18 @@ no listing of its own; once primed, read the two sets you care about with
 - **ready** (open, unblocked, unclaimed, highest priority first): `bl list`, or
   `bl list -s ready` for that rung alone.
 - **claimed** (tasks you already own — resume in their worktrees): `bl list -s claimed`.
+  A claimed row hangs its holder's claim-age off the `@claimant` (`@alice (3h)`,
+  coarse minutes/hours/days), so `bl list -s claimed` doubles as the fleet's
+  staleness view.
+
+Filters COMPOSE (AND) and apply to the live set and (with `-s closed`/`--all`)
+the history-reconstructed dead set alike: a positional **NEEDLE** is a
+case-insensitive substring over the title AND body (`bl list delivery`);
+`--claimant NAME` is an exact-match occupancy filter, so `bl list -s closed
+--claimant alice` answers "what did alice deliver". The human render is
+**one row per ball** — count with `bl list -s ready | wc -l`, there is no
+`--count`. Claim-age is a DERIVED, human-only column: `--json` carries stored
+frontmatter alone (no age), so a machine reader derives it itself (below).
 
 The store remote resolves the same way on **every** command: `--remote URL` (a
 per-op override — it is **not** remembered) > the per-checkout stealth sentinel
@@ -148,7 +160,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 | `bl sync [BRANCH] [--as ID] [--remote URL]` | Pull the store from the remote (fetch + fast-forward; the remote resolves `--remote` > `task-remote` > `origin`, like every op). No arg syncs the configured store branch. |
 | `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-checkout binding), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--from` the configured upstream (fetched by the `install.pre` tracker), `--to` the landing. A landing-targeted install then binds each plugin the landed schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding per plugin — validated against its live `protocol`; a refusal lands AFTER the sealed copy (the commit is the undo; the retry converges and just binds). Prints `N added / M deleted`. |
-| `bl list [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--json]` | List tasks. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. |
+| `bl list [NEEDLE] [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--claimant NAME] [--since D] [--until D] [--json]` | List tasks, **one row per ball**. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. Filters compose (AND): `NEEDLE` = case-insensitive substring over title+body; `--claimant` = exact holder. A claimed row shows its claim-age (`@who (3h)`, human render only). |
 | `bl show <id> [--json]` | Task detail (always full: fields, blockers, children, body, journal — the ball's store history with its `-m` notes, oldest-first). A closed id still resolves (reconstructed from history). `--json` is the lossless bedrock record — `bl import` ingests the same shape back. |
 | `bl create "TITLE" [--body B] [-p N] [-t TAG] [--parent ID] [--subtask-of ID] [--needs ID[:OP]] [--blocks OP\|ID:OP] [-m MSG] [--as ID] [-- TITLE]` | File a task (`--body` sets the markdown body; `-m` the commit note). Prints the new id. A `--` ends option parsing (getopt; create and update alike), so an untrusted `-`-leading title can't hijack a flag: `bl create -- "$TITLE"`. |
 | `bl claim <id> [--as ID]` | Start work: materialize the `work/<id>` worktree (prints its path), take occupancy. |
@@ -162,7 +174,19 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 > **For agents:** the human-facing output of `list`/`show` uses status
 > glyphs and color on a tty. Always prefer `--json` for parsing — it is the
 > **bedrock** projection (raw stored frontmatter, literal integer timestamps, no
-> derived fields), the supported machine contract.
+> derived fields), the supported machine contract. The list flags cover the
+> everyday questions; for arbitrary composition, `jq` over `--json` is the
+> sanctioned path (no `--where`/`--sort`/`--count` in core). Blessed idioms:
+>
+> ```
+> bl list -s ready --json | jq -r '.[].id'                 # just the ids
+> bl list --all --json | jq 'group_by(.claimant)|map({(.[0].claimant//"—"):length})'  # counts by holder
+> bl list -s claimed --json | jq -r '.[]|select(.claimant=="alice").id'  # alice's held ids
+> ```
+>
+> Claim-age is derived, so it is NOT in `--json`; a reaper/dispatcher derives it
+> straight from the store checkout — the newest `bl-op: claim` commit's time:
+> `git -C "$XDG_STATE_HOME/balls/clones/…/tasks" log -1 --format=%ct --grep='^bl-op: claim$' -- tasks/<id>.md`.
 >
 > **Output streams:** stdout carries a verb's one product and nothing else:
 > `create` prints the minted id (so `id=$(bl create "…")` captures it clean),

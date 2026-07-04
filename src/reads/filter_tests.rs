@@ -49,6 +49,16 @@ fn text_filter_is_a_case_insensitive_substring_of_title_or_body() {
 }
 
 #[test]
+fn claimant_filter_is_an_exact_match_on_the_stored_field() {
+    let mut held = task("Held", 1);
+    held.claimant = Some("alice".into());
+    let q = |name: &str| Flags { claimant: Some(name.into()), ..Default::default() };
+    assert!(matches(&held, 1, &q("alice")));
+    assert!(!matches(&held, 1, &q("alic"))); // exact — not a substring
+    assert!(!matches(&task("Unheld", 1), 1, &q("alice"))); // no claimant ⇒ out
+}
+
+#[test]
 fn the_filters_compose_with_and() {
     let t = tagged("Build the API", "with rate limiting", 100, &["api"]);
     // All three satisfied.
