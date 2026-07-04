@@ -23,6 +23,37 @@ fn render_emits_subject_body_and_the_core_trailers() {
 }
 
 #[test]
+fn a_body_without_a_trailing_newline_still_seals_a_parseable_bl_id() {
+    // bl-5066: `render` must hand `interpret-trailers` a newline-terminated
+    // body. Without it, old git (≤2.43) fuses the appended trailer block onto
+    // the last body paragraph — no blank-line separator — so `--parse` finds no
+    // block and the sealed `bl-id` is lost, panicking `sealed_id`. This body
+    // ends WITHOUT a newline, the exact shape that regressed; the fix keeps the
+    // trailer block its own blank-line-separated paragraph on every git version.
+    let msg = Message {
+        body: Some("Final line, no newline".into()),
+        ..task_msg()
+    };
+    let text = msg.render().unwrap();
+    assert!(text.contains("Final line, no newline\n\nbl-protocol: 1"));
+    assert_eq!(parse(&text).unwrap()["bl-id"], ["bl-1234"]);
+}
+
+#[test]
+fn a_body_that_already_ends_in_a_newline_seals_one_clean_trailer_block() {
+    // The `render` newline guard is conditional (append only if absent), so a
+    // body that already ends in a newline round-trips without a doubled blank
+    // line collapsing the block (bl-5066).
+    let msg = Message {
+        body: Some("Trailing newline body\n".into()),
+        ..task_msg()
+    };
+    let md = parse(&msg.render().unwrap()).unwrap();
+    assert_eq!(md["bl-id"], ["bl-1234"]);
+    assert_eq!(md["bl-op"], ["close"]);
+}
+
+#[test]
 fn core_trailers_render_in_protocol_op_id_actor_order() {
     let text = task_msg().render().unwrap();
     let pos = |k: &str| text.find(k).unwrap();

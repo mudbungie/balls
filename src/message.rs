@@ -71,6 +71,15 @@ impl Message {
             input.push_str("\n\n");
             input.push_str(body);
         }
+        // `interpret-trailers` only inserts the blank-line separator before the
+        // appended block when its input ends in a newline. Old git (≤2.43)
+        // otherwise fuses the trailers onto the last body paragraph, so the
+        // sealed commit carries no parseable trailer block and `bl-id` is lost
+        // (bl-5066). Newer git (2.53+) separates regardless; the trailing
+        // newline makes it deterministic on every version.
+        if !input.ends_with('\n') {
+            input.push('\n');
+        }
 
         let mut trailers = vec![
             format!("bl-protocol={PROTOCOL}"),
