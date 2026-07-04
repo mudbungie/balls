@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6](https://github.com/mudbungie/balls/compare/v0.5.5...v0.5.6) - 2026-07-04
+
+### Changes
+
+- mutating ops panicked on old git (2.43) — interpret-trailers dropped the bl-id trailer without a trailing-newline input. [bl-5066]
+- IMPLEMENTED (Jiggered). Human bl show now folds a 'journal' section after the body: store-branch history of tasks/<id>.md, oldest-first, one entry per commit — timestamp, op, actor, and the §5 free-body note — live and dead ids alike. New src/reads/journal.rs: one git-log walk per human show; the note is %b minus git's own %(trailers) block (no hand-rolled trailer parser, §5 read-side twin); non-balls commits fall back to git author + whole body. Worktree-line precedent held: --json never carries it and never pays the walk; --legacy skips it. Docs: SKILL.md, README.md, architecture.md §9. 100% coverage, clippy clean, 655 tests pass. [bl-0e16]
+- Delivered docs/design/bl-5b09-capability-distribution.md (PROPOSED): [source] hints in plugins.toml decorate existing refusal moments; install dangling-report + conf unbound section as independent honesty fixes; no auto-fetch ever. Convergence dialogue tracked as bl-f338. (First close attempt aborted on the chore_cli ETXTBSY flake — fixed and delivered as bl-6cd9.) [bl-5b09]
+- Wrapped Cli::run's Command::output in retry_busy (the plugin_io.rs bounded ETXTBSY retry all core spawn sites use). 25/25 stress runs clean vs ~1-in-5 flake before. [bl-6cd9]
+- dispatch and signaling — poll floor + optional pokes, zero core change [bl-6c84]
+
 ## [0.5.5](https://github.com/mudbungie/balls/compare/v0.5.4...v0.5.5) - 2026-06-30
 
 ### Changes
