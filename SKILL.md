@@ -332,6 +332,21 @@ changes.
   that tears down the worktree (uncommitted work dies with it; work COMMITTED on
   `work/<id>` survives and a later close delivers it — discard that explicitly
   with `git branch -D work/<id>`).
+- **Orphan takeover** (a claimant that is a dead agent, not you): staleness is
+  read, not stored — `bl list -s claimed`'s claim-age column is the dashboard
+  for spotting one; any "how old is too old" threshold is the operator's
+  policy, core never reaps on its own. **Same box as the dead agent:** commit
+  any uncommitted WIP sitting in its worktree, then `bl unclaim <id>`, then
+  re-`bl claim <id>` — `unclaim` checks NO identity (that openness is what
+  makes recovery possible at all; the guarded direction is `claim`, which
+  refuses an already-claimed ball), and the kept `work/<id>` branch carries the
+  committed WIP into the new claim. **A different box:** `unclaim` frees the
+  ball fleet-wide, but the dead box's worktree and `work/<id>` branch are
+  machine-local — committed WIP is stranded there until that box's own `prime`
+  prunes it, and uncommitted WIP is unreachable and lost; commit early. Either
+  way, a takeover **unclaims, never closes** — closing would deliver the dead
+  agent's half-finished work (same box) or archive the task away from its
+  still-stranded WIP (a different box).
 - `update` overwrites **every** ball field — there is no create-only split.
   `--title`/`--body` retitle and rewrite the markdown body; `--parent`/`-p` set a
   scalar and `--no-parent`/`--no-priority` clear it; `-t`/`--no-tag` add or drop a
