@@ -23,7 +23,7 @@
 //! The delivery plugin's `<invocation-path>/<id>/` is the lone exception: it
 //! MIRRORS the path rather than encoding it, because that subtree is a `cargo`
 //! build dir and `rust-lld` chokes on a `%` in an output path (bl-f3e4 — see
-//! [`crate::delivery::binding_territory`]).
+//! [`crate::delivery_path::binding_territory`]).
 
 use crate::encoding::percent_encode;
 use std::path::{Path, PathBuf};

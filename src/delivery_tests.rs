@@ -132,36 +132,6 @@ fn an_integration_failure_aborts_a_close() {
 }
 
 #[test]
-fn worktree_path_mirrors_the_invocation_path_for_a_cargo_safe_dir() {
-    let xdg = Xdg::with(Path::new("/home/me"), None, Some("/st"));
-    let p = worktree_path(&xdg, "delivery", "/home/me/dev/proj", "bl-f813");
-    // The code worktree MIRRORS the invocation path (no percent-encoding): a `%`
-    // ancestor breaks `rust-lld`'s output paths (bl-f3e4). The leading `/` is
-    // stripped so it nests under the territory; the result has no `%`.
-    assert_eq!(
-        p,
-        Path::new("/st/balls/plugins/delivery/home/me/dev/proj/bl-f813")
-    );
-    assert!(!p.to_string_lossy().contains('%'));
-}
-
-#[test]
-fn work_branch_is_the_branch_half_of_the_worktree_pair() {
-    let xdg = Xdg::with(Path::new("/home/me"), None, Some("/st"));
-    // The branch and path derive from the same `<id>` key through the one pair
-    // of helpers — the convergence §11 claimant-keying will edit in one place.
-    assert_eq!(work_branch("bl-f813"), "work/bl-f813");
-    let p = worktree_path(&xdg, "delivery", "/home/me/dev/proj", "bl-f813");
-    assert_eq!(work_branch("bl-f813"), format!("work/{}", p.file_name().unwrap().to_str().unwrap()));
-}
-
-#[test]
-fn subject_and_marker_carry_the_delivery_tag() {
-    assert_eq!(subject("Refactor foo", "bl-f813"), "Refactor foo [bl-f813]");
-    assert_eq!(marker("bl-f813"), "[bl-f813]");
-}
-
-#[test]
 fn resolve_id_prefers_the_sealed_metadata_trailer() {
     let mut md = Metadata::new();
     md.insert("bl-id".into(), vec!["bl-abc1".into()]);
@@ -229,54 +199,4 @@ fn protocol_self_description_lists_every_hooked_op() {
     let v: serde_json::Value = serde_json::from_str(PROTOCOL_JSON).unwrap();
     assert_eq!(v["protocol"], serde_json::json!([1]));
     assert_eq!(v["ops"], serde_json::json!(["claim", "unclaim", "close", "prime", "show"]));
-}
-
-#[test]
-fn binding_territory_is_the_parent_of_every_worktree() {
-    let xdg = Xdg::with(Path::new("/home/me"), None, Some("/st"));
-    let territory = binding_territory(&xdg, "delivery", "/home/me/dev/proj");
-    assert_eq!(territory, worktree_path(&xdg, "delivery", "/home/me/dev/proj", "bl-x").parent().unwrap());
-}
-
-#[test]
-fn wire_deserializes_the_slice_the_plugin_needs() {
-    let json = r#"{
-        "protocol": 1, "op": "close", "phase": "post", "plugin_name": "delivery",
-        "actor": "me", "binding": {"branch": "balls", "store": "/s", "invocation_path": "/proj"},
-        "command": {"op": "close", "message": "Full override [bl-f813]"},
-        "current_state": {"title": "Refactor foo", "created": 0, "updated": 0},
-        "metadata": {"bl-id": ["bl-f813"]}, "commit": "c", "previous_commit": "p"
-    }"#;
-    let wire: Wire = serde_json::from_str(json).unwrap();
-    // The wire still carries `actor` (core writes it); the delivery slice no
-    // longer reads it (bl-c2bf), so an unknown-to-us field is tolerated.
-    assert_eq!(wire.binding.invocation_path, "/proj");
-    assert_eq!(wire.current_state.unwrap().title, "Refactor foo");
-    // The `-m` note rides the command for the delivery-message override (bl-b9a6).
-    assert_eq!(wire.command.unwrap().message.as_deref(), Some("Full override [bl-f813]"));
-    assert_eq!(wire.metadata.unwrap()["bl-id"], ["bl-f813"]);
-    assert!(wire.rolling_back.is_none());
-}
-
-#[test]
-fn wire_tolerates_a_minimal_pre_payload_and_a_rollback_tag() {
-    let json = r#"{"binding": {"invocation_path": "/p"}, "rolling_back": "pre"}"#;
-    let wire: Wire = serde_json::from_str(json).unwrap();
-    assert_eq!(wire.rolling_back.as_deref(), Some("pre"));
-    assert!(wire.metadata.is_none());
-    assert!(wire.current_state.is_none());
-    assert!(wire.command.is_none()); // no command on this slice → no override
-}
-
-#[test]
-fn ensure_safe_invocation_path_admits_clean_absolute_paths() {
-    assert!(ensure_safe_invocation_path("/home/mark/dev/balls").is_ok());
-    // A literal `..`-prefixed filename (no separator) is fine — it cannot escape.
-    assert!(ensure_safe_invocation_path("/home/mark/..foo").is_ok());
-}
-
-#[test]
-fn ensure_safe_invocation_path_rejects_relative_and_dotdot() {
-    assert!(ensure_safe_invocation_path("home/mark/dev").is_err()); // not absolute
-    assert!(ensure_safe_invocation_path("/home/../../etc").is_err()); // `..` traversal
 }

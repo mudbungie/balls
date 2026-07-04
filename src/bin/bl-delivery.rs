@@ -12,9 +12,11 @@ use std::io::{self, Read};
 use std::path::Path;
 use std::process::exit;
 
-use balls::delivery::{self, Repo, Spec, Wire};
+use balls::delivery::{self, Repo, Spec};
+use balls::delivery_path;
 use balls::delivery_precondition::{precondition_unmet, require_repo};
 use balls::delivery_repo::{changed_task_paths, Project};
+use balls::delivery_wire::Wire;
 use balls::layout::Xdg;
 
 fn main() {
@@ -39,7 +41,7 @@ fn run(args: &[String]) -> io::Result<()> {
     let mut stdin = String::new();
     io::stdin().read_to_string(&mut stdin)?;
     let wire: Wire = serde_json::from_str(&stdin).map_err(io::Error::other)?;
-    delivery::ensure_safe_invocation_path(&wire.binding.invocation_path)?;
+    delivery_path::ensure_safe_invocation_path(&wire.binding.invocation_path)?;
 
     let plugin = var("BALLS_PLUGIN_NAME")?;
     let home = var("HOME")?;
@@ -58,13 +60,13 @@ fn run(args: &[String]) -> io::Result<()> {
     let cwd = env::current_dir()?;
     let id = delivery::resolve_id(wire.metadata.as_ref(), || changed_task_paths(&cwd))?;
 
-    let worktree = delivery::worktree_path(&xdg, &plugin, invocation, &id);
-    let branch = delivery::work_branch(&id);
+    let worktree = delivery_path::worktree_path(&xdg, &plugin, invocation, &id);
+    let branch = delivery_path::work_branch(&id);
     let rolling_back = wire.rolling_back.is_some();
 
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
-    let subject = delivery::subject(title, &id);
-    let marker = delivery::marker(&id);
+    let subject = delivery_path::subject(title, &id);
+    let marker = delivery_path::marker(&id);
     // bl-b9a6: a close's `-m` note overrides the delivery message in full.
     let override_msg = wire.command.as_ref().and_then(|c| c.message.as_deref());
     let spec = Spec {

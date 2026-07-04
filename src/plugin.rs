@@ -227,6 +227,9 @@ impl Plugins for Subprocess<'_> {
 #[path = "plugin_tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "plugin_describe_tests.rs"]
+mod describe_tests;
+#[cfg(test)]
 #[path = "plugin_feed_tests.rs"]
 mod feed_tests;
 #[cfg(test)]
