@@ -1,5 +1,6 @@
-//! The `bl list` compose-AND filters (§9) — tag-subset, date-window, and
-//! text-substring, applied UNIFORMLY to the (possibly history-served) row set.
+//! The `bl list` compose-AND filters (§9) — tag-subset, date-window,
+//! text-substring, and exact `claimant`, applied UNIFORMLY to the (possibly
+//! history-served) row set.
 //! Each predicate is independent and ANDed: a row survives only if it satisfies
 //! every active filter. An absent filter is a vacuous pass, so the unfiltered
 //! `list` keeps its whole set.
@@ -16,7 +17,21 @@ use crate::task::Task;
 /// activity date — its stored `updated` when live, its deletion-commit date when
 /// dead (§9) — paired with `created` for the date window.
 pub(crate) fn matches(task: &Task, updated: i64, flags: &Flags) -> bool {
-    has_tags(task, flags) && in_window(task.created, updated, flags) && has_text(task, flags)
+    has_tags(task, flags)
+        && in_window(task.created, updated, flags)
+        && has_text(task, flags)
+        && has_claimant(task, flags)
+}
+
+/// The ball's stored `claimant` equals the requested `--claimant` (EXACT — a
+/// claimant is an `--as` identity, not prose, so no substring). No `--claimant`
+/// ⇒ a vacuous pass. Applied uniformly to live and dead rows, so `-s closed
+/// --claimant X` answers "what did X deliver".
+fn has_claimant(task: &Task, flags: &Flags) -> bool {
+    match &flags.claimant {
+        None => true,
+        Some(want) => task.claimant.as_deref() == Some(want.as_str()),
+    }
 }
 
 /// Every requested `--tag` is present on the ball (AND-subset). No `--tag` ⇒ a

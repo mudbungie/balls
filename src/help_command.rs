@@ -99,18 +99,20 @@ pub(crate) fn command_help(verb: Verb) -> CommandHelp {
             examples: &["bl show bl-1a2b", "bl show bl-1a2b --json"],
         },
         Verb::List => CommandHelp {
-            usage: "bl list [-s ready|blocked|claimed|closed] [--all] [--tag T] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json] [--plain] [--legacy]",
+            usage: "bl list [NEEDLE] [-s ready|blocked|claimed|closed] [--all] [--tag T] [--claimant NAME] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json] [--plain] [--legacy]",
             flags: &[
+                ("NEEDLE", "case-insensitive substring over the title AND body (one positional)"),
                 ("-s, --status RUNG", "filter to one status (ready|blocked|claimed|closed)"),
                 ("--all", "include closed tasks (live + dead)"),
                 ("--tag T", "filter by tag (repeatable, AND)"),
+                ("--claimant NAME", "filter to tasks held by NAME (exact); a claimed row shows its claim-age"),
                 ("--since YYYY-MM-DD", "tasks updated on or after the date"),
                 ("--until YYYY-MM-DD", "tasks updated on or before the date"),
-                ("--json", "lossless machine records"),
+                ("--json", "lossless machine records (stored frontmatter only; no derived age)"),
                 ("--plain", "no color or status glyphs"),
                 ("--legacy[=REF]", "preview a legacy store's live set"),
             ],
-            examples: &["bl list -s ready", "bl list -s claimed"],
+            examples: &["bl list -s ready", "bl list delivery", "bl list -s closed --claimant alice"],
         },
         Verb::Prime => CommandHelp {
             usage: "bl prime [--as ID] [--remote URL] [--center URL] [--install CENTER] [--stealth]",

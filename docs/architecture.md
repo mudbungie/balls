@@ -753,8 +753,23 @@ ordering was never special. Filters COMPOSE (AND):
 - `--all` — reach BOTH sets (live + dead). Closed balls are not gone, they are older content (§2):
   reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down. `-s closed` = dead
   only; `--all` = live + dead. (`-s closed` and `--all` both pick the dead set, so they don't combine.)
-- date/range, `--tag`, and text filters — applied uniformly to the (possibly history-served) set;
-  date filters read the stored `created`/`updated` (and, for a dead ball, its deletion-commit date).
+- date/range, `--tag`, text (positional `NEEDLE`, case-insensitive substring over title AND body),
+  and `--claimant NAME` (exact-match over the stored `claimant`) filters — applied uniformly to the
+  (possibly history-served) set; date filters read the stored `created`/`updated` (and, for a dead
+  ball, its deletion-commit date). Every predicate reads STORED frontmatter alone (§3), so the flag
+  axes are bounded by the schema — status, tags, date-window, text, claimant — and then COMPLETE; a
+  filter over a DERIVED fact (e.g. a `--stale-over` age threshold) is refused on principle (that
+  staleness policy is the liveness plugin's, bl-1e98). Composition beyond the axes is `jq` over
+  bedrock `--json`, not a `--where`/`--sort`/`--count` grown into core.
+- A live CLAIMED row also carries a DERIVED claim-age hung off its `@claimant` (`@alice (3h)`, coarse
+  minutes/hours/days), so `bl list -s claimed` is the fleet's staleness dashboard; human `show` folds
+  the same fact as a `claimed <ISO> (<age> ago)` line under the claimant field. Claim-age is NOT stored
+  (bl-46ef): it is the timestamp of the newest commit touching `tasks/<id>.md` whose §5 trailer is
+  `bl-op: claim` (`git log -1 --grep='^bl-op: claim$'` against the store checkout — newest-wins resolves
+  an unclaim/reclaim cycle to the live claim, §9 recency). Like the §11 worktree line and the journal,
+  it is a HUMAN-render column only: bedrock `--json` stays the stored-frontmatter mirror and never pays
+  the walk, the machine reader derives age from the store by the same one-liner. The walk is paid only
+  per live claimed row that renders (dead rows render retirement, not claim-age).
 
 **`show <id>`** resolves by RECENCY (the unifying discipline, § id generation): live `tasks/<id>.md`
 first; on a miss it walks `balls/tasks` history newest→oldest and reconstructs from the most recent

@@ -1,7 +1,7 @@
 //! Read-verb flag parsing — `[--json] [--plain]` for every read, plus the
 //! `list`-only filters (§9): `--status`/`-s` (one axis over every §3 rung,
 //! `closed` included — it INFERS the dead-set reach), the `--all` reach, and the
-//! compose-AND `--tag`/`--since`/`--until` history filters. Every `list` filter
+//! compose-AND `--tag`/`--since`/`--until`/`--claimant` filters. Every `list` filter
 //! is gated on `verb == List`; on any other read it falls through to the
 //! unknown-flag arm, so `show` rejects them.
 
@@ -25,6 +25,7 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
             "--status" | "-s" if verb == Verb::List => apply_status(&mut f, value(&mut args, "--status")?)?,
             "--all" if verb == Verb::List => set_reach(&mut f, Reach::All)?,
             "--tag" if verb == Verb::List => f.tags.push(value(&mut args, "--tag")?.clone()),
+            "--claimant" if verb == Verb::List => f.claimant = Some(value(&mut args, "--claimant")?.clone()),
             "--since" if verb == Verb::List => f.since = Some(date(value(&mut args, "--since")?)?),
             // `--until` bounds the whole named day: its last second is inclusive.
             "--until" if verb == Verb::List => f.until = Some(date(value(&mut args, "--until")?)? + 86_399),

@@ -149,6 +149,15 @@ fn parse_collects_repeatable_tags_and_the_text_needle() {
 }
 
 #[test]
+fn parse_reads_the_claimant_filter() {
+    let f = list(&["--claimant", "alice"]).unwrap();
+    assert_eq!(f.claimant.as_deref(), Some("alice"));
+    assert!(list(&["--claimant"]).is_err()); // missing value
+    // `--claimant` is list-only — show rejects it as an unknown flag.
+    assert!(parse(Verb::Show, &["bl-1".into(), "--claimant".into(), "alice".into()]).is_err());
+}
+
+#[test]
 fn parse_reads_the_date_window_with_an_inclusive_until() {
     let f = list(&["--since", "2026-01-01", "--until", "2026-01-01"]).unwrap();
     let start = crate::civil::start_of_day("2026-01-01").unwrap();

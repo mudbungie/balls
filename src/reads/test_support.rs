@@ -187,6 +187,17 @@ impl GitStore {
         self
     }
 
+    /// Commit `tasks/<id>.md` as a `claim` at unix `at` — the §5 `bl-op: claim`
+    /// trailer the claim-age walk reads back (bl-46ef). Restamps `updated` so a
+    /// claim after a same-content create/note always stages a diff; the caller
+    /// sets `claimant` on `task`.
+    pub(crate) fn claim(&self, id: &str, task: &Task, at: i64) -> &Self {
+        let t = Task { updated: at, ..task.clone() };
+        crate::taskfile::write_task(&self.dir, id, &t).unwrap();
+        self.commit(id, "claim", at);
+        self
+    }
+
     /// Re-commit `tasks/<id>.md` as an `update` carrying `note` as the §5 free
     /// body (the `-m` narration the journal renders, §9), restamping `updated`
     /// so the commit stages a diff — the note-append shape (bl-cf93).

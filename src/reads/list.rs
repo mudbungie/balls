@@ -10,11 +10,13 @@
 //! special — and display-only: it never enters the `ready()` predicate (§3/§10).
 
 use std::fmt::Write;
+use std::io;
+use std::path::Path;
 
 use serde_json::Value;
 
 use super::history::Dead;
-use super::{filter, json_line, task_json, Catalog, Entry, Flags, Style};
+use super::{claim_age, filter, json_line, task_json, Catalog, Entry, Flags, Style};
 use crate::task::Task;
 
 /// One listed row — a live catalog [`Entry`] or a history-reconstructed [`Dead`]
@@ -47,7 +49,9 @@ impl Row<'_> {
 /// `bl list` — the live set (or one `--status` rung), plus the reconstructed
 /// `dead` set when the reach calls for it, every row filtered and §10-ordered.
 /// `--json` emits the array of bedrock objects; otherwise one badge line each.
-pub(crate) fn render_list(cat: &Catalog, dead: &[Dead], flags: &Flags, style: &Style) -> String {
+/// `store`/`now` feed the derived claim-age on live claimed rows (human render
+/// only, bl-46ef); the `--json` and unclaimed/dead paths never walk the store.
+pub(crate) fn render_list(cat: &Catalog, dead: &[Dead], flags: &Flags, style: &Style, store: &Path, now: i64) -> io::Result<String> {
     let mut rows: Vec<Row> = Vec::new();
     if flags.reach.live() {
         // The status filter is the LIVE ladder alone (§9); dead balls left no rung.
@@ -65,7 +69,7 @@ pub(crate) fn render_list(cat: &Catalog, dead: &[Dead], flags: &Flags, style: &S
         );
     }
     rows.sort_by(|a, b| order_key(a).cmp(&order_key(b)));
-    render(cat, &rows, flags, style)
+    render(cat, &rows, flags, style, store, now)
 }
 
 /// The §10 display order of a row: `(absent-priority, priority, created, id)`.
@@ -76,17 +80,36 @@ fn order_key<'a>(r: &'a Row) -> (bool, i64, i64, &'a str) {
     (t.priority.is_none(), t.priority.unwrap_or(0), t.created, r.id())
 }
 
-/// Render `rows` either as the `--json` array or as badge lines.
-fn render(cat: &Catalog, rows: &[Row], flags: &Flags, style: &Style) -> String {
+/// Render `rows` either as the `--json` array or as badge lines. `--json`
+/// returns before any store walk — it stays the bedrock stored-frontmatter
+/// mirror (§3), so the derived age is a human-render column alone (bl-46ef).
+fn render(cat: &Catalog, rows: &[Row], flags: &Flags, style: &Style, store: &Path, now: i64) -> io::Result<String> {
     if flags.json {
         let arr: Vec<Value> = rows.iter().map(|r| task_json(r.id(), r.task())).collect();
-        return json_line(&Value::Array(arr));
+        return Ok(json_line(&Value::Array(arr)));
     }
     let mut out = String::new();
     for r in rows {
-        out.push_str(&line(&badge(cat, r, style), r.id(), r.task()));
+        let age = age_hint(r, flags, store, now)?;
+        out.push_str(&line(&badge(cat, r, style), r.id(), r.task(), &age));
     }
-    out
+    Ok(out)
+}
+
+/// The ` (<age>)` suffix a LIVE claimed row hangs on its `@claimant` — the
+/// claim's age in one coarse unit (§9 derived, human render only). Everything
+/// else yields `""` AND pays no walk: a dead row renders retirement not
+/// claim-age, an unclaimed row has no claimant to hang it on, and a `--legacy`
+/// read's history lives on the legacy ref, not this store (§16). A claimed row
+/// with no claim commit behind it (hand-set claimant) also renders bare.
+fn age_hint(r: &Row, flags: &Flags, store: &Path, now: i64) -> io::Result<String> {
+    let Row::Live(e) = r else { return Ok(String::new()) };
+    if flags.legacy.is_some() || e.task.claimant.is_none() {
+        return Ok(String::new());
+    }
+    let hint = claim_age::claimed_at(store, &e.id)?
+        .map_or(String::new(), |t| format!(" ({})", claim_age::humanize(now - t)));
+    Ok(hint)
 }
 
 /// The badge for a row: the live status ladder, or the dead `closed` word/glyph.
@@ -98,14 +121,16 @@ fn badge(cat: &Catalog, r: &Row, style: &Style) -> String {
 }
 
 /// One human row: `<badge> <id>  <title>` plus a `pN` priority hint and an
-/// `@claimant` occupancy hint when present.
-fn line(badge: &str, id: &str, task: &Task) -> String {
+/// `@claimant` occupancy hint when present. `age` is the derived claim-age
+/// suffix (` (3h)`) for a live claimed row, `""` otherwise — it rides the
+/// claimant, not a free-floating column (bl-46ef).
+fn line(badge: &str, id: &str, task: &Task, age: &str) -> String {
     let mut row = format!("{badge} {id}  {}", task.title);
     if let Some(p) = task.priority {
         let _ = write!(row, "  p{p}");
     }
     if let Some(c) = &task.claimant {
-        let _ = write!(row, "  @{c}");
+        let _ = write!(row, "  @{c}{age}");
     }
     row.push('\n');
     row
