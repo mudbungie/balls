@@ -29,11 +29,19 @@ jobs:
         with:
           tool: cargo-tarpaulin
 
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
       - name: cargo test
         run: cargo test --all-targets
 
       - name: cargo clippy
         run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo audit
+        run: cargo audit
 
       - name: line-length check
         run: bash scripts/check-line-lengths.sh
