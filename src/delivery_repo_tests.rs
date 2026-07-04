@@ -141,6 +141,9 @@ fn root_commit_is_the_seed_root_or_none_off_a_non_repo() {
     let r = p.root_commit().expect("a committed repo has a root");
     let seed = Project::run(&root, &["rev-parse", "HEAD"]).unwrap().trim().to_string();
     assert_eq!(r, seed, "the sole commit is the root");
+    // A single-root repo's SET is exactly that seed (the canonical stamp = line 1).
+    assert_eq!(p.root_commits(), vec![seed]);
     let outside = TempDir::new().unwrap(); // not a git repo
     assert!(Project::at(outside.path()).root_commit().is_none());
+    assert!(Project::at(outside.path()).root_commits().is_empty());
 }

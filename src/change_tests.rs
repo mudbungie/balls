@@ -60,22 +60,70 @@ fn unclaim_clears_the_claimant() {
 
 #[test]
 fn guard_repo_rejects_only_a_definite_cross_repo_mismatch() {
-    // bl-1ce7: the wrong-repo claim guard fires ONLY when the ball's recorded
-    // root and this checkout's root are BOTH present and DIFFER; every other
+    // bl-1ce7 / bl-0161: the wrong-repo claim guard fires ONLY when the ball's
+    // recorded root is present AND is NONE of this checkout's roots; every other
     // shape passes (back-compat / fail-open, no override).
     let with = |r: Option<&str>| Task { root_commit: r.map(str::to_string), ..Task::default() };
-    // Both present, equal → the same project → pass.
-    super::guard_repo(&with(Some("aaa")), Some("aaa"), "bl-1").unwrap();
-    // Both present, differ → reject, naming BOTH roots so the message points at
-    // the right checkout (identity is remote-free — no path, no remote).
-    let err = super::guard_repo(&with(Some("aaa")), Some("bbb"), "bl-1").unwrap_err();
+    let set = |rs: &[&str]| rs.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
+    // Recorded root is in the set → the same project → pass.
+    super::guard_repo(&with(Some("aaa")), &set(&["aaa"]), "bl-1").unwrap();
+    // Present but in none of the set → reject, naming BOTH so the message points
+    // at the right checkout (identity is remote-free — no path, no remote).
+    let err = super::guard_repo(&with(Some("aaa")), &set(&["bbb"]), "bl-1").unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
     let msg = err.to_string();
     assert!(msg.contains("rooted at aaa") && msg.contains("rooted at bbb"), "{msg}");
     // No recorded root (pre-feature ball, or born off no code repo) → unconstrained.
-    super::guard_repo(&with(None), Some("bbb"), "bl-1").unwrap();
-    // No current root (claim off a checkout with no code repo) → unprovable → pass.
-    super::guard_repo(&with(Some("aaa")), None, "bl-1").unwrap();
+    super::guard_repo(&with(None), &set(&["bbb"]), "bl-1").unwrap();
+    // No current roots (claim off a checkout with no code repo) → unprovable → pass.
+    super::guard_repo(&with(Some("aaa")), &[], "bl-1").unwrap();
+}
+
+#[test]
+fn a_multi_root_checkout_admits_a_ball_recorded_against_any_of_its_roots() {
+    // bl-0161: merging an unrelated history (vendoring) gives HEAD two roots, and
+    // `rev-list --max-parents=0` can print them in EITHER order. Matching the
+    // recorded root against the whole SET — not just line 1 — means a ball
+    // stamped with root A is still claimable after the merge, regardless of which
+    // root now sorts first.
+    use crate::delivery_repo::Project;
+    let tmp = tempdir().unwrap();
+    let repo = tmp.path().join("repo");
+    fs::create_dir_all(&repo).unwrap();
+    let g = |args: &[&str]| Project::run(&repo, args).unwrap();
+    g(&["init", "-q", "-b", "main"]);
+    g(&["config", "user.name", "t"]);
+    g(&["config", "user.email", "t@e.com"]);
+    fs::write(repo.join("a.txt"), "A").unwrap();
+    g(&["add", "-A"]);
+    g(&["commit", "-q", "-m", "root A"]);
+    let root_a = Project::run(&repo, &["rev-parse", "HEAD"]).unwrap().trim().to_string();
+    // A wholly unrelated history on an orphan branch → a SECOND root.
+    g(&["checkout", "-q", "--orphan", "vendor"]);
+    g(&["rm", "-q", "-f", "a.txt"]);
+    fs::write(repo.join("b.txt"), "B").unwrap();
+    g(&["add", "-A"]);
+    g(&["commit", "-q", "-m", "root B"]);
+    let root_b = Project::run(&repo, &["rev-parse", "HEAD"]).unwrap().trim().to_string();
+    g(&["checkout", "-q", "main"]);
+    g(&["merge", "-q", "--allow-unrelated-histories", "--no-edit", "vendor"]);
+
+    // The read returns BOTH roots (the reusable set primitive).
+    let roots = Project::at(&repo).root_commits();
+    assert_eq!(roots.len(), 2, "a merged unrelated history has two roots: {roots:?}");
+    assert!(roots.contains(&root_a) && roots.contains(&root_b), "{roots:?}");
+
+    let ball = |r: &str| Task { root_commit: Some(r.to_string()), ..Task::default() };
+    let mut flipped = roots.clone();
+    flipped.reverse();
+    // A ball stamped at create with root A admits from the multi-root checkout,
+    // whichever order rev-list prints the roots in (line-1 flip is a non-event).
+    super::guard_repo(&ball(&root_a), &roots, "bl-1").unwrap();
+    super::guard_repo(&ball(&root_a), &flipped, "bl-1").unwrap();
+    // A ball stamped against the vendored root B admits from the same checkout.
+    super::guard_repo(&ball(&root_b), &roots, "bl-1").unwrap();
+    // A genuinely foreign root is still refused.
+    assert!(super::guard_repo(&ball("deadbeef"), &roots, "bl-1").is_err());
 }
 
 #[test]
@@ -86,11 +134,12 @@ fn claim_stage_rejects_a_wrong_repo_ball() {
     let dir = d.path();
     write(dir, "bl-1", "+++\ntitle = \"A\"\ncreated = 0\nupdated = 0\nroot_commit = \"aaa\"\n+++\n");
     let mut o = Occupancy::claim("bl-1".into(), "me".into(), 0);
-    o.current_root = Some("bbb".into());
+    o.current_roots = vec!["bbb".into()];
     let err = o.stage(dir).unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
-    // The matching-root claim seals (the ball is recorded against this checkout).
-    o.current_root = Some("aaa".into());
+    // A checkout whose root SET includes the ball's root seals — even alongside a
+    // second, unrelated root (the multi-root any-of admit).
+    o.current_roots = vec!["ccc".into(), "aaa".into()];
     o.stage(dir).unwrap();
     assert_eq!(read_task(dir, "bl-1").unwrap().claimant.as_deref(), Some("me"));
 }
