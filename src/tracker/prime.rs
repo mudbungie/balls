@@ -63,7 +63,7 @@ pub fn prime(b: &Binding, env: &Env) -> io::Result<()> {
 /// The §12 ephemeral-remote gap (W2, bl-c2de): prime is acting on `remote`, but
 /// the DURABLE ladder (landing `task_remote` > per-clone `binding` remote > legacy
 /// XDG remote > `origin`) resolves to something else
-/// — so it arrived via a per-op `--remote`/`--center` and plain commands will
+/// — so it arrived via a per-op `--remote` and plain commands will
 /// not reproduce it (the bl-d234 silent-stealth failure). A landing stealth
 /// sentinel is the strongest durable answer: plain commands run DECLARED
 /// stealth, named as such (bl-9df0). The binding tier mirrors core's

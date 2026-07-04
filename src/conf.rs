@@ -30,7 +30,7 @@ use std::io;
 
 #[path = "conf_write.rs"]
 mod write;
-pub(crate) use write::declare_stealth;
+pub(crate) use write::{bind_task_remote, declare_stealth};
 
 // The §4 layer resolution + provenance engine lives in a sibling; `conf` keeps
 // the key namespace and the read/dump dispatch.

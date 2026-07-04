@@ -35,17 +35,20 @@ fn record(id: &str) -> String {
 
 #[test]
 fn parse_speaks_the_mutating_flag_vocabulary() {
-    let f = parse(&strs(&["--as", "ann", "-m", "note", "--remote", "r", "--center", "c"]), "default").unwrap();
+    let f = parse(&strs(&["--as", "ann", "-m", "note", "--remote", "r"]), "default").unwrap();
     assert_eq!(f.actor, "ann");
     assert_eq!(f.message.as_deref(), Some("note"));
-    // `--remote` always assigns; `--center` fills only an empty slot (§12).
+    // `--remote` is the per-op store-remote override (§12).
     assert_eq!(f.remote.as_deref(), Some("r"));
     assert!(f.legacy.is_none());
-    let f = parse(&strs(&["--center", "c", "--legacy=v1:d"]), "me").unwrap();
+    let f = parse(&strs(&["--remote", "c", "--legacy=v1:d"]), "me").unwrap();
     assert_eq!(f.remote.as_deref(), Some("c"));
     assert_eq!(f.legacy.as_deref(), Some("v1:d"));
     assert_eq!(parse(&strs(&["--legacy"]), "me").unwrap().legacy.as_deref(), Some(crate::reads::legacy::DEFAULT_SPEC));
     assert_eq!(parse(&[], "default").unwrap().actor, "default");
+    // `--center` is prime-only (enrollment, bl-35e5) — not an import flag.
+    let err = parse(&strs(&["--center", "c"]), "me").unwrap_err();
+    assert!(err.to_string().contains("unexpected argument '--center'"), "{err}");
 }
 
 #[test]
@@ -53,7 +56,7 @@ fn parse_refuses_a_positional_and_a_valueless_flag() {
     // Records ride stdin — a positional has nowhere to go.
     let err = parse(&strs(&["task.json"]), "me").unwrap_err();
     assert!(err.to_string().contains("records ride stdin"), "{err}");
-    for flag in ["--as", "-m", "--remote", "--center"] {
+    for flag in ["--as", "-m", "--remote"] {
         let err = parse(&strs(&[flag]), "me").unwrap_err();
         assert!(err.to_string().contains("needs a value"), "{flag}: {err}");
     }

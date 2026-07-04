@@ -100,14 +100,19 @@ per-op override — it is **not** remembered) > the per-checkout stealth sentine
 this checkout's own `task-remote` (`bl conf set task-remote <url>` — a
 per-clone binding, ranked above a legacy machine-wide config kept only as a
 read-only fallback) > the project repo's `origin`. A fresh clone
-whose `origin` carries the store just works: `bl prime; bl list`. To point a
-checkout with no such `origin` at a shared project, set a durable pointer —
-`git remote add origin <hub>` or `bl conf set task-remote <hub>` — then
-`bl prime` (add `--install <hub>` to also adopt that center's `config/`).
-`--remote` alone shapes only that one invocation; prime warns when nothing
-durable backs it, because every later plain command would silently run
-stealth. Re-running plain `bl prime` converges to a no-op, and `bl conf` shows
-the remote/branch a checkout actually resolves.
+whose `origin` carries the store just works: `bl prime; bl list`. To enroll a
+checkout with no such `origin` into a shared project (a "center"), the one-shot
+is **`bl prime --center <hub>`**: it writes the durable per-clone binding, adopts
+that center's committed `config/`, and primes — one command, no half-enrolled
+window (bl-35e5, design `docs/design/bl-0161-cross-repo-work.md` §Q3). A
+filesystem path is a legitimate `<hub>` — two repos on one box share through a
+local bare repo (`git init --bare ~/hub.git`, then `bl prime --center ~/hub.git`
+from each), the same code path as a hosted center (§Q4). The rule: **`--remote`
+shapes one op; `--center` enrolls a checkout** — `--center` is prime-only, and on
+any other verb it bounces as an unknown flag. (`--center` subsumes `--install`,
+so pass one or the other; `--install <hub>` adopts config *without* the durable
+bind.) Re-running plain `bl prime` converges to a no-op, and `bl conf` shows the
+remote/branch a checkout actually resolves.
 
 In a repo with a pushable `origin`, prime founds a `balls/tasks` branch there
 and pushes it. `bl prime --stealth` is the opt-out, and it is DURABLE: sugar
@@ -156,7 +161,7 @@ claims. Have the harness pick a name at session start and pass it as `--as`.
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + prune settled `work/<id>` branches. Prints no listing of its own (worktrees materialize at `claim`, not here). `--stealth` opts out of any store remote durably (a landing sentinel every later op derives; store stays local). Run at session start, then `bl list`. |
+| `bl prime [--as ID] [--remote URL] [--center URL] [--install URL] [--stealth]` | Found the substrate (first run) + sync + prune settled `work/<id>` branches. Prints no listing of its own (worktrees materialize at `claim`, not here). `--center URL` **enrolls** this checkout into a shared center in one shot — durable bind + adopt `config/` + prime (subsumes `--install`; prime-only). `--install URL` adopts a center's `config/` only (no durable bind). `--stealth` opts out of any store remote durably (a landing sentinel every later op derives; store stays local). Run at session start, then `bl list`. |
 | `bl sync [BRANCH] [--as ID] [--remote URL]` | Pull the store from the remote (fetch + fast-forward; the remote resolves `--remote` > `task-remote` > `origin`, like every op). No arg syncs the configured store branch. |
 | `bl conf [<key>]` / `bl conf set\|append\|prepend\|remove <key> <value...>` | Local config CRUD. No args: dump every resolved value + source layer + file paths. Keys: `task-remote` (per-checkout binding), `task-branch`/`log-level` (landing), `<op>.<pre\|post>`/`show`/`list` (the `[hooks]` schedule). Local-only: never crosses a checkout, never touches a plugin binary. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed PATH between branches, sealed as one commit on `--to`'s tip (§6 capability transfer). Shape decides: folder = mirror (deletions propagate!), file/glob = additive union; `bin/` never travels. Defaults: PATH `config`, `--from` the configured upstream (fetched by the `install.pre` tracker), `--to` the landing. A landing-targeted install then binds each plugin the landed schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding per plugin — validated against its live `protocol`; a refusal lands AFTER the sealed copy (the commit is the undo; the retry converges and just binds). Prints `N added / M deleted`. |

@@ -17,7 +17,7 @@
 //!
 //! The wire's [`Binding`] is everything it needs — `remote` + `tasks_branch`
 //! name the store upstream DIRECTLY, with no trail to walk (§12). When the binding
-//! carries no explicit `remote` (core resolves only `--remote`/`--center`/XDG, the
+//! carries no explicit `remote` (core resolves only `--remote`/XDG, the
 //! config tiers — §0 keeps it local-only), the tracker discovers the project-repo
 //! `origin` as its single fallback ([`effective_remote`], resolved once at the
 //! [`handle`] dispatch point). Each handler no-ops in a stealth repo — no explicit
@@ -115,7 +115,7 @@ fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result
 }
 
 /// The effective store remote for this op (§12): the EXPLICIT remote core already
-/// resolved (`--remote`/`--center`/XDG `remote`, on the binding), else the
+/// resolved (`--remote`/XDG `remote`, on the binding), else the
 /// auto-discovered project-repo `origin`. Implicit `origin` discovery is the
 /// TRACKER's alone — core stays local-only (§0) and hands a `remote: None`
 /// binding when no explicit tier is set. Resolved ONCE here at the [`handle`]

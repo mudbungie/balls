@@ -42,8 +42,8 @@ use crate::wire::{Binding, OpContext};
 use std::io;
 use std::path::Path;
 
-/// `bl prime [--as ID] [--install CENTER] [--stealth]` — bring this checkout to
-/// readiness
+/// `bl prime [--as ID] [--remote URL] [--center URL] [--install CENTER]
+/// [--stealth]` — bring this checkout to readiness
 /// (§12/§13). Bootstrap-on-miss founds the LANDING; the [`prime_chain`] pass
 /// materializes the store and runs the `prime` chain; THEN prime drives `sync` so
 /// an established checkout is brought current. Prime's binding already names the
@@ -52,6 +52,17 @@ use std::path::Path;
 /// never a reimplemented fetch. Idempotent: a just-founded remote's sync fetch is
 /// a no-op; in stealth the tracker `sync/pre` no-ops.
 ///
+/// `--center URL` ENROLLS this satellite into a shared center in ONE command
+/// (bl-35e5, §13 Q3): it is prime-only and DURABLE by definition — sugar for the
+/// composition that already exists, `bl conf set task-remote URL` (the per-clone
+/// binding write, [`crate::conf::bind_task_remote`]) + `--install URL` (config
+/// adoption) + ordinary prime. Re-running converges (the binding write converges,
+/// install re-copies identical bytes, sync fast-forwards). A filesystem path is a
+/// legitimate center — two repos on one box share through a local bare repo, the
+/// same code path as a hosted one (§Q4). It SUBSUMES `--install` (both name the
+/// center whose config we adopt), so the two are mutually exclusive at parse. The
+/// rule: `--remote` shapes one op; `--center` enrolls a checkout.
+///
 /// `--install CENTER` fuses prime + install + prime on demand (§13): after the
 /// substrate exists, [`adopt`] copies the center's committed `config/` into the
 /// landing (the consent-gated §6 install — the `--install` flag IS the consent),
@@ -59,9 +70,11 @@ use std::path::Path;
 /// to readiness. It is a SINGLE hop, not a walk: a center's config names its own
 /// `tasks_branch` (the one config→store indirection, §4), never another config to
 /// chase. The center also seeds the store remote (the explicit remote used for
-/// the binding) unless an explicit `--remote` overrides it. Plain prime (no
-/// `--install`) never adopts foreign config nor activates code — the auto-safe
-/// every-session path holds.
+/// the binding) unless an explicit `--remote` overrides it — but WITHOUT the
+/// durable binding `--center` writes (that is the whole difference: `--install`
+/// adopts once, `--center` also enrolls). Plain prime (no `--install`/`--center`)
+/// never adopts foreign config nor activates code — the auto-safe every-session
+/// path holds.
 ///
 /// `--stealth` is the §12 consent opt-out, and it is DURABLE: sugar for
 /// `bl conf set task-remote none` — one committed landing-config write of the
@@ -82,9 +95,23 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     if opts.stealth {
         crate::conf::declare_stealth(&landing, &opts.actor)?;
     }
-    if let Some(center) = &opts.install {
+    // `--center` ENROLLS (bl-35e5): write the durable per-clone binding — exactly
+    // what `bl conf set task-remote URL` does — BEFORE adopt/prime, so the §12
+    // ladder resolves the center on this op AND every later one (enrollment is
+    // prime-only but durable by definition; a failed adopt below leaves the
+    // binding, so re-running converges). `--center` then SUBSUMES `--install`:
+    // both name the center whose committed config we adopt (mutually exclusive at
+    // parse, so at most one is set).
+    if let Some(center) = &opts.center {
+        crate::conf::bind_task_remote(&clone, &landing, &opts.actor, center)?;
+    }
+    let install = opts.install.as_ref().or(opts.center.as_ref());
+    if let Some(center) = install {
         adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
     }
+    // `--center`'s remote is now the durable binding (resolved by the ladder, so
+    // pass None); `--install` alone carries no durable binding, so it seeds this
+    // op's remote directly (the center is where the adopted `tasks_branch` lives).
     let remote = opts.remote.or(opts.install);
     let (binding, level) = bind(edge, &landing, &store, remote, None)?;
     prime_chain(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
@@ -125,14 +152,15 @@ fn prime_chain(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: 
         .map_err(|e| io::Error::other(e.to_string()))
 }
 
-/// `bl sync [BRANCH] [--as ID] [--remote URL] [--center URL]` — make state
+/// `bl sync [BRANCH] [--as ID] [--remote URL]` — make state
 /// consistent (§13): run the `sync`
 /// chain against the store (the tracker's `sync/pre` fetches + ff-only). With no
 /// arg it syncs the config-named `tasks_branch`; `bl sync <branch>` PULLS that
 /// named branch instead — the positional substitutes `tasks_branch` in the §7
-/// binding, the one datum the tracker fetches/ff's against. `--remote`/`--center`
-/// are the per-op override tier of the ONE §12 ladder (bl-c2de), resolved here
-/// exactly as on prime and the mutating verbs. The landing is
+/// binding, the one datum the tracker fetches/ff's against. `--remote`
+/// is the per-op override tier of the ONE §12 ladder (bl-c2de), resolved here
+/// exactly as on prime and the mutating verbs (`--center` is prime-only —
+/// enrollment, not an override, bl-35e5). The landing is
 /// never a sync target, but core special-cases no name: the landing is
 /// upstream-less by construction (§4), so the tracker's general rule — fetch
 /// the branch's upstream, if any — no-ops on it for free (§2/§13).
@@ -150,7 +178,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// [`Level`]: the EXPLICIT store remote, the `tasks_branch` (the `target`
 /// override, else the config-named one — §13 `bl sync <branch>`), the two checkout
 /// paths, and the `log_level` threshold (CLI override over config). `cli_remote` is
-/// the parsed `--remote`/`--center` per-op override — the top tier of the ONE §12
+/// the parsed `--remote` per-op override — the top tier of the ONE §12
 /// ladder, accepted by every store-touching verb alike (bl-c2de). The rest of
 /// core's remote handling is [`crate::config::remote_ladder`] — the landing
 /// `task_remote` policy rung (the stealth sentinel, bl-9df0) over this clone's
@@ -216,7 +244,7 @@ pub(crate) fn binding(landing: &Path, store: &Path, invocation: &Path, remote: O
 #[path = "checkout_args.rs"]
 mod args;
 use args::{parse_prime, parse_sync};
-pub(crate) use args::{apply_remote, value};
+pub(crate) use args::value;
 
 #[cfg(test)]
 #[path = "checkout_tests.rs"]

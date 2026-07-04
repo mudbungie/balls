@@ -143,7 +143,7 @@ fn sync_and_install_post_never_push_a_tracked_store() {
 #[test]
 fn effective_remote_prefers_explicit_then_discovers_the_project_origin() {
     // §12 precedence FROM THE TRACKER's seat: explicit binding `remote` (core
-    // resolved --remote/--center/XDG) > the discovered project `origin`.
+    // resolved --remote/XDG) > the discovered project `origin`.
     let tmp = TempDir::new().unwrap();
     let proj = tmp.path().join("proj");
     std::fs::create_dir(&proj).unwrap();

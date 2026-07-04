@@ -1249,7 +1249,7 @@ whose delivery already landed rides the same chain (the delivery plugin's `prime
 delete-if-settled, §11/§13); worktrees materialize at `claim` only (bl-c2bf), never on prime.
 
 **Tracker's prime — two slots, one per axis (bl-0a23).** With no remote it is STEALTH (store stays
-local, a self-lock written). With a remote (the one §12 ladder below — `--remote`/`--center` >
+local, a self-lock written). With a remote (the one §12 ladder below — `--remote` >
 this clone's binding `task-remote` > legacy XDG `task-remote` > `origin`):
 - **`prime/pre` settles the NAME and clones the store in.** It WARNS when the store sits elsewhere (a
   default-named clone of a repo whose canonical store is a non-default branch — diagnostic only; it
@@ -1329,7 +1329,7 @@ remote. Federating is two edits, both consented:
   it. It is NEVER read off the landing: the landing is local-only (§2 install-transport), founded by a
   bare `git init`, and carries no origin — reading origin there is meaningless. And like all
   remote-talk it is the **tracker's** job, not core's (§0): core resolves only the EXPLICIT tiers —
-  four tiers with different lifetimes, not one set: the per-op `--remote`/`--center` flag (argv,
+  four tiers with different lifetimes, not one set: the per-op `--remote` flag (argv,
   ephemeral) over the landing `task_remote` (per-checkout POLICY — today only the stealth sentinel
   `none`, where resolution STOPS; bl-9df0) over this clone's binding `task-remote` (per-checkout
   config, durable; bl-d081) over the legacy XDG `task-remote` (per-machine config, read-only fallback) —
@@ -1340,7 +1340,7 @@ remote. Federating is two edits, both consented:
   works out of the box" true without a flag.
 
 **ONE remote ladder, every op (bl-c2de).** The store remote resolves IDENTICALLY on every
-store-touching verb: `--remote`/`--center` (a PER-OP override, accepted by the deliverable verbs and
+store-touching verb: `--remote` (a PER-OP override, accepted by the deliverable verbs and
 `sync` exactly as by `prime`) > the landing `task_remote` (per-checkout POLICY, durable — holds only
 the stealth sentinel `none`, "no remote, on purpose", where resolution STOPS; written by `bl conf set
 task-remote none` or its sugar `bl prime --stealth`, cleared by a durable URL set or an adopted
@@ -1363,7 +1363,7 @@ remote is a local config fact; *contacting* one stays the tracker's alone (§0),
 the dump shows is exactly the one the tracker will act on.
 
 **prime WARNS when its remote is ephemeral.** When prime founds/joins on an explicit
-`--remote`/`--center` that the durable ladder (landing > binding > XDG > `origin`) does not reproduce, the
+`--remote` that the durable ladder (landing > binding > XDG > `origin`) does not reproduce, the
 tracker warns
 (W2): *"primed on `<hub>` via an explicit remote; the durable ladder (binding > XDG > origin) resolves
 `<other>`/nothing/declared stealth — set `origin` or `bl conf set task-remote` to federate
@@ -1386,7 +1386,13 @@ landings' `tasks_branch` values converge on (in-degree). Setting up a center = p
 `tasks_branch` at the shared branch; each joining checkout adopts with `bl install --from <center>`
 (the tracker fetches, core copies locally — install is purely local in core, §6/bl-b8d6). Founding
 (remote store branch absent → create+push) vs joining (present → adopt) is read from remote state,
-never declared by a flag.
+never declared by a flag. The one-shot enrollment is **`bl prime --center <url>`** (bl-35e5): sugar
+for the durable per-clone binding write (`bl conf set task-remote <url>`) + config adoption (`prime
+--install <url>`) + prime, in one command with no half-enrolled window — prime-only and durable by
+definition, so `--center` is dropped as a per-op `--remote` alias on every other verb (the rule:
+`--remote` shapes one op, `--center` enrolls a checkout). A filesystem path is a legitimate `<url>` —
+two repos on one box share through a local bare repo, federation's local-only zero case. See the
+converged design `docs/design/bl-0161-cross-repo-work.md` (§Q3 enrollment, §Q4 stealth/local centers).
 
 **Re-homing — stealth ↔ federated (bl-0601, revised).** There is **no `adopt`/`disown`/`remaster`
 verb**. "Stealth vs federated" is just whether `tasks_branch` is local or remote-backed, and re-homing
@@ -2284,7 +2290,7 @@ RESOLVED (folded into the body, no longer open):
   `origin` is the PROJECT repo's — `git remote get-url origin` on the **invocation path** (the cloned
   repo whose `origin` is the real remote, where `balls/tasks` sits alongside the code), NEVER the
   landing; (2) discovery belongs to the TRACKER, not core — core resolves only the explicit
-  `--remote`/`--center`/XDG tiers (config reads) and hands the tracker `remote: None`, and the tracker
+  `--remote`/XDG tiers (config reads) and hands the tracker `remote: None`, and the tracker
   discovers `origin` from the invocation path as its single shared fallback (not re-probed per handler).
   Folded into §12 (the "standard case" bullet gains the origin-source + ownership clarification). The
   code drift predates bl-0a23 (came in with `resolve_remote`, bl-cd21). The move into the tracker LANDED

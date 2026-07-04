@@ -116,7 +116,7 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
     let (landing, store) = (clone.landing(), clone.store());
     primed(&landing)?;
     // The ONE §12 ladder, identical on every op (bl-c2de): `checkout::bind` IS
-    // the resolution point — per-op `--remote`/`--center`, the landing stealth
+    // the resolution point — per-op `--remote`, the landing stealth
     // sentinel, the XDG `task-remote` (§0 stays local; the tracker discovers
     // `origin` beneath). A second ladder here is exactly how the bl-9df0
     // stealth bypass happened; there is one bind, shared with the checkout verbs.
