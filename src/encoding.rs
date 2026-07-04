@@ -35,6 +35,36 @@ const fn is_unreserved(b: u8) -> bool {
     matches!(b, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~')
 }
 
+/// Decode a [`percent_encode`]d component back to its original string, or `None`
+/// when a `%` is not followed by two uppercase-hex digits (a hand-made or
+/// foreign directory name) or the bytes are not UTF-8. The exact inverse of the
+/// encoder, so a `clones/<pct-enc-path>/` directory name recovers the enrolled
+/// checkout's path (bl-5965 fleet labels); an entry the encoder never wrote just
+/// declines to decode and is skipped.
+#[must_use]
+pub fn percent_decode(s: &str) -> Option<String> {
+    let mut out = Vec::with_capacity(s.len());
+    let mut bytes = s.bytes();
+    while let Some(b) = bytes.next() {
+        if b == b'%' {
+            out.push(hex_val(bytes.next()?)? << 4 | hex_val(bytes.next()?)?);
+        } else {
+            out.push(b);
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// One uppercase-hex digit (`0-9A-F`) as its 0..=15 value — the [`hex_nibble`]
+/// inverse. `None` on any other byte, so a malformed `%XX` escape declines.
+const fn hex_val(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// Map a 4-bit value (0..=15) to its uppercase hex byte. Callers always pass a
 /// nibble (`>> 4` or `& 0x0f` of a byte), so an exhaustive `if` with no dead
 /// arm keeps line coverage whole.

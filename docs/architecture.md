@@ -753,6 +753,17 @@ ordering was never special. Filters COMPOSE (AND):
 - `--all` — reach BOTH sets (live + dead). Closed balls are not gone, they are older content (§2):
   reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down. `-s closed` = dead
   only; `--all` = live + dead. (`-s closed` and `--all` both pick the dead set, so they don't combine.)
+- `--everywhere` — LIFT the default ROOT scope. One store can serve many projects (bl-0161,
+  `docs/design/bl-0161-cross-repo-work.md` Q2 "list shows what claim admits"): `list`'s default set is
+  the claim-admitted set — balls stamped with THIS checkout's git root (create-time `root_commit`) plus
+  rootless balls, the SAME `crate::change::admits` predicate the §10 claim guard enforces, so the
+  listing is honest about what `claim` will take here and a single-project store is byte-identical to
+  before. `--everywhere` simply OMITS that predicate (no `--repo=X` — the scope input is the invocation
+  path, not typed) to show every project sharing the store; a foreign row carries a human project label
+  (an enrolled checkout's directory basename, else the root's short hash), render-time sugar that never
+  enters `--json`. Orthogonal to the reach axis, so it composes: `--everywhere -s ready` is the
+  cross-project dispatch query. The root read is LAZY (a store with no rooted ball never shells git) and
+  paid at most once per invocation, never cached. `show` stays global — naming an id is the signal.
 - date/range, `--tag`, text (positional `NEEDLE`, case-insensitive substring over title AND body),
   and `--claimant NAME` (exact-match over the stored `claimant`) filters — applied uniformly to the
   (possibly history-served) set; date filters read the stored `created`/`updated` (and, for a dead

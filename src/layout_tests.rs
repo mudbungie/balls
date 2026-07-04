@@ -36,6 +36,10 @@ fn the_clone_bundle_encodes_the_invocation_path_to_one_component() {
         c.root(),
         Path::new("/st/balls/clones/%2Fhome%2Fmark%2Fdev%2Fballs")
     );
+    // Every bundle sits directly under the shared `clones/` parent (the fleet
+    // view enumerates it).
+    assert_eq!(x.clones_dir(), Path::new("/st/balls/clones"));
+    assert_eq!(c.root().parent(), Some(x.clones_dir().as_path()));
 }
 
 #[test]

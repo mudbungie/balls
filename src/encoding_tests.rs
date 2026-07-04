@@ -39,3 +39,21 @@ fn both_hex_nibbles_appear_uppercase() {
 fn multibyte_utf8_encodes_every_continuation_byte() {
     assert_eq!(percent_encode("é"), "%C3%A9");
 }
+
+#[test]
+fn decode_is_the_exact_inverse_of_encode() {
+    // A path, a URL, and a multibyte string all round-trip — every `%XX` the
+    // encoder emits (both hex-nibble arms, continuation bytes) decodes back.
+    for s in ["/home/mark/dev/balls", "git@github.com:mudbungie/balls.git", "é", "aZ09-._~"] {
+        assert_eq!(percent_decode(&percent_encode(s)).as_deref(), Some(s));
+    }
+}
+
+#[test]
+fn decode_declines_a_malformed_or_non_utf8_escape() {
+    assert_eq!(percent_decode("%"), None); // `%` with no digits
+    assert_eq!(percent_decode("%2"), None); // `%` with one digit
+    assert_eq!(percent_decode("%2G"), None); // second digit not hex
+    assert_eq!(percent_decode("%GG"), None); // first digit not hex
+    assert_eq!(percent_decode("%FF"), None); // 0xFF alone is not valid UTF-8
+}

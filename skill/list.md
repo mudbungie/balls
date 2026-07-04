@@ -1,11 +1,11 @@
 # bl list — list tasks
 
-    usage: bl list [NEEDLE] [-s ready|blocked|claimed|closed] [--all] [--tag T]
-             [--claimant NAME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]
+    usage: bl list [NEEDLE] [-s ready|blocked|claimed|closed] [--all] [--everywhere]
+             [--tag T] [--claimant NAME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]
              [--json] [--plain] [--legacy]
 
 The single listing verb. Default = live (non-closed) tasks, highest priority
-first. Filters COMPOSE (AND).
+first, SCOPED to this checkout's project. Filters COMPOSE (AND).
 
 ## Flags
 
@@ -14,6 +14,12 @@ first. Filters COMPOSE (AND).
 - `-s, --status RUNG` — filter to one status: `ready` | `blocked` | `claimed` |
   `closed`.
 - `--all` — include closed tasks (live + dead).
+- `--everywhere` — show every project on the store, not just this checkout's.
+  One store can serve many projects; the default set is what `claim` admits here
+  (this checkout's git root + rootless balls), so foreign projects' balls are
+  hidden. `--everywhere` lifts that scope and labels each foreign row with a short
+  project name (an enrolled checkout's basename, else the root's short hash —
+  human render only, never in `--json`). `show` is always global.
 - `--tag T` — filter by tag (repeatable, AND).
 - `--claimant NAME` — filter to tasks held by NAME (exact match); pairs with `-s
   closed` to answer "what did NAME deliver".
@@ -27,9 +33,10 @@ first. Filters COMPOSE (AND).
 ## Examples
 
     bl list                # everything live, priority-ordered
-    bl list -s ready       # claimable now — the dispatch set
+    bl list -s ready       # claimable now — the dispatch set (this project)
     bl list -s claimed     # tasks someone already owns (resume these)
     bl list delivery       # NEEDLE: title/body substring
+    bl list --everywhere -s ready        # every project on the store — fleet dispatch
     bl list -s closed --claimant alice   # what alice delivered
 
 ## Claim-age is a derived, human-only column

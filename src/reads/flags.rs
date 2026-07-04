@@ -1,7 +1,8 @@
 //! Read-verb flag parsing — `[--json] [--plain]` for every read, plus the
 //! `list`-only filters (§9): `--status`/`-s` (one axis over every §3 rung,
-//! `closed` included — it INFERS the dead-set reach), the `--all` reach, and the
-//! compose-AND `--tag`/`--since`/`--until`/`--claimant` filters. Every `list` filter
+//! `closed` included — it INFERS the dead-set reach), the `--all` reach, the
+//! `--everywhere` root-scope lift (bl-0161), and the compose-AND
+//! `--tag`/`--since`/`--until`/`--claimant` filters. Every `list` filter
 //! is gated on `verb == List`; on any other read it falls through to the
 //! unknown-flag arm, so `show` rejects them.
 
@@ -24,6 +25,10 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
             "--plain" => f.plain = true,
             "--status" | "-s" if verb == Verb::List => apply_status(&mut f, value(&mut args, "--status")?)?,
             "--all" if verb == Verb::List => set_reach(&mut f, Reach::All)?,
+            // bl-0161 Q2: lift the default root scope (this checkout's project +
+            // rootless balls) to show the whole fleet. Orthogonal to the reach
+            // axis above — it composes with -s/--tag/needle/dates unchanged.
+            "--everywhere" if verb == Verb::List => f.everywhere = true,
             "--tag" if verb == Verb::List => f.tags.push(value(&mut args, "--tag")?.clone()),
             "--claimant" if verb == Verb::List => f.claimant = Some(value(&mut args, "--claimant")?.clone()),
             "--since" if verb == Verb::List => f.since = Some(date(value(&mut args, "--since")?)?),
