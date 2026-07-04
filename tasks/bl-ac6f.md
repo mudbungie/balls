@@ -1,7 +1,8 @@
 +++
 title = "Root identity: match a ball's root_commit against the checkout's root SET (any-of admits)"
 created = 1783197344
-updated = 1783197344
+updated = 1783197399
+claimant = "mark"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["core"]
