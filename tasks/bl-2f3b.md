@@ -1,7 +1,8 @@
 +++
 title = "Harden gates: forbid unsafe_code + cargo audit in CI"
 created = 1783111500
-updated = 1783111500
+updated = 1783193226
+claimant = "mark"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
 Two additions from the 2026-07-03 repo-rectitude review (the full AI-dev best-practice list was assessed; these were the only keepers — the rest balls already has or deliberately rejects).
