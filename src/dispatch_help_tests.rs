@@ -1,17 +1,28 @@
-//! Tests for the pre-verb help affordances (`skill`/`help`/`--help`), the
-//! global `--log-level` strip, and the usage/exit-code conventions of
-//! [`crate::run`].
+//! Tests for the pre-verb help/skill affordances (`skill`/`--skill`/`help`/
+//! `--help`), the global `--log-level` strip, and the usage/exit-code conventions
+//! of [`crate::run`].
 
 use super::support::*;
-use super::{strip_log_level, SKILL};
+use super::{strip_log_level, SKILL_DEPRECATION};
+use crate::verb::Verb;
 use tempfile::TempDir;
 
 #[test]
-fn skill_prints_the_guide_and_exits_zero() {
-    // `skill` is a pre-verb help affordance: it needs no landing and is not a
-    // Verb, so it works anywhere and never touches the store.
-    assert_eq!(run_in(&TempDir::new().unwrap(), &["skill"]), 0);
-    assert!(SKILL.contains("balls"), "the embedded guide is non-empty");
+fn the_top_guide_prints_and_exits_zero_for_both_spellings() {
+    // `bl --skill` (canonical) and `bl skill` (deprecated) both print the guide
+    // and exit 0 — pre-verb, no landing, not a Verb, so they work anywhere.
+    for a in [&["--skill"][..], &["skill"]] {
+        assert_eq!(run_in(&TempDir::new().unwrap(), a), 0);
+    }
+    assert!(crate::skill::top().contains("balls"), "the embedded guide is non-empty");
+}
+
+#[test]
+fn the_skill_subcommand_carries_a_deprecation_note() {
+    // The `skill` subcommand is kept but on a deprecation path — the flag form
+    // `bl --skill` is canonical, so the bare subcommand appends the migration note.
+    assert!(SKILL_DEPRECATION.contains("DEPRECATION"), "the note names the path");
+    assert!(SKILL_DEPRECATION.contains("bl --skill"), "the note names the replacement");
 }
 
 #[test]
@@ -24,13 +35,27 @@ fn help_prints_the_directory_and_exits_zero() {
 }
 
 #[test]
-fn per_command_help_routes_through_every_entry_point() {
-    // bl-7990: `bl <cmd> --help`/`-h` is intercepted before the verb's parser, so
-    // it needs no landing and no positionals; `bl help <cmd>` reaches the same
-    // per-command help; `bl help <unknown>` falls back to the directory.
+fn per_command_docs_route_through_every_entry_point() {
+    // `bl <cmd> --skill`/`--help`/`-h` is intercepted before the verb's parser, so
+    // it needs no landing and no positionals; `bl help <cmd>`, `bl skill <cmd>`,
+    // and `bl --skill <cmd>` reach the SAME per-command doc — every verb, every
+    // spelling — and `bl help <unknown>` falls back to the directory.
     let tmp = TempDir::new().unwrap();
-    for a in [&["create", "--help"][..], &["create", "-h"], &["help", "update"], &["help", "frobnicate"]] {
-        assert_eq!(run_in(&tmp, a), 0);
+    for v in Verb::ALL {
+        let t = v.token();
+        for a in [[t, "--skill"], [t, "--help"], [t, "-h"], ["help", t], ["skill", t], ["--skill", t]] {
+            assert_eq!(run_in(&tmp, &a), 0, "{t} via {a:?}");
+        }
+    }
+    assert_eq!(run_in(&tmp, &["help", "frobnicate"]), 0, "unknown falls back to the directory");
+}
+
+#[test]
+fn per_command_help_is_folded_into_skill() {
+    // The fold (this task): `bl <cmd> --help` and `bl <cmd> --skill` are one doc,
+    // the same [`crate::skill::command`] the usage-error footer surfaces.
+    for v in Verb::ALL {
+        assert!(crate::skill::command(v).contains(v.token()), "{}'s doc names the verb", v.token());
     }
 }
 

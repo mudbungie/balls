@@ -78,11 +78,12 @@ fn help_prints_the_command_directory_to_stdout() {
 
 #[test]
 fn per_command_help_lists_the_commands_own_flags() {
-    // bl-7990: `bl <cmd> --help` and `bl help <cmd>` surface a command's own
-    // flags + examples — the affordance whose absence left `create --body`
-    // undiscoverable. Works with no landing (intercepted before the parser).
-    let body = contains("--body").and(contains("usage: bl create")).and(contains("Examples:"));
-    bl(&TempDir::new().unwrap()).args(["create", "--help"]).assert().success().stdout(body);
+    // bl-7990 + the --skill fold: `bl <cmd> --skill`, its folded `--help` alias,
+    // and `bl help <cmd>` all surface one per-command doc — a command's own flags,
+    // usage, and examples. Works with no landing (intercepted before the parser).
+    let body = contains("--body").and(contains("usage: bl create")).and(contains("## Examples"));
+    bl(&TempDir::new().unwrap()).args(["create", "--skill"]).assert().success().stdout(body);
+    bl(&TempDir::new().unwrap()).args(["create", "--help"]).assert().success().stdout(contains("--subtask-of"));
     bl(&TempDir::new().unwrap()).args(["help", "create"]).assert().success().stdout(contains("--subtask-of"));
 }
 
