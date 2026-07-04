@@ -1,7 +1,8 @@
 +++
 title = "Implement query surface: --claimant predicate + claim-age render + discoverability (converged bl-8ab5 design)"
 created = 1783194066
-updated = 1783194066
+updated = 1783194794
+claimant = "mark"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["core"]
