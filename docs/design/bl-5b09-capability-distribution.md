@@ -1,9 +1,18 @@
 # bl-5b09 — capability distribution: binaries never travel; hints, never auto-fetch
 
-**PROPOSED (Icecap, 2026-07-01) — awaiting maintainer attack; not yet converged
-(the dialogue is tracked as bl-f338).** Maintainer's framing (verbatim, 2026-07-01):
-"Okay, how do we solve this?" The §15 edit to `docs/architecture.md` happens when
-this converges; until then this file is the artifact.
+**CONVERGED (maintainer dialogue, 2026-07-04; dialogue ball bl-f338).** Converged AS
+PROPOSED — the `[source]` free-text hint table in `plugins.toml`, hints decorating only
+existing refusal moments (dispatch unbound error, install validation refusal, seed
+prune), the two independent honesty fixes (install dangling-report, `bl conf` unbound
+section), distribution left to the package manager — with ONE amendment to the hard
+line: the eternal ban on a future explicit trust surface is retracted to a deferral (see
+"The line" below). Maintainer's verdict (verbatim, 2026-07-04): "I'm not afraid of
+giving someone a sharp knife, so I don't actually know if a -y/-trust flag is disallowed.
+That said, don't need to solve it today, and your point about the package manager holding
+the answer is right for now. The interface maintained by balls is just a pointer.
+Answering provenance is a bigger operation." The §15 edit to `docs/architecture.md`
+records the converged doctrine; the implementation is a separate ball, filed apart from
+this dialogue. Original framing (Icecap, 2026-07-01): "Okay, how do we solve this?"
 
 ## The problem
 
@@ -22,14 +31,34 @@ The recommendation is **mute**. You adopt a center's config, `install` prints
 `N added / M deleted`, and the first sign that the schedule names a binary you don't
 have is a `close` aborting days later with no word on where the binary comes from.
 
-## The line that cannot move
+## The line: invariant below, deferred above
 
-Auto-fetch-build-bind is rejected **by definition** — fetching and executing what a
-remote names IS remote code execution, exactly what §0 forbids ("all config is
-treated as potential RCE and crosses into a landing only by the explicit copy
-`install` performs"). Whatever the design: **a human runs the acquisition command;
-balls never executes anything it fetched, and no future flag may "run the hints"** —
-that flag would reconstitute auto-fetch behind one `-y`.
+The line has two parts. One is invariant and this design honors it absolutely; the
+other was overstated as an eternal ban and is corrected here to a deferral.
+
+**Invariant — nothing implicit, ever.** Hints are display-only. balls never fetches,
+never parses, never executes what a `[source]` hint names; nothing crosses into a
+landing except by the explicit copy `install` performs, and nothing runs without an
+explicit human act. Implicit auto-fetch-build-bind — a remote naming a command that
+balls then runs on its own — IS remote code execution, exactly what §0 forbids ("all
+config is treated as potential RCE and crosses into a landing only by the explicit copy
+`install` performs"), and is rejected **by definition**, here and forever. The shipped
+design's behavior is exactly as specified below: a human reads the hint, a human runs
+the acquisition command, and the `bin/<name>` adjacency stays the RCE gate.
+
+**Deferred, not forbidden — an explicit trust surface.** An earlier draft of this
+section declared a second, ETERNAL ban: "no future flag may 'run the hints' — that flag
+would reconstitute auto-fetch behind one `-y`." That doctrine is **retracted**. The
+maintainer is "not afraid of giving someone a sharp knife": an explicit `-y`/`--trust`
+execute-the-hint surface — one a human deliberately reaches for, not sugar that runs on
+its own — is NOT forbidden by definition. It is **deferred**, because it cannot be
+designed honestly without first answering provenance: *what* exactly is being trusted,
+and *how* it is authenticated. That is "a bigger operation" than this ball, and any
+future design must START from the provenance question, not from sugar over the hints.
+Until someone does that work, the package manager holds the answer and balls maintains
+just the pointer. The two cases are not the same line: the implicit case is closed
+forever; the explicit case is open but unbuilt, gated on a provenance design nobody has
+written.
 
 ## The design
 
@@ -148,8 +177,8 @@ binary-blind is a feature (§4: "never touches a binary").
 Installing a center's config is ALREADY the trust decision — the adopted schedule
 names binaries you will run; a string suggesting where to get them is strictly less
 powerful than the schedule it rides beside. A malicious center can hint
-`curl | sh` — and could equally write it in a README; balls' guarantee is only ever
-that **balls executes nothing**: the hint can ask, the human acts, and the
+`curl | sh` — and could equally write it in a README; in this design balls' guarantee
+is that **balls executes nothing**: the hint can ask, the human acts, and the
 `bin/<name>` adjacency stays the RCE gate. Consent gates adoption (§6); the hint
 adds no new authority to gate.
 
@@ -173,8 +202,11 @@ design; hints are what make the unbundled world navigable.
 
 ## Rejected
 
-- **Auto-fetch-build-bind** (any spelling: `bl install --fetch`, "run the hints",
-  a plugin marketplace verb) — RCE by definition, the §0 hard line.
+- **Implicit auto-fetch-build-bind** (balls running what a remote names, on its own:
+  a `bl install --fetch` that fetches without asking, a plugin marketplace verb that
+  installs) — RCE by definition, the §0 hard line, rejected here and forever. NOT
+  rejected, only deferred: an explicit human-driven `-y`/`--trust` surface — see "The
+  line" — which awaits a provenance design, not a doctrinal ban.
 - **Hint on the schedule entry** — duplicates per list, breaks names-are-pure-text.
 - **Hint in the plugin's config folder** — core reading plugin territory (§0), and
   mute exactly when needed (plugin absent).

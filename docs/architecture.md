@@ -1723,6 +1723,38 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **Capability distribution — balls ships a pointer, not a pipeline; the `[source]` hint;
+  no implicit fetch, ever (2026-07-04, bl-5b09 — CONVERGED by maintainer dialogue bl-f338;
+  design record `docs/design/bl-5b09-capability-distribution.md`).** `bl install` is a pure
+  path-copy and `bin/` never travels (§6), so an adopted config ships a *recommendation* —
+  a dangling `bin/<name>` the recipient resolves locally — that today is MUTE: the first
+  sign a schedule names a binary you lack is a `close` aborting days later. Resolved WITHOUT
+  balls becoming a distributor: distribution stays the package manager's job (a crate, a
+  repo with a Makefile, an apt package — balls adds no registry, no fetcher, no manifest;
+  §0 severability forbids becoming one), and the one thing only balls knows — which of its
+  schedule's names THIS box cannot resolve — gets a place to carry the center owner's
+  suggested fix. `plugins.toml` may hold a `[source]` table (per-name free text, e.g.
+  `bl-adversary = "cargo install balls-adversary"`), displayed VERBATIM — never parsed,
+  never executed — appended to the refusal moments core already emits (dispatch's unbound
+  error, install's protocol-validation refusal, the seed-time prune when a hint exists); it
+  is the owner's note to a future human threaded through a refusal that was already
+  happening, the same posture as §6 forwarded stdout, and it adds no dispatch input (the
+  binding is bit-identical with or without it). Two independent honesty fixes ride along,
+  each worth landing alone: `bl install` reports names it left dangling (today silently
+  skipped), and `bl conf` grows an `unbound` section (bound-state derived at read — a query,
+  not a field, §0). THE LINE has two parts. INVARIANT, here and forever: nothing runs
+  implicitly — balls never fetches, parses, or executes a hint; implicit
+  auto-fetch-build-bind is RCE by definition, the §0 hard line. DEFERRED, not forbidden (the
+  amendment this dialogue made): an explicit human-driven `-y`/`--trust` execute-the-hint
+  surface is NOT banned by doctrine — "I'm not afraid of giving someone a sharp knife" — it
+  is deferred because it cannot be designed honestly without first answering provenance
+  (what is trusted, how it is authenticated), "a bigger operation" than this ball; any
+  future design STARTS from provenance, not from sugar over the hints. Until then the
+  package manager holds the answer and balls maintains just the pointer. Implementation is a
+  SEPARATE ball, filed apart from this dialogue (the `[source]` parse layered like `[hooks]`
+  + the three decorated refusals + the two honesty fixes + the §4/§6 wording folding the
+  §6 recommendation clause into the hint); this entry and the design record hold the
+  converged doctrine until it lands. Tracked under bl-b465.
 - **Core narration demoted to `debug` — severity classifies the VOICE, not the op kind
   (2026-06-10, bl-cf39 — post-freeze, post-0.5.0).** The shipped default printed 3–7 JSON
   records (`begin` / `invoke <plugin>` / `seal`) on stderr for every routine mutating verb —
