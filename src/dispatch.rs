@@ -1,4 +1,4 @@
-//! §8 dispatch — argv → verb → run, and the two pre-verb help affordances.
+//! §8 dispatch — argv → verb → run, and the pre-verb help/skill affordances.
 //!
 //! The crate root ([`crate`]) owns the module map, the branch constants, and the
 //! [`crate::usage`] taxonomy bit; this module owns the entrypoint that resolves a
@@ -7,23 +7,26 @@
 
 use crate::edge::Edge;
 use crate::verb::Verb;
-use crate::{checkout, conf, help, import, install, mutate, reads};
+use crate::{checkout, conf, help, import, install, mutate, reads, skill};
 
-/// The agent skill guide, embedded so `bl skill` works from a bare `cargo
-/// install` (no repo checkout to read it from). `skill` is help OUTPUT, not an
-/// op — it authors no diff, has no lifecycle, and is never a blocker target — so
-/// it is dispatched directly in [`run`] and deliberately kept OUT of the [`Verb`]
-/// enum (which doubles as a blocker's `on`, §10).
-const SKILL: &str = include_str!("../SKILL.md");
+/// Appended to `bl skill`'s output (the bare subcommand spelling only): the
+/// subcommand form is on a deprecation path in favor of the flag form `bl
+/// --skill`, symmetric with the per-command `bl <cmd> --skill`. Kept working for
+/// now — the note is the migration signal, not a removal.
+const SKILL_DEPRECATION: &str = "\n\
+---\n\
+Note: `bl skill` is on a DEPRECATION PATH. Use `bl --skill` for this guide, and\n\
+`bl <command> --skill` for a command's full usage (`--help` is an alias).\n";
 
 /// The §8 dispatch entrypoint: resolve argv to its verb and run it. `prime`/
 /// `sync` (§12/§13) wire to the engine via [`checkout`]; the deliverable verbs
 /// (§9) via [`mutate`]; the read verbs (`show`/`list`, §9) via
 /// [`reads`] — they author no diff and print the store view; `install` (§6)
-/// seals its path-copy onto the landing or store via [`install::run`]. `skill`
-/// prints the embedded agent guide and `help` (also `--help`/`-h`) the terse
-/// command directory ([`help::directory`]). `edge` carries the host inputs `main`
-/// resolved.
+/// seals its path-copy onto the landing or store via [`install::run`].
+/// `--skill`/`skill` print the top-level operating guide ([`skill::top`]) and
+/// `bl <cmd> --skill`/`--help` a command's full doc ([`skill::command`]); `help`
+/// (also `--help`/`-h`) prints the terse command directory ([`help::directory`]).
+/// `edge` carries the host inputs `main` resolved.
 ///
 /// Returns the process exit code: `0` on success (including `skill`/`help`), `1`
 /// on an op failure (a plugin aborted, a bad flag), `2` for an unknown or missing
@@ -41,19 +44,34 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             return 2;
         }
     };
-    // `skill` (full manual) and `help` (terse command directory) are help OUTPUT,
-    // not ops: kept out of `Verb`, dispatched here, print to stdout, exit 0. `help`
-    // also answers the conventional `--help`/`-h`.
+    // `skill`/`--skill` (the guide) and `help` (terse command directory) are help
+    // OUTPUT, not ops: kept out of `Verb`, dispatched here, print to stdout, exit
+    // 0. `--skill` is the canonical spelling (symmetric with `bl <cmd> --skill`);
+    // the `skill` subcommand is kept but deprecated (a trailing note). A known
+    // command after either spelling gets ITS full doc; bare gets the top guide.
     match rest.first().map(String::as_str) {
-        Some("skill") => {
-            print!("{SKILL}");
+        Some("--skill") => {
+            match rest.get(1).map(String::as_str).and_then(Verb::parse) {
+                Some(verb) => print!("{}", skill::command(verb)),
+                None => print!("{}", skill::top()),
+            }
             return 0;
         }
-        // `bl help [<cmd>]`: a known command after `help` gets ITS help (flags +
-        // examples); bare `help`/`--help`/`-h` gets the command directory.
+        Some("skill") => {
+            if let Some(verb) = rest.get(1).map(String::as_str).and_then(Verb::parse) {
+                print!("{}", skill::command(verb));
+            } else {
+                print!("{}", skill::top());
+                print!("{SKILL_DEPRECATION}");
+            }
+            return 0;
+        }
+        // `bl help [<cmd>]`: a known command after `help` gets ITS full doc (the
+        // per-command skill, into which `--help` is folded); bare `help`/`--help`/
+        // `-h` gets the terse command directory.
         Some("help" | "--help" | "-h") => {
             match rest.get(1).map(String::as_str).and_then(Verb::parse) {
-                Some(verb) => print!("{}", help::command(verb)),
+                Some(verb) => print!("{}", skill::command(verb)),
                 None => print!("{}", help::directory()),
             }
             return 0;
@@ -69,11 +87,13 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         eprintln!("bl: unknown command '{token}' — run `bl help` for the list");
         return 2;
     };
-    // `bl <cmd> --help` / `-h`: that command's help, before its parser runs (so
-    // it works on an unprimed checkout and never needs the verb's positionals). A
-    // `--help` past the `--` end-of-options is a positional, not a help request.
-    if rest[1..].iter().take_while(|a| *a != "--").any(|a| a == "--help" || a == "-h") {
-        print!("{}", help::command(verb));
+    // `bl <cmd> --skill` (canonical) / `--help` / `-h`: that command's full doc,
+    // before its parser runs (so it works on an unprimed checkout and never needs
+    // the verb's positionals). `--help` is folded into `--skill` — one per-command
+    // doc, both spellings. A flag past the `--` end-of-options is a positional,
+    // not a help request.
+    if rest[1..].iter().take_while(|a| *a != "--").any(|a| a == "--skill" || a == "--help" || a == "-h") {
+        print!("{}", skill::command(verb));
         return 0;
     }
     let result = match verb {
@@ -100,13 +120,14 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             // error, so the verb is named ONCE — not the doubled `bl show: show:`.
             eprintln!("bl: {e}");
             // A USAGE error — the argv was malformed (an unknown flag, a missing
-            // value, the wrong positional count) — surfaces the command's flags
-            // (bl-7990); an operational failure (a blocked op, a missing ball)
-            // stays terse. The [`crate::usage`] tag is the only thing that tells
-            // them apart, so the help is offered exactly where it answers.
+            // value, the wrong positional count) — surfaces the command's doc
+            // (usage + flags lead it, bl-7990); an operational failure (a blocked
+            // op, a missing ball) stays terse. The [`crate::usage`] tag is the
+            // only thing that tells them apart, so the doc is offered exactly
+            // where it answers.
             if e.kind() == std::io::ErrorKind::InvalidInput {
                 eprintln!();
-                eprint!("{}", help::command(verb));
+                eprint!("{}", skill::command(verb));
             }
             1
         }

@@ -91,9 +91,9 @@ impl Verb {
     }
 
     /// A terse one-line description for the `bl help` command directory (the
-    /// "what" alone). The how and why live in the fuller `bl skill` guide; this
-    /// is generated from [`Self::ALL`], so the directory can never drift from the
-    /// verb set.
+    /// "what" alone). The how and why live in the fuller per-command `bl <cmd>
+    /// --skill` doc; this is generated from [`Self::ALL`], so the directory can
+    /// never drift from the verb set.
     pub fn summary(self) -> &'static str {
         match self {
             Verb::Create => "file a new task; prints its id",
