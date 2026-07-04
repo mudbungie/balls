@@ -87,6 +87,22 @@ pub(crate) fn blocker(id: &str, on: On) -> Blocker {
     Blocker { id: id.into(), on }
 }
 
+/// Init a one-commit git repo at `dir` and return its root-commit hash — the
+/// checkout root-aware `list` scopes against (bl-5965). A distinct `seed` gives a
+/// distinct root, so two fixtures never collide on a same-second SHA.
+pub(crate) fn git_checkout(dir: &Path, seed: &str) -> String {
+    use crate::delivery_repo::Project;
+    fs::create_dir_all(dir).unwrap();
+    let g = |args: &[&str]| Project::run(dir, args).unwrap();
+    g(&["init", "-q", "-b", "main"]);
+    g(&["config", "user.name", "t"]);
+    g(&["config", "user.email", "t@e.com"]);
+    fs::write(dir.join("f.txt"), seed).unwrap();
+    g(&["add", "-A"]);
+    g(&["commit", "-q", "-m", "seed"]);
+    Project::at(dir).root_commit().unwrap()
+}
+
 /// Write each `(id, task)` to a fresh store tempdir and load the catalog. The
 /// tempdir may drop after — [`Catalog::load`] reads every file into memory.
 pub(crate) fn catalog(tasks: &[(&str, Task)]) -> Catalog {

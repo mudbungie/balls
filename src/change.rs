@@ -96,32 +96,41 @@ impl BaseChange for Occupancy {
     }
 }
 
-/// The wrong-repo claim guard (bl-1ce7, generalized bl-0161): reject when the
-/// ball recorded a project [`Task::root_commit`] that is NONE of `current_roots`
-/// (this checkout's root SET — a multi-root repo answers to several). Matching
-/// against the whole set, not just the first line, means merging an unrelated
-/// history (which can REORDER the roots) never flips the computed identity and
-/// strands earlier balls — any-of admits. The ONLY rejection is ball-root-present
-/// and in-none-of-the-set — a ball with no recorded root (predates the guard, or
-/// born off no code repo) and a checkout with no roots both PASS (back-compat /
-/// fail-open, no override). The recorded hash NAMES the project the ball belongs
-/// to: identity is the git root commit, remote-free, so the message points at the
-/// right checkout without a path or a remote. A shared-root collision grants
-/// nothing — the claimant would already be working from that very directory.
+/// The bl-0161 admit test as a PURE predicate over a ball's recorded
+/// [`Task::root_commit`] and this checkout's root SET — the ONE place the
+/// this-project rule is spelled, shared by `claim`'s [`guard_repo`] and root-aware
+/// `bl list`'s default scope (bl-5965), so list shows exactly what claim admits.
+/// A ball is admitted when it recorded NO root (predates the guard, or born off
+/// no code repo — unconstrained), when the checkout has NO roots (non-git dir,
+/// pure task-list use — the mismatch is unprovable), or when the recorded root is
+/// ANY of the checkout's (a multi-root repo answers to several; matching the whole
+/// set means merging an unrelated history never flips identity). Every non-admit
+/// is exactly one shape: recorded-root-present and in-none-of-the-set.
+#[must_use]
+pub(crate) fn admits(root_commit: Option<&str>, current_roots: &[String]) -> bool {
+    root_commit.is_none_or(|recorded| current_roots.is_empty() || current_roots.iter().any(|r| r == recorded))
+}
+
+/// The wrong-repo claim guard (bl-1ce7, generalized bl-0161): reject a claim the
+/// shared [`admits`] test refuses. The recorded hash NAMES the project the ball
+/// belongs to — identity is the git root commit, remote-free — so the message
+/// points at the right checkout without a path or a remote. A shared-root
+/// collision grants nothing: the claimant would already be working from that very
+/// directory.
 fn guard_repo(task: &Task, current_roots: &[String], id: &str) -> io::Result<()> {
-    if let Some(recorded) = task.root_commit.as_deref() {
-        if !current_roots.is_empty() && !current_roots.iter().any(|r| r == recorded) {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                format!(
-                    "claim: {id} belongs to the project rooted at {recorded}, but this checkout is \
-                     rooted at {} — claim it from that project's checkout",
-                    current_roots.join(", ")
-                ),
-            ));
-        }
+    let recorded = task.root_commit.as_deref();
+    if admits(recorded, current_roots) {
+        return Ok(());
     }
-    Ok(())
+    Err(io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        format!(
+            "claim: {id} belongs to the project rooted at {}, but this checkout is \
+             rooted at {} — claim it from that project's checkout",
+            recorded.unwrap_or_default(),
+            current_roots.join(", ")
+        ),
+    ))
 }
 
 /// `update` (§9): the generic field/body edit. Applies an ordered [`FieldEdit`]

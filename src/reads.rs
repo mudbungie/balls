@@ -38,6 +38,7 @@ pub(crate) mod legacy;
 mod list;
 mod readop;
 mod record;
+mod scope;
 mod show;
 mod style;
 
@@ -77,6 +78,12 @@ pub(crate) struct Flags {
     /// uniformly to live and reconstructed-dead rows, so `-s closed --claimant
     /// X` answers "what did X deliver".
     pub claimant: Option<String>,
+    /// `bl list --everywhere`: LIFT the default root scope (bl-0161 Q2). The
+    /// default set is the claim-admitted set — this checkout's project plus
+    /// rootless balls ([`scope`]); `--everywhere` omits that predicate to show
+    /// the whole fleet, foreign rows carrying a human project label. `list`-only;
+    /// composes unchanged with every other filter. `show` is always global.
+    pub everywhere: bool,
     /// `--legacy[=REF]` (§16): point this read at the PRE-greenfield JSON store
     /// instead of `tasks/` — the bounded migration shim, projected into the
     /// greenfield wire shape by [`legacy`]. `Some` holds the `<ref>:<dir>` spec
@@ -169,7 +176,10 @@ fn render(edge: &Edge, verb: Verb, flags: &Flags, store: &Path, cfg: &EffectiveC
             // The dead set is reconstructed from history only when the reach
             // calls for it — the live-only default never touches git (§9).
             let dead = if flags.reach.dead() { history::dead_balls(store, &cat)? } else { Vec::new() };
-            Ok(list::render_list(&cat, &dead, flags, &style, store, log::wall())? + &fold(None))
+            // The invocation path + XDG layout feed the root-aware scope and the
+            // fleet-view labels (bl-0161); both git reads stay lazy inside `list`.
+            let ctx = list::Ctx { store, now: log::wall(), invocation: &edge.invocation_path, xdg: &edge.xdg };
+            Ok(list::render_list(&cat, &dead, flags, &style, &ctx)? + &fold(None))
         }
         other => Err(io::Error::other(format!("{}: not a read verb", other.token()))),
     }

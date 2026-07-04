@@ -79,13 +79,23 @@ impl Xdg {
         self.state_dir().join("plugins").join(name)
     }
 
+    /// `$XDG_STATE_HOME/balls/clones/` — the parent of every per-invocation clone
+    /// bundle. Enumerating it (and decoding each `<pct-enc-invocation-path>/`
+    /// name) is how the fleet view names foreign balls by their enrolled
+    /// checkout's basename (bl-5965); the literal `clones` component lives here in
+    /// the path layer, not in the reader.
+    #[must_use]
+    pub fn clones_dir(&self) -> PathBuf {
+        self.state_dir().join("clones")
+    }
+
     /// The clone bundle for one invocation path, percent-encoded into a single
     /// component: `$XDG_STATE_HOME/balls/clones/<pct-enc-invocation-path>/`.
     #[must_use]
     pub fn clone_dir(&self, invocation_path: &Path) -> CloneDir {
         let enc = percent_encode(&invocation_path.to_string_lossy());
         CloneDir {
-            root: self.state_dir().join("clones").join(enc),
+            root: self.clones_dir().join(enc),
         }
     }
 }

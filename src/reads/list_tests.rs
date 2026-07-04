@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use super::*;
+use crate::layout::Xdg;
 use crate::reads::history::Dead;
 use crate::reads::test_support::{catalog, git_store, task};
 use crate::reads::{Catalog, Flags, Reach, Style};
@@ -33,10 +34,29 @@ fn nostore() -> &'static Path {
     Path::new("/balls-no-such-store")
 }
 
+/// A throwaway XDG with no clones dir — every pre-bl-5965 assertion runs
+/// label-free (no `--everywhere`, so `enrolled_labels` is never reached anyway).
+fn nogit_xdg() -> Xdg {
+    Xdg::with(Path::new("/no-home"), None, Some("/no-state"))
+}
+
+/// A [`Ctx`] over `store` with a rootless (non-git) checkout — the single-store
+/// shape: `checkout_roots` finds nothing, scope admits everything, byte-identical
+/// to today. `xdg` is borrowed by the returned `Ctx`, so the caller keeps it.
+fn ctx<'a>(store: &'a Path, xdg: &'a Xdg) -> Ctx<'a> {
+    Ctx { store, now: NOW, invocation: Path::new("/no-checkout"), xdg }
+}
+
 /// Render against a never-walked store — the shape for tests with no live
 /// claimed row (which alone pays the walk).
 fn render(cat: &Catalog, dead: &[Dead], flags: &Flags, style: &Style) -> String {
-    render_list(cat, dead, flags, style, nostore(), NOW).unwrap()
+    render_at(cat, dead, flags, style, nostore())
+}
+
+/// Render against a REAL `store` (the claim-age walk shape), rootless checkout.
+fn render_at(cat: &Catalog, dead: &[Dead], flags: &Flags, style: &Style, store: &Path) -> String {
+    let xdg = nogit_xdg();
+    render_list(cat, dead, flags, style, &ctx(store, &xdg)).unwrap()
 }
 
 /// A reconstructed dead ball, for the reach/render tests.
@@ -59,7 +79,7 @@ fn list_renders_one_plain_line_per_ball_with_hints() {
     claimed.claimant = Some("alice".into());
     s.claim("bl-2", &claimed, NOW - 2 * 3_600);
     let cat = Catalog::load(s.dir()).unwrap();
-    let out = render_list(&cat, &[], &flags(false), &plain(), s.dir(), NOW).unwrap();
+    let out = render_at(&cat, &[], &flags(false), &plain(), s.dir());
     assert_eq!(out, "ready    bl-1  First  p2\nclaimed  bl-2  Held  @alice (2h)\n");
 }
 
@@ -104,7 +124,7 @@ fn status_claimed_filter_keeps_only_claimed_balls() {
     held.claimant = Some("me".into());
     s.claim("bl-held", &held, NOW - 3 * 3_600);
     let cat = Catalog::load(s.dir()).unwrap();
-    let out = render_list(&cat, &[], &flags_status(Status::Claimed), &plain(), s.dir(), NOW).unwrap();
+    let out = render_at(&cat, &[], &flags_status(Status::Claimed), &plain(), s.dir());
     assert_eq!(out, "claimed  bl-held  Held  @me (3h)\n");
 }
 
@@ -208,7 +228,7 @@ fn a_claimant_filter_narrows_both_live_and_dead() {
     da.task.claimant = Some("alice".into());
     let dead_set = [da, dead("bl-other", "By someone else", 4)];
     let f = Flags { plain: true, reach: Reach::All, claimant: Some("alice".into()), ..Default::default() };
-    let out = render_list(&cat, &dead_set, &f, &plain(), s.dir(), NOW).unwrap();
+    let out = render_at(&cat, &dead_set, &f, &plain(), s.dir());
     assert!(out.contains("bl-a") && out.contains("bl-d"), "alice's live + dead: {out}");
     assert!(!out.contains("bl-b") && !out.contains("bl-other"), "others dropped: {out}");
     // The live row carries the derived age; the dead one renders `@alice` bare.
@@ -226,6 +246,12 @@ fn a_claimed_row_without_a_claim_commit_renders_the_bare_claimant() {
     held.claimant = Some("alice".into());
     s.create("bl-1", &held, 1);
     let cat = Catalog::load(s.dir()).unwrap();
-    let out = render_list(&cat, &[], &flags(false), &plain(), s.dir(), NOW).unwrap();
+    let out = render_at(&cat, &[], &flags(false), &plain(), s.dir());
     assert_eq!(out, "claimed  bl-1  Held  @alice\n");
 }
+
+// The root-aware scope + fleet-label tests (bl-0161 Q2, bl-5965) are a nested
+// sibling module so this file stays under the 300-line cap; they inherit every
+// fixture above through `super::*` (the decomposition convention).
+#[path = "list_scope_tests.rs"]
+mod scope;
