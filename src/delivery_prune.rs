@@ -15,7 +15,8 @@
 
 use std::io;
 
-use crate::delivery::{marker, Repo};
+use crate::delivery::Repo;
+use crate::delivery_path::marker;
 use crate::delivery_repo::Project;
 use crate::delivery_standing::Standing;
 

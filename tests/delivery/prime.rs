@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 use assert_cmd::Command;
-use balls::delivery::worktree_path;
+use balls::delivery_path::worktree_path;
 use balls::layout::Xdg;
 use tempfile::TempDir;
 

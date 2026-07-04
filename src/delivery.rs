@@ -8,7 +8,7 @@
 //!
 //! **Kind-blind & stateless across ops.** The plugin NEVER branches on task
 //! kind. The worktree path and branch are pure functions of `(binding, id)`
-//! ([`worktree_path`] / `work/<id>`); `<id>` rides the post wire (the immutable
+//! ([`crate::delivery_path::worktree_path`] / `work/<id>`); `<id>` rides the post wire (the immutable
 //! `bl-id` trailer) or — on a pre hook, where the id is not sealed yet (§7) —
 //! is read back from the single changed `tasks/<id>.md` in the change worktree
 //! ([`resolve_id`]). Every hook recomputes its resource and checks the
@@ -27,11 +27,8 @@
 //! without a temp repo per case.
 
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
-use serde::Deserialize;
-
-use crate::layout::Xdg;
 use crate::message::Metadata;
 
 /// The protocol self-description (`<bin> protocol`, §6): this plugin speaks
@@ -143,75 +140,6 @@ pub fn surfaced(op: &str, phase: &str, rolling_back: bool, worktree: &Path, exis
     }
 }
 
-/// This binding's worktree territory (§11):
-/// `$XDG_STATE_HOME/balls/plugins/<name>/<invocation_path>/`. Every `work/<id>`
-/// worktree is an `<id>/` child; [`worktree_path`] joins one id onto it.
-///
-/// Unlike every other layout name (which percent-encodes its key into one
-/// inspectable component, §1), this one MIRRORS the invocation path verbatim —
-/// the leading `/` stripped so it nests rather than re-roots. The reason is
-/// concrete: this subtree is the project's *code* worktree, where `cargo`/`rustc`
-/// build, and `rust-lld` cannot open an output file whose path contains a `%`
-/// (bl-f3e4). A percent-encoded ancestor would poison every link. Mirroring the
-/// real path is at least as inspectable as encoding it (§1's actual goal — names
-/// you can read, never a hash) and is always a valid filesystem path, since the
-/// invocation path already is one. The git-data layouts (clones, tracker) keep
-/// percent-encoding: nothing compiles there, so `%` is harmless.
-#[must_use]
-pub fn binding_territory(xdg: &Xdg, plugin: &str, invocation_path: &str) -> PathBuf {
-    xdg.plugin_territory(plugin).join(invocation_path.trim_start_matches('/'))
-}
-
-/// Reject an `invocation_path` that is not a clean absolute path, BEFORE it is
-/// mirrored by [`binding_territory`] (bl-2d6d). The mirror joins the path
-/// verbatim — it gives up the `..`-neutralization percent-encoding gives the
-/// clone layout — so a relative path or a `..` component would let the worktree
-/// escape plugin territory. The delivery edge calls this once, at wire ingress,
-/// before any worktree path is derived.
-pub fn ensure_safe_invocation_path(p: &str) -> io::Result<()> {
-    let path = Path::new(p);
-    if !path.is_absolute() || path.components().any(|c| c == Component::ParentDir) {
-        return Err(io::Error::other(format!(
-            "unsafe invocation path (must be absolute, no '..'): {p:?}"
-        )));
-    }
-    Ok(())
-}
-
-/// The derived code-worktree path (§11): the `<id>/` child of this binding's
-/// [`binding_territory`]. balls prints the same path from the same formula — no
-/// return channel. Pairs with [`work_branch`] — both derive from the same `<id>`
-/// key, so §11 claimant-keying (`<key> = <id>` or `<id>-<claimant>`) is a single
-/// edit across the pair, not a hunt for every `work/<id>` literal.
-#[must_use]
-pub fn worktree_path(xdg: &Xdg, plugin: &str, invocation_path: &str, id: &str) -> PathBuf {
-    binding_territory(xdg, plugin, invocation_path).join(id)
-}
-
-/// The `work/<id>` branch this binding's worktree sits on (§11) — the BRANCH
-/// half of the `(worktree_path, branch)` pair. Every site that derives one must
-/// derive the other through these two helpers so they cannot drift; see
-/// [`worktree_path`].
-#[must_use]
-pub fn work_branch(id: &str) -> String {
-    format!("work/{id}")
-}
-
-/// The delivery commit subject: `<title> [<id>]`. The `[<id>]` tag is delivery
-/// ground truth — the `marked` tag-scan (§11) reads the integration branch for
-/// it, and deliver's retry standing detects a landed squash by it.
-#[must_use]
-pub fn subject(title: &str, id: &str) -> String {
-    format!("{title} [{id}]")
-}
-
-/// `[<id>]` — the delivery tag the squash subject carries and the retry
-/// standing / `marked` tag-scan greps for.
-#[must_use]
-pub fn marker(id: &str) -> String {
-    format!("[{id}]")
-}
-
 /// Resolve the op's task id. A post hook carries it as the sealed `bl-id`
 /// trailer in `metadata`; a pre hook does not (the id is not on the pre wire,
 /// §7), so it is read back from the single changed `tasks/<id>.md` the op
@@ -233,48 +161,6 @@ pub fn resolve_id(
         [id] => Ok(id.clone()),
         other => Err(io::Error::other(format!("expected exactly one changed task file, found {}", other.len()))),
     }
-}
-
-/// The §7 fields the delivery plugin reads off stdin. balls only ever
-/// serializes the wire ([`crate::wire`]); the plugin owns the matching
-/// deserialize for the slice it needs — `invocation_path` (the project root),
-/// the `bl-id` metadata, the ball `title` for the squash subject, and the
-/// `rolling_back` tag.
-#[derive(Debug, Deserialize)]
-pub struct Wire {
-    pub binding: WireBinding,
-    /// The §7 command — read only for its `-m` note, the delivery message
-    /// override (bl-b9a6). Absent on a diffless op, `message` absent without `-m`.
-    #[serde(default)]
-    pub command: Option<WireCommand>,
-    #[serde(default)]
-    pub metadata: Option<Metadata>,
-    #[serde(default)]
-    pub current_state: Option<WireState>,
-    #[serde(default)]
-    pub rolling_back: Option<String>,
-}
-
-/// The one binding field the plugin needs: where `bl` was invoked (§7/§11) —
-/// the project-repo root the derived worktree paths hang off.
-#[derive(Debug, Deserialize)]
-pub struct WireBinding {
-    pub invocation_path: String,
-}
-
-/// The one ball field the plugin needs: the title, for the squash subject.
-#[derive(Debug, Default, Deserialize)]
-pub struct WireState {
-    #[serde(default)]
-    pub title: String,
-}
-
-/// The one §7 command field the plugin needs: the `-m` `message`, read as the
-/// FULL delivery message override (bl-b9a6) when a close carried one.
-#[derive(Debug, Default, Deserialize)]
-pub struct WireCommand {
-    #[serde(default)]
-    pub message: Option<String>,
 }
 
 #[cfg(test)]
