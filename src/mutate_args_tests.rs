@@ -45,12 +45,11 @@ fn parse_rejects_an_unknown_flag() {
 #[test]
 fn parse_resolves_the_per_op_remote_override() {
     // The §12 ladder's top tier on every mutating verb (bl-c2de): `--remote`
-    // always assigns, `--center` fills only an empty slot — prime's precedence.
+    // shapes this one op. `--center` is NOT an alias here — it enrolls a checkout
+    // (prime-only, bl-35e5), so on a mutating verb it bounces as an unknown flag.
     assert_eq!(parse(&strs(&["--remote", "r"]), "me").unwrap().remote.as_deref(), Some("r"));
-    assert_eq!(parse(&strs(&["--center", "c"]), "me").unwrap().remote.as_deref(), Some("c"));
-    for order in [["--center", "c", "--remote", "r"], ["--remote", "r", "--center", "c"]] {
-        assert_eq!(parse(&strs(&order), "me").unwrap().remote.as_deref(), Some("r"));
-    }
+    let err = parse(&strs(&["--center", "c"]), "me").unwrap_err();
+    assert!(err.to_string().contains("unexpected flag '--center'"), "{err}");
 }
 
 #[test]

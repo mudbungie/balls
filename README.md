@@ -106,7 +106,7 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 
 | Command | What it does |
 |---------|-------------|
-| `bl prime [--as ID] [--remote URL] [--center URL] [--install URL]` | Ready this checkout: **founds the substrate on first run** (no separate `init`), then syncs. Re-prints the worktree path of every task you still hold. Run at session start. `--remote`/`--center` both name the store remote (`--remote` wins if both are given). |
+| `bl prime [--as ID] [--remote URL] [--center URL] [--install URL]` | Ready this checkout: **founds the substrate on first run** (no separate `init`), then syncs. Re-prints the worktree path of every task you still hold. Run at session start. `--remote URL` shapes one op; `--center URL` **enrolls** this checkout into a shared center (durable bind + adopt `config/` + prime, one shot; subsumes `--install`); `--install URL` adopts a center's `config/` only. |
 | `bl sync [BRANCH] [--as ID]` | Pull the store from the remote (fetch + fast-forward). No arg syncs the configured store branch. |
 | `bl list [NEEDLE] [-s\|--status ready\|blocked\|claimed\|closed] [--all] [--tag T] [--claimant NAME] [--since D] [--until D] [--json]` | List tasks, one row per ball. Default = live (non-closed). `-s closed` (or `--all` for live+dead) reconstructs archived tasks from history. Filters compose (AND): `NEEDLE` = case-insensitive substring over title+body; `--claimant` = exact holder. A claimed row shows its claim-age (human render only; `--json` is stored frontmatter). |
 | `bl show <id> [--json]` | Task detail, journal included (the ball's store history with its `-m` notes, oldest-first — human render only). A closed id still resolves (reconstructed from history). |
@@ -131,7 +131,7 @@ Run `bl prime` at the start of every session:
 bl prime --as YOUR_IDENTITY
 ```
 
-`prime` is idempotent. On first run it **founds** the local substrate — seeding `config/` from the install defaults and creating the store — then syncs with the remote. Re-running converges to a no-op. To point a fresh checkout at a shared project, pass the remote once: `bl prime --as ID --remote <git-url>` (`--center <git-url>` is the same store-remote knob in federation framing; `--remote` wins if both are given). Pass `--install <git-url>` to also adopt that center's `config/` — a **single hop**, not a walk: a center's config names its own store branch, never another config to chase.
+`prime` is idempotent. On first run it **founds** the local substrate — seeding `config/` from the install defaults and creating the store — then syncs with the remote. Re-running converges to a no-op. To enroll a fresh checkout into a shared project (a "center"), the one-shot is `bl prime --center <git-url>`: it writes the durable per-clone binding, adopts that center's `config/`, and primes — one command, no half-enrolled window. A local bare repo is a legitimate center (`git init --bare ~/hub.git`, then `bl prime --center ~/hub.git`). The rule is **`--remote` shapes one op; `--center` enrolls a checkout** (prime-only). `--center` subsumes `--install`, which adopts a center's `config/` *without* the durable bind — a **single hop**, not a walk: a center's config names its own store branch, never another config to chase.
 
 ### Identity
 

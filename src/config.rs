@@ -168,7 +168,7 @@ pub fn landing_remote(landing: &Path) -> io::Result<Option<String>> {
 }
 
 /// Resolve the EXPLICIT tiers of the ONE §12 remote ladder — per-op
-/// `--remote`/`--center` > landing `task_remote` > per-clone `binding.toml`
+/// `--remote` > landing `task_remote` > per-clone `binding.toml`
 /// remote > legacy XDG `remote` — returning the explicit remote and whether
 /// stealth is DECLARED. Consent given supersedes consent withheld: a per-op
 /// remote outranks the sentinel for that one op. A declared sentinel STOPS

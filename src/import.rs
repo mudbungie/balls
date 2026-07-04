@@ -54,7 +54,7 @@ pub fn run(edge: &Edge, input: &mut dyn Read, args: &[String]) -> io::Result<()>
     ingest(edge, &flags, stream::records(&text)?)
 }
 
-/// `import`'s flags: identity, narration, the §12 remote override pair, and
+/// `import`'s flags: identity, narration, the §12 `--remote` per-op override, and
 /// the `--legacy[=REF]` button. No positionals — records ride stdin.
 #[derive(Debug)]
 struct Flags {
@@ -65,8 +65,9 @@ struct Flags {
 }
 
 /// Parse `import`'s argv. The flag vocabulary is deliberately the mutating
-/// verbs' (`--as`/`-m`/`--remote`/`--center`) plus the §16 `--legacy` spelling
-/// shared with the read verbs ([`legacy::flag`]).
+/// verbs' (`--as`/`-m`/`--remote`) plus the §16 `--legacy` spelling shared with
+/// the read verbs ([`legacy::flag`]). `--center` is prime-only (enrollment,
+/// bl-35e5), so on `import` it falls through to the unexpected-argument error.
 fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
     let mut f = Flags { actor: default_actor.to_string(), message: None, remote: None, legacy: None };
     let mut args = args.iter();
@@ -74,9 +75,7 @@ fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
         match arg.as_str() {
             "--as" => f.actor = value(&mut args, "--as")?,
             "-m" | "--message" => f.message = Some(value(&mut args, "-m")?),
-            flag @ ("--remote" | "--center") => {
-                crate::checkout::apply_remote(&mut f.remote, flag, value(&mut args, flag)?);
-            }
+            "--remote" => f.remote = Some(value(&mut args, "--remote")?),
             a if legacy::flag(a).is_some() => f.legacy = legacy::flag(a),
             other => {
                 return Err(crate::usage(format!(

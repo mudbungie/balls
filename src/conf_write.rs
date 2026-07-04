@@ -47,13 +47,7 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
         (Key::Hook(k), _) => hooks_edit(&landing, actor, op, &k, values),
         (Key::TaskRemote, "set") => match one(op, token, values)? {
             crate::config::STEALTH_REMOTE => declare_stealth(&landing, actor),
-            url => {
-                // Clear a declared stealth first: the landing rung outranks the
-                // binding one, so leaving the sentinel would make this set change
-                // nothing the ladder resolves — the bl-d234 trap, inverted.
-                clear_stealth(&landing, actor, url)?;
-                binding_set(clone, url)
-            }
+            url => bind_task_remote(clone, &landing, actor, url),
         },
         (Key::LogLevel, "set") => {
             let value = one(op, token, values)?;
@@ -79,6 +73,18 @@ fn one<'a>(op: &str, key: &str, values: &'a [String]) -> io::Result<&'a str> {
         [only] => Ok(only),
         _ => Err(crate::usage(format!("conf {op}: '{key}' takes exactly one value"))),
     }
+}
+
+/// Bind THIS checkout to a store-remote `url` (the §12 durable per-clone tier):
+/// clear any declared stealth first — the landing rung outranks the binding one,
+/// so leaving the sentinel would make this set change nothing the ladder resolves
+/// (the bl-d234 trap, inverted) — then write `url` into the clone's `binding.toml`.
+/// `bl conf set task-remote <url>` IS this write, and `bl prime --center <url>`
+/// reuses it as enrollment's durable half (bl-35e5): one composition, one home,
+/// so a durable bind can never drift between the two spellings.
+pub(crate) fn bind_task_remote(clone: &CloneDir, landing: &Path, actor: &str, url: &str) -> io::Result<()> {
+    clear_stealth(landing, actor, url)?;
+    binding_set(clone, url)
 }
 
 /// Declare stealth: write the §12 sentinel into the landing's per-checkout

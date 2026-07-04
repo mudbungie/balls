@@ -138,13 +138,41 @@ fn prime_rejects_unknown_flags_and_a_missing_value() {
 }
 
 #[test]
-fn prime_accepts_the_remote_override_flags() {
+fn prime_accepts_the_per_op_remote_override() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
-    // --remote and --center both name the store remote; the empty (tracker-free)
-    // chain ignores it, so this just proves they parse and resolve into the binding.
+    // --remote names the store remote for this op; the empty (tracker-free) chain
+    // ignores it, so this just proves it parses and resolves into the binding.
     prime(&e, &argv(&["--remote", "git@hub:r"])).unwrap();
-    prime(&e, &argv(&["--center", "git@hub:c", "--remote", "git@hub:r"])).unwrap();
+}
+
+#[test]
+fn prime_center_writes_the_durable_binding_before_adopt() {
+    // bl-35e5: `--center URL` ENROLLS — it writes the per-clone `task-remote`
+    // binding (what `conf set task-remote URL` does) BEFORE adopting config, so
+    // the §12 ladder resolves the center on this op and every later one. With no
+    // tracker (exe_dir None) the adopt half then fails for lack of an install.pre
+    // fetch plugin — but the durable binding is already written, which is exactly
+    // the resume-idempotent story (re-running converges once a tracker exists). The
+    // full happy path (real fetch + adopt + prime) is `tests/dispatch.rs`.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let err = prime(&e, &argv(&["--center", "git@hub:c", "--as", "me"])).unwrap_err();
+    assert!(err.to_string().contains("install.pre"), "adopt needs a fetch plugin: {err}");
+    // The binding landed first, so a plain later bind resolves the center durably.
+    let (l, s) = (landing(&e), store(&e));
+    let (b, _) = bind(&e, &l, &s, None, None).unwrap();
+    assert_eq!(b.remote.as_deref(), Some("git@hub:c"));
+}
+
+#[test]
+fn prime_rejects_center_with_install() {
+    // bl-35e5: --center subsumes --install (both name the center whose config we
+    // adopt), so passing both is refused loud rather than guessing a winner.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let err = prime(&e, &argv(&["--center", "git@hub:c", "--install", "git@hub:c"])).unwrap_err();
+    assert!(err.to_string().contains("--center already adopts"), "{err}");
 }
 
 #[test]
@@ -202,12 +230,14 @@ fn sync_rejects_unknown_flags_and_a_second_branch() {
 
 #[test]
 fn sync_accepts_the_per_op_remote_override() {
-    // The ONE §12 ladder (bl-c2de): sync takes `--remote`/`--center` exactly as
-    // prime does; the plugin-less chain ignores it, so this proves parse+bind.
+    // The ONE §12 ladder (bl-c2de): sync takes `--remote` exactly as prime does;
+    // the plugin-less chain ignores it, so this proves parse+bind. `--center` is
+    // prime-only (enrollment, bl-35e5), so sync bounces it as an unknown flag.
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
     prime(&e, &[]).unwrap();
     sync(&e, &argv(&["--remote", "git@hub:r"])).unwrap();
-    sync(&e, &argv(&["--center", "git@hub:c", "--remote", "git@hub:r"])).unwrap();
     assert!(sync(&e, &argv(&["--remote"])).is_err()); // flag with no value
+    let err = sync(&e, &argv(&["--center", "git@hub:c"])).unwrap_err();
+    assert!(err.to_string().contains("unexpected flag '--center'"), "{err}");
 }
