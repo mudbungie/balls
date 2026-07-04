@@ -50,22 +50,24 @@ pub struct Occupancy {
     pub now: i64,
     /// The `-m` free commit-message narration (§5); occupancy edits no ball field.
     pub message: Option<String>,
-    /// This checkout's root-commit identity (bl-1ce7), INJECTED at the CLI
-    /// boundary. `claim` rejects when the ball recorded a DIFFERENT root; only
-    /// read on `claim`, ignored on `unclaim`. `None` off a checkout with no code
-    /// repo — a mismatch is then unprovable, so the guard passes (fail-open).
-    pub current_root: Option<String>,
+    /// This checkout's root-commit identities (bl-0161), INJECTED at the CLI
+    /// boundary — the SET of roots reachable from HEAD, since a multi-root repo
+    /// answers to more than one. `claim` rejects only when the ball recorded a
+    /// root that is NONE of these; read on `claim`, ignored on `unclaim`. Empty
+    /// off a checkout with no code repo — a mismatch is then unprovable, so the
+    /// guard passes (fail-open).
+    pub current_roots: Vec<String>,
 }
 
 impl Occupancy {
     /// `claim`: take occupancy as `actor` (guarded against an existing claim).
     pub fn claim(id: String, actor: String, now: i64) -> Self {
-        Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, message: None, current_root: None }
+        Self { verb: Verb::Claim, id, claimant: Some(actor.clone()), actor, now, message: None, current_roots: Vec::new() }
     }
 
     /// `unclaim`: release occupancy (clear `claimant`).
     pub fn unclaim(id: String, actor: String, now: i64) -> Self {
-        Self { verb: Verb::Unclaim, id, claimant: None, actor, now, message: None, current_root: None }
+        Self { verb: Verb::Unclaim, id, claimant: None, actor, now, message: None, current_roots: Vec::new() }
     }
 }
 
@@ -79,7 +81,7 @@ impl BaseChange for Occupancy {
                     format!("claim: {} is already claimed by {who}", self.id),
                 ));
             }
-            guard_repo(&task, self.current_root.as_deref(), &self.id)?;
+            guard_repo(&task, &self.current_roots, &self.id)?;
             enforce::claim(&task, &self.id, dir)?;
         } else {
             enforce::gate(&task, Verb::Unclaim, &self.id, dir)?;
@@ -94,23 +96,27 @@ impl BaseChange for Occupancy {
     }
 }
 
-/// The wrong-repo claim guard (bl-1ce7): reject when the ball recorded a project
-/// [`Task::root_commit`] that DIFFERS from `current` (this checkout's root). The
-/// ONLY rejection is both-present-and-differ — a ball with no recorded root
-/// (predates the guard, or born off no code repo) and a checkout with no root
-/// both PASS (back-compat / fail-open, no override). The recorded hash NAMES the
-/// project the ball belongs to: identity is the git root commit, remote-free, so
-/// the message points at the right checkout without a path or a remote. A
-/// same-root collision (only via a shared root commit) grants nothing — the
-/// claimant would already be working from that very directory.
-fn guard_repo(task: &Task, current: Option<&str>, id: &str) -> io::Result<()> {
-    if let (Some(recorded), Some(current)) = (task.root_commit.as_deref(), current) {
-        if recorded != current {
+/// The wrong-repo claim guard (bl-1ce7, generalized bl-0161): reject when the
+/// ball recorded a project [`Task::root_commit`] that is NONE of `current_roots`
+/// (this checkout's root SET — a multi-root repo answers to several). Matching
+/// against the whole set, not just the first line, means merging an unrelated
+/// history (which can REORDER the roots) never flips the computed identity and
+/// strands earlier balls — any-of admits. The ONLY rejection is ball-root-present
+/// and in-none-of-the-set — a ball with no recorded root (predates the guard, or
+/// born off no code repo) and a checkout with no roots both PASS (back-compat /
+/// fail-open, no override). The recorded hash NAMES the project the ball belongs
+/// to: identity is the git root commit, remote-free, so the message points at the
+/// right checkout without a path or a remote. A shared-root collision grants
+/// nothing — the claimant would already be working from that very directory.
+fn guard_repo(task: &Task, current_roots: &[String], id: &str) -> io::Result<()> {
+    if let Some(recorded) = task.root_commit.as_deref() {
+        if !current_roots.is_empty() && !current_roots.iter().any(|r| r == recorded) {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 format!(
                     "claim: {id} belongs to the project rooted at {recorded}, but this checkout is \
-                     rooted at {current} — claim it from that project's checkout"
+                     rooted at {} — claim it from that project's checkout",
+                    current_roots.join(", ")
                 ),
             ));
         }

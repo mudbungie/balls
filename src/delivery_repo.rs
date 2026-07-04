@@ -66,18 +66,32 @@ impl Project {
         Self::ok(&self.root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
     }
 
-    /// This project's canonical, REMOTE-FREE root-commit identity:
-    /// `git rev-list --max-parents=0 HEAD`, the first (newest) root reachable
-    /// from HEAD. Intrinsic to history and identical across clones/hosts, it is
-    /// what the claim guard (bl-1ce7) records at create and rejects a mismatch
-    /// against. `None` when `root` is not a git repo, or carries no commit yet —
-    /// a ball created there records nothing and is unconstrained (back-compat);
-    /// any git failure collapses the same way, fail-open (the guard grants
-    /// nothing it could withhold).
+    /// EVERY root-commit reachable from HEAD, newest-first:
+    /// `git rev-list --max-parents=0 HEAD` prints one root per line, and a
+    /// multi-root repo (an unrelated history merged in — vendoring) has more than
+    /// one. These are the project identities this checkout answers to; the claim
+    /// guard (bl-0161) admits a ball whose recorded root is ANY of them, so
+    /// merging an unrelated history never flips identity and strands earlier
+    /// balls. Empty when `root` is not a git repo, carries no commit yet, or any
+    /// git call fails — fail-open, the guard withholds nothing it cannot prove.
+    /// The set-returning read is the reusable primitive: root-aware `list`
+    /// (bl-5965) scopes on the same call.
+    #[must_use]
+    pub fn root_commits(&self) -> Vec<String> {
+        Self::run(&self.root, &["rev-list", "--max-parents=0", "HEAD"])
+            .map(|out| out.lines().map(str::to_string).collect())
+            .unwrap_or_default()
+    }
+
+    /// This project's canonical, REMOTE-FREE root-commit stamp: the first
+    /// (newest) of [`Self::root_commits`]. Intrinsic to history and identical
+    /// across clones/hosts, it is what `create` records on a ball (bl-1ce7).
+    /// `None` off a non-repo / commitless checkout — a ball created there records
+    /// nothing and is unconstrained (back-compat). The stamp stays singular; the
+    /// SET is the read side (the guard, and future list scope).
     #[must_use]
     pub fn root_commit(&self) -> Option<String> {
-        let out = Self::run(&self.root, &["rev-list", "--max-parents=0", "HEAD"]).ok()?;
-        out.lines().next().map(str::to_string)
+        self.root_commits().into_iter().next()
     }
 
     /// Capture any pending worktree work onto `branch` as a commit (squashed

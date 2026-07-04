@@ -22,18 +22,19 @@ use super::{build, edit, guards, other, Flags};
 pub(super) type Authored = (Box<dyn BaseChange>, Option<Task>);
 
 /// Author the verb's [`BaseChange`] from the parsed `flags` (see [`Authored`]).
-/// `now` and `root` (this checkout's [`crate::delivery_repo::Project::root_commit`])
+/// `now` and `roots` (this checkout's [`crate::delivery_repo::Project::root_commits`])
 /// are injected, so the change stays pure (it reads no clock and shells no git):
-/// `create` STAMPS `root` on the ball, `claim` REJECTS a mismatch against it
-/// (bl-1ce7), the other verbs ignore it. The `editor` seam serves only
-/// `update --edit`. `Ok(None)` is `--edit`'s unchanged-buffer no-op — there is
-/// nothing to author. Only the five mutating verbs reach here.
+/// `create` STAMPS the first (canonical) root on the ball, `claim` ADMITS a ball
+/// recorded against ANY of them (bl-0161), the other verbs ignore it. The
+/// `editor` seam serves only `update --edit`. `Ok(None)` is `--edit`'s
+/// unchanged-buffer no-op — there is nothing to author. Only the five mutating
+/// verbs reach here.
 pub(super) fn base_change(
     verb: Verb,
     store: &Path,
     flags: &Flags,
     now: i64,
-    root: Option<String>,
+    roots: Vec<String>,
     editor: &mut edit::Editor,
 ) -> io::Result<Option<Authored>> {
     let actor = flags.actor.clone();
@@ -62,7 +63,7 @@ pub(super) fn base_change(
                 blocks,
                 body: flags.body.clone(),
                 message: flags.message.clone(),
-                root_commit: root,
+                root_commit: roots.into_iter().next(),
                 existing: task_ids(store)?,
             };
             Ok(Some((Box::new(base), None)))
@@ -73,7 +74,7 @@ pub(super) fn base_change(
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
             let base =
-                Occupancy { verb, id, claimant, actor, now, message: flags.message.clone(), current_root: root };
+                Occupancy { verb, id, claimant, actor, now, message: flags.message.clone(), current_roots: roots };
             Ok(Some((Box::new(base), Some(before))))
         }
         Verb::Update => {
