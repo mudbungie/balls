@@ -82,7 +82,9 @@ Run `bl help` for the terse one-line directory. Full usage for any command is
   the landing's `[hooks]` schedule (`bl-tracker` syncs the remote, `bl-delivery`
   owns the worktree). The schedule and its ordering rules are in `bl conf
   --skill`; moving a plugin's binary or config between branches is `bl install
-  --skill`.
+  --skill`. Binaries never travel — a schedule naming a binary you lack refuses
+  cleanly, showing the owner's `[source]` acquisition hint when one is authored
+  (you run it; balls never does).
 - **The store remote resolves the same way on every command** — `--remote` >
   the per-checkout binding/stealth sentinel > `origin`. The ladder is spelled
   out in `bl prime --skill`.

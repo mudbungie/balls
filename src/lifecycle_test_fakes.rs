@@ -28,7 +28,7 @@ pub(crate) fn ioerr(what: &str) -> io::Error {
 }
 
 pub(crate) fn plugin(name: &str) -> PluginRef {
-    PluginRef { name: name.to_string(), bin: None }
+    PluginRef { name: name.to_string(), bin: None, source: None }
 }
 
 /// An [`Anvil`] that journals each act, fails the named one, and captures the

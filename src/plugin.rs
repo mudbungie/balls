@@ -84,12 +84,19 @@ impl<'a> Subprocess<'a> {
     /// plugin (§15, [`renamed_to`]) is SKIPPED with a notice — non-fatal, so an
     /// old committed schedule keeps working locally (just without that plugin)
     /// until its owner updates the names; any other missing plugin ABORTS the op
-    /// (a genuine "referenced but not installed" misconfig). Returning `Ok` means
-    /// the op proceeds as if the entry were absent.
-    fn unbound(&self, name: &str, phase: Phase) -> io::Result<()> {
+    /// (a genuine "referenced but not installed" misconfig), the error carrying
+    /// the name's `[source]` acquisition hint when one exists (bl-5b09 — same
+    /// refusal, more words). Returning `Ok` means the op proceeds as if the
+    /// entry were absent.
+    fn unbound(&self, plugin: &PluginRef, phase: Phase) -> io::Result<()> {
+        let name = &plugin.name;
         let Some(current) = renamed_to(name) else {
+            let remedy = match &plugin.source {
+                Some(hint) => format!("source: {hint} — then bl install to bind"),
+                None => "run bl install".to_string(),
+            };
             return Err(io::Error::other(format!(
-                "plugin {name} referenced but bin/{name} missing — run bl install"
+                "plugin {name} referenced but bin/{name} missing — {remedy}"
             )));
         };
         self.log.record(
@@ -115,7 +122,7 @@ impl<'a> Subprocess<'a> {
         rolling_back: Option<&str>,
     ) -> io::Result<()> {
         let Some(bin) = plugin.bin.as_ref() else {
-            return self.unbound(&plugin.name, phase);
+            return self.unbound(plugin, phase);
         };
         // Parse the §5 trailers into the post wire's `metadata` (the engine
         // handed us the raw message — §5 lives on this side of the seam). A

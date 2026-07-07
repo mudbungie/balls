@@ -12,7 +12,9 @@ syncs.
 
 - `bl conf` (no args) — dump every resolved value, the **layer** it came from
   (`cli`/`binding`/`xdg`/`landing`/`origin`/`default`), and the paths of the
-  files behind them.
+  files behind them. After the hook rows: one `unbound` row per plugin the
+  schedule references but no `bin/<name>` resolves, with its `[source]`
+  acquisition hint or `(no source given)`; all bound ⇒ no rows.
 - `bl conf <key>` — print one value (stdout) with its provenance (stderr). A
   checkout with no durable remote shows `task-remote (none)` — that checkout is
   stealth.
@@ -46,7 +48,9 @@ worktree); a third, `bl-chore`, ships but is opt-in.
 converge (a present name re-appended, or an absent one removed, is a no-op).
 Naming a plugin whose binary isn't installed beside `bl` leaves a dangling entry
 — pruned at seed, a clean error at dispatch — never code execution; `conf` writes
-the schedule, never a binary.
+the schedule, never a binary. Those refusals name the plugin's `[source]`
+acquisition hint when the schedule's owner authored one (see `bl install
+--skill`); the dump's `unbound` rows show the same hints.
 
 **Order is yours, and it matters.** Plugins run in list order; on abort, whatever
 ran rolls back in reverse. Nothing enforces the seeded order. When wiring your

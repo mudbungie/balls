@@ -150,6 +150,85 @@ fn a_referenced_plugin_resolves_on_path_when_not_beside_bl() {
     assert_eq!(fs::read_link(link).unwrap(), bin);
 }
 
+/// The op-log lines this box recorded — the file half of the stderr/log path
+/// the bl-5b09 dangling report rides.
+fn op_log(e: &Edge) -> String {
+    fs::read_to_string(e.xdg.clone_dir(&e.invocation_path).op_log()).unwrap_or_default()
+}
+
+#[test]
+fn install_reports_each_dangling_name_with_its_hint_when_authored() {
+    // The bl-5b09 honesty fix: a referenced name with no candidate anywhere
+    // stays dangling (unchanged) but is REPORTED — one info line each, the
+    // [source] hint appended when the schedule's owner authored one. The
+    // install itself still succeeds: dangling is §6's clean state, not an error.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let (landing, _store) = found(&e);
+    side_with(
+        &tmp,
+        &landing,
+        "config/plugins.toml",
+        "[hooks]\n\"claim.post\" = [\"hinted\", \"hintless\"]\n[source]\nhinted = \"cargo install hinted\"\n",
+    );
+
+    run_install(&e, &["config", "--from", "side"]).unwrap();
+
+    let log = op_log(&e);
+    assert!(
+        log.contains("install: hinted referenced but not bound (no binary beside bl or on PATH) — source: cargo install hinted — re-run bl install after acquiring"),
+        "{log}"
+    );
+    assert!(
+        log.contains("install: hintless referenced but not bound (no binary beside bl or on PATH) — re-run bl install after acquiring"),
+        "{log}"
+    );
+}
+
+#[test]
+fn a_validation_refusal_carries_the_source_hint() {
+    // bl-5b09: the refusing-to-link error appends the name's [source] hint —
+    // it doubles as the upgrade pointer for a stale binary.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let (landing, _store) = found(&e);
+    side_with(
+        &tmp,
+        &landing,
+        "config/plugins.toml",
+        "[hooks]\n\"claim.post\" = [\"myplug\"]\n[source]\nmyplug = \"cargo install myplug\"\n",
+    );
+    let bin = fake_plugin(&tmp.path().join("elsewhere"), "myplug", r#"["close"]"#, "");
+
+    let err = run_install(&e, &["config", "--from", "side", "--bin", &format!("myplug={}", bin.display())]).unwrap_err();
+
+    assert!(
+        err.to_string()
+            .contains("refusing to link myplug: does not handle op 'claim' — source: cargo install myplug"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_self_describe_io_failure_is_not_decorated_with_the_hint() {
+    // The hint decorates the VALIDATION refusal only (bl-5b09's exact moment);
+    // a plain io failure (an explicit --bin path that does not exist) surfaces
+    // as itself — appending an acquisition hint to a spawn error would misread.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let (landing, _store) = found(&e);
+    side_with(
+        &tmp,
+        &landing,
+        "config/plugins.toml",
+        "[hooks]\n\"claim.post\" = [\"myplug\"]\n[source]\nmyplug = \"cargo install myplug\"\n",
+    );
+
+    let err = run_install(&e, &["config", "--from", "side", "--bin", "myplug=/nonexistent/bin"]).unwrap_err();
+
+    assert!(!err.to_string().contains("source:"), "{err}");
+}
+
 #[test]
 fn locate_prefers_the_bl_sibling_then_path_then_dangles() {
     let tmp = TempDir::new().unwrap();

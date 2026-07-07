@@ -122,7 +122,11 @@ fn read_one(edge: &Edge, clone: &CloneDir, key: &str) -> io::Result<()> {
 }
 
 /// `bl conf`: every resolved value + its layer, then the file paths (§4) — the
-/// scalars first, then each effective `[hooks]` key in schedule order.
+/// scalars first, then each effective `[hooks]` key in schedule order, then one
+/// `unbound` row per referenced-but-unbound plugin with its `[source]` hint
+/// (bl-5b09, the doctor surface on the existing verb). Bound-state is derived
+/// at read — each referenced name resolved against the registry, a query, not
+/// a field — and all-bound means NO rows: the general path with empty inputs.
 fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
     let landing = clone.landing();
     let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
@@ -133,6 +137,11 @@ fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
     for (key, names) in hooks.entries() {
         let value = if names.is_empty() { "(none)".into() } else { names.join(", ") };
         rows.push((key.clone(), prov::Resolved { value, layer: prov::hook_layer(edge, clone, key)? }));
+    }
+    let registry = crate::registry::Registry::at(&landing);
+    for name in hooks.referenced().keys().filter(|n| registry.resolve_bin(n).is_none()) {
+        let hint = hooks.source(name).unwrap_or_else(|| "(no source given)".into());
+        rows.push(("unbound".into(), prov::Resolved { value: name.clone(), layer: hint }));
     }
     let key_w = rows.iter().map(|(k, _)| k.len()).fold(0, usize::max) + 2;
     let val_w = rows.iter().map(|(_, r)| r.value.len()).fold(0, usize::max) + 2;

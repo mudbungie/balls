@@ -44,11 +44,15 @@ const EMBEDDED_PLUGINS: &str = include_str!("../default-config/plugins.toml");
 
 /// Seed a fresh landing's `config/` from the default-config (§12). Writes
 /// `balls.toml` verbatim, then writes `plugins.toml` with each named plugin bound
-/// to its sibling binary beside `bl` and every absent-binary entry PRUNED. Each
-/// file's content is the embedded install-default unless an XDG override file is
-/// present ([`default_body`]). `exe_dir` is the directory holding `bl` (where the
-/// shipped siblings live); `None` ⇒ a tracker-less box (every entry prunes, the
-/// chain runs empty).
+/// to its sibling binary beside `bl` and every absent-binary entry PRUNED. The
+/// prune stays silent for a hintless name (the shipped-sibling case — a
+/// tracker-less test box needs no advice) but a pruned name with a `[source]`
+/// hint gets one stderr line (bl-5b09: the org opted into loudness by authoring
+/// the hint); the hint table itself survives the rewrite whole
+/// ([`Hooks::to_toml`]). Each file's content is the embedded install-default
+/// unless an XDG override file is present ([`default_body`]). `exe_dir` is the
+/// directory holding `bl` (where the shipped siblings live); `None` ⇒ a
+/// tracker-less box (every entry prunes, the chain runs empty).
 pub fn seed_landing(xdg: &Xdg, landing: &Path, exe_dir: Option<&Path>) -> io::Result<()> {
     let override_dir = xdg.default_config();
     let config = landing.join("config");
@@ -57,6 +61,11 @@ pub fn seed_landing(xdg: &Xdg, landing: &Path, exe_dir: Option<&Path>) -> io::Re
 
     let mut hooks = Hooks::parse(&default_body(&override_dir, "plugins.toml", EMBEDDED_PLUGINS)?)?;
     let present = bind_present(landing, exe_dir, &hooks)?;
+    for name in hooks.referenced().keys().filter(|n| !present.contains(*n)) {
+        if let Some(hint) = hooks.source(name) {
+            eprintln!("seed: pruned {name} (no binary beside bl) — source: {hint} — re-add with bl conf after acquiring");
+        }
+    }
     hooks.retain(|name| present.contains(name));
     fs::write(config.join("plugins.toml"), hooks.to_toml())?;
     Ok(())

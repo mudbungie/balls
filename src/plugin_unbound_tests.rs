@@ -16,7 +16,7 @@ fn clk() -> i64 {
 }
 
 fn pref(name: &str, bin: Option<PathBuf>) -> PluginRef {
-    PluginRef { name: name.into(), bin }
+    PluginRef { name: name.into(), bin, source: None }
 }
 
 fn ctx() -> OpContext {
@@ -43,6 +43,23 @@ fn a_missing_third_party_plugin_aborts_and_names_bl_install() {
         .run(&pref("ghost", None), Verb::Close, Phase::Pre, tmp.path(), None)
         .unwrap_err();
     assert!(err.to_string().contains("ghost referenced but bin/ghost missing — run bl install"));
+}
+
+#[test]
+fn a_missing_plugin_with_a_source_hint_names_the_acquisition() {
+    // bl-5b09: the same refusal, more words — the [source] hint is threaded
+    // through verbatim, followed by the bind step it does not replace.
+    let tmp = TempDir::new().unwrap();
+    let log = Log::new(tmp.path().join("log"), Level::Debug, Verb::Close, clk);
+    let hinted = PluginRef { name: "ghost".into(), bin: None, source: Some("cargo install ghost".into()) };
+    let err = Subprocess::new(ctx(), &log, 0)
+        .run(&hinted, Verb::Close, Phase::Pre, tmp.path(), None)
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("ghost referenced but bin/ghost missing — source: cargo install ghost — then bl install to bind"),
+        "{err}"
+    );
 }
 
 #[test]

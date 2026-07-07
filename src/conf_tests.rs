@@ -167,6 +167,24 @@ fn the_dump_renders_scalars_hook_rows_and_paths() {
 }
 
 #[test]
+fn the_dump_grows_an_unbound_row_per_dangling_name_with_its_hint() {
+    // bl-5b09's doctor surface on the existing verb: each referenced name that
+    // resolves to no bin/<name> gets an `unbound` row — its [source] hint, or
+    // `(no source given)` when none is authored. Bound-state is derived at
+    // read; all bound ⇒ no rows (the general path with empty inputs, exercised
+    // by the plain dump test above once nothing is referenced).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    landing_file(
+        &clone,
+        "plugins.toml",
+        "[hooks]\n\"close.pre\" = [\"hinted\", \"hintless\"]\n[source]\nhinted = \"cargo install hinted\"\n",
+    );
+    run(&e, &[]).unwrap();
+}
+
+#[test]
 fn a_single_key_read_resolves_and_rejects_stray_values() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);

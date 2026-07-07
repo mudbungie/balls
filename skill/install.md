@@ -25,7 +25,18 @@ A landing-targeted install, after the sealed copy, binds each plugin the landed
 schedule references — beside `bl`, then on `$PATH`, `--bin NAME=PATH` overriding
 per plugin — validated against its live `protocol`. A refusal lands AFTER the
 sealed copy (the commit is the undo; the retry converges and just binds). Prints
-`N added / M deleted`.
+`N added / M deleted`. A referenced name with no binary anywhere stays dangling
+and is reported, one line each (`referenced but not bound … re-run bl install
+after acquiring`); re-running after acquiring converges and just binds.
+
+## Where a missing binary comes from: the `[source]` hint
+
+`plugins.toml` may carry a `[source]` table — per-name free text the schedule's
+owner authors (`bl-adversary = "cargo install balls-adversary"`). balls displays
+it verbatim at the refusals (the dispatch unbound abort, the validation refusal,
+the dangling report, the seed prune) and never parses, fetches, or runs it:
+acquiring the binary is your explicit act, via your package manager. No hint ⇒
+the same refusals, terser.
 
 ## Repairing a dangling plugin in install's own chain
 
