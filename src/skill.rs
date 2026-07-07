@@ -41,6 +41,17 @@ pub fn command(verb: Verb) -> &'static str {
     }
 }
 
+/// The `usage:` block of a command's doc — the `usage: bl …` line and its wrapped
+/// continuation, up to the following blank line. The TIGHT surface the usage-error
+/// footer prints (the command's shape, not the whole doc; the full doc is one `bl
+/// <cmd> --skill` away). A slice of the embedded [`command`] doc, so there is no
+/// per-verb usage data to drift from the doc.
+pub fn usage(verb: Verb) -> &'static str {
+    let doc = command(verb);
+    let rest = &doc[doc.find("usage: bl").unwrap_or(0)..];
+    rest[..rest.find("\n\n").unwrap_or(rest.len())].trim_end()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -62,6 +73,18 @@ mod tests {
             let doc = command(v);
             assert!(doc.contains(v.token()), "{}'s doc names the verb", v.token());
             assert!(doc.contains("usage: bl "), "{}'s doc has a usage line", v.token());
+        }
+    }
+
+    #[test]
+    fn usage_is_the_tight_block_of_each_doc() {
+        // The footer prints THIS, not the whole doc: just the `usage:` block, which
+        // still carries the flags (e.g. create's `[--body B]`) but drops the prose.
+        for v in Verb::ALL {
+            let u = usage(v);
+            assert!(u.starts_with("usage: bl "), "{}: starts at the usage line ({u:?})", v.token());
+            assert!(u.contains(v.token()), "{} named in its usage", v.token());
+            assert!(!u.contains("\n## "), "{}: usage block stops before the prose sections", v.token());
         }
     }
 }

@@ -8,7 +8,7 @@ balls is built so none of those failures have anywhere to take root. Tasks are m
 
 The CLI is `bl`. It runs the full spectrum — from one operator keeping a standalone backlog (no fleet, no codebase; the whole thing is task files you could keep by hand with `vi` and `git`) through a single developer driving a dozen agents, up to an entire team running enterprise workflows and external integrations across many machines — on the same two branches the whole way up.
 
-> **Companion documents go deeper.** `SKILL.md` (`bl skill`) is the operational guide for an agent driving `bl`. `docs/architecture.md` is the frozen design reference (§0–§16) — the authority for every claim in this README. `docs/release-notes-greenfield.md` narrates the greenfield (0.x) model and what changed from legacy; `docs/demonstration.md` is a captured end-to-end proof run against the shipped binary. This file is the introduction.
+> **Companion documents go deeper.** `SKILL.md` (`bl --skill`) is the operating guide for an agent driving `bl` — its command map points to each command's own `bl <cmd> --skill` for full usage. `docs/architecture.md` is the frozen design reference (§0–§16) — the authority for every claim in this README. `docs/release-notes-greenfield.md` narrates the greenfield (0.x) model and what changed from legacy; `docs/demonstration.md` is a captured end-to-end proof run against the shipped binary. This file is the introduction.
 
 ### Default workflow
 
@@ -118,7 +118,8 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 | `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `PATH` defaults to `config/`, `--from` to the configured upstream, `--to` to the landing; `--bin NAME=PATH` names a referenced plugin's local binary explicitly (else beside `bl`, then `$PATH`). A folder source mirrors (deletions propagate), a file/glob source unions. |
 | `bl conf [KEY]` | Read or write this checkout's **local** config (never synced), with provenance. No arg dumps every resolved value with its layer and source file; one `KEY` reads that value. Write with `bl conf <set\|append\|prepend\|remove> KEY VALUE…`; `KEY` ∈ `task-remote`, `task-branch`, `log-level`, `<op>.<pre\|post>`, `show`, `list`. |
-| `bl skill` | Print the agent guide (`SKILL.md`) — the full manual. |
+| `bl --skill` | Print the operating guide (`SKILL.md`) — architecture, the footgun invariants, and the command map. `bl skill` is the deprecated spelling (kept, with a migration note). |
+| `bl <cmd> --skill` | Print one command's full usage — flags, examples, semantics. `bl <cmd> --help`/`-h` and `bl help <cmd>` are aliases (per-command help folds into `--skill`). |
 | `bl help` | Print the terse command directory (also `--help`/`-h`). |
 
 There is **no `init`** (folded into `prime`), **no `review`** (folded into `close`), **no `ready`** (it is `bl list --status ready`), and no `remaster`/`resolve`/`reopen`. Subtraction is the design discipline: a new verb is a smell.

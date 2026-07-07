@@ -120,14 +120,16 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
             // error, so the verb is named ONCE — not the doubled `bl show: show:`.
             eprintln!("bl: {e}");
             // A USAGE error — the argv was malformed (an unknown flag, a missing
-            // value, the wrong positional count) — surfaces the command's doc
-            // (usage + flags lead it, bl-7990); an operational failure (a blocked
-            // op, a missing ball) stays terse. The [`crate::usage`] tag is the
-            // only thing that tells them apart, so the doc is offered exactly
-            // where it answers.
+            // value, the wrong positional count) — surfaces the command's tight
+            // `usage:` block (its shape + flags, bl-7990) and points at the full
+            // doc; an operational failure (a blocked op, a missing ball) stays
+            // terse. The [`crate::usage`] tag is the only thing that tells them
+            // apart, so the usage is offered exactly where it answers. Not the
+            // whole doc — that was too verbose for a mis-invocation.
             if e.kind() == std::io::ErrorKind::InvalidInput {
                 eprintln!();
-                eprint!("{}", skill::command(verb));
+                eprintln!("{}", skill::usage(verb));
+                eprintln!("run `bl {} --skill` for flags and examples", verb.token());
             }
             1
         }
