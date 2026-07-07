@@ -20,7 +20,7 @@ this dialogue. Original framing (Icecap, 2026-07-01): "Okay, how do we solve thi
 config is potential RCE (§0), binding validates a live protocol, a dangling schedule
 entry prunes at seed / errors clean at dispatch, never code execution. The
 consequence: adopting a center's capability set is high-friction. The real ecosystem
-today — bl-adversary (close.pre review gate), the gh forge/issues plugins — lives in
+today — adversary (close.pre review gate), the gh forge/issues plugins — lives in
 sibling repos, hand-built, hand-placed beside `bl`, hand-wired. The MECHANISM is
 right; the ACQUISITION story doesn't exist. §6 already names the gap in one clause:
 
@@ -64,7 +64,7 @@ written.
 
 ### 0. Distribution is the package manager's job — balls ships a pointer, not a pipeline
 
-Plugins are ordinary installables: a crate (`cargo install balls-adversary`), a repo
+Plugins are ordinary installables: a crate (`cargo install <name>`), a repo
 with a Makefile (`make install` drops the binary beside `bl` — the adversary and gh
 plugins today), an org artifact store, an apt package. balls adds **no** registry,
 no namespace, no fetcher, no manifest — the world already has package managers and
@@ -76,11 +76,11 @@ with one new line of config, *what the center owner suggests you run to fix that
 
 ```toml
 [hooks]
-"close.pre" = ["bl-adversary", "bl-delivery"]
+"close.pre" = ["adversary", "bl-delivery"]
 
 [source]
-bl-adversary = "cargo install balls-adversary"
-gh-forge     = "git clone https://github.com/mudbungie/balls-github-plugin && make install"
+adversary     = "git clone https://github.com/mudbungie/balls-adversary && make install"
+github-issues = "git clone https://github.com/mudbungie/balls-github-plugin && make install"
 ```
 
 - **Free text, displayed verbatim, never parsed, never executed.** By convention the
@@ -107,18 +107,18 @@ it appends that name's `[source]` hint verbatim when one exists. No new verb, no
 flag. The moments enumerate themselves:
 
 - **Dispatch, unbound name** (`src/plugin.rs` `unbound`) — today:
-  `plugin bl-adversary referenced but bin/bl-adversary missing — run bl install`
+  `plugin adversary referenced but bin/adversary missing — run bl install`
   becomes:
-  `plugin bl-adversary referenced but bin/bl-adversary missing — source: cargo install balls-adversary — then bl install to bind`
+  `plugin adversary referenced but bin/adversary missing — source: git clone https://github.com/mudbungie/balls-adversary && make install — then bl install to bind`
 - **Install, validation refusal** (`resolve_and_bind`) — today:
-  `install: refusing to link bl-adversary: does not speak protocol 1`
+  `install: refusing to link adversary: does not speak protocol 1`
   becomes:
-  `install: refusing to link bl-adversary: does not speak protocol 1 — source: cargo install balls-adversary`
+  `install: refusing to link adversary: does not speak protocol 1 — source: git clone https://github.com/mudbungie/balls-adversary && make install`
   (the hint doubles as the upgrade pointer for a stale binary).
 - **Seed, prune** — stays silent for the shipped-sibling case (a tracker-less test
   box never aborts and needs no advice), but a pruned name that HAS a hint (an org's
   XDG default-config naming third-party plugins) gets one stderr line:
-  `seed: pruned bl-adversary (no binary beside bl) — source: cargo install balls-adversary — re-add with bl conf after acquiring`.
+  `seed: pruned adversary (no binary beside bl) — source: git clone https://github.com/mudbungie/balls-adversary && make install — re-add with bl conf after acquiring`.
   Keying loudness on hint presence means the org opted in by authoring the hint.
 
 ### 3. Two honesty fixes, justified independently of hints
@@ -132,7 +132,7 @@ they didn't. Each is worth landing even if `[source]` is rejected:
   New: one stderr line per dangling name, `info` level (this is not core narrating
   its own mechanics — bl-cf39 demotes those to `debug` — it is an actionable
   incompleteness report, the same voice-family as the tracker's founding warnings):
-  `install: bl-adversary referenced but not bound (no binary beside bl or on PATH) — source: cargo install balls-adversary — re-run bl install after acquiring`.
+  `install: adversary referenced but not bound (no binary beside bl or on PATH) — source: git clone https://github.com/mudbungie/balls-adversary && make install — re-run bl install after acquiring`.
   The retry story already exists: a re-run converges on the no-op seal and just
   binds (§14).
 - **`bl conf` grows an `unbound` section — the doctor surface, on the existing
@@ -141,9 +141,9 @@ they didn't. Each is worth landing even if `[source]` is rejected:
   empty inputs, not a special case):
 
   ```
-  close.pre     bl-adversary, bl-delivery            landing
+  close.pre     adversary, bl-delivery            landing
   ...
-  unbound  bl-adversary  cargo install balls-adversary
+  unbound  adversary  git clone https://github.com/mudbungie/balls-adversary && make install
   ```
 
   Bound-state is derived at read (resolve each referenced name against the
@@ -187,7 +187,7 @@ live binary — it must speak the wire protocol and declare every op it is wired
 (`resolve_and_bind`, §6). That is the floor balls actually needs: "can I talk to
 it," not "is it the version the center tested." Version ranges, manifests, and
 compat matrices are new mechanism with no consumer (the bl-587f bar); a center that
-cares pins in the hint text (`cargo install balls-adversary --version 0.3`), which
+cares pins in the hint text (`cargo install <name> --version 0.3`), which
 core never parses.
 
 **(5) First-party bundling doesn't change the calculus.** Bundling (the bl-chore
@@ -227,5 +227,11 @@ design; hints are what make the unbundled world navigable.
 dangling report), `src/seed.rs` (prune note when hinted), `src/conf.rs`/
 `src/conf_resolve.rs` (`unbound` dump section), §4/§6 architecture text, SKILL.md
 (the install row + plugins section), and `[source]` entries authored in the balls
-center's own `plugins.toml` for bl-adversary + the gh plugins (the first real
-consumers).
+center's own `plugins.toml` for adversary + github-issues (the first real
+consumers — authored on the center landing 2026-07-07). The example names in this
+record were corrected post-implementation (bl-6a5f): the draft illustrated with
+`bl-adversary`/`cargo install balls-adversary`, a plugin name and command that never
+existed — the real consumers are `adversary` and `github-issues`, both acquired by
+`git clone … && make install` (the issues binary installs under its schedule name
+since bl-6ebc). Message FORMAT strings above are unchanged; only the interpolated
+names were realigned.

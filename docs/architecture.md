@@ -551,7 +551,7 @@ Schedule (committed text) and binary (local symlink) split cleanly:
   dangling/absent `bin/<name>` = a clean "plugin referenced but not installed here" error.
 
 **The `[source]` hint — the owner's note at the refusal (bl-5b09).** `plugins.toml` may carry a
-`[source]` table: per-name FREE TEXT (`bl-adversary = "cargo install balls-adversary"`) suggesting
+`[source]` table: per-name FREE TEXT (`adversary = "git clone https://github.com/mudbungie/balls-adversary && make install"`) suggesting
 where a missing binary comes from. Distribution stays the package manager's job — balls ships a
 pointer, not a pipeline: the hint is displayed VERBATIM (control characters stripped — untrusted
 display text, one line), never parsed, never fetched, never executed, and it decorates only refusal
@@ -1780,7 +1780,7 @@ RESOLVED (folded into the body, no longer open):
   §0 severability forbids becoming one), and the one thing only balls knows — which of its
   schedule's names THIS box cannot resolve — gets a place to carry the center owner's
   suggested fix. `plugins.toml` may hold a `[source]` table (per-name free text, e.g.
-  `bl-adversary = "cargo install balls-adversary"`), displayed VERBATIM — never parsed,
+  `adversary = "git clone https://github.com/mudbungie/balls-adversary && make install"`), displayed VERBATIM — never parsed,
   never executed — appended to the refusal moments core already emits (dispatch's unbound
   error, install's protocol-validation refusal, the seed-time prune when a hint exists); it
   is the owner's note to a future human threaded through a refusal that was already
