@@ -25,10 +25,14 @@ use std::path::{Path, PathBuf};
 
 /// One wired plugin: its name (from the committed [`crate::hooks`] schedule) and
 /// the resolved machine binary — `None` when `bin/<name>` is absent or dangling.
+/// `source` is the name's `[source]` acquisition hint (bl-5b09) — display-only
+/// text the unbound refusal appends; never a dispatch input (the binding is
+/// bit-identical with or without it).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginRef {
     pub name: String,
     pub bin: Option<PathBuf>,
+    pub source: Option<String>,
 }
 
 /// The `config/plugins/bin/` binding store of one landing checkout.

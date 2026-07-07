@@ -14,6 +14,17 @@
 //! [`Hooks::resolve`] stitches the two halves into the [`PluginRef`] sets the §8
 //! engine runs, an absent `bin/<name>` surfacing as a dangling ref (a clean
 //! "referenced but not installed here" at dispatch, never a silent skip).
+//!
+//! `plugins.toml` may also carry a `[source]` table (§6, bl-5b09): per-name
+//! FREE-TEXT acquisition hints (`bl-adversary = "cargo install balls-adversary"`)
+//! the center owner authors beside the schedule that needs them. A hint is
+//! display-only — never parsed, never executed; it decorates the refusal moments
+//! core already emits (the dispatch unbound error, install's validation refusal
+//! and dangling report, the seed prune) so the §6 recommendation an adopted
+//! config ships is no longer mute. Layered like `[hooks]` (per-name scalar,
+//! innermost wins) and round-tripped by [`Hooks::to_toml`] so a seed rewrite
+//! never strips it. Severable: no `[source]` entries ⇒ bit-identical behavior
+//! with terser errors.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
@@ -24,23 +35,29 @@ use crate::registry::{PluginRef, Registry};
 /// The parsed `[hooks]` table: `"<op>.<phase>"` → its ordered plugin-name list.
 /// A [`BTreeMap`] so the schedule (and its [`Hooks::referenced`] projection) has
 /// a deterministic order — the seed re-serializes it after pruning (§12).
+/// Carries the sibling `[source]` hint table too (per-name free text, bl-5b09),
+/// raw as authored — sanitized only at the [`Hooks::source`] display read.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Hooks {
     table: BTreeMap<String, Vec<String>>,
+    source: BTreeMap<String, String>,
 }
 
 impl Hooks {
-    /// Parse a `plugins.toml` body's `[hooks]` table. A missing `[hooks]` table,
-    /// or a value that is not a string array, contributes no entries; a malformed
-    /// TOML document is an error. balls reads only `[hooks]`; any other table a
-    /// team adds round-trips untouched on `install` (a file copy) but is ignored
-    /// here.
+    /// Parse a `plugins.toml` body's `[hooks]` schedule and `[source]` hints. A
+    /// missing table, or a value of the wrong shape (a non-string-array hook
+    /// entry, a non-string hint), contributes no entries; a malformed TOML
+    /// document is an error. balls reads only these two tables; any other table
+    /// a team adds round-trips untouched on `install` (a file copy) but is
+    /// ignored here.
     pub fn parse(body: &str) -> io::Result<Hooks> {
         let root: toml::Table = toml::from_str(body).map_err(io::Error::other)?;
-        Ok(match root.get("hooks") {
+        let mut hooks = match root.get("hooks") {
             Some(toml::Value::Table(hooks)) => Hooks::from_hooks_table(hooks),
             _ => Hooks::default(),
-        })
+        };
+        hooks.source = source_table(&root);
+        Ok(hooks)
     }
 
     /// Build the schedule from an already-extracted `[hooks]` sub-table — the
@@ -57,7 +74,7 @@ impl Hooks {
                 .collect();
             table.insert(key.clone(), names);
         }
-        Hooks { table }
+        Hooks { table, source: BTreeMap::new() }
     }
 
     /// The EFFECTIVE dispatch schedule (§4/§6, bl-8540): the landing's `[hooks]`
@@ -72,13 +89,21 @@ impl Hooks {
     /// must not redirect what the seed prunes or `install` binds).
     pub fn effective(landing: &Path, user_config: &Path) -> io::Result<Hooks> {
         let mut merged = toml::value::Table::new();
-        if let Some(hooks) = hooks_layer(&plugins_toml(landing))? {
-            crate::config::layer_over(&mut merged, hooks);
+        let mut source = BTreeMap::new();
+        for path in [plugins_toml(landing), user_config.with_file_name("plugins.toml")] {
+            let Some(root) = crate::config::read_layer(&path)? else {
+                continue; // absent layer contributes nothing
+            };
+            if let Some(toml::Value::Table(hooks)) = root.get("hooks") {
+                crate::config::layer_over(&mut merged, hooks.clone());
+            }
+            // [source] layers as per-name scalars, innermost (XDG) winning —
+            // plain replacement, no list directives (§4).
+            source.extend(source_table(&root));
         }
-        if let Some(hooks) = hooks_layer(&user_config.with_file_name("plugins.toml"))? {
-            crate::config::layer_over(&mut merged, hooks);
-        }
-        Ok(Hooks::from_hooks_table(&merged))
+        let mut hooks = Hooks::from_hooks_table(&merged);
+        hooks.source = source;
+        Ok(hooks)
     }
 
     /// Load the `[hooks]` schedule from `plugins.toml` at `path`. An absent file
@@ -128,7 +153,7 @@ impl Hooks {
     /// not installed here — a dangling ref the dispatch rejects, §6).
     #[must_use]
     pub fn resolve(&self, registry: &Registry, op: &str, phase: &str) -> Vec<PluginRef> {
-        Self::refs(registry, self.names(op, phase))
+        self.refs(registry, self.names(op, phase))
     }
 
     /// Resolve a READ op's plugin set (§6 read dispatch): a read carries no seal
@@ -136,15 +161,32 @@ impl Hooks {
     /// key for the one phase it dispatches.
     #[must_use]
     pub fn resolve_read(&self, registry: &Registry, op: &str) -> Vec<PluginRef> {
-        Self::refs(registry, self.key_names(op))
+        self.refs(registry, self.key_names(op))
     }
 
-    /// Stitch `names` to their local `bin/<name>` bindings, in list order.
-    fn refs(registry: &Registry, names: &[String]) -> Vec<PluginRef> {
+    /// Stitch `names` to their local `bin/<name>` bindings, in list order, each
+    /// carrying its `[source]` hint (display-only, for the unbound refusal).
+    fn refs(&self, registry: &Registry, names: &[String]) -> Vec<PluginRef> {
         names
             .iter()
-            .map(|name| PluginRef { name: name.clone(), bin: registry.resolve_bin(name) })
+            .map(|name| PluginRef {
+                name: name.clone(),
+                bin: registry.resolve_bin(name),
+                source: self.source(name),
+            })
             .collect()
+    }
+
+    /// The `[source]` acquisition hint for `name`, sanitized for display
+    /// (bl-5b09): untrusted free text rendered as ONE terminal line — every
+    /// control character (a newline, an escape) becomes a space, the same
+    /// discipline as enveloped plugin stderr. Never parsed, never executed. A
+    /// hint that sanitizes to nothing is no hint.
+    #[must_use]
+    pub fn source(&self, name: &str) -> Option<String> {
+        let hint: String = self.source.get(name)?.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+        let hint = hint.trim().to_string();
+        (!hint.is_empty()).then_some(hint)
     }
 
     /// Every plugin the schedule names, mapped to the op tokens it is wired into
@@ -172,13 +214,15 @@ impl Hooks {
         }
     }
 
-    /// Serialize back to a `plugins.toml` body — a single `[hooks]` table with
-    /// the surviving entries (an emptied list is dropped: empty = run nothing).
-    /// The seed writes this after [`Hooks::retain`] prunes the absent binaries.
+    /// Serialize back to a `plugins.toml` body — the `[hooks]` table with the
+    /// surviving entries (an emptied list is dropped: empty = run nothing) plus
+    /// the `[source]` hints VERBATIM, whole (a pruned name keeps its hint — the
+    /// owner's note survives for the re-add after acquiring, bl-5b09). The seed
+    /// writes this after [`Hooks::retain`] prunes the absent binaries.
     ///
     /// # Panics
-    /// Only if the `[hooks]` table fails to serialize to TOML, which a table of
-    /// string arrays never does.
+    /// Only if the tables fail to serialize to TOML, which tables of strings
+    /// and string arrays never do.
     #[must_use]
     pub fn to_toml(&self) -> String {
         let mut hooks = toml::value::Table::new();
@@ -190,6 +234,10 @@ impl Hooks {
         }
         let mut root = toml::value::Table::new();
         root.insert("hooks".to_string(), toml::Value::Table(hooks));
+        if !self.source.is_empty() {
+            let hints = self.source.iter().map(|(name, hint)| (name.clone(), toml::Value::String(hint.clone())));
+            root.insert("source".to_string(), toml::Value::Table(hints.collect()));
+        }
         toml::to_string(&toml::Value::Table(root)).expect("a hooks table always serializes")
     }
 }
@@ -201,23 +249,17 @@ fn plugins_toml(landing: &Path) -> PathBuf {
     landing.join("config").join("plugins.toml")
 }
 
-/// Read one `plugins.toml` layer's `[hooks]` sub-table for [`Hooks::effective`].
-/// An absent file ⇒ `None` (the layer contributes nothing); a present file with a
-/// missing or non-table `[hooks]` ⇒ an empty table (also nothing, but distinct
-/// from absent); a malformed document ⇒ an error naming the file.
-fn hooks_layer(path: &Path) -> io::Result<Option<toml::Table>> {
-    match std::fs::read_to_string(path) {
-        Ok(body) => {
-            let root: toml::Table =
-                toml::from_str(&body).map_err(|e| io::Error::other(format!("{}: {e}", path.display())))?;
-            Ok(Some(match root.get("hooks") {
-                Some(toml::Value::Table(hooks)) => hooks.clone(),
-                _ => toml::Table::new(),
-            }))
-        }
-        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e),
-    }
+/// Extract a `plugins.toml` root's `[source]` hint table (bl-5b09): per-name
+/// free-text scalars, raw as authored. A missing or non-table `[source]`, or a
+/// non-string hint value, contributes no entries.
+fn source_table(root: &toml::Table) -> BTreeMap<String, String> {
+    let Some(toml::Value::Table(entries)) = root.get("source") else {
+        return BTreeMap::new();
+    };
+    entries
+        .iter()
+        .filter_map(|(name, hint)| hint.as_str().map(|h| (name.clone(), h.to_string())))
+        .collect()
 }
 
 #[cfg(test)]

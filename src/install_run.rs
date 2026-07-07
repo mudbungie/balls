@@ -44,10 +44,10 @@ use crate::checkout;
 use crate::edge::Edge;
 use crate::git::{self, Git};
 use crate::hooks::Hooks;
-use crate::install::{install, referenced, resolve_and_bind, Summary};
+use crate::install::{install, referenced, resolve_and_bind, InstallError, Summary};
 use crate::layout::CloneDir;
 use crate::lifecycle::{BaseChange, Engine, Plugins};
-use crate::log::{self, Log};
+use crate::log::{self, Level, Log};
 use crate::message::{Message, PROTOCOL};
 use crate::op::Phase;
 use crate::plugin::Subprocess;
@@ -97,7 +97,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let to = if to_landing { &landing } else { &store };
     let summary = seal_copy(&clone, &opts.path, &from, to, &chain, &opts.actor)?;
     if to_landing {
-        bind_referenced(&landing, edge, &opts.bins)?;
+        bind_referenced(&landing, edge, &opts.bins, &log)?;
     }
     println!("install: {summary}");
     Ok(())
@@ -197,25 +197,41 @@ impl BaseChange for Copier<'_> {
 /// Bind every plugin the just-landed `config/plugins.toml` references to this
 /// machine's binary, validating each against its live `<bin> protocol`
 /// self-description before linking (§6 [`resolve_and_bind`] — refuses an op
-/// or protocol version the binary does not declare). The candidate is the
-/// explicit `--bin <name>=<path>` entry when given (a `bins` name the schedule
-/// does not reference is refused — never silently dropped), else [`locate`]'s
-/// machine lookup. A referenced name with no candidate anywhere stays dangling
-/// — the clean "referenced but not installed" dispatch error (§6), never
-/// bound silently.
-pub(crate) fn bind_referenced(landing: &Path, edge: &Edge, bins: &BTreeMap<String, PathBuf>) -> io::Result<()> {
+/// or protocol version the binary does not declare, the refusal carrying the
+/// name's `[source]` hint when one exists: it doubles as the stale-binary
+/// upgrade pointer, bl-5b09). The candidate is the explicit `--bin
+/// <name>=<path>` entry when given (a `bins` name the schedule does not
+/// reference is refused — never silently dropped), else [`locate`]'s machine
+/// lookup. A referenced name with no candidate anywhere stays dangling — the
+/// clean "referenced but not installed" dispatch error (§6), never bound
+/// silently — and is REPORTED, one `info` line each (an actionable
+/// incompleteness report, not core narrating its own mechanics — the Summary
+/// alone would read as "covered everything"); a re-run converges on the no-op
+/// seal and just binds (§14).
+pub(crate) fn bind_referenced(landing: &Path, edge: &Edge, bins: &BTreeMap<String, PathBuf>, log: &Log) -> io::Result<()> {
     let worklist = referenced(landing)?;
     if let Some(name) = bins.keys().find(|n| !worklist.contains_key(*n)) {
         return Err(io::Error::other(format!(
             "install: --bin {name}: the landed schedule does not reference that plugin"
         )));
     }
+    let hints = Hooks::effective(landing, &edge.xdg.user_config())?;
     let registry = Registry::at(landing);
     for (name, ops) in worklist {
-        if let Some(bin) = bins.get(&name).cloned().or_else(|| locate(&name, edge)) {
-            resolve_and_bind(&registry, &name, &bin, &ops, PROTOCOL)
-                .map_err(|e| io::Error::other(e.to_string()))?;
-        }
+        let source = hints.source(&name).map(|h| format!(" — source: {h}")).unwrap_or_default();
+        let Some(bin) = bins.get(&name).cloned().or_else(|| locate(&name, edge)) else {
+            log.record(
+                Level::Info,
+                "core",
+                None,
+                &format!("install: {name} referenced but not bound (no binary beside bl or on PATH){source} — re-run bl install after acquiring"),
+            );
+            continue;
+        };
+        resolve_and_bind(&registry, &name, &bin, &ops, PROTOCOL).map_err(|e| match e {
+            InstallError::Unsupported { .. } => io::Error::other(format!("{e}{source}")),
+            InstallError::Io(_) => io::Error::other(e.to_string()),
+        })?;
     }
     Ok(())
 }

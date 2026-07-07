@@ -206,4 +206,69 @@ fn to_toml_round_trips_through_parse_and_drops_emptied_lists() {
     assert_eq!(reparsed.names("close", "post"), ["tracker"]);
     // An entry whose whole list pruned away is gone, not an empty array.
     assert!(!body.contains("close.pre"));
+    // No [source] entries authored ⇒ no [source] table minted.
+    assert!(!body.contains("[source]"));
+}
+
+const HINTED: &str = r#"
+[hooks]
+"close.pre" = ["bl-adversary", "bl-delivery"]
+
+[source]
+bl-adversary = "cargo install balls-adversary"
+bad = 7
+"#;
+
+#[test]
+fn parse_reads_source_hints_and_filters_non_strings() {
+    let hooks = Hooks::parse(HINTED).unwrap();
+    assert_eq!(hooks.source("bl-adversary").as_deref(), Some("cargo install balls-adversary"));
+    assert_eq!(hooks.source("bad"), None, "a non-string hint contributes nothing");
+    assert_eq!(hooks.source("bl-delivery"), None, "no hint authored");
+    // A non-table [source] contributes nothing (and [hooks] still parses).
+    let odd = Hooks::parse("[hooks]\n\"close.pre\" = [\"x\"]\nsource = 5\n").unwrap();
+    assert_eq!(odd.source("x"), None);
+}
+
+#[test]
+fn source_sanitizes_control_characters_to_one_display_line() {
+    // Untrusted display text (bl-5b09): a newline or escape sequence cannot
+    // forge log lines or drive the terminal — every control char reads as a
+    // space; a hint that is nothing but control chars is no hint at all.
+    let hooks = Hooks::parse("[source]\nsneaky = \"line one\\nline two\\u001b[31m\"\nblank = \"\\n\\t\"\n").unwrap();
+    assert_eq!(hooks.source("sneaky").as_deref(), Some("line one line two [31m"));
+    assert_eq!(hooks.source("blank"), None);
+}
+
+#[test]
+fn effective_layers_source_per_name_innermost_wins() {
+    let landing = "[hooks]\n\"close.pre\" = [\"a\", \"b\"]\n[source]\na = \"center says\"\nb = \"center b\"\n";
+    let xdg = "[source]\na = \"my box says\"\nc = \"mine only\"\n";
+    let (tmp, user_config) = layered(landing, Some(xdg));
+    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    assert_eq!(hooks.source("a").as_deref(), Some("my box says"), "XDG (innermost) wins per name");
+    assert_eq!(hooks.source("b").as_deref(), Some("center b"), "an un-overridden hint stands");
+    assert_eq!(hooks.source("c").as_deref(), Some("mine only"), "a layer can add a hint");
+}
+
+#[test]
+fn resolve_carries_the_source_hint_on_the_ref() {
+    // The dangling ref reaches dispatch with its acquisition hint aboard — the
+    // unbound refusal renders it; a hintless name rides with None.
+    let tmp = TempDir::new().unwrap();
+    let refs = Hooks::parse(HINTED).unwrap().resolve(&Registry::at(tmp.path()), "close", "pre");
+    assert_eq!(refs[0].source.as_deref(), Some("cargo install balls-adversary"));
+    assert_eq!(refs[1].source, None);
+}
+
+#[test]
+fn to_toml_keeps_the_source_table_whole_across_a_prune() {
+    // The seed prunes the schedule entry but the owner's note survives the
+    // rewrite — the hint must be readable for the re-add after acquiring.
+    let mut hooks = Hooks::parse(HINTED).unwrap();
+    hooks.retain(|name| name == "bl-delivery"); // bl-adversary's binary is absent
+    let body = hooks.to_toml();
+    let reparsed = Hooks::parse(&body).unwrap();
+    assert!(reparsed.names("close", "pre") == ["bl-delivery"], "pruned");
+    assert_eq!(reparsed.source("bl-adversary").as_deref(), Some("cargo install balls-adversary"));
 }

@@ -309,6 +309,8 @@ bare `<field>` = full replacement; compose with `<field>_prepend` / `<field>_app
 The `[hooks]` lists in `config/plugins.toml` (§6) ARE list fields, layered the same way — a landing's
 schedule composes with an XDG `_prepend`/`_append`/`_ban`, and `bl install` copies the file like any
 other config (never inherited down a trail — there is none, §12). An absent/empty hook list = run nothing.
+The sibling `[source]` hint table (§6, bl-5b09) layers as ordinary per-name scalars — innermost wins,
+no list directives — through the same file loads.
 
 **The landing is single-owner — and balls cannot publish it.** Config's transport is a path-copy
 mirror (§6 install), which has NO cross-writer merge, so two writers to one config branch clobber.
@@ -384,7 +386,12 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
   `show`/`list`), AND any key the effective schedule already WIRES — so every key the dump surfaces
   stays readable and removable, even one for a retired verb the slot-grammar no longer knows (a stale
   `drop.post` — §15 — is editable through `conf`, not orphaned to a hand-edit), while a token both
-  unwired and not a live slot is still refused (a typo cannot mint dead wiring).
+  unwired and not a live slot is still refused (a typo cannot mint dead wiring). After the hook rows
+  the dump grows an `unbound` row per referenced-but-unbound plugin with its `[source]` hint or
+  `(no source given)` — the bl-5b09 doctor surface on the existing verb; bound-state is DERIVED at
+  read (each referenced name resolved against `bin/`, a query, not a field, §0), and all-bound means
+  no rows (the general path with empty inputs). The hook rows themselves stay unmarked: "unbound"
+  has one home in the dump.
 - **Write = scope-keyed CRUD on the canonical home.** `bl conf set <key> <value...>` replaces (a
   scalar, or a hooks key's whole list); `bl conf append|prepend|remove <key> <value>` composes a
   list. The list verbs are the §4 directive vocabulary APPLIED AT WRITE TIME to the canonical bare
@@ -543,6 +550,20 @@ Schedule (committed text) and binary (local symlink) split cleanly:
   machine's binary. Installing a plugin drops this symlink; dispatch resolves a hooked NAME to it. A
   dangling/absent `bin/<name>` = a clean "plugin referenced but not installed here" error.
 
+**The `[source]` hint — the owner's note at the refusal (bl-5b09).** `plugins.toml` may carry a
+`[source]` table: per-name FREE TEXT (`bl-adversary = "cargo install balls-adversary"`) suggesting
+where a missing binary comes from. Distribution stays the package manager's job — balls ships a
+pointer, not a pipeline: the hint is displayed VERBATIM (control characters stripped — untrusted
+display text, one line), never parsed, never fetched, never executed, and it decorates only refusal
+moments core already emits — the dispatch unbound abort (`— source: <hint> — then bl install to
+bind`), install's validation refusal (the stale-binary upgrade pointer) and dangling report, and the
+seed prune (loud ONLY when a hint exists: the org opted in by authoring it). It is authored by the
+same hand as the schedule, travels on the same `install` copy, layers like everything else (§4), and
+survives the seed's prune-rewrite whole. Dispatch inputs are unchanged — same refusals, different
+words; deleting every entry yields bit-identical behavior with terser errors. Nothing implicit,
+ever: auto-fetch-build-bind is RCE by definition (§0); an explicit human-driven execute-the-hint
+surface is DEFERRED pending a provenance design, not doctrine (§15, bl-5b09).
+
 **`bl install` — copy a committed path between branches.** `bl install <path> --from <ref> --to <ref>`
 makes `<ref-to>/<path>` byte-identical to `<ref-from>/<path>`, touching NOTHING outside `<path>`,
 committed atomically to `--to`. Defaults: `--to` the landing, `--from` the configured upstream; **bare
@@ -570,7 +591,8 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   More-specific paths are less destructive — scope the blast radius.
 - **Committed tree only, never `bin/`.** A path-copy of the committed tree cannot include `bin/<name>`
   (gitignored, not in the tree), so an adopted config ships a *recommendation* (a dangling `bin/` the
-  recipient resolves locally), never runnable code.
+  recipient resolves locally), never runnable code — and the recommendation SPEAKS: the name's
+  `[source]` hint rides the same copy and is rendered at each refusal (bl-5b09, above).
 - **`--to` is LOCAL-ONLY — install is purely local in core (bl-b8d6, resolving the bl-66e7 leg).**
   Core never talks to a remote (§0): `--to` resolves to one of this checkout's two local checkouts —
   the landing or the configured store branch — and any other target is refused. That is architecture,
@@ -589,10 +611,14 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   §12.
 - **Local binary resolution.** When `--to` is the local landing, install resolves each named plugin's
   `bin/<name>` against this machine (PATH or explicit `--bin <name>=<path>`) and validates it against
-  the live `<plugin> protocol` (refuses to link an op or protocol version the binary doesn't declare).
-  Still validated per binary, still user-in-the-loop: the consent-gated path for federated onboarding
-  (§12). (`bl install` subsumes the older `bl plugin install <name> <path>` and `--from <branch>`
-  spellings.)
+  the live `<plugin> protocol` (refuses to link an op or protocol version the binary doesn't declare —
+  the refusal carrying the name's `[source]` hint when one exists, the stale-binary upgrade pointer).
+  A referenced name with no candidate anywhere stays dangling AND is REPORTED — one info line per name
+  (`referenced but not bound … re-run bl install after acquiring`, hint appended when authored), so the
+  change Summary never reads as "covered everything" when it didn't (bl-5b09); a re-run converges on
+  the no-op seal and just binds (§14). Still validated per binary, still user-in-the-loop: the
+  consent-gated path for federated onboarding (§12). (`bl install` subsumes the older
+  `bl plugin install <name> <path>` and `--from <branch>` spellings.)
 
 - **Invocation-tree cap (the runaway backstop):** every nested `bl` — a plugin shelling back, an op
   triggering another op, a clone spawning a clone — runs as a descendant process and inherits one
@@ -1242,7 +1268,10 @@ landing by copying the app-level `default-config/` folder (§1) into `balls/conf
 repo; one commit). The copy is not byte-blind: `balls.toml` travels verbatim, but the seeded
 `plugins.toml` is written with each named plugin BOUND to its sibling binary beside `bl` and every
 entry whose binary is absent PRUNED (`src/seed.rs`) — so a tracker-less or test box seeds a schedule
-it can actually run instead of aborting on first dispatch. The prune is seed-time only: §6's dangling
+it can actually run instead of aborting on first dispatch. The prune stays SILENT for a hintless
+name (the shipped-sibling case) but notes a pruned name carrying a `[source]` hint on stderr —
+loudness keyed on hint presence, the org opted in by authoring it (§6, bl-5b09) — and the `[source]`
+table itself survives the rewrite whole. The prune is seed-time only: §6's dangling
 `bin/<name>` "referenced but not installed here" clean error still governs an ESTABLISHED landing
 whose schedule names an uninstalled plugin (e.g. wiring that arrived by `install`); re-prime never
 prunes a committed schedule, it only re-derives the gitignored `bin/` symlinks. The seed is where the
@@ -1767,11 +1796,11 @@ RESOLVED (folded into the body, no longer open):
   is deferred because it cannot be designed honestly without first answering provenance
   (what is trusted, how it is authenticated), "a bigger operation" than this ball; any
   future design STARTS from provenance, not from sugar over the hints. Until then the
-  package manager holds the answer and balls maintains just the pointer. Implementation is a
-  SEPARATE ball, filed apart from this dialogue (the `[source]` parse layered like `[hooks]`
-  + the three decorated refusals + the two honesty fixes + the §4/§6 wording folding the
-  §6 recommendation clause into the hint); this entry and the design record hold the
-  converged doctrine until it lands. Tracked under bl-b465.
+  package manager holds the answer and balls maintains just the pointer. Implementation
+  LANDED 2026-07-06 (bl-bfcc): the `[source]` parse layered like `[hooks]` + the three
+  decorated refusals + the two honesty fixes, with the §4/§6 wording folding the §6
+  recommendation clause into the hint (see §4 merge semantics, §6 "The `[source]` hint",
+  §6 local binary resolution, §12 seed prune, §4 `conf` read). Tracked under bl-b465.
 - **Core narration demoted to `debug` — severity classifies the VOICE, not the op kind
   (2026-06-10, bl-cf39 — post-freeze, post-0.5.0).** The shipped default printed 3–7 JSON
   records (`begin` / `invoke <plugin>` / `seal`) on stderr for every routine mutating verb —
