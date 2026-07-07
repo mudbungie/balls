@@ -1,7 +1,8 @@
 +++
 title = "Update the docs"
 created = 1783397968
-updated = 1783397968
+updated = 1783398462
+claimant = "Wagered"
 parent = "bl-b1be"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-chore"]
