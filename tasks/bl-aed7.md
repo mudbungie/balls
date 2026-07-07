@@ -1,7 +1,8 @@
 +++
 title = "Tighten usage-error footer to the usage block + point at --skill; update README for the two-tier skill model"
 created = 1783397525
-updated = 1783397525
+updated = 1783397654
+claimant = "Economize"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["docs", "dx"]
 +++
