@@ -262,6 +262,23 @@ fn resolve_carries_the_source_hint_on_the_ref() {
 }
 
 #[test]
+fn resolve_falls_back_to_the_renamed_to_names_hint() {
+    // bl-b1be: an old committed schedule still saying "tracker" stitches to the
+    // hint authored for its CURRENT name (bl-tracker) — the rename notice's
+    // remedy is a conf edit to the new name, and the new name's hint says where
+    // that binary comes from. A hint authored for the old name itself wins.
+    let tmp = TempDir::new().unwrap();
+    let reg = Registry::at(tmp.path());
+    let body = "[hooks]\n\"sync.pre\" = [\"tracker\"]\n[source]\n\"bl-tracker\" = \"make install\"\n";
+    let refs = Hooks::parse(body).unwrap().resolve(&reg, "sync", "pre");
+    assert_eq!(refs[0].source.as_deref(), Some("make install"), "renamed-to fallback");
+
+    let own = "[hooks]\n\"sync.pre\" = [\"tracker\"]\n[source]\ntracker = \"old note\"\n\"bl-tracker\" = \"make install\"\n";
+    let refs = Hooks::parse(own).unwrap().resolve(&reg, "sync", "pre");
+    assert_eq!(refs[0].source.as_deref(), Some("old note"), "the name's own hint outranks the fallback");
+}
+
+#[test]
 fn to_toml_keeps_the_source_table_whole_across_a_prune() {
     // The seed prunes the schedule entry but the owner's note survives the
     // rewrite — the hint must be readable for the re-add after acquiring.

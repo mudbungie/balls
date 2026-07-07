@@ -87,11 +87,16 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
 
-    if is_landing(&landing) {
+    // The founding seed's prune notes (a pruned name with a [source] hint,
+    // bl-5b09) are carried forward into the op log once it exists — founding
+    // precedes the threshold read, so the seed cannot log them itself. The
+    // rebind path prunes nothing and has none.
+    let seed_notes = if is_landing(&landing) {
         seed::rebind(&landing, edge.exe_dir.as_deref())?;
+        Vec::new()
     } else {
-        substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref(), &opts.actor)?;
-    }
+        substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref(), &opts.actor)?
+    };
     if opts.stealth {
         crate::conf::declare_stealth(&landing, &opts.actor)?;
     }
@@ -114,7 +119,7 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     // op's remote directly (the center is where the adopted `tasks_branch` lives).
     let remote = opts.remote.or(opts.install);
     let (binding, level) = bind(edge, &landing, &store, remote, None)?;
-    prime_chain(edge, &landing, &store, &opts.actor, binding.clone(), level)?;
+    prime_chain(edge, &landing, &store, &opts.actor, binding.clone(), level, &seed_notes)?;
     run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
 }
 
@@ -131,7 +136,15 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// by `install`, §12), so the check ENFORCES the consent rule instead of looping
 /// to accommodate violations of it (supersedes the bl-0a23 fixpoint and its
 /// bl-33db pass cap).
-fn prime_chain(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
+fn prime_chain(
+    edge: &Edge,
+    landing: &Path,
+    store: &Path,
+    actor: &str,
+    binding: Binding,
+    level: Level,
+    seed_notes: &[String],
+) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let user_config = edge.xdg.user_config();
     let hooks = Hooks::effective(landing, &user_config)?;
@@ -145,6 +158,12 @@ fn prime_chain(edge: &Edge, landing: &Path, store: &Path, actor: &str, binding: 
         Ok((name != before).then_some(name))
     };
     let log = Log::new(clone.op_log(), level, Verb::Prime, log::wall);
+    // The founding seed's prune notes land here, `info` like install's dangling
+    // report (bl-5b09): an actionable incompleteness report, persisted and
+    // threshold-gated — not a bare eprintln the log file never sees.
+    for note in seed_notes {
+        log.record(Level::Info, "core", None, note);
+    }
     let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth);
     let anvil = git::Git::at(store);
     Engine::new(&anvil, &plugins, &log)

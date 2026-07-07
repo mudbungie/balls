@@ -63,6 +63,23 @@ fn a_missing_plugin_with_a_source_hint_names_the_acquisition() {
 }
 
 #[test]
+fn a_renamed_plugins_notice_carries_the_new_names_hint_when_authored() {
+    // bl-b1be: the stitch resolves a renamed name's hint from its CURRENT name
+    // ([source] bl-tracker = …), so the one notice names the conf edit AND
+    // where the new binary comes from.
+    let tmp = TempDir::new().unwrap();
+    let log_path = tmp.path().join("log");
+    let log = Log::new(log_path.clone(), Level::Debug, Verb::Sync, clk);
+    let hinted = PluginRef { name: "tracker".into(), bin: None, source: Some("make install".into()) };
+    Subprocess::new(ctx(), &log, 0).run(&hinted, Verb::Sync, Phase::Pre, tmp.path(), None).unwrap();
+    let log_body = fs::read_to_string(&log_path).unwrap();
+    assert!(
+        log_body.contains("then prime to resume — source: make install"),
+        "{log_body}"
+    );
+}
+
+#[test]
 fn a_missing_renamed_first_party_plugin_is_skipped_with_a_notice() {
     // An old committed schedule naming a RENAMED first-party plugin whose binary
     // is gone is SKIPPED (the op proceeds, non-fatal) with a notice pointing at
