@@ -1,7 +1,8 @@
 +++
 title = "Dissolve the two bl-bfcc display asymmetries: seed prune note through the op log; rename notice carries the new name's [source] hint"
 created = 1783397961
-updated = 1783397961
+updated = 1783397968
+claimant = "Wagered"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
 (1) The seed prune note is a bare eprintln inside seed_landing — the one hint surface that bypasses the ordinary stderr/log path: it never lands in the per-clone op log and ignores log-level. Fix: seed_landing surfaces its pruned-hinted notes to the caller and prime emits them through the op Log at info, like install's dangling report (an actionable incompleteness report, not core narration) — same rendered line, now persisted and threshold-gated.
