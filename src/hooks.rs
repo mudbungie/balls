@@ -16,7 +16,7 @@
 //! "referenced but not installed here" at dispatch, never a silent skip).
 //!
 //! `plugins.toml` may also carry a `[source]` table (§6, bl-5b09): per-name
-//! FREE-TEXT acquisition hints (`bl-adversary = "cargo install balls-adversary"`)
+//! FREE-TEXT acquisition hints (`adversary = "git clone https://github.com/mudbungie/balls-adversary && make install"`)
 //! the center owner authors beside the schedule that needs them. A hint is
 //! display-only — never parsed, never executed; it decorates the refusal moments
 //! core already emits (the dispatch unbound error, install's validation refusal

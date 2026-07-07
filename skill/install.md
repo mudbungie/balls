@@ -32,7 +32,7 @@ after acquiring`); re-running after acquiring converges and just binds.
 ## Where a missing binary comes from: the `[source]` hint
 
 `plugins.toml` may carry a `[source]` table — per-name free text the schedule's
-owner authors (`bl-adversary = "cargo install balls-adversary"`). balls displays
+owner authors (`adversary = "git clone https://github.com/mudbungie/balls-adversary && make install"`). balls displays
 it verbatim at the refusals (the dispatch unbound abort, the validation refusal,
 the dangling report, the seed prune) and never parses, fetches, or runs it:
 acquiring the binary is your explicit act, via your package manager. No hint ⇒
