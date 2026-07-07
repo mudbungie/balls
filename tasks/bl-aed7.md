@@ -5,6 +5,10 @@ updated = 1783397654
 claimant = "Economize"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["docs", "dx"]
+
+[[blockers]]
+id = "bl-5a86"
+on = "close"
 +++
 # Two follow-ups to bl-c704 (the --skill restructure)
 
