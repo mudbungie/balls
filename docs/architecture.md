@@ -557,7 +557,9 @@ pointer, not a pipeline: the hint is displayed VERBATIM (control characters stri
 display text, one line), never parsed, never fetched, never executed, and it decorates only refusal
 moments core already emits — the dispatch unbound abort (`— source: <hint> — then bl install to
 bind`), install's validation refusal (the stale-binary upgrade pointer) and dangling report, and the
-seed prune (loud ONLY when a hint exists: the org opted in by authoring it). It is authored by the
+seed prune (loud ONLY when a hint exists: the org opted in by authoring it); a RENAMED name's
+skip-notice (§15) carries its renamed-to name's hint — the conf-edit remedy plus where the new
+binary comes from, one notice (bl-b1be). It is authored by the
 same hand as the schedule, travels on the same `install` copy, layers like everything else (§4), and
 survives the seed's prune-rewrite whole. Dispatch inputs are unchanged — same refusals, different
 words; deleting every entry yields bit-identical behavior with terser errors. Nothing implicit,
@@ -1269,9 +1271,12 @@ repo; one commit). The copy is not byte-blind: `balls.toml` travels verbatim, bu
 `plugins.toml` is written with each named plugin BOUND to its sibling binary beside `bl` and every
 entry whose binary is absent PRUNED (`src/seed.rs`) — so a tracker-less or test box seeds a schedule
 it can actually run instead of aborting on first dispatch. The prune stays SILENT for a hintless
-name (the shipped-sibling case) but notes a pruned name carrying a `[source]` hint on stderr —
-loudness keyed on hint presence, the org opted in by authoring it (§6, bl-5b09) — and the `[source]`
-table itself survives the rewrite whole. The prune is seed-time only: §6's dangling
+name (the shipped-sibling case) but notes a pruned name carrying a `[source]` hint — loudness keyed
+on hint presence, the org opted in by authoring it (§6, bl-5b09). The note rides the ordinary op-log
+path at `info` (the seed RETURNS its rendered notes and prime emits them once its log exists,
+bl-b1be — persisted and threshold-gated like install's dangling report, not a bare stderr line the
+log file never sees), and the `[source]` table itself survives the rewrite whole. The prune is
+seed-time only: §6's dangling
 `bin/<name>` "referenced but not installed here" clean error still governs an ESTABLISHED landing
 whose schedule names an uninstalled plugin (e.g. wiring that arrived by `install`); re-prime never
 prunes a committed schedule, it only re-derives the gitignored `bin/` symlinks. The seed is where the

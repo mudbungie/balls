@@ -112,10 +112,11 @@ fn an_xdg_override_wins_over_the_embedded_default() {
 #[test]
 fn a_pruned_hinted_plugin_is_noted_and_its_source_survives_the_rewrite() {
     // bl-5b09: the prune stays silent for a hintless absent name (the
-    // shipped-sibling case) but a hinted one gets its stderr note — the org
-    // opted into loudness by authoring the hint — and the [source] table
-    // round-trips WHOLE through the seed's rewrite, so the hint is still
-    // readable for the re-add after acquiring.
+    // shipped-sibling case) but a hinted one yields its rendered note — the org
+    // opted into loudness by authoring the hint — RETURNED for prime to emit
+    // through the op log (bl-b1be); and the [source] table round-trips WHOLE
+    // through the seed's rewrite, so the hint is still readable for the re-add
+    // after acquiring.
     let tmp = TempDir::new().unwrap();
     let xdg = xdg_at(tmp.path());
     let dc = xdg.default_config();
@@ -128,8 +129,13 @@ fn a_pruned_hinted_plugin_is_noted_and_its_source_survives_the_rewrite() {
 
     let landing = tmp.path().join("landing");
     let exe = exe_dir_with(tmp.path(), &["tracker"]);
-    seed_landing(&xdg, &landing, Some(&exe)).unwrap();
+    let notes = seed_landing(&xdg, &landing, Some(&exe)).unwrap();
 
+    assert_eq!(
+        notes,
+        ["seed: pruned ghost (no binary beside bl) — source: cargo install ghost — re-add with bl conf after acquiring"],
+        "one note for the hinted prune, none for the hintless one"
+    );
     let seeded = Hooks::load(&landing).unwrap();
     assert_eq!(seeded.names("close", "pre"), ["tracker"], "ghost and mute pruned");
     assert_eq!(seeded.source("ghost").as_deref(), Some("cargo install ghost"), "the hint survived the prune");

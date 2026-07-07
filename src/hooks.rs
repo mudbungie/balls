@@ -165,14 +165,20 @@ impl Hooks {
     }
 
     /// Stitch `names` to their local `bin/<name>` bindings, in list order, each
-    /// carrying its `[source]` hint (display-only, for the unbound refusal).
+    /// carrying its `[source]` hint (display-only, for the unbound refusal). A
+    /// name with no hint of its own falls back to its RENAMED-to name's
+    /// ([`crate::renames`], §15): the rename notice's remedy is a conf edit to
+    /// the new name, and the new name's hint is where THAT binary comes from —
+    /// so the one notice carries both halves of the fix.
     fn refs(&self, registry: &Registry, names: &[String]) -> Vec<PluginRef> {
         names
             .iter()
             .map(|name| PluginRef {
                 name: name.clone(),
                 bin: registry.resolve_bin(name),
-                source: self.source(name),
+                source: self
+                    .source(name)
+                    .or_else(|| crate::renames::renamed_to(name).and_then(|current| self.source(current))),
             })
             .collect()
     }

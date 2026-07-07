@@ -70,6 +70,31 @@ fn prime_drives_a_sync_after_the_prime_chain() {
 }
 
 #[test]
+fn a_founding_primes_seed_prune_note_lands_in_the_op_log() {
+    // bl-b1be: the founding seed's hinted prune note rides the ordinary log
+    // path — persisted in the per-clone op-log file (not a bare eprintln the
+    // file never sees), at `info` like install's dangling report, once prime
+    // has a Log to give it. The hintless prune stays silent.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let seed = e.xdg.default_config();
+    std::fs::create_dir_all(&seed).unwrap();
+    std::fs::write(
+        seed.join("plugins.toml"),
+        "[hooks]\n\"close.pre\" = [\"ghost\", \"mute\"]\n[source]\nghost = \"cargo install ghost\"\n",
+    )
+    .unwrap();
+    prime(&e, &argv(&["--as", "me"])).unwrap();
+    let log = op_log(&e);
+    assert!(
+        log.contains("seed: pruned ghost (no binary beside bl) — source: cargo install ghost — re-add with bl conf after acquiring"),
+        "{log}"
+    );
+    assert!(log.contains("\"lvl\":\"info\""), "the note is info-level: {log}");
+    assert!(!log.contains("pruned mute"), "hintless prune stays silent: {log}");
+}
+
+#[test]
 fn a_seed_naming_the_landing_as_tasks_branch_fails_prime_named_and_conf_set_recovers() {
     // bl-ac89: `tasks_branch = balls/config` is structurally impossible — one
     // branch cannot back two worktrees of one repo. A poisoned seed used to

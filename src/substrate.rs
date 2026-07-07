@@ -37,20 +37,23 @@ use std::path::Path;
 /// `balls/config` branch at `landing`, its `config/` SEEDED from the app
 /// default-config (the `balls.toml` + the `plugins.toml` hook schedule, with each
 /// named plugin found beside `bl` in `exe_dir` bound and every absent-binary entry
-/// pruned, §12). The caller guarantees the landing does not already exist, so this
-/// never clobbers an established checkout. The STORE is NOT founded here — that is
+/// pruned, §12). Returns the seed's rendered prune notes (a pruned name with a
+/// `[source]` hint, bl-5b09) for `prime` to emit through the op log once it has
+/// one — founding necessarily precedes the log's threshold read. The caller
+/// guarantees the landing does not already exist, so this never clobbers an
+/// established checkout. The STORE is NOT founded here — that is
 /// [`materialize`]'s lazy job, run after the tracker's `prime/pre` has
 /// had its chance to clone an established remote branch in (bl-0a23).
-pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>, actor: &str) -> io::Result<()> {
+pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>, actor: &str) -> io::Result<Vec<String>> {
     fs::create_dir_all(landing)?;
     git::run(landing, &["init", "-q", "-b", LANDING_BRANCH], None)?;
     identify(landing)?;
     fs::write(landing.join(".gitignore"), "/config/plugins/bin/\n")?;
-    seed::seed_landing(xdg, landing, exe_dir)?;
+    let notes = seed::seed_landing(xdg, landing, exe_dir)?;
     git::run(landing, &["add", "-A"], None)?;
     let message = Message::checkout(Verb::Prime, actor, "balls: found".into()).render()?;
     git::run(landing, &["commit", "-q", "-F", "-"], Some(&message))?;
-    Ok(())
+    Ok(notes)
 }
 
 /// Ensure the configured `tasks_branch` `name` IS the store checkout at `store`
@@ -128,7 +131,7 @@ fn identify(landing: &Path) -> io::Result<()> {
 /// fixture actor `tester` (the test edges' `default_actor`).
 #[cfg(test)]
 pub fn found(landing: &Path, store: &Path, xdg: &Xdg, exe_dir: Option<&Path>) -> io::Result<()> {
-    found_landing(landing, xdg, exe_dir, "tester")?;
+    found_landing(landing, xdg, exe_dir, "tester")?; // seed notes dropped: fixtures carry no op log
     materialize(landing, store, crate::DEFAULT_TASKS_BRANCH, "tester")
 }
 

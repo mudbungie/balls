@@ -84,10 +84,12 @@ impl<'a> Subprocess<'a> {
     /// plugin (§15, [`renamed_to`]) is SKIPPED with a notice — non-fatal, so an
     /// old committed schedule keeps working locally (just without that plugin)
     /// until its owner updates the names; any other missing plugin ABORTS the op
-    /// (a genuine "referenced but not installed" misconfig), the error carrying
-    /// the name's `[source]` acquisition hint when one exists (bl-5b09 — same
-    /// refusal, more words). Returning `Ok` means the op proceeds as if the
-    /// entry were absent.
+    /// (a genuine "referenced but not installed" misconfig). Either way the
+    /// message carries the ref's `[source]` acquisition hint when one exists
+    /// (bl-5b09 — same refusal, more words): for a renamed name the stitch
+    /// already resolved the NEW name's hint ([`crate::hooks`]), so the notice
+    /// names the conf edit AND where the new binary comes from. Returning `Ok`
+    /// means the op proceeds as if the entry were absent.
     fn unbound(&self, plugin: &PluginRef, phase: Phase) -> io::Result<()> {
         let name = &plugin.name;
         let Some(current) = renamed_to(name) else {
@@ -99,12 +101,13 @@ impl<'a> Subprocess<'a> {
                 "plugin {name} referenced but bin/{name} missing — {remedy}"
             )));
         };
+        let source = plugin.source.as_ref().map(|hint| format!(" — source: {hint}")).unwrap_or_default();
         self.log.record(
             Level::Info,
             "core",
             Some(phase),
             &format!(
-                "plugin {name} was renamed {current}; your config still references {name} — replace it with {current} in the [hooks] schedule (bl conf), then prime to resume"
+                "plugin {name} was renamed {current}; your config still references {name} — replace it with {current} in the [hooks] schedule (bl conf), then prime to resume{source}"
             ),
         );
         Ok(())
