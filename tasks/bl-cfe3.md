@@ -5,6 +5,10 @@ updated = 1783490883
 claimant = "clock-refactor"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["design"]
+
+[[blockers]]
+id = "bl-205b"
+on = "close"
 +++
 CONVERGED DIRECTION (maintainer dialogue 2026-07-07): the `--bin` welded binary-binding onto the wrong verb. Binding a clock provider is NOT an install / RCE-import concern — it is a low-velocity local CONF setting; users need just enough access to update it, no special verb.
 
