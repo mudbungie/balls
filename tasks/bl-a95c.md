@@ -5,6 +5,10 @@ updated = 1783490665
 claimant = "opus-a95c"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
+
+[[blockers]]
+id = "bl-b37e"
+on = "close"
 +++
 The github-issues plugin (code in ~/dev/balls-github-plugin; wired create.post/update.post/close.post/sync.post in the balls landing) exits non-zero when it cannot reach the GitHub API — observed 2026-07-07: 'github-issues: http: error sending request for url (https://api.github.com/repos/mudbungie/balls/issues)' and 'http: error decoding response body'. Per §6 a plugin's non-zero exit ABORTS the whole op (+ reverse rollback), so a transient network blip or an auth/token problem makes bl create / close / update / sync UNUSABLE in every repo the plugin is wired into. The only workaround is unwiring it (currently bypassed on this box via 'bl conf remove <phase> github-issues'; restore in original order: close.post = bl-delivery, github-issues, bl-tracker; create/update.post = github-issues, bl-tracker; sync.post = github-issues).
 
