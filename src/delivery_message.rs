@@ -22,47 +22,39 @@ use crate::delivery::{Repo, Spec};
 pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     let integration = repo.integration()?;
     let work = repo.work_messages(spec.branch, &integration)?;
-    let message = compose(spec.override_msg, &work, spec.subject, spec.marker);
+    let message = compose(spec.override_msg, &work, spec.subject);
     repo.deliver(spec.worktree, spec.branch, &integration, &message, spec.marker)
 }
 
-/// Pick the delivery commit message, highest precedence first:
-///   1. an explicit `-m` on the close — a FULL override of subject + body;
-///   2. else the author's substantive `work/<id>` messages — every NON-MERGE
-///      commit since the branch forked, oldest-first, blank-line joined (the
-///      `--no-merges` caller already drops the reintegration fold; a
-///      multi-commit branch keeps ALL its rationale rather than electing one);
-///   3. else the ball-title `subject` (the empty-deliverable / never-committed
-///      fallback), which already carries the tag.
+/// Compose the §11 delivery commit message. The SUBJECT line is ALWAYS the
+/// §7-wire ball title tagged `[id]` (`subject`, built by
+/// [`crate::delivery_path::subject`]) — there is no subject override (§5),
+/// exactly as the store seal's `commit_message` fixes the subject from the ball
+/// `title` with `-m` a SEPARATE body. Everything the author writes is BODY,
+/// under that one subject — the close's `-m` narration first (when given), then
+/// the author's substantive `work/<id>` messages (every NON-MERGE commit since
+/// the branch forked, oldest-first; the `--no-merges` caller already drops the
+/// reintegration fold), all blank-line joined. Both go in the body TOGETHER —
+/// neither elects the other out, so bl-b9a6's rich work context survives even
+/// when `-m` is given. An empty deliverable (no `-m`, never committed) is the
+/// bare tagged subject.
 ///
-/// The `[id]` `marker` — the §7 delivery tag the rollback/release scan
-/// ([`crate::delivery_repo::Project::marked`]) greps and the changelog reads —
-/// is GUARANTEED on the subject line: an author message that omits it gets it
-/// appended; one that already carries it is left untouched (no `[id] [id]`).
+/// The `[id]` delivery tag the rollback/release scan
+/// ([`crate::delivery_repo::Project::marked`]) greps and the changelog reads
+/// therefore rides the subject unconditionally — `subject` already carries it,
+/// and the subject is never displaced by author text.
 #[must_use]
-pub fn compose(override_msg: Option<&str>, work: &[String], subject: &str, marker: &str) -> String {
-    if let Some(m) = override_msg.map(str::trim).filter(|m| !m.is_empty()) {
-        return with_marker(m, marker);
+pub fn compose(override_msg: Option<&str>, work: &[String], subject: &str) -> String {
+    let body: Vec<&str> = override_msg
+        .into_iter()
+        .chain(work.iter().map(String::as_str))
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
+    if body.is_empty() {
+        return subject.to_string(); // empty deliverable: bare tagged subject
     }
-    let parts: Vec<&str> = work.iter().map(|m| m.trim()).filter(|m| !m.is_empty()).collect();
-    if parts.is_empty() {
-        return subject.to_string(); // fallback subject is already tagged
-    }
-    with_marker(&parts.join("\n\n"), marker)
-}
-
-/// Ensure `marker` rides `message`'s subject line, idempotently — the tag must
-/// reach `git log`'s subject so the §7 scan and the changelog both see it,
-/// without duplicating one the author already wrote anywhere in the message.
-fn with_marker(message: &str, marker: &str) -> String {
-    let message = message.trim_end();
-    if message.contains(marker) {
-        return message.to_string();
-    }
-    match message.split_once('\n') {
-        Some((head, rest)) => format!("{head} {marker}\n{rest}"),
-        None => format!("{message} {marker}"),
-    }
+    format!("{subject}\n\n{}", body.join("\n\n"))
 }
 
 #[cfg(test)]
