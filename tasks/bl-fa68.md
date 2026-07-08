@@ -1,7 +1,8 @@
 +++
 title = "Update the docs"
 created = 1783490520
-updated = 1783490520
+updated = 1783490746
+claimant = "Deposits"
 parent = "bl-18bf"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-chore"]
