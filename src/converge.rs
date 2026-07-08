@@ -41,6 +41,14 @@
 //! the user's file (the dispatch notice stays its cover); adopt paths converge
 //! their COPY-IN ([`rewrite_config`]) so a stale center cannot re-inject the old
 //! name each cycle.
+//!
+//! §12.2 [`debris`] (bl-18bf piece 2, bl-3e5e) — the SAME module boundary, a
+//! DIFFERENT contract: REPORT ONLY, prime deletes nothing here (an orphan
+//! worktree may hold uncommitted work). Two crash-debris checks, one `readdir` +
+//! one `exists()` on the clean path, returned as rendered lines the SAME way
+//! [`crate::seed::seed_landing`]'s prune notes are (this layer stays log-free;
+//! `prime` emits each line through the op log at `info` + stderr echo once it
+//! exists, the bl-b1be idiom).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -48,6 +56,7 @@ use std::io;
 use std::path::Path;
 use toml::value::{Table, Value};
 
+use crate::layout::CloneDir;
 use crate::registry::Registry;
 use crate::{config, conf, renames, seed};
 
@@ -171,6 +180,71 @@ fn subject(map: &BTreeMap<String, &'static str>) -> String {
     format!("balls: converge {}", pairs.join(" "))
 }
 
+/// The core-side crash-debris report (§12.2, bl-18bf piece 2): [`orphan_changes`]
+/// then [`stealth_lock`], concatenated in that order. REPORT ONLY — nothing here
+/// deletes; each line names the fixing command and `prime` carries the returned
+/// lines into the op log at `info` + stderr echo, exactly like [`seed::seed_landing`]'s
+/// prune notes. `landing` is the founded landing checkout (as passed to
+/// [`converge`]); `clone` is this invocation's bundle (§1 [`CloneDir`]), the
+/// scope `changes/` and `stealth.lock` both live under. A converged, debris-free
+/// checkout costs one `readdir` + one `exists()` and returns empty.
+pub fn debris(clone: &CloneDir, landing: &Path) -> io::Result<Vec<String>> {
+    let mut notes = orphan_changes(clone)?;
+    notes.extend(stealth_lock(clone, landing)?);
+    Ok(notes)
+}
+
+/// Every `changes/<uuid>/` entry present at prime time ([`CloneDir::change`],
+/// §1/§8): crash debris from an op whose teardown never removed its own change
+/// worktree (an op that finishes normally always does). One `readdir`; a
+/// `changes/` directory that has never been created (no op has ever run here)
+/// is not an error, just nothing to report. Each line names `git worktree
+/// remove <path>` — never deleted here, because an orphan may hold uncommitted
+/// work (the reason this is a report, not a prune).
+fn orphan_changes(clone: &CloneDir) -> io::Result<Vec<String>> {
+    let changes = clone.root().join("changes");
+    let entries = match fs::read_dir(&changes) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e),
+    };
+    entries
+        .map(|entry| {
+            let path = entry?.path();
+            Ok(format!(
+                "orphan change worktree {} (crash debris — its op's teardown never ran): remove with `git worktree remove {}`",
+                path.display(),
+                path.display()
+            ))
+        })
+        .collect()
+}
+
+/// The retired `stealth.lock` (bl-9df0) at the clone root: a file written by
+/// nothing and read by nothing today. Present while the landing sentinel does
+/// NOT declare stealth ([`config::landing_remote`] reading anything other than
+/// [`config::STEALTH_REMOTE`]) is the catalog's one silent-*publish* hazard — an
+/// operator who declared stealth the old way is silently un-stealthed by the
+/// modern remote ladder. SUPPRESSED (no line at all) once the sentinel already
+/// reads stealth: the operator has already re-declared, and the file is inert
+/// cruft rather than a live hazard. The wording claims only that the mechanism
+/// is retired — core cannot see whether a remote actually resolves, so it never
+/// claims a publish happened either way.
+fn stealth_lock(clone: &CloneDir, landing: &Path) -> io::Result<Option<String>> {
+    let lock = clone.root().join("stealth.lock");
+    if !lock.exists() || config::landing_remote(landing)?.as_deref() == Some(config::STEALTH_REMOTE) {
+        return Ok(None);
+    }
+    Ok(Some(format!(
+        "{} is retired and unread by the remote ladder — declare stealth with `bl conf set task-remote none`, then delete the file",
+        lock.display()
+    )))
+}
+
 #[cfg(test)]
 #[path = "converge_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "converge_debris_tests.rs"]
+mod debris_tests;
