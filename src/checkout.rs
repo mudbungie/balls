@@ -91,7 +91,7 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     // bl-5b09) are carried forward into the op log once it exists — founding
     // precedes the threshold read, so the seed cannot log them itself. The
     // rebind path prunes nothing and has none.
-    let seed_notes = if is_landing(&landing) {
+    let mut seed_notes = if is_landing(&landing) {
         seed::rebind(&landing, edge.exe_dir.as_deref())?;
         Vec::new()
     } else {
@@ -122,6 +122,14 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     // chain resolves its hooks below (so this op dispatches the rewritten
     // schedule). A converged checkout no-ops — no git, no spawn.
     crate::converge::converge(&landing, edge.exe_dir.as_deref(), &opts.actor)?;
+    // The core-side crash-debris report (bl-18bf piece 2, bl-3e5e): orphan
+    // `changes/<uuid>/` worktrees and the retired `stealth.lock` hazard. Runs
+    // every prime (not just founding — crash debris accumulates on an
+    // established checkout too); after any `--stealth`/`--center` writes above,
+    // so a sentinel declared in THIS invocation already suppresses the lock
+    // note. Report only — appended to `seed_notes` so it rides the same op-log
+    // emission as the founding seed's prune notes.
+    seed_notes.extend(crate::converge::debris(&clone, &landing)?);
     // `--center`'s remote is now the durable binding (resolved by the ladder, so
     // pass None); `--install` alone carries no durable binding, so it seeds this
     // op's remote directly (the center is where the adopted `tasks_branch` lives).
@@ -166,9 +174,10 @@ fn prime_chain(
         Ok((name != before).then_some(name))
     };
     let log = Log::new(clone.op_log(), level, Verb::Prime, log::wall);
-    // The founding seed's prune notes land here, `info` like install's dangling
-    // report (bl-5b09): an actionable incompleteness report, persisted and
-    // threshold-gated — not a bare eprintln the log file never sees.
+    // The founding seed's prune notes AND the converge module's crash-debris
+    // report land here, `info` like install's dangling report (bl-5b09/bl-3e5e):
+    // actionable incompleteness reports, persisted and threshold-gated — not a
+    // bare eprintln the log file never sees.
     for note in seed_notes {
         log.record(Level::Info, "core", None, note);
     }

@@ -1,0 +1,112 @@
+//! Tests for §12.2 debris report (bl-18bf piece 2, bl-3e5e): orphan
+//! `changes/<uuid>/` worktrees and the retired `stealth.lock` hazard, both
+//! REPORT ONLY — nothing under test here is ever deleted by `debris` itself.
+
+use crate::conf;
+use crate::converge;
+use crate::layout::Xdg;
+use crate::substrate;
+use std::fs;
+use std::path::PathBuf;
+use tempfile::TempDir;
+
+/// An XDG rooted in `tmp`, and the one clone bundle it names — enough to found
+/// a landing and give `debris` a real `CloneDir` to read under.
+fn clone(tmp: &TempDir) -> crate::layout::CloneDir {
+    let xdg = Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy()));
+    xdg.clone_dir(&tmp.path().join("proj"))
+}
+
+fn founded(tmp: &TempDir) -> (crate::layout::CloneDir, PathBuf) {
+    let clone = clone(tmp);
+    let xdg = Xdg::with(tmp.path(), None, Some(&tmp.path().join("state").to_string_lossy()));
+    let landing = clone.landing();
+    substrate::found_landing(&landing, &xdg, None, "tester").unwrap();
+    (clone, landing)
+}
+
+#[test]
+fn a_clean_checkout_reports_nothing() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    assert_eq!(converge::debris(&clone, &landing).unwrap(), Vec::<String>::new());
+}
+
+#[test]
+fn an_absent_changes_dir_is_not_an_error() {
+    // Nothing has ever run an op here — `changes/` was never created.
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    assert!(!clone.root().join("changes").exists());
+    assert!(converge::debris(&clone, &landing).unwrap().is_empty());
+}
+
+#[test]
+fn an_orphan_change_worktree_names_the_removal_command() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    let orphan = clone.change("dead-uuid");
+    fs::create_dir_all(&orphan).unwrap();
+    let notes = converge::debris(&clone, &landing).unwrap();
+    assert_eq!(
+        notes,
+        vec![format!(
+            "orphan change worktree {} (crash debris — its op's teardown never ran): remove with `git worktree remove {}`",
+            orphan.display(),
+            orphan.display()
+        )]
+    );
+}
+
+#[test]
+fn two_orphan_change_worktrees_each_get_their_own_line() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    fs::create_dir_all(clone.change("a")).unwrap();
+    fs::create_dir_all(clone.change("b")).unwrap();
+    assert_eq!(converge::debris(&clone, &landing).unwrap().len(), 2);
+}
+
+#[test]
+fn a_changes_path_that_is_not_a_directory_surfaces_its_io_error() {
+    // Anything other than "absent" (NotFound) from the readdir propagates
+    // instead of being swallowed — here a plain file squats where `changes/`
+    // should be a directory, so `read_dir` refuses it.
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    fs::write(clone.root().join("changes"), "").unwrap();
+    assert!(converge::debris(&clone, &landing).is_err());
+}
+
+#[test]
+fn a_stealth_lock_with_stealth_undeclared_warns_without_claiming_a_publish() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    fs::write(clone.root().join("stealth.lock"), "").unwrap();
+    let notes = converge::debris(&clone, &landing).unwrap();
+    assert_eq!(
+        notes,
+        vec![format!(
+            "{} is retired and unread by the remote ladder — declare stealth with `bl conf set task-remote none`, then delete the file",
+            clone.root().join("stealth.lock").display()
+        )]
+    );
+    assert!(!notes[0].to_lowercase().contains("publish"), "core cannot see whether a remote resolves — never claim one happened");
+}
+
+#[test]
+fn a_stealth_lock_is_suppressed_once_the_sentinel_already_declares_stealth() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    fs::write(clone.root().join("stealth.lock"), "").unwrap();
+    conf::declare_stealth(&landing, "tester").unwrap();
+    assert!(converge::debris(&clone, &landing).unwrap().is_empty(), "operator re-declared — the file is inert cruft, stay silent");
+}
+
+#[test]
+fn an_absent_stealth_lock_is_silent_even_when_stealth_is_undeclared() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    assert!(!clone.root().join("stealth.lock").exists());
+    assert!(converge::debris(&clone, &landing).unwrap().is_empty());
+}
