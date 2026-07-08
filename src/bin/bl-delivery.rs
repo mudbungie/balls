@@ -52,9 +52,10 @@ fn run(args: &[String]) -> io::Result<()> {
 
     // `prime` carries no single ball (§13 diffless) — it derives no worktree
     // (worktrees materialize at CLAIM only, bl-c2bf), only prunes settled
-    // `work/<id>` branches, so it takes its own path here.
+    // `work/<id>` branches (+ reports debris on the unsettled ones, bl-c117),
+    // so it takes its own path here.
     if op == "prime" {
-        return prime(phase, &wire, &repo);
+        return prime(phase, &wire, &repo, &xdg, &plugin);
     }
 
     let cwd = env::current_dir()?;
@@ -96,8 +97,11 @@ fn run(args: &[String]) -> io::Result<()> {
 /// nowhere else (bl-c2bf — re-priming a lost worktree is `unclaim` + `claim`),
 /// so prime derives no worktree at all. It PRUNES the settled `work/<id>`
 /// branches close/unclaim teardown left behind — the §11 deferred,
-/// non-transactional branch cleanup ([`Project::prune`]).
-fn prime(phase: &str, wire: &Wire, repo: &Project) -> io::Result<()> {
+/// non-transactional branch cleanup ([`Project::prune`]) — and REPORTS (never
+/// prunes) the unsettled ones whose worktree directory is gone (bl-c117: piece
+/// 3 of docs/design/bl-18bf-prime-convergence.md). `xdg`/`plugin` are the same
+/// binding inputs `claim` resolves its own worktree path from.
+fn prime(phase: &str, wire: &Wire, repo: &Project, xdg: &Xdg, plugin: &str) -> io::Result<()> {
     // §14: prime is an idempotent refresher — its prune is exactly the state a
     // re-prime converges to, so its rollback DECLINES before touching anything
     // (bl-62eb).
@@ -113,7 +117,9 @@ fn prime(phase: &str, wire: &Wire, repo: &Project) -> io::Result<()> {
         return Ok(());
     }
     if phase == "post" {
-        repo.prune()?;
+        for line in repo.prune(xdg, plugin)? {
+            eprintln!("bl-delivery: {line}");
+        }
     }
     Ok(())
 }

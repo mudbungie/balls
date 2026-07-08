@@ -8,6 +8,7 @@ use std::fs;
 use crate::delivery::Repo;
 use crate::delivery_repo::tests::{project, tip};
 use crate::delivery_repo::Project;
+use crate::layout::Xdg;
 
 #[test]
 fn deliver_aborts_when_the_branch_carries_content_beyond_its_delivery() {
@@ -63,9 +64,12 @@ fn deliver_skips_a_forge_squash_merge_whose_content_landed() {
 fn prune_preserves_a_diverged_branch_carrying_work_beyond_its_delivery() {
     // The same divergence prune-side: a delivered branch with content beyond
     // its delivery is NOT settled — deleting it would lose the bl-65e0 work
-    // the close's guard just refused to strand.
+    // the close's guard just refused to strand. Its worktree is also gone
+    // (released, not re-materialized at the claim-derived path), so the bl-c117
+    // debris report fires — Diverged is reported exactly like Undelivered.
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
+    let xdg = Xdg::with(&root, None, Some(&root.join("state").to_string_lossy()));
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
     Project::run(&wt, &["add", "-A"]).unwrap();
@@ -76,7 +80,8 @@ fn prune_preserves_a_diverged_branch_carrying_work_beyond_its_delivery() {
     Project::run(&wt, &["commit", "-qm", "more work"]).unwrap();
     p.release(&wt).unwrap(); // teardown: the branch is the only copy
 
-    p.prune().unwrap();
+    let reports = p.prune(&xdg, "bl-delivery").unwrap();
+    assert_eq!(reports.len(), 1);
     assert!(Project::ok(&root, &["rev-parse", "--verify", "--quiet", "refs/heads/work/bl-x"]).unwrap());
 }
 
