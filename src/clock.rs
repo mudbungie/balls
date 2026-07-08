@@ -12,26 +12,34 @@
 //! `T` resolves down a fail-open ladder:
 //!
 //! ```text
-//! clock_provider  (config → a bound bin; the product seam)                 >
+//! clock_provider  (a conf-set LOCAL value → a resolved bin; the product seam) >
 //! BALLS_CLOCK      (an i64 env, the edge TEST seam — deterministic core tests) >
 //! the system clock ([`crate::log::wall`]; the default — today's behaviour)
 //! ```
 //!
-//! The provider is the ONLY rung that can fail, and it is NON-FATAL: a missing
-//! bin, a non-zero exit, or unparseable output logs a note and falls to the next
-//! rung. This is the deliberate asymmetry with hook dispatch, where a dangling bin
-//! ABORTS (§6): a hook is load-bearing, the op clock is cosmetic with a sane
-//! default, so it degrades instead of blocking. With NOTHING set the ladder
-//! bottoms at the system clock — byte-identical to pre-bl-8b98 behaviour.
+//! The provider is a DIRECTLY-SET local value (bl-cfe3): an absolute path, or a
+//! PATH-resolved name, living in the per-machine LOCAL-TRUST layer (the per-clone
+//! `binding.toml` / XDG, [`crate::config::clock_provider`]) and set by `bl conf`
+//! — NOT a landing-config name bound via `install`. The clock is box-local (§1),
+//! cosmetic, and fail-open, so it needs none of the shared-schedule/RCE-consent
+//! machinery of the hook `bin/<name>` indirection, and it NEVER travels on
+//! `install` (§4).
+//!
+//! The provider is the ONLY rung that can fail, and it is NON-FATAL: a value that
+//! resolves to no binary, a non-zero exit, or unparseable output logs a note and
+//! falls to the next rung. This is the deliberate asymmetry with hook dispatch,
+//! where a dangling bin ABORTS (§6): a hook is load-bearing, the op clock is
+//! cosmetic with a sane default, so it degrades instead of blocking. With NOTHING
+//! set the ladder bottoms at the system clock — byte-identical to pre-bl-8b98
+//! behaviour.
 
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::config::EffectiveConfig;
+use crate::config;
 use crate::edge::Edge;
 use crate::log::wall;
-use crate::registry::Registry;
 
 /// The op instant plus an optional fail-open note. `note` is `Some` when a
 /// configured provider could not be honoured; the seal path emits it through the
@@ -45,48 +53,62 @@ pub struct Instant {
     pub note: Option<String>,
 }
 
-/// Resolve the op instant for `edge` — read the §4 config for a `clock_provider`,
-/// resolve its bin against this landing's registry, and run the fail-open
-/// [`resolve`] ladder. The impure wrapper: it does the config/registry reads (a
-/// malformed config is the one hard error — the same one every op already hits at
-/// bind), while [`resolve`] stays pure over its inputs so the ladder is
-/// unit-tested exhaustively.
+/// Resolve the op instant for `edge` — read this checkout's LOCAL-TRUST
+/// `clock_provider` (the per-clone `binding.toml` / XDG,
+/// [`config::clock_provider`]) and run the fail-open [`resolve`] ladder,
+/// resolving a named value against this box's binaries with [`locate`]. The
+/// impure wrapper: it does the config + filesystem reads, while [`resolve`]
+/// stays pure over its inputs (the provider string + a resolver closure) so the
+/// ladder is unit-tested exhaustively.
 pub fn for_op(edge: &Edge) -> io::Result<Instant> {
-    let landing = edge.xdg.clone_dir(&edge.invocation_path).landing();
-    let provider = EffectiveConfig::resolve(&landing, &edge.xdg.user_config())?.clock_provider;
-    Ok(resolve(provider.as_deref(), &Registry::at(&landing), edge.balls_clock, wall))
+    let clone = edge.xdg.clone_dir(&edge.invocation_path);
+    let provider = config::clock_provider(&clone.binding(), &edge.xdg.user_config());
+    Ok(resolve(provider.as_deref(), |name| locate(name, edge), edge.balls_clock, wall))
+}
+
+/// Resolve a `clock_provider` value to THIS box's binary (bl-cfe3): an absolute
+/// path is used verbatim (when it is a file); any other value is a name resolved
+/// beside `bl` first (the [`crate::seed`] sibling rule), then on `$PATH`
+/// (`edge.path_dirs`) — the SAME "this machine" lookup a plugin binary gets, minus
+/// the `bin/<name>` symlink, because the clock never travels on `install`. No hit
+/// ⇒ `None`, and [`resolve`] falls open.
+fn locate(value: &str, edge: &Edge) -> Option<PathBuf> {
+    let p = Path::new(value);
+    if p.is_absolute() {
+        return p.is_file().then(|| p.to_path_buf());
+    }
+    edge.exe_dir.iter().chain(edge.path_dirs.iter()).map(|d| d.join(value)).find(|p| p.is_file())
 }
 
 /// The fail-open ladder, pure over its inputs (`system` injected as a `fn`
 /// pointer like [`crate::log::Log`]'s clock, so tests are deterministic and this
-/// does no hidden time read). A named `provider` bound to a bin that prints one
-/// parseable unix-seconds line wins; ANY provider failure (unbound, non-zero exit,
-/// unparseable) falls through carrying a note; then the `balls_clock` test seam;
-/// then the `system` clock.
+/// does no hidden time read; `locate` injected so the filesystem lookup is a
+/// closure the tests stub). A `provider` value resolving to a bin that prints one
+/// parseable unix-seconds line wins; ANY provider failure (unresolvable, non-zero
+/// exit, unparseable) falls through carrying a note; then the `balls_clock` test
+/// seam; then the `system` clock.
 #[must_use]
-pub fn resolve(provider: Option<&str>, registry: &Registry, balls_clock: Option<i64>, system: fn() -> i64) -> Instant {
+pub fn resolve(provider: Option<&str>, locate: impl Fn(&str) -> Option<PathBuf>, balls_clock: Option<i64>, system: fn() -> i64) -> Instant {
     let fallback = |note| Instant { t: balls_clock.unwrap_or_else(system), note };
-    let Some(name) = provider else {
+    let Some(value) = provider else {
         return fallback(None);
     };
-    let Some(bin) = registry.resolve_bin(name) else {
+    let Some(bin) = locate(value) else {
         return fallback(Some(format!(
-            "clock_provider {name} not bound (bin/{name} missing) — run bl install to bind; using the system clock"
+            "clock_provider {value} not found (not an absolute path, not beside bl or on PATH) — using the system clock"
         )));
     };
     match probe(&bin) {
         Ok(t) => Instant { t, note: None },
-        Err(e) => fallback(Some(format!("clock_provider {name}: {e} — using the system clock"))),
+        Err(e) => fallback(Some(format!("clock_provider {value}: {e} — using the system clock"))),
     }
 }
 
 /// Run a provider bin: one unix-seconds `i64` line on stdout, exit 0. Anything
 /// else (non-zero exit, empty/non-integer output) is an error the caller turns
 /// into a fail-open note. `retry_busy` absorbs the ETXTBSY a freshly-written bin
-/// can throw under parallel test spawns (bl-6cd9). `pub(crate)` so `bl install`
-/// reuses the SAME "is this a clock?" check to VALIDATE a `clock_provider` at
-/// bind (§6 [`crate::install`]) — one authority for what a provider must print.
-pub(crate) fn probe(bin: &Path) -> io::Result<i64> {
+/// can throw under parallel test spawns (bl-6cd9).
+fn probe(bin: &Path) -> io::Result<i64> {
     let child = crate::plugin::retry_busy(|| {
         Command::new(bin).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
     })?;

@@ -134,6 +134,25 @@ fn task_remote_reads_the_durable_ladder_and_shows_stealth() {
 }
 
 #[test]
+fn clock_provider_resolves_the_local_trust_tiers_and_names_them() {
+    // bl-cfe3: the op-clock provider is read from the NON-TRAVELING local layer —
+    // this clone's binding.toml, else the legacy per-machine XDG, else (none) ⇒
+    // the system clock. Never the landing (it does not travel on install), so the
+    // dump labels the same two tiers as the store remote: binding vs xdg (global).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    // Nothing set → the system clock, reported as the default tier.
+    assert_eq!(res(&e, &clone, "clock-provider"), ("(none)".into(), "default".into()));
+    // The legacy per-machine XDG config answers when the binding is silent.
+    user_file(&e, "config.toml", "clock_provider = \"bl-workhours\"\n");
+    assert_eq!(res(&e, &clone, "clock-provider"), ("bl-workhours".into(), "xdg (global)".into()));
+    // The per-clone binding outranks XDG (more specific, this checkout's own).
+    fs::write(clone.binding(), "clock_provider = \"/opt/bl-workhours\"\n").unwrap();
+    assert_eq!(res(&e, &clone, "clock-provider"), ("/opt/bl-workhours".into(), "binding".into()));
+}
+
+#[test]
 fn a_hooks_key_resolves_the_composed_list_and_names_its_layers() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);

@@ -36,6 +36,7 @@
 //! binary converges on the no-op seal and just binds (§14).
 
 use std::cell::Cell;
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -43,11 +44,11 @@ use crate::checkout;
 use crate::edge::Edge;
 use crate::git::{self, Git};
 use crate::hooks::Hooks;
-use crate::install::{install, Summary};
+use crate::install::{install, referenced, resolve_and_bind, InstallError, Summary};
 use crate::layout::CloneDir;
 use crate::lifecycle::{BaseChange, Engine, Plugins};
-use crate::log::{self, Log};
-use crate::message::Message;
+use crate::log::{self, Level, Log};
+use crate::message::{Message, PROTOCOL};
 use crate::op::Phase;
 use crate::plugin::Subprocess;
 use crate::registry::{PluginRef, Registry};
@@ -68,7 +69,10 @@ pub(crate) type AfterStage<'a> = &'a dyn Fn(&Path) -> io::Result<()>;
 /// [--as ID]` (§6): seal a copy of `<path>` from `--from` (default: the
 /// configured upstream) onto `--to`'s current tip through the §8 engine + the
 /// `install` plugin chain, then bind the referenced plugins when the landing
-/// was the target, and print the change [`Summary`].
+/// was the target, and print the change [`Summary`]. `--bin` with neither an
+/// explicit `<path>` nor `--from` is BIND-ONLY (bl-cfe3): it copies nothing, so
+/// re-binding a plugin binary never silently mirrors the stale upstream config —
+/// config adoption is opt-in via a named `<path>` or `--from`.
 pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
@@ -87,29 +91,31 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
     let reg = Registry::at(&landing);
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
-    let plugins = Subprocess::new(OpContext::diffless(opts.actor.clone(), binding), &log, edge.depth);
-    let pre = hooks.resolve(&reg, Verb::Install.token(), "pre");
-    // Resolve the copy SOURCE (§6): an explicit `--from`, else the configured
-    // upstream the `install.pre` fetch leaves at `FETCH_HEAD`. When defaulting,
-    // the chain runs inside [`upstream`] (before the engine stages), so the
-    // engine's own pre then runs EMPTY; an explicit `--from` lets it ride the
-    // engine. `None` back = no source resolved (a stealth/hub box).
-    let (engine_pre, source) = match opts.from {
-        Some(ref f) => (pre, Some(f.clone())),
-        None => (Vec::new(), upstream(&plugins, &pre, &landing)?),
-    };
-    let chain = Chain {
-        plugins: &plugins,
-        log: &log,
-        pre: engine_pre,
-        post: hooks.resolve(&reg, Verb::Install.token(), "post"),
-    };
-    let to = if to_landing { &landing } else { &store };
-    // No source ⇒ nothing to adopt: BIND-ONLY when there is binding work here
-    // (`--bin` or a configured `clock_provider`), else the no-upstream refusal.
-    let summary = match source {
-        Some(from) => seal_copy(&clone, &opts.path, &from, to, &chain, &opts.actor, None)?,
-        None => bind_only(&landing, edge, &opts.bins)?,
+    // bl-cfe3: `--bin` with neither an explicit `<path>` nor `--from` is
+    // BIND-ONLY — it copies NOTHING (never mirrors a stale upstream config over
+    // the local landing), it just binds; config adoption stays opt-in via a named
+    // `<path>` or `--from`. A bare `bl install` (no `--bin`) still adopts the
+    // configured upstream as before — the federation onboarding path is untouched.
+    let bind_only = !opts.explicit_path && opts.from.is_none() && !opts.bins.is_empty();
+    let summary = if bind_only {
+        Summary::default()
+    } else {
+        let plugins = Subprocess::new(OpContext::diffless(opts.actor.clone(), binding), &log, edge.depth);
+        let pre = hooks.resolve(&reg, Verb::Install.token(), "pre");
+        let (pre, from) = match opts.from {
+            Some(ref f) => (pre, f.clone()),
+            None => (Vec::new(), upstream(&plugins, &pre, &landing)?),
+        };
+        let chain = Chain {
+            plugins: &plugins,
+            log: &log,
+            pre,
+            post: hooks.resolve(&reg, Verb::Install.token(), "post"),
+        };
+        let to = if to_landing { &landing } else { &store };
+        // `after` is None for a plain install; the §12.1 `--center` rename
+        // convergence supplies it via `adopt`/`converge` (bl-2253).
+        seal_copy(&clone, &opts.path, &from, to, &chain, &opts.actor, None)?
     };
     if to_landing {
         bind_referenced(&landing, edge, &opts.bins, &log)?;
@@ -126,18 +132,18 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// ([`crate::adopt`]). The chain runs HERE, before the engine stages (see the
 /// module doc); the caller then runs the engine's pre chain EMPTY. A
 /// `FETCH_HEAD` that still does not resolve (a stealth box, a hub carrying no
-/// `balls/config`, no fetch plugin installed) yields `None` — NOT an error: the
-/// caller decides between a bind-only install and the no-upstream refusal
-/// ([`bind_only`]), so "no source resolved" stays distinct from a real failure
-/// and never surfaces as a raw git fatal at materialize.
-fn upstream(plugins: &Subprocess, pre: &[PluginRef], landing: &Path) -> io::Result<Option<String>> {
+/// `balls/config`, no fetch plugin installed) is refused naming the remedy —
+/// never a raw git fatal at materialize.
+fn upstream(plugins: &Subprocess, pre: &[PluginRef], landing: &Path) -> io::Result<String> {
     for plugin in pre {
         plugins.run(plugin, Verb::Install, Phase::Pre, landing, None)?;
     }
     if git::run(landing, &["rev-parse", "--verify", "--quiet", "FETCH_HEAD"], None).is_err() {
-        return Ok(None);
+        return Err(io::Error::other(
+            "install: no --from given and no configured upstream offers a balls/config to adopt — pass --from <ref>",
+        ));
     }
-    Ok(Some("FETCH_HEAD".to_string()))
+    Ok("FETCH_HEAD".to_string())
 }
 
 /// The resolved §8 pieces a sealing install runs with: the subprocess chain,
@@ -224,19 +230,61 @@ impl BaseChange for Copier<'_> {
     }
 }
 
+/// Bind every plugin the just-landed `config/plugins.toml` references to this
+/// machine's binary, validating each against its live `<bin> protocol`
+/// self-description before linking (§6 [`resolve_and_bind`] — refuses an op
+/// or protocol version the binary does not declare, the refusal carrying the
+/// name's `[source]` hint when one exists: it doubles as the stale-binary
+/// upgrade pointer, bl-5b09). The candidate is the explicit `--bin
+/// <name>=<path>` entry when given (a `bins` name the schedule does not
+/// reference is refused — never silently dropped), else [`locate`]'s machine
+/// lookup. A referenced name with no candidate anywhere stays dangling — the
+/// clean "referenced but not installed" dispatch error (§6), never bound
+/// silently — and is REPORTED, one `info` line each (an actionable
+/// incompleteness report, not core narrating its own mechanics — the Summary
+/// alone would read as "covered everything"); a re-run converges on the no-op
+/// seal and just binds (§14).
+pub(crate) fn bind_referenced(landing: &Path, edge: &Edge, bins: &BTreeMap<String, PathBuf>, log: &Log) -> io::Result<()> {
+    let worklist = referenced(landing)?;
+    if let Some(name) = bins.keys().find(|n| !worklist.contains_key(*n)) {
+        return Err(io::Error::other(format!(
+            "install: --bin {name}: the landed schedule does not reference that plugin"
+        )));
+    }
+    let hints = Hooks::effective(landing, &edge.xdg.user_config())?;
+    let registry = Registry::at(landing);
+    for (name, ops) in worklist {
+        let source = hints.source(&name).map(|h| format!(" — source: {h}")).unwrap_or_default();
+        let Some(bin) = bins.get(&name).cloned().or_else(|| locate(&name, edge)) else {
+            log.record(
+                Level::Info,
+                "core",
+                None,
+                &format!("install: {name} referenced but not bound (no binary beside bl or on PATH){source} — re-run bl install after acquiring"),
+            );
+            continue;
+        };
+        resolve_and_bind(&registry, &name, &bin, &ops, PROTOCOL).map_err(|e| match e {
+            InstallError::Unsupported { .. } => io::Error::other(format!("{e}{source}")),
+            InstallError::Io(_) => io::Error::other(e.to_string()),
+        })?;
+    }
+    Ok(())
+}
+
+/// §6 "this machine" resolution for a referenced plugin's binary: the shipped
+/// sibling beside `bl` first (the seed's own rule, [`crate::seed`] — a
+/// freshly built `bl` finds its co-built plugins even off PATH), then a PATH
+/// lookup (`edge.path_dirs`). No hit ⇒ `None` — the caller leaves the name
+/// dangling.
+fn locate(name: &str, edge: &Edge) -> Option<PathBuf> {
+    let dirs = edge.exe_dir.iter().chain(edge.path_dirs.iter());
+    dirs.map(|d| d.join(name)).find(|p| p.is_file())
+}
+
 // The argv parser lives in a sibling module (the §9 checkout_args convention).
 #[path = "install_args.rs"]
 mod args;
-
-// The LOCAL-BINDING half — resolve each referenced name (and the configured
-// `clock_provider`) to this machine's binary — lives in a sibling module, so
-// this file stays the git-sealing run-wiring. `bind_referenced` is re-exported
-// upward so [`crate::install`] (and `prime --install`'s [`crate::adopt`]) keep
-// reaching `install::bind_referenced` unchanged.
-#[path = "install_bind.rs"]
-mod bind;
-pub(crate) use bind::bind_referenced;
-use bind::bind_only;
 
 #[cfg(test)]
 #[path = "install_run_tests.rs"]
@@ -245,7 +293,3 @@ mod tests;
 #[cfg(test)]
 #[path = "install_surface_tests.rs"]
 mod surface_tests;
-
-#[cfg(test)]
-#[path = "install_bind_tests.rs"]
-mod bind_tests;
