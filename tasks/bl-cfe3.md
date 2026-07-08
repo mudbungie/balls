@@ -1,7 +1,7 @@
 +++
 title = "bl install --bin is bimodal and a footgun on a tracked repo — it mirrors the upstream's stale config over the local landing"
 created = 1783490048
-updated = 1783490285
+updated = 1783490488
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["design"]
 +++
@@ -14,3 +14,5 @@ IMPLICATION: bl-98ba (the follow-up that made `bl install --bin` bind a clock pr
 SEPARATE, SMALLER concern that remains: `bl install --bin` is still bimodal for actual PLUGINS (bind-only on a stealth landing, config-MIRROR on a tracked one). Plugins legitimately need the name+binding split (they ARE shared/adopted), so the fix there is narrower — `--bin` with no explicit path and no `--from` = bind-only ALWAYS; config adoption stays opt-in via a named path or `--from`, so "just rebind a plugin binary" never silently mirrors the upstream's stale config.
 
 ORIGINAL FOOTGUN (what triggered this): migrating bl-workhours, `bl install --bin bl-workhours=<path>` on the tracked balls landing fetched github's month-old balls/config and MIRRORED it over the local landing — reverting the tracker->bl-tracker rename, re-wiring the broken github-issues, dropping clock_provider. Recovered via `git reset --hard <pre-install>` in the landing checkout. Config is single-owner and never auto-pushed (§4/§12), so an upstream's balls/config is chronically STALE — any `bl install` reverts real local progress.
+
+DOCS (required when implemented): architecture §4 — clock_provider becomes a directly-set LOCAL value (a path or PATH-resolved name) in the non-traveling local-trust layer, NOT a landing-config name bound via install; state that it never travels on `install`. §6 + §8 — remove "clock_provider is bound by `bl install --bin`"; the `install --bin` bind path is for PLUGINS only (and made bind-only-always when no path/--from is given). § id generation cross-ref — the clock is resolved from a conf value, it is not part of the bin/<name> reassign family. §15 — record: bl-98ba was the wrong layer and is reverted; the `install --bin` bimodality narrowed to bind-only-always for plugins. Also REVERT the bl-98ba doc additions (§4/§6/§8) that describe the clock as install-bound.
