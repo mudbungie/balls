@@ -114,17 +114,19 @@ fn re_adopting_identical_config_skips_the_commit() {
 
 #[test]
 fn install_local_binds_a_referenced_plugin_whose_binary_is_present() {
+    // A NON-retired name (adversary): the §12.1 rename convergence rewrites only
+    // the closed first-party map (tracker → bl-tracker), so this name lands whole.
     let tmp = TempDir::new().unwrap();
     let bin = tmp.path().join("bin");
     fs::create_dir_all(&bin).unwrap();
-    plugin(&bin, "tracker", "[\"install\"]");
+    plugin(&bin, "adversary", "[\"install\"]");
     let e = edge(&tmp, Some(bin.clone()));
     let (landing, _store) = found(&e);
-    // The adopted config wires tracker on install.pre — an op the binary declares.
-    sim_fetch(&landing, &center(tmp.path(), "balls/shared", "[hooks]\n\"install.pre\" = [\"tracker\"]\n"));
+    // The adopted config wires adversary on install.pre — an op the binary declares.
+    sim_fetch(&landing, &center(tmp.path(), "balls/shared", "[hooks]\n\"install.pre\" = [\"adversary\"]\n"));
     install_local(&e, &landing).unwrap();
-    let link = landing.join("config/plugins/bin/tracker");
-    assert_eq!(fs::read_link(&link).unwrap(), bin.join("tracker"));
+    let link = landing.join("config/plugins/bin/adversary");
+    assert_eq!(fs::read_link(&link).unwrap(), bin.join("adversary"));
 }
 
 #[test]
@@ -132,13 +134,38 @@ fn install_local_refuses_a_referenced_plugin_the_binary_cannot_serve() {
     let tmp = TempDir::new().unwrap();
     let bin = tmp.path().join("bin");
     fs::create_dir_all(&bin).unwrap();
-    plugin(&bin, "tracker", "[\"install\"]"); // declares install only
+    plugin(&bin, "adversary", "[\"install\"]"); // declares install only
     let e = edge(&tmp, Some(bin));
     let (landing, _store) = found(&e);
-    // The adopted config wires tracker on sync.pre — an op the binary lacks.
-    sim_fetch(&landing, &center(tmp.path(), "balls/shared", "[hooks]\n\"sync.pre\" = [\"tracker\"]\n"));
+    // The adopted config wires adversary on sync.pre — an op the binary lacks.
+    sim_fetch(&landing, &center(tmp.path(), "balls/shared", "[hooks]\n\"sync.pre\" = [\"adversary\"]\n"));
     let err = install_local(&e, &landing).unwrap_err();
     assert!(err.to_string().contains("sync"), "{err}");
+}
+
+#[test]
+fn adopt_canonicalizes_a_stale_centers_retired_name_as_it_lands() {
+    // §12.1 copy-in convergence (bl-18bf): a center still naming the retired
+    // `tracker` lands as `bl-tracker` — the current name is bound to its sibling
+    // beside `bl`, and the retired spelling never reaches the committed landing,
+    // so re-adopting converges to the no-op seal (not a rewrite commit each cycle).
+    let tmp = TempDir::new().unwrap();
+    let bin = tmp.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    plugin(&bin, "bl-tracker", "[\"install\"]"); // the CURRENT name ships beside bl
+    let e = edge(&tmp, Some(bin.clone()));
+    let (landing, _store) = found(&e);
+    let c = center(tmp.path(), "balls/shared", "[hooks]\n\"install.pre\" = [\"tracker\"]\n");
+    sim_fetch(&landing, &c);
+    install_local(&e, &landing).unwrap();
+    let toml = fs::read_to_string(landing.join("config/plugins.toml")).unwrap();
+    assert!(toml.contains("bl-tracker") && !toml.contains("\"tracker\""), "{toml}");
+    assert_eq!(fs::read_link(landing.join("config/plugins/bin/bl-tracker")).unwrap(), bin.join("bl-tracker"));
+    // Re-adopting the SAME stale config re-canonicalizes to identical bytes — no commit.
+    let after_first = head(&landing);
+    sim_fetch(&landing, &c);
+    install_local(&e, &landing).unwrap();
+    assert_eq!(after_first, head(&landing), "re-adopt of a stale center is the no-op seal");
 }
 
 #[test]

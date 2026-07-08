@@ -102,6 +102,7 @@ pub mod civil;
 pub mod clock;
 pub mod conf;
 pub mod config;
+pub mod converge;
 pub mod delivery;
 pub mod delivery_fold;
 pub mod delivery_message;

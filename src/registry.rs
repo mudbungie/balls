@@ -70,6 +70,18 @@ impl Registry {
     pub fn resolve_bin(&self, name: &str) -> Option<PathBuf> {
         fs::canonicalize(self.bin_dir().join(name)).ok().filter(|p| p.is_file())
     }
+
+    /// Drop `name`'s local binding if one is present — the DANGLING symlink an
+    /// old prime left when a first-party plugin was renamed away (§15 converge,
+    /// bl-18bf): a dangling link is not work, so removing it is safe. Absent ⇒
+    /// nothing to do; removing a symlink never touches its (already-gone) target.
+    pub fn unbind(&self, name: &str) -> io::Result<()> {
+        let link = self.bin_dir().join(name);
+        if link.symlink_metadata().is_ok() {
+            fs::remove_file(link)?;
+        }
+        Ok(())
+    }
 }
 
 /// Create `link` → `original`, first removing any path already at `link` so

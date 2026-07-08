@@ -180,8 +180,11 @@ fn hooks_edit(landing: &Path, actor: &str, op: &str, key: &str, values: &[String
 /// an ordinary commit on `balls/config` carrying the §5 checkout-scoped
 /// trailer block (bl-1d9b). The edit touches one key; everything else in the
 /// document round-trips. A no-change edit commits nothing — git's empty-diff
-/// check is the §13 convergence test.
-fn edit_landing_toml(
+/// check is the §13 convergence test. `pub(crate)` so [`crate::converge`]
+/// rewrites retired plugin names through the SAME raw-`toml::Table` seal (a raw
+/// closure, not [`Hooks::to_toml`], which drops a team's foreign tables —
+/// bl-18bf §12.1); every other key round-trips exactly as here.
+pub(crate) fn edit_landing_toml(
     landing: &Path,
     actor: &str,
     file: &str,

@@ -114,6 +114,14 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     if let Some(center) = install {
         adopt::adopt(edge, &landing, &store, &opts.actor, center)?;
     }
+    // Converge version skew (bl-18bf §12.1): rewrite a retired first-party plugin
+    // name still committed in the landing schedule to its current spelling and
+    // bind it. HERE — after founding/rebind and any adopt (so it reads the
+    // settled landing; the rebind above binds the OLD names and finds nothing,
+    // which is why converge rewrites-then-binds as one step), before the prime
+    // chain resolves its hooks below (so this op dispatches the rewritten
+    // schedule). A converged checkout no-ops — no git, no spawn.
+    crate::converge::converge(&landing, edge.exe_dir.as_deref(), &opts.actor)?;
     // `--center`'s remote is now the durable binding (resolved by the ladder, so
     // pass None); `--install` alone carries no durable binding, so it seeds this
     // op's remote directly (the center is where the adopted `tasks_branch` lives).

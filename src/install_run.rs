@@ -58,6 +58,12 @@ use crate::LANDING_BRANCH;
 
 use args::parse;
 
+/// A post-copy transform of the staged change worktree, run BEFORE the seal so
+/// it rides the same commit (`prime --install`/`--center` supplies the §12.1
+/// rename convergence, [`crate::converge::rewrite_config`]; a plain `bl install`
+/// supplies `None`).
+pub(crate) type AfterStage<'a> = &'a dyn Fn(&Path) -> io::Result<()>;
+
 /// `bl install [<path>] [--from <ref>] [--to <ref>] [--bin <name>=<path>]…
 /// [--as ID]` (§6): seal a copy of `<path>` from `--from` (default: the
 /// configured upstream) onto `--to`'s current tip through the §8 engine + the
@@ -102,7 +108,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     // No source ⇒ nothing to adopt: BIND-ONLY when there is binding work here
     // (`--bin` or a configured `clock_provider`), else the no-upstream refusal.
     let summary = match source {
-        Some(from) => seal_copy(&clone, &opts.path, &from, to, &chain, &opts.actor)?,
+        Some(from) => seal_copy(&clone, &opts.path, &from, to, &chain, &opts.actor, None)?,
         None => bind_only(&landing, edge, &opts.bins)?,
     };
     if to_landing {
@@ -149,7 +155,15 @@ pub(crate) struct Chain<'a> {
 /// worktree (the copy's source root), drives [`Engine::seal`] with [`Copier`]
 /// as the base change, tears the source down whatever the outcome, and
 /// returns the change [`Summary`].
-pub(crate) fn seal_copy(clone: &CloneDir, path: &str, from: &str, to: &Path, chain: &Chain, actor: &str) -> io::Result<Summary> {
+pub(crate) fn seal_copy(
+    clone: &CloneDir,
+    path: &str,
+    from: &str,
+    to: &Path,
+    chain: &Chain,
+    actor: &str,
+    after: Option<AfterStage>,
+) -> io::Result<Summary> {
     reject_option_like(from)?;
     let src = source_root(to, clone, from)?;
     let base = Copier {
@@ -157,6 +171,7 @@ pub(crate) fn seal_copy(clone: &CloneDir, path: &str, from: &str, to: &Path, cha
         src: &src,
         message: Message::checkout(Verb::Install, actor, format!("balls: install {path} --from {from}")).render()?,
         copied: Cell::new(Summary::default()),
+        after,
     };
     let change = clone.change("install");
     // Pre-clean a crashed run's leftover change worktree so the op RESUMES.
@@ -190,11 +205,17 @@ struct Copier<'a> {
     src: &'a Path,
     message: String,
     copied: Cell<Summary>,
+    /// A post-copy transform of the staged change worktree ([`AfterStage`]), run
+    /// BEFORE the seal so a stale center's config lands already canonicalized.
+    after: Option<AfterStage<'a>>,
 }
 
 impl BaseChange for Copier<'_> {
     fn stage(&self, dir: &Path) -> io::Result<()> {
         self.copied.set(install(self.path, self.src, dir)?);
+        if let Some(after) = self.after {
+            after(dir)?;
+        }
         Ok(())
     }
 
