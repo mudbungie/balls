@@ -106,7 +106,9 @@ fn bind_present(landing: &Path, exe_dir: Option<&Path>, hooks: &Hooks) -> io::Re
 /// The path to a `name`d binary beside `bl` (in `exe_dir`), if it exists — how a
 /// shipped sibling plugin is found (§6/§12). An absent `exe_dir` or missing
 /// sibling ⇒ `None` (that plugin prunes from the seed; stays dangling on rebind).
-fn sibling(exe_dir: Option<&Path>, name: &str) -> Option<PathBuf> {
+/// Shared with [`crate::converge`], which binds a renamed name's current binary
+/// by the SAME rule (the first-party rename ships beside `bl`, bl-18bf §12.1).
+pub(crate) fn sibling(exe_dir: Option<&Path>, name: &str) -> Option<PathBuf> {
     let path = exe_dir?.join(name);
     path.exists().then_some(path)
 }

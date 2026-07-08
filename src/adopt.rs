@@ -91,7 +91,13 @@ pub(crate) fn install_local(edge: &Edge, landing: &Path) -> io::Result<()> {
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
     let plugins = Subprocess::new(OpContext::diffless(edge.default_actor.clone(), binding), &log, edge.depth);
     let chain = install::Chain { plugins: &plugins, log: &log, pre: Vec::new(), post: Vec::new() };
-    let summary = install::seal_copy(&clone, install::DEFAULT_PATH, "FETCH_HEAD", landing, &chain, &edge.default_actor)?;
+    // Canonicalize a stale center's retired plugin names as they land (§12.1): the
+    // copy-in rewrite makes `prime --install`/`--center` converge to the no-op
+    // seal instead of re-injecting the old name — and re-committing prime's
+    // rewrite — every adopt cycle. The guard reads THIS landing's registry.
+    let reg = Registry::at(landing);
+    let converge = |dir: &Path| crate::converge::rewrite_config(dir, &reg);
+    let summary = install::seal_copy(&clone, install::DEFAULT_PATH, "FETCH_HEAD", landing, &chain, &edge.default_actor, Some(&converge))?;
     install::bind_referenced(landing, edge, &std::collections::BTreeMap::new(), &log)?;
     println!("install: {summary}");
     Ok(())
