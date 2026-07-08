@@ -1,7 +1,8 @@
 +++
 title = "bl install --bin is bimodal and a footgun on a tracked repo — it mirrors the upstream's stale config over the local landing"
 created = 1783490048
-updated = 1783490488
+updated = 1783490883
+claimant = "clock-refactor"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["design"]
 +++
