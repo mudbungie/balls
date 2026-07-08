@@ -8,4 +8,8 @@ root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 [[blockers]]
 id = "bl-2253"
 on = "claim"
+
+[[blockers]]
+id = "bl-21b6"
+on = "close"
 +++
