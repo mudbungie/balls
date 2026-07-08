@@ -125,6 +125,26 @@ fn set_task_remote_writes_the_per_clone_binding_preserving_other_keys() {
 }
 
 #[test]
+fn set_clock_provider_writes_the_per_clone_binding_not_the_landing() {
+    // bl-cfe3: the op-clock provider is a DIRECTLY-SET local value in the
+    // per-clone binding.toml — box-local, never a landing field, never travels on
+    // `install`. So the write touches NO landing commit (unlike task-branch), and
+    // it edits ONE key with every other binding key round-tripping.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    let before = commits(&clone.landing());
+    conf(&e, &["set", "clock-provider", "/opt/bl-workhours"]).unwrap();
+    let body = fs::read_to_string(clone.binding()).unwrap();
+    assert!(body.contains("clock_provider = \"/opt/bl-workhours\""), "{body}");
+    assert_eq!(commits(&clone.landing()), before, "a binding write seals no landing commit");
+    // Coexists with the store remote in the same binding, each key its own.
+    conf(&e, &["set", "task-remote", "git@hub:r"]).unwrap();
+    let body = fs::read_to_string(clone.binding()).unwrap();
+    assert!(body.contains("clock_provider = \"/opt/bl-workhours\"") && body.contains("remote = \"git@hub:r\""), "{body}");
+}
+
+#[test]
 fn the_write_grammar_is_enforced() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp);

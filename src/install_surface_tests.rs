@@ -5,8 +5,7 @@
 
 #![cfg(unix)]
 
-use super::bind::locate; // the local-binding half is a sibling module now (bl-98ba)
-use super::tests::{edge, found, g, head, op_log, run_install};
+use super::tests::{edge, found, g, head, run_install};
 use super::*;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -125,6 +124,27 @@ fn a_bin_failing_validation_aborts_after_the_seal_lands() {
 }
 
 #[test]
+fn bind_only_when_bin_is_given_without_an_explicit_path_or_from() {
+    // bl-cfe3: `--bin` with neither an explicit `<path>` nor `--from` copies
+    // NOTHING — it JUST binds, so re-binding a plugin binary can never silently
+    // mirror the stale upstream config over the local landing. The landing tip
+    // STANDS (no seal, no upstream fetch — which on this stealth box would
+    // otherwise refuse), and the referenced plugin binds from the schedule
+    // already on the landing.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let (landing, _store) = found(&e);
+    fs::write(landing.join("config/plugins.toml"), "[hooks]\n\"claim.post\" = [\"myplug\"]\n").unwrap();
+    let bin = fake_plugin(&tmp.path().join("elsewhere"), "myplug", r#"["claim"]"#, "");
+    let before = head(&landing);
+
+    run_install(&e, &["--bin", &format!("myplug={}", bin.display())]).unwrap();
+
+    assert_eq!(before, head(&landing), "bind-only sealed no config copy");
+    assert_eq!(fs::read_link(landing.join("config/plugins/bin/myplug")).unwrap(), bin);
+}
+
+#[test]
 fn a_bin_naming_an_unreferenced_plugin_is_refused() {
     let tmp = TempDir::new().unwrap();
     let e = edge(&tmp, None);
@@ -149,6 +169,12 @@ fn a_referenced_plugin_resolves_on_path_when_not_beside_bl() {
 
     let link = landing.join("config/plugins/bin/pathplug");
     assert_eq!(fs::read_link(link).unwrap(), bin);
+}
+
+/// The op-log lines this box recorded — the file half of the stderr/log path
+/// the bl-5b09 dangling report rides.
+fn op_log(e: &Edge) -> String {
+    fs::read_to_string(e.xdg.clone_dir(&e.invocation_path).op_log()).unwrap_or_default()
 }
 
 #[test]

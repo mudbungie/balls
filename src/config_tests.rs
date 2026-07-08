@@ -243,6 +243,24 @@ fn binding_remote_reads_the_remote_key_else_none() {
 }
 
 #[test]
+fn clock_provider_reads_the_binding_then_the_xdg_layer() {
+    // bl-cfe3: the op-clock provider folds the SAME non-traveling local tiers as
+    // the store remote — the per-clone binding wins, else the per-machine XDG,
+    // else None (⇒ the system clock). It is never a landing field.
+    let tmp = TempDir::new().unwrap();
+    let binding = tmp.path().join("binding.toml");
+    let xdg = tmp.path().join("config.toml");
+    // Neither present → None.
+    assert_eq!(clock_provider(&binding, &xdg), None);
+    // XDG alone answers when the binding is silent.
+    fs::write(&xdg, "clock_provider = \"bl-workhours\"\n").unwrap();
+    assert_eq!(clock_provider(&binding, &xdg).as_deref(), Some("bl-workhours"));
+    // The per-clone binding outranks XDG.
+    fs::write(&binding, "clock_provider = \"/opt/bl-workhours\"\nremote = \"git@hub:r\"\n").unwrap();
+    assert_eq!(clock_provider(&binding, &xdg).as_deref(), Some("/opt/bl-workhours"));
+}
+
+#[test]
 fn remote_ladder_refuses_a_url_in_the_landing_rung() {
     // A URL's durable home is this clone's binding (§4/§12 — it must never travel
     // on `install`, and an installed config silently redirecting your store

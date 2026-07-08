@@ -28,11 +28,13 @@ syncs.
 - `bl conf set task-branch <name>` / `bl conf set log-level <level>` — landing
   `balls.toml`, committed on `balls/config`. Re-pointing `task-branch` strands
   the store unless you move it first.
-- `bl conf set clock-provider <name>` — the op-clock bin (landing `balls.toml`):
-  a binary bound like a plugin (`bl install --bin <name>=<path>`) that prints the
-  op timestamp at op-start. Absent ⇒ the system clock. Fail-open — a
-  named-but-unbound provider degrades to the system clock (a note in the op log),
-  never aborts.
+- `bl conf set clock-provider <value>` — the op-clock provider (this clone's
+  `binding.toml`, a per-machine LOCAL value — NOT the landing, never travels on
+  `install`). `<value>` is an absolute path or a PATH-resolved name of a binary
+  that prints the op timestamp (one unix-seconds line) at op-start. No install,
+  no `bin/<name>` symlink — the clock is box-local, so you just point at the
+  binary. Absent ⇒ the system clock. Fail-open — a value that resolves to no
+  binary degrades to the system clock (a note in the op log), never aborts.
 - `bl conf set|append|prepend|remove <op>.<pre|post> <name...>` — the `[hooks]`
   plugin schedule. `show`/`list` are bare keys (`bl conf append list <name>`).
 

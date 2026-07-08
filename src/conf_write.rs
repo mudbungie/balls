@@ -13,7 +13,9 @@
 //! sentinel so the set changes what the ladder resolves — never the machine-wide
 //! XDG file that silently shadowed every other repo's store, bl-d081), the
 //! sentinel `none` ⇒ the landing
-//! `task_remote` policy rung (§12, bl-9df0); `task-branch`/`log-level` ⇒ the
+//! `task_remote` policy rung (§12, bl-9df0); `clock-provider` ⇒ this clone's
+//! `binding.toml` too (§8, bl-cfe3 — a box-local op-clock value, never a landing
+//! field, never travels on `install`); `task-branch`/`log-level` ⇒ the
 //! landing `balls.toml` and the hooks
 //! keys ⇒ the landing `plugins.toml`, each an ordinary commit on `balls/config`
 //! (`balls: conf <op> <key> …`, checkout-scoped — §5). A write that changes
@@ -60,10 +62,13 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
             landing_set(&landing, actor, token, "tasks_branch", value)
         }
         (Key::ClockProvider, "set") => {
-            // Any name: the bin is resolved + fail-open-validated at op-start
-            // ([`crate::clock`]), not here — the migration `make install` (bl-5de5)
-            // is `bl conf set clock-provider bl-workhours`.
-            landing_set(&landing, actor, token, "clock_provider", one(op, token, values)?)
+            // A DIRECTLY-SET LOCAL value (bl-cfe3): an absolute path or a
+            // PATH-resolved name, written to THIS clone's `binding.toml` — the
+            // per-machine LOCAL-TRUST layer that never travels on `install` (§4).
+            // No install, no `bin/<name>` symlink: the clock is box-local,
+            // cosmetic, fail-open (§1/§8). The value is resolved + fail-open at
+            // op-start ([`crate::clock`]), not validated here.
+            binding_set(clone, "clock_provider", one(op, token, values)?)
         }
         _ => Err(crate::usage(format!(
             "conf {op}: '{token}' is a scalar — append/prepend/remove compose the [hooks] list keys"
@@ -90,7 +95,7 @@ fn one<'a>(op: &str, key: &str, values: &'a [String]) -> io::Result<&'a str> {
 /// so a durable bind can never drift between the two spellings.
 pub(crate) fn bind_task_remote(clone: &CloneDir, landing: &Path, actor: &str, url: &str) -> io::Result<()> {
     clear_stealth(landing, actor, url)?;
-    binding_set(clone, url)
+    binding_set(clone, "remote", url)
 }
 
 /// Declare stealth: write the §12 sentinel into the landing's per-checkout
@@ -111,16 +116,18 @@ fn clear_stealth(landing: &Path, actor: &str, url: &str) -> io::Result<()> {
     })
 }
 
-/// Set the per-clone store remote (§12) in THIS checkout's `binding.toml` — a
-/// plain local-state file edit, every other key in it untouched. The store remote
-/// is a PER-CHECKOUT fact (which center this clone tracks), so its home is the
-/// per-clone binding, never the machine-wide XDG file that every other repo
-/// silently inherited (bl-d081). Local state: never travels on `install`, never
-/// committed — it lives beside the landing/store checkouts in the clone bundle.
-fn binding_set(clone: &CloneDir, url: &str) -> io::Result<()> {
+/// Set one string `field` in THIS checkout's `binding.toml` — a plain local-state
+/// file edit, every other key in it untouched. The binding is the per-machine
+/// LOCAL-TRUST layer (§4/§12): the store `remote` (which center this clone tracks)
+/// and the §8 `clock_provider` (this box's op-clock) both live here, never in the
+/// landing config, so neither travels on `install` and neither can shadow another
+/// repo the way the machine-wide XDG file once did (bl-d081/bl-cfe3). Local state:
+/// never committed — it lives beside the landing/store checkouts in the clone
+/// bundle.
+fn binding_set(clone: &CloneDir, field: &str, value: &str) -> io::Result<()> {
     let path = clone.binding();
     let mut table = read_table(&path)?;
-    table.insert("remote".into(), Value::String(url.to_string()));
+    table.insert(field.into(), Value::String(value.to_string()));
     fs::create_dir_all(path.parent().expect("the clone binding always has a parent"))?;
     fs::write(&path, toml::to_string(&Value::Table(table)).expect("a string field always serializes"))
 }

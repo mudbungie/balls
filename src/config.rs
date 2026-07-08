@@ -57,15 +57,6 @@ pub struct EffectiveConfig {
     /// persistent layers-2/3 value beneath it.
     #[serde(default = "default_log_level")]
     pub log_level: String,
-
-    /// The §8 op-clock provider ([`crate::clock`]): names a bin — resolved via the
-    /// SAME `bin/<name>` symlink as hooks (§6), bound by `bl install --bin` — that
-    /// prints the op instant `T` (unix seconds) at op-start. A SCALAR key, not a
-    /// `[hooks]` entry: it resolves an INPUT, not an effect. Absent (the default)
-    /// ⇒ the system clock, byte-identical to pre-bl-8b98 behaviour. Fail-open: a
-    /// named-but-unresolvable provider degrades to the system clock, never aborts.
-    #[serde(default)]
-    pub clock_provider: Option<String>,
 }
 
 fn default_tasks_branch() -> String {
@@ -78,7 +69,7 @@ fn default_log_level() -> String {
 
 impl Default for EffectiveConfig {
     fn default() -> EffectiveConfig {
-        EffectiveConfig { tasks_branch: default_tasks_branch(), log_level: default_log_level(), clock_provider: None }
+        EffectiveConfig { tasks_branch: default_tasks_branch(), log_level: default_log_level() }
     }
 }
 
@@ -133,13 +124,30 @@ pub(crate) fn forbid_landing(tasks_branch: &str) -> io::Result<()> {
 /// (bl-9df0).
 pub const STEALTH_REMOTE: &str = "none";
 
-/// Read a `remote` URL key from a §12 store-remote TOML layer — the XDG user
-/// config or a clone's `binding.toml`, read identically. An absent file/key ⇒
-/// `None`; a malformed file ⇒ `None` too — a remote URL never travels on
-/// `install` (§4), so its only homes are these layers or a discovered `origin`.
-fn remote_key(path: &Path) -> Option<String> {
+/// Read one string `field` from a LOCAL-TRUST TOML layer — the XDG user config
+/// or a clone's `binding.toml`, read identically. The shared reader behind the
+/// §12 store `remote` and the §4/§8 `clock_provider`, both NON-TRAVELING
+/// per-machine/per-clone values (§4 — never carried by `install`). An absent
+/// file/key ⇒ `None`; a malformed file ⇒ `None` too. `pub(crate)` so `conf`'s
+/// provenance read ([`crate::conf`]) can read the SAME per-tier value this folds,
+/// naming which tier answered (the `binding_remote`/`xdg_remote` precedent).
+pub(crate) fn string_key(path: &Path, field: &str) -> Option<String> {
     let table = read_layer(path).ok().flatten()?;
-    table.get("remote")?.as_str().map(str::to_string)
+    table.get(field)?.as_str().map(str::to_string)
+}
+
+/// The §8 op-clock provider ([`crate::clock`]) named in this checkout's
+/// LOCAL-TRUST layer — the per-clone `binding.toml` `clock_provider` key, else
+/// the per-machine XDG `config.toml`. A DIRECTLY-SET value (an absolute path, or
+/// a PATH-resolved name), NOT a landing-config name bound via `install` (bl-cfe3
+/// dissolved that — the clock is box-local, cosmetic, fail-open (§1/§4), so none
+/// of the shared-schedule/RCE-consent rationale for the `bin/<name>` indirection
+/// applies). It lives in the NON-TRAVELING layer, so a fetched config can never
+/// smuggle a provider in — it is your own machine's setting (§4). Absent/malformed
+/// ⇒ `None` ⇒ the system clock. `bl conf set clock-provider <value>` writes the
+/// per-clone binding key.
+pub fn clock_provider(binding: &Path, user_config: &Path) -> Option<String> {
+    string_key(binding, "clock_provider").or_else(|| string_key(user_config, "clock_provider"))
 }
 
 /// The per-clone store remote named in this checkout's `binding.toml` `remote`
@@ -150,7 +158,7 @@ fn remote_key(path: &Path) -> Option<String> {
 /// store, the machine-wide-XDG footgun this layer replaces. Absent/malformed ⇒
 /// `None`; `bl conf set task-remote <url>` writes it ([`crate::conf`]).
 pub fn binding_remote(binding: &Path) -> Option<String> {
-    remote_key(binding)
+    string_key(binding, "remote")
 }
 
 /// The per-machine store remote named in the XDG user config's `remote` key — the
@@ -162,7 +170,7 @@ pub fn binding_remote(binding: &Path) -> Option<String> {
 /// [`EffectiveConfig::resolve`], which surfaces the parse error, so this stays
 /// quiet rather than double-reporting.
 pub fn xdg_remote(user_config: &Path) -> Option<String> {
-    remote_key(user_config)
+    string_key(user_config, "remote")
 }
 
 /// The per-checkout store-remote POLICY — the landing `balls.toml` `task_remote`

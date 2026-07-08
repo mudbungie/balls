@@ -27,7 +27,7 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
         Key::TaskRemote => task_remote(edge, &landing, &clone.binding()),
         Key::TaskBranch => scalar(edge, &landing, "tasks_branch", crate::DEFAULT_TASKS_BRANCH, None),
         Key::LogLevel => scalar(edge, &landing, "log_level", "info", edge.log_level.as_deref()),
-        Key::ClockProvider => scalar(edge, &landing, "clock_provider", "(none)", None),
+        Key::ClockProvider => Ok(clock_provider(edge, &clone.binding())),
         Key::Hook(k) => {
             let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
             let names = hooks
@@ -67,6 +67,23 @@ fn task_remote(edge: &Edge, landing: &Path, binding: &Path) -> io::Result<Resolv
         Some(url) => Resolved { value: url, layer: "origin".into() },
         None => Resolved { value: "(none)".into(), layer: "stealth".into() },
     })
+}
+
+/// The §8 op-clock provider per its LOCAL-TRUST tiers (bl-cfe3) — this clone's
+/// `binding` `clock_provider` key, else the legacy per-machine XDG config, else
+/// `(none)` (⇒ the system clock). A directly-set value (an absolute path or a
+/// PATH-resolved name), NOT a landing field: it never travels on `install`, so
+/// `conf` reads it from the same non-traveling homes as the store `remote` and
+/// labels which tier answered — `binding` (per-clone) vs `xdg (global)`.
+fn clock_provider(edge: &Edge, binding: &Path) -> Resolved {
+    let uc = edge.xdg.user_config();
+    if let Some(v) = config::string_key(binding, "clock_provider") {
+        return Resolved { value: v, layer: "binding".into() };
+    }
+    if let Some(v) = config::string_key(&uc, "clock_provider") {
+        return Resolved { value: v, layer: "xdg (global)".into() };
+    }
+    Resolved { value: "(none)".into(), layer: "default".into() }
 }
 
 /// `git remote get-url origin` on the PROJECT repo (the invocation path, §12) —

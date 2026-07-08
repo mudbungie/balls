@@ -15,6 +15,7 @@ fn parse_defaults_the_path_the_from_and_the_to_ref() {
     assert_eq!((o.path.as_str(), o.from, o.to.as_str()), (DEFAULT_PATH, None, LANDING_BRANCH));
     assert_eq!(o.actor.as_str(), "tester");
     assert!(o.bins.is_empty());
+    assert!(!o.explicit_path, "a defaulted path is not explicit (the bl-cfe3 bind-only signal)");
 }
 
 #[test]
@@ -22,6 +23,7 @@ fn parse_takes_an_explicit_path_refs_actor_and_bins() {
     let o = parsed(&["tasks/*", "--from", "a", "--to", "b", "--as", "me"]).unwrap();
     assert_eq!((o.path.as_str(), o.from.as_deref()), ("tasks/*", Some("a")));
     assert_eq!((o.to.as_str(), o.actor.as_str()), ("b", "me"));
+    assert!(o.explicit_path, "a named path is explicit");
 
     // `--bin <name>=<path>` repeats, one explicit candidate per plugin; the
     // path half may itself carry `=`.

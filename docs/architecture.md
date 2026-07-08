@@ -341,17 +341,22 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   alike) is `debug`, so default-`info` keeps routine ops quiet; plugin-enveloped stderr is `info`
   (a plugin speaking is signal — the tracker's warnings ride here); plugin non-zero exits and core
   aborts are `error`.
-- `clock_provider` (string, OPTIONAL — absent by default) — names the §8 op-clock bin: a binary
-  resolved through the SAME `config/plugins/bin/<name>` symlink as hooks (§6) and bound by `bl install
-  --bin <name>=<path>` — VALIDATED as a clock, not a plugin (§6): it speaks no plugin protocol, so a
-  stealth box with no config source still binds it (bind-only). Run at op-start to obtain the op
-  instant `T` (one unix-seconds line, exit 0). It is a SCALAR
-  key, not a `[hooks]` entry, because it resolves an INPUT (the clock) not an effect (a plugin run) — a
-  serde-default `Option` (absent ⇒ the system clock, byte-identical to no config). It is the top rung
-  of the §8 ladder (`clock_provider` > the `BALLS_CLOCK` test env > the system clock) and — the one
-  deliberate asymmetry with hook dispatch, where a dangling bin ABORTS (§6) — it is FAIL-OPEN: a
-  missing bin, non-zero exit, or unparseable line logs a note and falls to the next rung, because a
-  hook is load-bearing while the op clock is cosmetic with a sane default. See §8.
+- `clock_provider` (string, OPTIONAL — absent by default) — the §8 op-clock provider. Unlike the
+  landing fields above, it is NOT a landing-config value and NOT a bound plugin name (bl-cfe3): it is a
+  DIRECTLY-SET LOCAL value — an absolute path, or a PATH-resolved name — living in the per-machine
+  LOCAL-TRUST layer (this clone's `binding.toml`, else the legacy XDG `config.toml`), set by `bl conf
+  set clock-provider <value>` and read by [`config::clock_provider`], the SAME non-traveling homes as
+  the store `remote` (§12). It is resolved at op-start to obtain the op instant `T` (one unix-seconds
+  line, exit 0). It NEVER travels on `install` — the clock is box-local (§1 "this box only"), cosmetic,
+  and fail-open, so it needs none of the shared-plugin-schedule / RCE-consent machinery that justifies
+  the hook `bin/<name>` indirection (§6): a value in the non-traveling local layer carries no
+  adoption-RCE — it is your own machine's setting, never something a fetched config can smuggle in (the
+  "conf never touches binaries / config-is-RCE" invariant, above). Absent ⇒ the system clock,
+  byte-identical to no config. It is the top rung of the §8 ladder (`clock_provider` > the `BALLS_CLOCK`
+  test env > the system clock) and — the one deliberate asymmetry with hook dispatch, where a dangling
+  bin ABORTS (§6) — it is FAIL-OPEN: a value that resolves to no binary, a non-zero exit, or an
+  unparseable line logs a note and falls to the next rung, because a hook is load-bearing while the op
+  clock is cosmetic with a sane default. See §8.
 
 **No per-line severity sigil on the terminal — severity lives in the file, not the glyphs (bl-e7b8).**
 The human terminal render above carries no severity cue of its own: a plugin *warning* and a routine
@@ -416,7 +421,7 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
 | `task-remote` | the store remote (§12) | scalar | routes by VALUE (bl-9df0): a URL ⇒ this clone's `binding.toml` `remote` (per-checkout, never travels on `install` — URLs are NOT landing fields by design; the legacy global XDG `config.toml` `remote` stays a read-only fallback tier below it, bl-d081; the write also clears any landing sentinel, so the set changes what the ladder resolves); the stealth sentinel `none` ⇒ the landing `task_remote` (per-checkout POLICY — it travels on `install` like any team policy) |
 | `task-branch` | `tasks_branch` | scalar | landing `config/balls.toml` (committed on `balls/config`) |
 | `log-level` | `log_level` | scalar | landing `config/balls.toml` |
-| `clock-provider` | `clock_provider` | scalar | landing `config/balls.toml` (the §8 op-clock bin; no value validation — the bin is fail-open-resolved at op-start, not at write) |
+| `clock-provider` | `clock_provider` | scalar | this clone's `binding.toml` (bl-cfe3 — the §8 op-clock value: an absolute path or a PATH-resolved name, per-machine LOCAL-TRUST, never travels on `install`, no landing commit; the legacy global XDG `config.toml` is a read-only fallback tier below it; no value validation — resolved fail-open at op-start, not at write) |
 | `<op>.<pre\|post>`, bare `show`/`list` | the `[hooks]` schedule (§6) | list | landing `config/plugins.toml` |
 
 The KEY implies its home — no `--scope` flag. A landing write is an ordinary commit on `balls/config`
@@ -638,15 +643,15 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   A referenced name with no candidate anywhere stays dangling AND is REPORTED — one info line per name
   (`referenced but not bound … re-run bl install after acquiring`, hint appended when authored), so the
   change Summary never reads as "covered everything" when it didn't (bl-5b09); a re-run converges on
-  the no-op seal and just binds (§14). The configured `clock_provider` (§4/§8) is a bindable name too —
-  `--bin` accepts it alongside the scheduled plugins — but it speaks NO plugin protocol (it resolves an
-  INPUT, the op clock), so it is validated as a CLOCK instead: run once, one parseable unix-seconds
-  line, exit 0, else refused (never linked); an unresolvable one dangles fail-open with the same
-  reported info line (its `[source]` hint appended). And when NO config source resolves — no `--from`,
-  an empty `FETCH_HEAD` — but there IS binding work (`--bin` or a configured `clock_provider`), install
-  runs BIND-ONLY: it skips the config copy (0 added / 0 deleted, nothing seals) and binds, so
-  `bl install --bin <name>=<path>` is a first-class "bind this, adopt nothing" on a stealth box
-  (bl-98ba). Still validated per binary, still user-in-the-loop: the
+  the no-op seal and just binds (§14). This bind path is for PLUGINS only — the op clock is NOT bound
+  here (bl-cfe3: `clock_provider` is a directly-set LOCAL value in the non-traveling layer, §4/§8, not
+  a bound name). **`--bin` with neither an explicit `<path>` nor `--from` is BIND-ONLY (bl-cfe3):** it
+  copies NOTHING — no upstream fetch, no seal (0 added / 0 deleted) — it JUST binds, so "rebind a
+  plugin binary" (`bl install --bin <name>=<path>`) can never silently MIRROR a stale upstream config
+  over the local landing (the footgun that motivated bl-cfe3 — an upstream's `balls/config` is
+  chronically stale, single-owner and never auto-pushed, §4/§12). Config adoption stays opt-in via a
+  named `<path>` or `--from`; a bare `bl install` (no `--bin`) still adopts the configured upstream, so
+  federated onboarding is untouched. Still validated per binary, still user-in-the-loop: the
   consent-gated path for federated onboarding (§12). (`bl install` subsumes the older
   `bl plugin install <name> <path>` and `--from <branch>` spellings.)
 
@@ -789,8 +794,9 @@ git supplies the local-tz offset, so a defaulted op is byte-identical to before)
 EVERY plugin's spawn env (step 4), so the delivery squash inherits it. The propagation is parent→child
 (core sets its children's env, as it already does for `BALLS_PROTOCOL`), never child→up. So "override
 the clock" is "override `T`" — one value, resolved once down the fail-open ladder (§4 `clock_provider`
-> the `BALLS_CLOCK` test env > the system clock). The `clock_provider` bin is bound by `bl install
---bin` and validated as a clock at bind, not as a plugin (§6). The op log (§1, `log::wall`) is
+> the `BALLS_CLOCK` test env > the system clock). The `clock_provider` value is a directly-set LOCAL
+conf value — an absolute path or a PATH-resolved name in the non-traveling local-trust layer (§4,
+bl-cfe3), NOT a bound name and NOT part of the `install --bin` family. The op log (§1, `log::wall`) is
 deliberately NOT tied to `T`: local diagnostics stay honest even when the commit clock is provided. Diffless ops
 (`prime`/`sync`, read ops) author no commit, so they carry no `T` into their spawns — byte-identical.
 
@@ -1584,7 +1590,9 @@ the tree, no return channel, no knob. The scan of op-start inputs shows every ot
 (actor `--as` > `edge.default_actor`; remote `--remote` > binding/stealth > `origin`). The op CLOCK is
 the one input NOT representable as a worktree file — it is ambient env consumed by `git commit`/
 `commit-tree` (and by `now()` for the ints) — so it alone gets a core-resolved hook, the §4/§8
-`clock_provider`. It is the lone exception to a family that already exists, NOT the first of a new one:
+`clock_provider`, resolved from a directly-set LOCAL conf value (a path or a PATH-resolved name, §4);
+it is NOT a `bin/<name>` reassign and NOT part of the `install --bin` bind family (bl-cfe3). It is the
+lone exception to a family that already exists, NOT the first of a new one:
 if a second non-file ambient input ever appears it joins the clock here, but until then this stays ONE
 knob, not an "input provider" framework (the bl-587f "no consumer yet" bar).
 
@@ -1844,9 +1852,9 @@ RESOLVED (folded into the body, no longer open):
   Resolved by capturing ONE instant `T` at op-start and deriving all three from it: `T` stamps the
   frontmatter, sets core's own seal commit's `GIT_*_DATE`, and rides parent→child into every plugin's
   spawn env so the delivery squash inherits it (§8). Overriding `T` is a fail-open ladder —
-  `clock_provider` (a config-named bin, resolved through the §6 `bin/<name>` symlink and bound by `bl
-  install --bin` — realized bl-98ba as a bind-only install needing no config source, the provider
-  validated as a clock not a plugin — but wired by a SCALAR key because it resolves an INPUT not an
+  `clock_provider` (a DIRECTLY-SET LOCAL conf value — an absolute path or a PATH-resolved name in the
+  non-traveling local-trust layer, this clone's `binding.toml` / XDG — read by `bl conf`, resolved
+  against this box's binaries at op-start; wired by a SCALAR key because it resolves an INPUT not an
   effect) > the
   `BALLS_CLOCK` test env > the system clock — the ONE deliberate asymmetry with hook dispatch (a
   dangling hook bin ABORTS; the clock degrades, being cosmetic with a sane default). The clock is the
@@ -1856,12 +1864,31 @@ RESOLVED (folded into the body, no longer open):
   `bl-workhours` provider that maps the real time-of-day into a persona window is a SEPARATE artifact
   (its own repo, `--needs` this core knob), not core's concern — core learns only that it can be TOLD
   the time (the §0 severability line: deleting the provider deletes config, not code). Touched §4 (the
-  `clock_provider` field + `conf` key), §8 (this instant), § id generation (the reassign-seam
-  exception). Follow-up bl-98ba made the "bound by `bl install --bin`" claim real: bind-only install +
-  a clock-validated (not protocol-validated) provider bind, its unbound `install`-time dangling report
-  decorated with the `[source]` hint like any plugin (§6). STILL DEFERRED as no-consumer-yet:
-  decorating the unbound `clock_provider` at `bl conf` / op-time (the op-time fail-open note stays
-  hintless) — trivial once `bl-workhours` authors a hint.
+  `clock_provider` value + `conf` key), §8 (this instant), § id generation (the reassign-seam
+  exception).
+- **`clock_provider` is a local conf value, not an install-bound name; and `install --bin` is
+  bind-only-always for plugins (2026-07-08, bl-cfe3 — CONVERGED by maintainer dialogue 2026-07-07).**
+  bl-98ba (the bl-8b98 follow-up that made `bl install --bin` bind the clock provider, a clock-validated
+  bind-only install) SOLVED THE WRONG PROBLEM and is REVERTED: the `bin/<name>` indirection (a portable
+  committed NAME + a per-machine local binding + the RCE consent gate) exists for SHARED PLUGIN
+  SCHEDULES — a team commits a schedule of names, each machine binds them to its own binaries, and
+  adopting a schedule can't run code until you locally bind. The clock provider is BOX-LOCAL (§1),
+  cosmetic, and fail-open — none of that rationale applies. So `clock_provider` is now a DIRECTLY-SET
+  LOCAL value (an absolute path or a PATH-resolved name) in the per-machine local-trust layer (this
+  clone's `binding.toml` / XDG, which never travels on `install`), set by `bl conf set clock-provider`
+  — no install, no `bin/<name>` symlink. This honors "conf never touches binaries / config-is-RCE"
+  (§4): a value in the non-traveling local layer carries no adoption-RCE. bl-8b98's op-instant SSOT and
+  the fail-open resolution LADDER are KEPT unchanged — only WHERE the provider value is read from moved
+  (the conf local value, not a bind). The SEPARATE, narrower plugin footgun that co-triggered the ball:
+  `bl install --bin` on a TRACKED landing fetched the (chronically stale, single-owner, §4/§12)
+  upstream `balls/config` and MIRRORED it over the local landing — reverting real local progress. Fixed
+  by making `--bin` with neither an explicit `<path>` nor `--from` BIND-ONLY (§6): it copies nothing,
+  so "rebind a plugin binary" never adopts config; adoption stays opt-in via a named `<path>` or
+  `--from`, and a bare `bl install` still onboards from the upstream. Touched §4 (the `clock_provider`
+  value + `conf` key move), §6 (bind-only-always, clock un-bound), §8, § id generation. DEFERRED as
+  no-consumer-yet (unchanged): decorating an unbound `clock_provider` with a `[source]` hint — the
+  provider now resolves off PATH/an absolute path, so the acquisition pointer belongs to whoever ships
+  it, not core.
 - **Capability distribution — balls ships a pointer, not a pipeline; the `[source]` hint;
   no implicit fetch, ever (2026-07-04, bl-5b09 — CONVERGED by maintainer dialogue bl-f338;
   design record `docs/design/bl-5b09-capability-distribution.md`).** `bl install` is a pure

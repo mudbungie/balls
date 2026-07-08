@@ -27,6 +27,12 @@ use crate::LANDING_BRANCH;
 #[derive(Debug)]
 pub(crate) struct Opts {
     pub(crate) path: String,
+    /// Was `<path>` given EXPLICITLY (vs defaulted to [`DEFAULT_PATH`])? The
+    /// bl-cfe3 bind-only signal: `--bin` with neither an explicit `<path>` nor a
+    /// `--from` copies NOTHING — it just binds, so re-binding a plugin binary can
+    /// never silently mirror the stale upstream config. Config adoption stays
+    /// opt-in via a named `<path>` or `--from`.
+    pub(crate) explicit_path: bool,
     pub(crate) from: Option<String>,
     pub(crate) to: String,
     pub(crate) actor: String,
@@ -62,6 +68,7 @@ pub(crate) fn parse(args: &[String], default_actor: &str) -> io::Result<Opts> {
         }
         i += 1;
     }
+    let explicit_path = path.is_some();
     let path = path.unwrap_or_else(|| DEFAULT_PATH.to_string());
     if Path::new(&path).is_absolute() || path.split('/').any(|c| c == "..") {
         return Err(crate::usage(format!("install: path must be checkout-relative: '{path}'")));
@@ -79,7 +86,7 @@ pub(crate) fn parse(args: &[String], default_actor: &str) -> io::Result<Opts> {
             ));
         }
     }
-    Ok(Opts { path, from, to, actor, bins })
+    Ok(Opts { path, explicit_path, from, to, actor, bins })
 }
 
 #[cfg(test)]

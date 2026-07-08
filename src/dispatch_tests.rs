@@ -168,14 +168,16 @@ fn the_op_instant_dates_both_the_frontmatter_and_the_store_seal() {
 }
 
 #[test]
-fn a_named_but_unbound_clock_provider_falls_open_and_logs_the_note() {
-    // Fail-open (§8): a configured provider with no bound bin degrades to the
-    // system clock — the op still succeeds, and the note lands in the op log
-    // (threshold-gated + persisted, not a bare stderr line).
+fn a_configured_but_unresolvable_clock_provider_falls_open_and_logs_the_note() {
+    // Fail-open (§8, bl-cfe3): a conf-set provider (in the per-clone binding) that
+    // resolves to no binary degrades to the system clock — the op still succeeds,
+    // and the note lands in the op log (threshold-gated + persisted, not a bare
+    // stderr line). `conf set clock-provider` writes local binding state (no
+    // landing commit), so the value is read straight back on the next op.
     let tmp = TempDir::new().unwrap();
     assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
     assert_eq!(run_in(&tmp, &["conf", "set", "clock-provider", "ghost"]), 0);
     assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0); // non-fatal
     let log = std::fs::read_to_string(op_log(&tmp)).unwrap();
-    assert!(log.contains("clock_provider ghost not bound"), "note missing from op log: {log}");
+    assert!(log.contains("clock_provider ghost not found"), "note missing from op log: {log}");
 }

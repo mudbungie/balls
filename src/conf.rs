@@ -52,8 +52,10 @@ pub(crate) enum Key {
     TaskBranch,
     /// `log_level` on the landing `balls.toml` (§4).
     LogLevel,
-    /// `clock_provider` on the landing `balls.toml` (§8) — the op-clock bin, a
-    /// scalar because it resolves an INPUT not an effect ([`crate::clock`]).
+    /// `clock_provider` on this clone's `binding.toml` (§8, bl-cfe3) — the op-clock
+    /// value (an absolute path or a PATH-resolved name) in the per-machine
+    /// LOCAL-TRUST layer, NOT a landing field: box-local, never travels on
+    /// `install` ([`crate::clock`]).
     ClockProvider,
     /// A `[hooks]` schedule key on the landing `plugins.toml` (§6) — the only
     /// list config (§4).
