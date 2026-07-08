@@ -16,4 +16,8 @@ on = "claim"
 [[blockers]]
 id = "bl-c117"
 on = "claim"
+
+[[blockers]]
+id = "bl-09dd"
+on = "close"
 +++
