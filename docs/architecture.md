@@ -343,7 +343,9 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   aborts are `error`.
 - `clock_provider` (string, OPTIONAL — absent by default) — names the §8 op-clock bin: a binary
   resolved through the SAME `config/plugins/bin/<name>` symlink as hooks (§6) and bound by `bl install
-  --bin`, run at op-start to obtain the op instant `T` (one unix-seconds line, exit 0). It is a SCALAR
+  --bin <name>=<path>` — VALIDATED as a clock, not a plugin (§6): it speaks no plugin protocol, so a
+  stealth box with no config source still binds it (bind-only). Run at op-start to obtain the op
+  instant `T` (one unix-seconds line, exit 0). It is a SCALAR
   key, not a `[hooks]` entry, because it resolves an INPUT (the clock) not an effect (a plugin run) — a
   serde-default `Option` (absent ⇒ the system clock, byte-identical to no config). It is the top rung
   of the §8 ladder (`clock_provider` > the `BALLS_CLOCK` test env > the system clock) and — the one
@@ -628,7 +630,15 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
   A referenced name with no candidate anywhere stays dangling AND is REPORTED — one info line per name
   (`referenced but not bound … re-run bl install after acquiring`, hint appended when authored), so the
   change Summary never reads as "covered everything" when it didn't (bl-5b09); a re-run converges on
-  the no-op seal and just binds (§14). Still validated per binary, still user-in-the-loop: the
+  the no-op seal and just binds (§14). The configured `clock_provider` (§4/§8) is a bindable name too —
+  `--bin` accepts it alongside the scheduled plugins — but it speaks NO plugin protocol (it resolves an
+  INPUT, the op clock), so it is validated as a CLOCK instead: run once, one parseable unix-seconds
+  line, exit 0, else refused (never linked); an unresolvable one dangles fail-open with the same
+  reported info line (its `[source]` hint appended). And when NO config source resolves — no `--from`,
+  an empty `FETCH_HEAD` — but there IS binding work (`--bin` or a configured `clock_provider`), install
+  runs BIND-ONLY: it skips the config copy (0 added / 0 deleted, nothing seals) and binds, so
+  `bl install --bin <name>=<path>` is a first-class "bind this, adopt nothing" on a stealth box
+  (bl-98ba). Still validated per binary, still user-in-the-loop: the
   consent-gated path for federated onboarding (§12). (`bl install` subsumes the older
   `bl plugin install <name> <path>` and `--from <branch>` spellings.)
 
@@ -771,8 +781,9 @@ git supplies the local-tz offset, so a defaulted op is byte-identical to before)
 EVERY plugin's spawn env (step 4), so the delivery squash inherits it. The propagation is parent→child
 (core sets its children's env, as it already does for `BALLS_PROTOCOL`), never child→up. So "override
 the clock" is "override `T`" — one value, resolved once down the fail-open ladder (§4 `clock_provider`
-> the `BALLS_CLOCK` test env > the system clock). The op log (§1, `log::wall`) is deliberately NOT
-tied to `T`: local diagnostics stay honest even when the commit clock is provided. Diffless ops
+> the `BALLS_CLOCK` test env > the system clock). The `clock_provider` bin is bound by `bl install
+--bin` and validated as a clock at bind, not as a plugin (§6). The op log (§1, `log::wall`) is
+deliberately NOT tied to `T`: local diagnostics stay honest even when the commit clock is provided. Diffless ops
 (`prime`/`sync`, read ops) author no commit, so they carry no `T` into their spawns — byte-identical.
 
 ## §9 Verbs
@@ -1818,7 +1829,9 @@ RESOLVED (folded into the body, no longer open):
   frontmatter, sets core's own seal commit's `GIT_*_DATE`, and rides parent→child into every plugin's
   spawn env so the delivery squash inherits it (§8). Overriding `T` is a fail-open ladder —
   `clock_provider` (a config-named bin, resolved through the §6 `bin/<name>` symlink and bound by `bl
-  install --bin`, but wired by a SCALAR key because it resolves an INPUT not an effect) > the
+  install --bin` — realized bl-98ba as a bind-only install needing no config source, the provider
+  validated as a clock not a plugin — but wired by a SCALAR key because it resolves an INPUT not an
+  effect) > the
   `BALLS_CLOCK` test env > the system clock — the ONE deliberate asymmetry with hook dispatch (a
   dangling hook bin ABORTS; the clock degrades, being cosmetic with a sane default). The clock is the
   SOLE op-start input not representable as a worktree file, so it earns this one core-resolved hook and
@@ -1828,9 +1841,11 @@ RESOLVED (folded into the body, no longer open):
   (its own repo, `--needs` this core knob), not core's concern — core learns only that it can be TOLD
   the time (the §0 severability line: deleting the provider deletes config, not code). Touched §4 (the
   `clock_provider` field + `conf` key), §8 (this instant), § id generation (the reassign-seam
-  exception). DEFERRED as no-consumer-yet: decorating an unbound `clock_provider` with its `[source]`
-  hint at `bl conf` / op-time (the plugin-unbound path already does, §6) — trivial once `bl-workhours`
-  authors a hint.
+  exception). Follow-up bl-98ba made the "bound by `bl install --bin`" claim real: bind-only install +
+  a clock-validated (not protocol-validated) provider bind, its unbound `install`-time dangling report
+  decorated with the `[source]` hint like any plugin (§6). STILL DEFERRED as no-consumer-yet:
+  decorating the unbound `clock_provider` at `bl conf` / op-time (the op-time fail-open note stays
+  hintless) — trivial once `bl-workhours` authors a hint.
 - **Capability distribution — balls ships a pointer, not a pipeline; the `[source]` hint;
   no implicit fetch, ever (2026-07-04, bl-5b09 — CONVERGED by maintainer dialogue bl-f338;
   design record `docs/design/bl-5b09-capability-distribution.md`).** `bl install` is a pure

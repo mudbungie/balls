@@ -49,6 +49,12 @@ pub(crate) fn run_install(e: &Edge, args: &[&str]) -> io::Result<()> {
     run(e, &args.iter().map(ToString::to_string).collect::<Vec<_>>())
 }
 
+/// The op-log lines this box recorded — the file half of the stderr/log path the
+/// bl-5b09 dangling report rides. Shared by the §6 surface and bind sidecars.
+pub(crate) fn op_log(e: &Edge) -> String {
+    std::fs::read_to_string(e.xdg.clone_dir(&e.invocation_path).op_log()).unwrap_or_default()
+}
+
 /// A `side` branch of the landing whose `config/balls.toml` differs — a local
 /// ref a standalone install can pull from.
 fn side_branch(tmp: &TempDir, landing: &Path) -> &'static str {
