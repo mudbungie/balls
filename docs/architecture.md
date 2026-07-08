@@ -1351,6 +1351,73 @@ reset away; lazy materialize means it is never created. The prune of settled `wo
 whose delivery already landed rides the same chain (the delivery plugin's `prime.post`, idempotent
 delete-if-settled, §11/§13); worktrees materialize at `claim` only (bl-c2bf), never on prime.
 
+**prime converges version skew, not just steady-state drift (2026-07-08, bl-18bf —
+design record `docs/design/bl-18bf-prime-convergence.md`).** `bl doctor` was built and burned
+(bl-77a7): every fix is an existing idempotent verb, and steady-state drift fails loud at point of
+use. That never covered **version skew** — a checkout that was healthy under an old binary and is
+stale under a new one (a retired plugin name still committed, a retired lock file the new remote
+ladder never reads). The reframe: this is *more of prime's existing job*, not a new verb — `prime`
+already founds, seeds, and prunes; `bl conf` is already the read-side diagnostic. All of it lives
+behind one module boundary, `src/converge.rs`, called from `prime`'s flow at exactly one site —
+after landing founding/rebind (and any adopt) and before the prime chain's `Hooks::effective`
+read, so the same op that rewrites also dispatches the rewritten schedule and binds the fresh name
+(no "run prime twice"). Two duties:
+- **Retired-name rewrite (`converge::converge`).** Every occurrence of a retired first-party name
+  (`renames::renamed_to`, the closed static map — today `tracker` → `bl-tracker`, bl-27bf) still
+  committed in the landing's `config/plugins.toml` — both `[hooks]` array entries and `[source]`
+  keys — is rewritten to its current spelling through `conf::edit_landing_toml` (a raw-`toml::Table`
+  seal that round-trips a team's foreign tables; NOT `Hooks::to_toml`, which would drop them), one
+  ordinary landing commit, no-change means no commit. **Live-binding guard:** `bl-` is reserved but
+  the retired name itself is not, so a third party may legitimately ship a live-bound plugin under
+  the old name — the rewrite acts only when the old name is *unbound* (`Registry::resolve_bin`
+  returns `None`); a live-bound old name is left whole, schedule entry and symlink both, and dispatch
+  invokes it as ever. Rewrite-then-**bind**: converge finishes the job by the seed's own rule,
+  binding the current name to its sibling beside `bl` when present and dropping the now-dangling old
+  symlink (the one deletion converge is allowed — a dangling link is not work); when no sibling
+  exists the current name is left unbound and the ordinary `[source]`-hinted refusal covers it
+  (`bl install` is still the fix) — same refusal a fresh machine would meet, never worse than the
+  notice it replaces. **Landing only:** an old name in the XDG layer is the user's own file; prime
+  does not edit it, and the dispatch-time rename notice (`plugin.rs`, bl-27bf) survives unchanged as
+  that layer's cover. **Adopt paths converge too:** `--install`/`--center` copy-in applies the same
+  rename map to what it copies (`converge::rewrite_config`) *before* the seal, so a stale center's
+  schedule cannot re-inject the old name on every adopt cycle — otherwise the rewrite would be a
+  commit-per-install instead of once ever.
+- **Debris report (`converge::debris` core-side; `Project::prune` delivery-side) — report only,
+  prime deletes nothing here** (an orphan worktree or unsettled branch may hold uncommitted work).
+  Each line names the fixing command, riding the ordinary op-log path at `info` + stderr echo (the
+  bl-b1be idiom already used for the seed's prune notes and install's dangling report) — never a
+  bare stderr line the log file never sees. Core-side, one `readdir` plus one `exists()`:
+  **orphan `changes/<uuid>/` worktrees** (crash debris from an op whose teardown never ran; reported
+  with `git worktree remove <path>`), and **a `stealth.lock` file present while stealth is
+  undeclared** — the one *silent-publish* hazard in the catalog: an operator who declared stealth
+  with the old, retired lock mechanism is silently un-stealthed by the modern remote ladder, since
+  nothing reads the file and `origin` is rediscovered and published to. The warning names the fix
+  (`bl conf set task-remote none`, then delete the file) and is **suppressed** once the landing
+  sentinel already reads stealth — the operator has already re-declared and the file is inert cruft,
+  not a live hazard. Delivery-side, beside the existing bl-292d settled-branch prune (§11/§13, same
+  `for-each-ref` enumeration and `Standing` computation, zero new spawns): an **unsettled `work/<id>`
+  whose worktree directory is absent** — committed-but-undelivered content with nothing checked out
+  on it — is reported (never pruned) naming both remedies, `bl claim <id>` (re-materializes onto the
+  branch; the bl-65e0 contract that a later claim-and-close still delivers it) or explicit discard
+  with `git branch -D work/<id>`. A wider "claimed ball, missing worktree" variant was attacked and
+  dropped: the §7 prime payload carries no claim set and the worktree is plugin territory core
+  cannot stat, so the report stays narrow to what the delivery plugin can compute alone
+  (branch present, directory absent).
+
+  **Severability.** All of the above sits behind the one `src/converge.rs` module boundary (plus the
+  delivery-side report beside `delivery_prune.rs`, same one-call-site shape) — decomposed to sibling
+  modules with re-exports if the 300-line cap demands, per repo convention. Breaking convergence back
+  out, if prime ever grows too heavy for it, is moving those call sites under a new verb, not a
+  rewrite: the module owns no state and persists nothing (reports are log lines; the rewrite is an
+  ordinary landing commit), so extraction carries no migration of its own.
+
+  **Cost contract, checked on the overwhelmingly common converged checkout:** one extra read+parse of
+  the landing `plugins.toml` (the prime chain parses it later and separately) scanned against a
+  static map, one `readdir` of `changes/`, one `exists()` for `stealth.lock`, and one `exists()` per
+  unsettled `work/<id>` branch on the delivery side. **Zero new subprocess spawns and zero new
+  commits on the clean path** — git runs only when a retired name is actually present-and-unbound
+  (once per checkout, ever, since adopt paths stay converged too).
+
 **Tracker's prime — two slots, one per axis (bl-0a23).** With no remote it is STEALTH (store stays
 local, a self-lock written). With a remote (the one §12 ladder below — `--remote` >
 this clone's binding `task-remote` > legacy XDG `task-remote` > `origin`):
@@ -1845,6 +1912,20 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **Version skew is not drift — prime converges it, folded in rather than a doctor verb
+  (2026-07-08, bl-18bf — design record `docs/design/bl-18bf-prime-convergence.md`).** The bl-77a7
+  no-repair-verb rationale (below) stands unchanged: it was an analysis of steady-state drift, and
+  never evaluated **version skew** — a checkout healthy under an old binary, stale under a new one
+  (a retired plugin name still committed, a retired stealth lock the modern remote ladder never
+  reads, `work/<id>`/`changes/<uuid>/` debris). Resolved without a doctor verb: convergence is *more
+  of prime's existing job* — one module boundary (`src/converge.rs`), called from `prime` at exactly
+  one site, rewriting retired first-party names in the landing schedule (closed map, live-binding
+  guard, rewrite-then-bind, adopt-path canonicalization) and reporting (never deleting) crash debris
+  and the stealth.lock hazard; a delivery-side companion report (beside the bl-292d prune) names an
+  unsettled `work/<id>` branch whose worktree directory is gone. Severable by construction — moving
+  the call sites under a new verb, not a rewrite — and costed at zero new subprocess spawns, zero new
+  commits on the converged clean path. Touched §12 (prime's convergence duties, severability,
+  cost contract).
 - **The op instant `T` — one clock read per op, and its `clock_provider` override
   (2026-07-07, bl-8b98 — design record `~/dev/bl-workhours/docs/design.md`).** An op read the wall
   clock THREE times that agreed only by luck — `now()` (frontmatter), `seal()`'s dateless `git commit`
