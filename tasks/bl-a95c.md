@@ -1,7 +1,8 @@
 +++
 title = "github-issues plugin aborts every mutating balls op on a network failure (should fail-open)"
 created = 1783490041
-updated = 1783490496
+updated = 1783490665
+claimant = "opus-a95c"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
 +++
