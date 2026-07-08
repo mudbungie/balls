@@ -52,6 +52,9 @@ pub(crate) enum Key {
     TaskBranch,
     /// `log_level` on the landing `balls.toml` (§4).
     LogLevel,
+    /// `clock_provider` on the landing `balls.toml` (§8) — the op-clock bin, a
+    /// scalar because it resolves an INPUT not an effect ([`crate::clock`]).
+    ClockProvider,
     /// A `[hooks]` schedule key on the landing `plugins.toml` (§6) — the only
     /// list config (§4).
     Hook(String),
@@ -71,10 +74,11 @@ impl Key {
             "task-remote" => Ok(Key::TaskRemote),
             "task-branch" => Ok(Key::TaskBranch),
             "log-level" => Ok(Key::LogLevel),
+            "clock-provider" => Ok(Key::ClockProvider),
             "show" | "list" => Ok(Key::Hook(token.to_string())),
             _ if hook_key(token) || present.has(token) => Ok(Key::Hook(token.to_string())),
             _ => Err(crate::usage(format!(
-                "conf: unknown key '{token}' — keys: task-remote, task-branch, log-level, <op>.<pre|post>, show, list"
+                "conf: unknown key '{token}' — keys: task-remote, task-branch, log-level, clock-provider, <op>.<pre|post>, show, list"
             ))),
         }
     }
@@ -131,7 +135,7 @@ fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
     let landing = clone.landing();
     let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
     let mut rows = Vec::new();
-    for key in ["task-remote", "task-branch", "log-level"] {
+    for key in ["task-remote", "task-branch", "log-level", "clock-provider"] {
         rows.push((key.to_string(), prov::resolve(edge, clone, &Key::parse(key, &hooks)?)?));
     }
     for (key, names) in hooks.entries() {

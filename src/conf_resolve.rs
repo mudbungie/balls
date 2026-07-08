@@ -27,6 +27,7 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
         Key::TaskRemote => task_remote(edge, &landing, &clone.binding()),
         Key::TaskBranch => scalar(edge, &landing, "tasks_branch", crate::DEFAULT_TASKS_BRANCH, None),
         Key::LogLevel => scalar(edge, &landing, "log_level", "info", edge.log_level.as_deref()),
+        Key::ClockProvider => scalar(edge, &landing, "clock_provider", "(none)", None),
         Key::Hook(k) => {
             let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
             let names = hooks

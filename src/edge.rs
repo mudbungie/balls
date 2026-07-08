@@ -26,7 +26,10 @@ use std::path::PathBuf;
 /// leaves it `None` (no override; the config threshold stands). `path_dirs`
 /// is `$PATH` split into its directories — the §6 install binary-resolution
 /// lookup ("PATH or explicit `--bin`") — read once here like every other env
-/// fact (the bl-bfa8 rule).
+/// fact (the bl-bfa8 rule). `balls_clock` is `$BALLS_CLOCK` parsed to unix
+/// seconds — the §8 op-clock TEST seam ([`crate::clock`]), one rung below the
+/// `clock_provider` bin: an env fact, so it is read here at the edge (the bl-bfa8
+/// rule) and `None`/unparseable falls straight through to the system clock.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Edge {
     pub xdg: Xdg,
@@ -37,6 +40,7 @@ pub struct Edge {
     pub path_dirs: Vec<PathBuf>,
     pub color: bool,
     pub log_level: Option<String>,
+    pub balls_clock: Option<i64>,
 }
 
 impl Edge {
@@ -60,6 +64,7 @@ impl Edge {
         path: Option<std::ffi::OsString>,
         no_color: Option<String>,
         stdout_tty: bool,
+        balls_clock: Option<String>,
     ) -> Self {
         Self {
             xdg: Xdg::with(&home, config_home.as_deref(), state_home.as_deref()),
@@ -70,6 +75,7 @@ impl Edge {
             path_dirs: path.map(|p| std::env::split_paths(&p).collect()).unwrap_or_default(),
             color: stdout_tty && no_color.is_none(),
             log_level: None,
+            balls_clock: balls_clock.and_then(|c| c.trim().parse().ok()),
         }
     }
 }
@@ -91,6 +97,7 @@ mod tests {
             None,
             None,
             true,
+            None,
         )
     }
 
@@ -107,6 +114,7 @@ mod tests {
             None,
             no_color.map(str::to_string),
             stdout_tty,
+            None,
         )
         .color
     }
@@ -124,9 +132,34 @@ mod tests {
             Some("/usr/bin:/opt/bl".into()),
             None,
             false,
+            None,
         );
         assert_eq!(e.path_dirs, [PathBuf::from("/usr/bin"), PathBuf::from("/opt/bl")]);
         assert!(resolve(None, None, None).path_dirs.is_empty()); // no $PATH ⇒ no lookup dirs
+    }
+
+    #[test]
+    fn balls_clock_parses_to_unix_seconds_or_falls_through() {
+        let clocked = |c: Option<&str>| {
+            Edge::resolve(
+                PathBuf::from("/h"),
+                None,
+                None,
+                PathBuf::from("/p"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                true,
+                c.map(str::to_string),
+            )
+            .balls_clock
+        };
+        assert_eq!(clocked(Some("1700000000")), Some(1_700_000_000)); // pinned
+        assert_eq!(clocked(Some("  1700000000  ")), Some(1_700_000_000)); // trimmed
+        assert_eq!(clocked(Some("nope")), None); // unparseable ⇒ fall through
+        assert_eq!(clocked(None), None); // unset ⇒ fall through
     }
 
     #[test]

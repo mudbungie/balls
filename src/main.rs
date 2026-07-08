@@ -24,6 +24,7 @@ fn main() {
         env::var_os("PATH"),
         env::var("NO_COLOR").ok(),
         std::io::stdout().is_terminal(),
+        env::var("BALLS_CLOCK").ok(),
     );
     exit(balls::run(&edge, &args));
 }

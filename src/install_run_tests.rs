@@ -26,6 +26,7 @@ pub(crate) fn edge(tmp: &TempDir, exe_dir: Option<PathBuf>) -> Edge {
         path_dirs: Vec::new(),
         color: false,
         log_level: None,
+        balls_clock: None,
     }
 }
 

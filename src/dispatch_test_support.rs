@@ -19,11 +19,20 @@ pub(crate) fn edge(tmp: &TempDir) -> Edge {
         path_dirs: Vec::new(),
         color: false,
         log_level: None,
+        balls_clock: None,
     }
 }
 
 pub(crate) fn run_in(tmp: &TempDir, args: &[&str]) -> i32 {
     crate::run(&edge(tmp), &args.iter().map(ToString::to_string).collect::<Vec<_>>())
+}
+
+/// `run_in` with the §8 op-clock pinned to `t` (the `$BALLS_CLOCK` edge seam), so
+/// a test can assert that frontmatter + the store seal derive from ONE instant
+/// (bl-8b98) without racing the wall clock.
+pub(crate) fn run_clocked(tmp: &TempDir, t: i64, args: &[&str]) -> i32 {
+    let e = Edge { balls_clock: Some(t), ..edge(tmp) };
+    crate::run(&e, &args.iter().map(ToString::to_string).collect::<Vec<_>>())
 }
 
 /// Init a git repo at `tmp/proj` (the edge's invocation path) with one

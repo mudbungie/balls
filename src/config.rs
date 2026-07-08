@@ -57,6 +57,15 @@ pub struct EffectiveConfig {
     /// persistent layers-2/3 value beneath it.
     #[serde(default = "default_log_level")]
     pub log_level: String,
+
+    /// The §8 op-clock provider ([`crate::clock`]): names a bin — resolved via the
+    /// SAME `bin/<name>` symlink as hooks (§6), bound by `bl install --bin` — that
+    /// prints the op instant `T` (unix seconds) at op-start. A SCALAR key, not a
+    /// `[hooks]` entry: it resolves an INPUT, not an effect. Absent (the default)
+    /// ⇒ the system clock, byte-identical to pre-bl-8b98 behaviour. Fail-open: a
+    /// named-but-unresolvable provider degrades to the system clock, never aborts.
+    #[serde(default)]
+    pub clock_provider: Option<String>,
 }
 
 fn default_tasks_branch() -> String {
@@ -69,7 +78,7 @@ fn default_log_level() -> String {
 
 impl Default for EffectiveConfig {
     fn default() -> EffectiveConfig {
-        EffectiveConfig { tasks_branch: default_tasks_branch(), log_level: default_log_level() }
+        EffectiveConfig { tasks_branch: default_tasks_branch(), log_level: default_log_level(), clock_provider: None }
     }
 }
 

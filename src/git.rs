@@ -44,12 +44,24 @@ pub trait Anvil {
 /// The real [`Anvil`]: shells out to git against one checkout.
 pub struct Git {
     checkout: PathBuf,
+    date: Option<i64>,
 }
 
 impl Git {
-    /// Operate against the anvil checkout rooted at `checkout`.
+    /// Operate against the anvil checkout rooted at `checkout`. Un-dated: the seal
+    /// commit takes git's own clock, as before bl-8b98.
     pub fn at(checkout: &Path) -> Self {
-        Self { checkout: checkout.to_path_buf() }
+        Self { checkout: checkout.to_path_buf(), date: None }
+    }
+
+    /// Pin this anvil's seal commit to the op instant `t` (§8): its
+    /// `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` are set from `t` so the store commit
+    /// date derives from the SAME instant as the frontmatter and the delivery
+    /// squash ([`crate::clock`]), not a third independent clock read.
+    #[must_use]
+    pub fn dated(mut self, t: i64) -> Self {
+        self.date = Some(t);
+        self
     }
 }
 
@@ -62,8 +74,18 @@ impl Git {
 /// READS a center's config to copy in (§0 — "config crosses into a landing only
 /// by the explicit copy `install` performs"), never a push, never the store.
 pub(crate) fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
+    run_env(cwd, args, stdin, &[])
+}
+
+/// [`run`] plus extra environment on the child git — the seam the §8 seal uses to
+/// stamp its commit with the op instant (`GIT_*_DATE`, [`crate::clock`]). `env`
+/// is empty for every non-commit git act, so those stay byte-identical.
+fn run_env(cwd: &Path, args: &[&str], stdin: Option<&str>, env: &[(&'static str, String)]) -> io::Result<String> {
     let mut cmd = crate::safegit::at(cwd);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
     if stdin.is_some() {
         cmd.stdin(Stdio::piped());
     }
@@ -107,7 +129,13 @@ impl Anvil for Git {
         if run(dir, &["diff", "--cached", "--quiet"], None).is_ok() {
             return self.head();
         }
-        run(dir, &["commit", "-F", "-"], Some(message))?;
+        // The one dated git act (§8): the seal commit derives its date from the op
+        // instant `T` when set, so it agrees with the frontmatter and the delivery
+        // squash by construction. Un-dated ⇒ git's own clock, as before.
+        match self.date {
+            Some(t) => run_env(dir, &["commit", "-F", "-"], Some(message), &crate::clock::git_date_env(t))?,
+            None => run(dir, &["commit", "-F", "-"], Some(message))?,
+        };
         let sha = run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
         if let Err(e) = run(&self.checkout, &["merge", "--ff-only", &sha], None) {
             // A lost merge (e.g. the ref-lock race two simultaneous claims run,
