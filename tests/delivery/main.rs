@@ -168,6 +168,41 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
     assert!(!branch_exists());
 }
 
+#[test]
+fn the_op_instant_dates_the_delivery_squash_on_main() {
+    // bl-8b98 SSOT, the delivery leg: core exports GIT_*_DATE into the plugin's
+    // spawn env, and the squash `commit-tree` inherits it — so the `main` commit
+    // that lands carries the op instant T, the SAME date as the store seal and
+    // the frontmatter. Here the env stands in for core's dated spawn.
+    let tmp = TempDir::new().unwrap();
+    let home = tmp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let root = project(tmp.path());
+    let inv = root.to_str().unwrap();
+    let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
+    let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
+
+    delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "Add feature")).assert().success();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+
+    // close.pre WITH the op instant in the env — capture + squash both inherit it.
+    let change = change_dir(tmp.path(), "change");
+    delivery(&change, &home, "close", "pre", &pre(inv, "Add feature"))
+        .env("GIT_AUTHOR_DATE", "@1700000000")
+        .env("GIT_COMMITTER_DATE", "@1700000000")
+        .assert()
+        .success();
+
+    // The squash on main reads T for both author (%at) and committer (%ct) date.
+    let dates = String::from_utf8(
+        Command::new("git").current_dir(&root).args(["log", "-1", "--format=%at%n%ct", "main"]).output().unwrap().stdout,
+    )
+    .unwrap();
+    for line in dates.lines() {
+        assert_eq!(line, "1700000000", "delivery squash date not T: {dates}");
+    }
+}
+
 /// The §7 wire of a post-abort rollback of `close.pre` (§14): the op SEALED, so
 /// the payload carries the `bl-id` trailer in `metadata` plus the
 /// `rolling_back` tag — the cwd change worktree is clean by then.

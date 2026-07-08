@@ -59,6 +59,12 @@ pub(super) fn run(edge: &Edge, clone: &CloneDir, op: &str, rest: &[String]) -> i
             crate::config::forbid_landing(value)?; // the coincident name is refused at the front door (bl-ac89)
             landing_set(&landing, actor, token, "tasks_branch", value)
         }
+        (Key::ClockProvider, "set") => {
+            // Any name: the bin is resolved + fail-open-validated at op-start
+            // ([`crate::clock`]), not here — the migration `make install` (bl-5de5)
+            // is `bl conf set clock-provider bl-workhours`.
+            landing_set(&landing, actor, token, "clock_provider", one(op, token, values)?)
+        }
         _ => Err(crate::usage(format!(
             "conf {op}: '{token}' is a scalar — append/prepend/remove compose the [hooks] list keys"
         ))),

@@ -341,6 +341,15 @@ STORE (`tasks_branch`) is shareable, because only it is sync-merged (§6/§12).
   alike) is `debug`, so default-`info` keeps routine ops quiet; plugin-enveloped stderr is `info`
   (a plugin speaking is signal — the tracker's warnings ride here); plugin non-zero exits and core
   aborts are `error`.
+- `clock_provider` (string, OPTIONAL — absent by default) — names the §8 op-clock bin: a binary
+  resolved through the SAME `config/plugins/bin/<name>` symlink as hooks (§6) and bound by `bl install
+  --bin`, run at op-start to obtain the op instant `T` (one unix-seconds line, exit 0). It is a SCALAR
+  key, not a `[hooks]` entry, because it resolves an INPUT (the clock) not an effect (a plugin run) — a
+  serde-default `Option` (absent ⇒ the system clock, byte-identical to no config). It is the top rung
+  of the §8 ladder (`clock_provider` > the `BALLS_CLOCK` test env > the system clock) and — the one
+  deliberate asymmetry with hook dispatch, where a dangling bin ABORTS (§6) — it is FAIL-OPEN: a
+  missing bin, non-zero exit, or unparseable line logs a note and falls to the next rung, because a
+  hook is load-bearing while the op clock is cosmetic with a sane default. See §8.
 
 **No per-line severity sigil on the terminal — severity lives in the file, not the glyphs (bl-e7b8).**
 The human terminal render above carries no severity cue of its own: a plugin *warning* and a routine
@@ -405,6 +414,7 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
 | `task-remote` | the store remote (§12) | scalar | routes by VALUE (bl-9df0): a URL ⇒ this clone's `binding.toml` `remote` (per-checkout, never travels on `install` — URLs are NOT landing fields by design; the legacy global XDG `config.toml` `remote` stays a read-only fallback tier below it, bl-d081; the write also clears any landing sentinel, so the set changes what the ladder resolves); the stealth sentinel `none` ⇒ the landing `task_remote` (per-checkout POLICY — it travels on `install` like any team policy) |
 | `task-branch` | `tasks_branch` | scalar | landing `config/balls.toml` (committed on `balls/config`) |
 | `log-level` | `log_level` | scalar | landing `config/balls.toml` |
+| `clock-provider` | `clock_provider` | scalar | landing `config/balls.toml` (the §8 op-clock bin; no value validation — the bin is fail-open-resolved at op-start, not at write) |
 | `<op>.<pre\|post>`, bare `show`/`list` | the `[hooks]` schedule (§6) | list | landing `config/plugins.toml` |
 
 The KEY implies its home — no `--scope` flag. A landing write is an ordinary commit on `balls/config`
@@ -749,6 +759,21 @@ The canonical task-op sequence (verb-agnostic):
    a pre abort; `git reset` the target branch on a post abort — local, reversible, nothing core-pushed).
    Each plugin's rollback decides what undoing means; persistence-through-abort is a plugin choosing a
    no-op rollback (§14), not a core carve-out.
+
+**The op instant `T` — one clock read, three consumers (bl-8b98).** An op reads the wall clock exactly
+ONCE, at op-start, and every timestamp it authors derives from that single instant `T` (unix seconds,
+§3). Before this an op read the clock THREE independent times that agreed only by luck — `now()` for
+the frontmatter `created`/`updated`, core's `seal()` `git commit` (no `--date`, so git's own clock
+stamped the store commit), and the delivery plugin's `commit-tree` for the `main` squash — a
+single-source-of-truth violation. Now `T` stamps the frontmatter (step 1 authoring), sets core's OWN
+seal commit's `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` (`@<unix>`, no offset — the instant is pinned,
+git supplies the local-tz offset, so a defaulted op is byte-identical to before), and is exported into
+EVERY plugin's spawn env (step 4), so the delivery squash inherits it. The propagation is parent→child
+(core sets its children's env, as it already does for `BALLS_PROTOCOL`), never child→up. So "override
+the clock" is "override `T`" — one value, resolved once down the fail-open ladder (§4 `clock_provider`
+> the `BALLS_CLOCK` test env > the system clock). The op log (§1, `log::wall`) is deliberately NOT
+tied to `T`: local diagnostics stay honest even when the commit clock is provided. Diffless ops
+(`prime`/`sync`, read ops) author no commit, so they carry no `T` into their spawns — byte-identical.
 
 ## §9 Verbs
 
@@ -1525,6 +1550,17 @@ current incarnation, or — if none is live — the most recent dead one." The w
 solved by construction; the 4-hex space stays fine, no widened ids, no extra collision check.
 Prevent-reuse was the wrong lever; recency-order resolution is the right one.
 
+**The reassign seam is for FILE-materialized inputs; the op clock is the sole exception (bl-8b98).**
+The `create/pre` `git mv` reassign above is the general override for op-start inputs that materialize
+as files — the id (renamed file) and any frontmatter field: a plugin edits the worktree, core re-reads
+the tree, no return channel, no knob. The scan of op-start inputs shows every other is already seamed
+(actor `--as` > `edge.default_actor`; remote `--remote` > binding/stealth > `origin`). The op CLOCK is
+the one input NOT representable as a worktree file — it is ambient env consumed by `git commit`/
+`commit-tree` (and by `now()` for the ints) — so it alone gets a core-resolved hook, the §4/§8
+`clock_provider`. It is the lone exception to a family that already exists, NOT the first of a new one:
+if a second non-file ambient input ever appears it joins the clock here, but until then this stays ONE
+knob, not an "input provider" framework (the bl-587f "no consumer yet" bar).
+
 ## §13 bl sync & bl prime
 
 `sync` and `prime` are ordinary ops (§8) — each with `sync.pre|post` and `prime.pre|post` hook keys,
@@ -1774,6 +1810,27 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **The op instant `T` — one clock read per op, and its `clock_provider` override
+  (2026-07-07, bl-8b98 — design record `~/dev/bl-workhours/docs/design.md`).** An op read the wall
+  clock THREE times that agreed only by luck — `now()` (frontmatter), `seal()`'s dateless `git commit`
+  (store commit), and delivery's `commit-tree` (`main` squash) — a single-source-of-truth violation.
+  Resolved by capturing ONE instant `T` at op-start and deriving all three from it: `T` stamps the
+  frontmatter, sets core's own seal commit's `GIT_*_DATE`, and rides parent→child into every plugin's
+  spawn env so the delivery squash inherits it (§8). Overriding `T` is a fail-open ladder —
+  `clock_provider` (a config-named bin, resolved through the §6 `bin/<name>` symlink and bound by `bl
+  install --bin`, but wired by a SCALAR key because it resolves an INPUT not an effect) > the
+  `BALLS_CLOCK` test env > the system clock — the ONE deliberate asymmetry with hook dispatch (a
+  dangling hook bin ABORTS; the clock degrades, being cosmetic with a sane default). The clock is the
+  SOLE op-start input not representable as a worktree file, so it earns this one core-resolved hook and
+  not a general "input provider" framework (§ id generation, the bl-587f "no consumer yet" bar); the
+  op log (`log::wall`) is deliberately left honest. Byte-identical when nothing is set. The
+  `bl-workhours` provider that maps the real time-of-day into a persona window is a SEPARATE artifact
+  (its own repo, `--needs` this core knob), not core's concern — core learns only that it can be TOLD
+  the time (the §0 severability line: deleting the provider deletes config, not code). Touched §4 (the
+  `clock_provider` field + `conf` key), §8 (this instant), § id generation (the reassign-seam
+  exception). DEFERRED as no-consumer-yet: decorating an unbound `clock_provider` with its `[source]`
+  hint at `bl conf` / op-time (the plugin-unbound path already does, §6) — trivial once `bl-workhours`
+  authors a hint.
 - **Capability distribution — balls ships a pointer, not a pipeline; the `[source]` hint;
   no implicit fetch, ever (2026-07-04, bl-5b09 — CONVERGED by maintainer dialogue bl-f338;
   design record `docs/design/bl-5b09-capability-distribution.md`).** `bl install` is a pure

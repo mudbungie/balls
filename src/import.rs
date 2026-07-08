@@ -26,6 +26,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io::{self, Read};
 use std::path::Path;
 
+use crate::clock;
 use crate::edge::Edge;
 use crate::lifecycle::BaseChange;
 use crate::message::Message;
@@ -105,7 +106,11 @@ fn ingest(edge: &Edge, flags: &Flags, balls: Vec<(String, Task)>) -> io::Result<
         remote: flags.remote.clone(),
         command: Command { op: Verb::Import.token().to_string(), body_change: None, message: None },
     };
-    mutate::seal_op(edge, Verb::Import, &op, &base, None)?;
+    // Records carry their OWN timestamps verbatim (§16 — no restamp), so the op
+    // instant dates only the seal commit, keeping the import's store commit on the
+    // same one-clock-per-op discipline as every other seal (§8, bl-8b98).
+    let instant = clock::for_op(edge)?;
+    mutate::seal_op(edge, Verb::Import, &op, &base, None, &instant)?;
     eprintln!("import {n} ball{}", if n == 1 { "" } else { "s" });
     Ok(())
 }

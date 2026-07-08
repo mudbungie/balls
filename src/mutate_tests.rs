@@ -174,11 +174,6 @@ fn command_marks_a_mutating_op_and_carries_the_body() {
 }
 
 #[test]
-fn now_reads_a_positive_clock() {
-    assert!(now() > 1_700_000_000); // sometime after 2023
-}
-
-#[test]
 fn children_notice_agrees_in_number_and_stays_silent_at_zero() {
     // bl-3ddb: "closed with 1 open children" was ungrammatical; one survivor
     // reads singular, several keep the plural, none emits nothing.

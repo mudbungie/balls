@@ -61,16 +61,28 @@ pub struct Subprocess<'a> {
     ctx: OpContext,
     log: &'a Log,
     depth: u32,
+    date: Option<i64>,
 }
 
 impl<'a> Subprocess<'a> {
     /// Build the dispatcher for one op: the §7 op-constant `ctx`, the op's `log`
     /// sink (shared with core's lifecycle records), and the recursion `depth`
     /// balls is running at (read from `BALLS_PLUGIN_DEPTH` by the binary edge; `0`
-    /// at the top level).
+    /// at the top level). Un-dated: a read/diffless op (§13) authors no commit, so
+    /// its plugin spawns carry no `GIT_*_DATE` and stay byte-identical.
     #[must_use]
     pub fn new(ctx: OpContext, log: &'a Log, depth: u32) -> Self {
-        Self { ctx, log, depth }
+        Self { ctx, log, depth, date: None }
+    }
+
+    /// Export the op instant `t` as `GIT_*_DATE` into every plugin's spawn env
+    /// (§8): the delivery plugin's `commit-tree` inherits it, so the `main` squash
+    /// carries the SAME date as core's store seal and the frontmatter
+    /// ([`crate::clock`]). Set by the mutating seal path only.
+    #[must_use]
+    pub fn dated(mut self, t: i64) -> Self {
+        self.date = Some(t);
+        self
     }
 
     /// True once balls is running AT the §6 invocation-tree cap: no further
@@ -180,17 +192,18 @@ impl<'a> Subprocess<'a> {
         self.log.record(Level::Debug, "core", Some(phase), &format!("invoke {name}"));
         let depth = (self.depth + 1).to_string();
         let mut child = retry_busy(|| {
-            Command::new(bin)
-                .arg(op.token())
+            let mut cmd = Command::new(bin);
+            cmd.arg(op.token())
                 .arg(phase.token())
                 .current_dir(dir)
                 .env("BALLS_PROTOCOL", PROTOCOL.to_string())
                 .env("BALLS_PLUGIN_NAME", name)
-                .env("BALLS_PLUGIN_DEPTH", &depth)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::piped())
-                .spawn()
+                .env("BALLS_PLUGIN_DEPTH", &depth);
+            // The op instant, parent→child (§8): the delivery squash inherits it.
+            if let Some(t) = self.date {
+                cmd.envs(crate::clock::git_date_env(t));
+            }
+            cmd.stdin(Stdio::piped()).stdout(Stdio::inherit()).stderr(Stdio::piped()).spawn()
         })?;
         feed(child.stdin.take().expect("stdin was configured as a pipe"), payload)?;
         self.relay(name, phase, child.stderr.take().expect("stderr was configured as a pipe"));

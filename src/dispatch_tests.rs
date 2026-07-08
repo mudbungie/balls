@@ -145,3 +145,37 @@ fn sync_after_prime_targets_the_store() {
 fn a_bad_flag_is_an_op_error() {
     assert_eq!(run_in(&TempDir::new().unwrap(), &["prime", "--center"]), 1);
 }
+
+#[test]
+fn the_op_instant_dates_both_the_frontmatter_and_the_store_seal() {
+    // bl-8b98 SSOT: with the clock pinned to T, the frontmatter ints AND the
+    // store commit's author+committer dates all derive from the SAME instant —
+    // no longer three independent reads that agree by luck.
+    let tmp = TempDir::new().unwrap();
+    let t = 1_700_000_000;
+    assert_eq!(run_clocked(&tmp, t, &["prime", "--as", "me"]), 0);
+    assert_eq!(run_clocked(&tmp, t, &["create", "A task", "--as", "me"]), 0);
+    let tasks = store(&tmp).join("tasks");
+    let id = sole_task_id(&tasks);
+    let md = std::fs::read_to_string(tasks.join(format!("{id}.md"))).unwrap();
+    assert!(md.contains("created = 1700000000"), "frontmatter created not T: {md}");
+    assert!(md.contains("updated = 1700000000"), "frontmatter updated not T: {md}");
+    // %at (author) and %ct (committer) on the store tip both read T (unix secs).
+    let dates = crate::git::run(&store(&tmp), &["log", "-1", "--format=%at%n%ct"], None).unwrap();
+    for line in dates.lines() {
+        assert_eq!(line, "1700000000", "store seal date not T: {dates}");
+    }
+}
+
+#[test]
+fn a_named_but_unbound_clock_provider_falls_open_and_logs_the_note() {
+    // Fail-open (§8): a configured provider with no bound bin degrades to the
+    // system clock — the op still succeeds, and the note lands in the op log
+    // (threshold-gated + persisted, not a bare stderr line).
+    let tmp = TempDir::new().unwrap();
+    assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["conf", "set", "clock-provider", "ghost"]), 0);
+    assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0); // non-fatal
+    let log = std::fs::read_to_string(op_log(&tmp)).unwrap();
+    assert!(log.contains("clock_provider ghost not bound"), "note missing from op log: {log}");
+}

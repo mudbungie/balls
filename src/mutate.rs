@@ -17,9 +17,9 @@
 
 use std::io;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::checkout;
+use crate::clock;
 use crate::delivery_repo::Project;
 use crate::edge::Edge;
 use crate::git::Git;
@@ -76,7 +76,11 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
         Verb::Create | Verb::Claim => Project::at(&edge.invocation_path).root_commits(),
         _ => Vec::new(),
     };
-    let Some((base, before)) = base_change(verb, &store, &flags, now(), roots, editor)? else {
+    // The op reads the clock ONCE (§8, bl-8b98): this instant stamps the
+    // frontmatter here AND — threaded into `seal_op` — the store seal commit and
+    // every plugin's spawn env (so the delivery squash agrees), three-to-one.
+    let instant = clock::for_op(edge)?;
+    let Some((base, before)) = base_change(verb, &store, &flags, instant.t, roots, editor)? else {
         return Ok(());
     };
     let ctx = Op {
@@ -84,7 +88,7 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
         remote: flags.remote.clone(),
         command: command(verb, &flags),
     };
-    let sha = seal_op(edge, verb, &ctx, base.as_ref(), before)?;
+    let sha = seal_op(edge, verb, &ctx, base.as_ref(), before, &instant)?;
     report::emit(verb, &store, &sha)
 }
 
@@ -111,7 +115,7 @@ pub(crate) fn primed(landing: &Path) -> io::Result<()> {
 /// reach it via [`dispatch`]; `bl import` (§16) authors its own bulk change
 /// and seals through the same path, so there is exactly one road to the anvil.
 /// Returns the sealed sha.
-pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, before: Option<Task>) -> io::Result<String> {
+pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, before: Option<Task>, instant: &clock::Instant) -> io::Result<String> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
     primed(&landing)?;
@@ -122,6 +126,12 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
     // stealth bypass happened; there is one bind, shared with the checkout verbs.
     let (binding, level) = checkout::bind(edge, &landing, &store, op.remote.clone(), None)?;
     let log = Log::new(clone.op_log(), level, verb, log::wall);
+    // A fail-open clock note (a configured provider that could not be honoured,
+    // §8) lands in the op log like any record — threshold-gated and persisted,
+    // not a bare stderr line (bl-bfcc).
+    if let Some(note) = &instant.note {
+        log.record(log::Level::Info, "core", None, note);
+    }
     let ctx = OpContext {
         actor: op.actor.clone(),
         binding,
@@ -134,8 +144,10 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
     let pre = hooks.resolve(&reg, verb.token(), "pre");
     let post = hooks.resolve(&reg, verb.token(), "post");
     let change_dir = clone.change(&change_token());
-    let plugins = Subprocess::new(ctx, &log, edge.depth);
-    let anvil = Git::at(&store);
+    // The op instant dates the store seal (core's own commit) and rides into every
+    // plugin's spawn env so the delivery squash inherits it (§8) — three-to-one.
+    let plugins = Subprocess::new(ctx, &log, edge.depth).dated(instant.t);
+    let anvil = Git::at(&store).dated(instant.t);
     Engine::new(&anvil, &plugins, &log)
         .seal(base, verb, &change_dir, &pre, &post)
         .map_err(|e| other(e.to_string()))
@@ -146,15 +158,6 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
 #[path = "mutate_args.rs"]
 mod args;
 use args::{parse, Flags};
-
-/// The SOLE site that reads the wall clock and reduces it to §3 unix seconds.
-/// Injected into each [`BaseChange`] so `change.rs` stays a pure, clock-free unit
-/// (`now` is a plain argument there). A pre-epoch clock — never, in practice —
-/// reads 0.
-fn now() -> i64 {
-    #[allow(clippy::cast_possible_wrap)]
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
-}
 
 /// A unique name for the ephemeral change worktree (§8/§1 — nothing keys off it),
 /// drawn from the same entropy [`IdScheme`] mints ids with, so the dispatch needs

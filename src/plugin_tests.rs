@@ -100,6 +100,23 @@ fn run_delivers_the_env_stdin_and_cwd() {
 }
 
 #[test]
+fn a_dated_dispatch_exports_the_op_instant_as_git_dates() {
+    // §8: the op instant rides parent→child as GIT_*_DATE, so the delivery
+    // plugin's `commit-tree` inherits it and the `main` squash carries T. The
+    // explicit `.env` wins over any GIT_AUTHOR_DATE git leaks into a hook's own
+    // process (the bl-0e16 leak), so this positive assertion is robust in-hook.
+    let e = Env::new();
+    let bin = script(&e.at("bin"), "rec", RECORDER);
+    e.dispatcher(0)
+        .dated(1_700_000_000)
+        .run(&pref("delivery", Some(bin)), Verb::Close, Phase::Pre, &e.at("cwd"), None)
+        .unwrap();
+    let env = fs::read_to_string(e.at("cwd").join("env.txt")).unwrap();
+    assert!(env.contains("GIT_AUTHOR_DATE=@1700000000"), "author date not exported: {env}");
+    assert!(env.contains("GIT_COMMITTER_DATE=@1700000000"), "committer date not exported: {env}");
+}
+
+#[test]
 fn run_envelopes_stderr_into_the_unified_log() {
     let e = Env::new();
     let bin = script(&e.at("bin"), "rec", RECORDER);

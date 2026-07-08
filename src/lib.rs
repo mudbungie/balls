@@ -99,6 +99,7 @@ pub mod checkout;
 pub mod chore;
 pub mod chore_cli;
 pub mod civil;
+pub mod clock;
 pub mod conf;
 pub mod config;
 pub mod delivery;
