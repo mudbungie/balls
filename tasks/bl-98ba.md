@@ -4,6 +4,10 @@ created = 1783472890
 updated = 1783472990
 claimant = "Theorems"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-70f8"
+on = "close"
 +++
 bl-8b98 documented clock_provider as 'bound by bl install --bin', but that path does NOT work: (1) install requires --from or a configured upstream and aborts before binding when neither resolves; (2) bind_referenced only binds names in the [hooks] worklist and REFUSES a --bin name that is not a referenced plugin; (3) resolve_and_bind validates every bind against <bin> protocol, which a clock provider (a bare unix-seconds printer, no protocol subcommand) does not speak. Proven end-to-end: only a hand-made bin/<name> symlink binds a provider today.
 
