@@ -42,6 +42,9 @@ or you collide with another agent.
 
 - **Prime first, every session:** `bl prime --as ID`. It founds the substrate on
   first run and syncs after; nothing else readies the checkout.
+- **Upgraded and things are weird?** `bl prime` converges a version-skewed
+  checkout (retired plugin names rewritten, crash debris reported) — run it,
+  then read `bl conf` for what it found. There is no separate doctor verb.
 - **Always pass `--as ID`.** Every claim/close/prime is stamped with a worker
   identity. Do not let an LLM invent its own name — models collapse to the same
   few names and step on each other's claims. Have the harness pick one at session
