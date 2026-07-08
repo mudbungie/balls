@@ -83,8 +83,10 @@ pub fn resolve(provider: Option<&str>, registry: &Registry, balls_clock: Option<
 /// Run a provider bin: one unix-seconds `i64` line on stdout, exit 0. Anything
 /// else (non-zero exit, empty/non-integer output) is an error the caller turns
 /// into a fail-open note. `retry_busy` absorbs the ETXTBSY a freshly-written bin
-/// can throw under parallel test spawns (bl-6cd9).
-fn probe(bin: &Path) -> io::Result<i64> {
+/// can throw under parallel test spawns (bl-6cd9). `pub(crate)` so `bl install`
+/// reuses the SAME "is this a clock?" check to VALIDATE a `clock_provider` at
+/// bind (§6 [`crate::install`]) — one authority for what a provider must print.
+pub(crate) fn probe(bin: &Path) -> io::Result<i64> {
     let child = crate::plugin::retry_busy(|| {
         Command::new(bin).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
     })?;

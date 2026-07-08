@@ -5,7 +5,8 @@
 
 #![cfg(unix)]
 
-use super::tests::{edge, found, g, head, run_install};
+use super::bind::locate; // the local-binding half is a sibling module now (bl-98ba)
+use super::tests::{edge, found, g, head, op_log, run_install};
 use super::*;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -148,12 +149,6 @@ fn a_referenced_plugin_resolves_on_path_when_not_beside_bl() {
 
     let link = landing.join("config/plugins/bin/pathplug");
     assert_eq!(fs::read_link(link).unwrap(), bin);
-}
-
-/// The op-log lines this box recorded — the file half of the stderr/log path
-/// the bl-5b09 dangling report rides.
-fn op_log(e: &Edge) -> String {
-    fs::read_to_string(e.xdg.clone_dir(&e.invocation_path).op_log()).unwrap_or_default()
 }
 
 #[test]
