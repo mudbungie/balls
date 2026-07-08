@@ -94,8 +94,9 @@ pub struct Spec<'a> {
     pub worktree: &'a Path,
     pub branch: &'a str,
     pub subject: &'a str,
-    /// The close's `-m` note, when given — a FULL override of the delivery
-    /// message (bl-b9a6). `None` on every op but a close that carried `-m`.
+    /// The close's `-m` note, when given — free BODY narration under the tagged
+    /// `subject`, never a subject override (§5; bl-9961). `None` on every op but
+    /// a close that carried `-m`.
     pub override_msg: Option<&'a str>,
     pub marker: &'a str,
 }

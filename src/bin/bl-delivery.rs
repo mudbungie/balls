@@ -67,7 +67,8 @@ fn run(args: &[String]) -> io::Result<()> {
     let title = wire.current_state.as_ref().map_or("", |s| s.title.as_str());
     let subject = delivery_path::subject(title, &id);
     let marker = delivery_path::marker(&id);
-    // bl-b9a6: a close's `-m` note overrides the delivery message in full.
+    // bl-9961: a close's `-m` note is free BODY narration under the tagged
+    // subject (never a subject override, §5).
     let override_msg = wire.command.as_ref().and_then(|c| c.message.as_deref());
     let spec = Spec {
         worktree: &worktree,

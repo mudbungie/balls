@@ -453,6 +453,14 @@ bl-actor: mudbungie@gmail.com
 - Tokens are lower-kebab (`[a-z0-9-]`, git's trailer grammar). The subject is ALWAYS the ball title
   (there is no override) so `git log` readers never see balls-flavored subjects; the optional `-m`
   text is the free body (narration), and `--body` is the ball's own markdown body, NOT a commit note.
+- **This split — subject = the ball title, `-m` = a SEPARATE free body — is the rule at BOTH commit
+  points, the store seal AND the delivery squash (§11).** The store seal is the mechanism: `Message`
+  carries `subject` (the ball `title`) and `body` (`Some(-m)`) as two fields, and
+  `change::commit_message` fixes the subject from `title` — `close` captures that title before it
+  deletes the file, the file-surviving verbs (`create`/`claim`/`unclaim`/`update`) re-read it from
+  the tree. There is no `title` to pass at close: it IS the ball's title (edit a wrong one with `bl
+  update`, never a `-t`/`--title` flag). The delivery squash does the SAME — subject is the tagged
+  title, `-m` is body — so no commit balls makes ever takes a subject override (bl-9961).
 - **Namespacing:** every key is namespaced by owner. `bl-` is RESERVED to core (plugins may not
   emit `bl-*`); plugins prefix with their own name (`jira-id`, `github-url`).
 - balls always writes `bl-protocol`, `bl-op`, `bl-actor`; `bl-id` on every per-task op
@@ -1214,7 +1222,15 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   close BEFORE the seal, leaving claim and worktree up for the fix); then SQUASH `work/<id>` →
   integration as one commit
   whose subject carries the `[bl-id]` delivery tag (the plugin's analog of the §5 trailer; this tag
-  is delivery ground truth), guarded by the NO-RESURRECTION INVARIANT (bl-a04a): the squash's
+  is delivery ground truth). The delivery **MESSAGE** obeys §5's one rule verbatim (bl-9961): the
+  subject is ALWAYS the §7-wire ball title tagged `[bl-id]` — never displaced by author text — and
+  everything the author writes is BODY under it: the close's `-m` narration FIRST (when given), then
+  the author's substantive `work/<id>` commit messages (every non-merge commit since the fork,
+  oldest-first — the rich work-branch context bl-b9a6 carries onto the squash so release-plz renders
+  it into the CHANGELOG), all blank-line joined. Both go in the body TOGETHER — neither elects the
+  other out, and there is NO `-m`-overrides-the-subject fork, so §5's "no subject override" holds
+  literally everywhere a ball is committed (one code path, one rule). An empty deliverable (no `-m`,
+  never committed) is the bare tagged subject. The squash is guarded by the NO-RESURRECTION INVARIANT (bl-a04a): the squash's
   changed paths (diff vs the integration tip) must be a subset of the paths authored on `work/<id>`
   since its fork — every non-merge commit's changed paths plus each fold merge commit's resolution
   paths (its combined `--cc` diff; a fold-conflict resolution IS a work commit, so it counts). An

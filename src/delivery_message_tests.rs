@@ -1,6 +1,7 @@
-//! The delivery-message policy (bl-b9a6): [`compose`]'s precedence + tag rules
-//! as pure cases, and [`deliver_close`] / [`Repo::work_messages`] end to end on
-//! throwaway project repos (the real git read, the merge skip, the squash).
+//! The delivery-message policy (bl-b9a6; subject/body split bl-9961):
+//! [`compose`]'s always-tagged-subject / body-narration rules as pure cases,
+//! and [`deliver_close`] / [`Repo::work_messages`] end to end on throwaway
+//! project repos (the real git read, the merge skip, the squash).
 
 use super::*;
 
@@ -10,33 +11,39 @@ use crate::delivery_repo::Project;
 use std::fs;
 
 #[test]
-fn compose_falls_back_to_the_tagged_subject_with_no_override_or_work() {
-    assert_eq!(compose(None, &[], "Title [bl-x]", "[bl-x]"), "Title [bl-x]");
+fn compose_is_the_bare_tagged_subject_with_no_narration() {
+    // No `-m`, no work commits (empty deliverable) → just the tagged subject.
+    assert_eq!(compose(None, &[], "Title [bl-x]"), "Title [bl-x]");
     // Whitespace-only work entries (the NUL-split tail) are not "usable work".
     let blank = vec!["  \n ".to_string()];
-    assert_eq!(compose(None, &blank, "Title [bl-x]", "[bl-x]"), "Title [bl-x]");
+    assert_eq!(compose(None, &blank, "Title [bl-x]"), "Title [bl-x]");
 }
 
 #[test]
-fn compose_joins_multiple_work_messages_oldest_first_and_tags_the_subject() {
+fn compose_puts_work_messages_in_the_body_under_the_tagged_subject() {
     let work = vec!["first\n\nbody".to_string(), "second".to_string()];
-    // Blank-line joined; the tag lands on the first subject line, body intact.
-    assert_eq!(compose(None, &work, "Title [bl-x]", "[bl-x]"), "first [bl-x]\n\nbody\n\nsecond");
+    // The subject is ALWAYS the tagged title; work messages are the body,
+    // oldest-first, blank-line joined (never displacing the subject).
+    assert_eq!(compose(None, &work, "Title [bl-x]"), "Title [bl-x]\n\nfirst\n\nbody\n\nsecond");
 }
 
 #[test]
-fn compose_override_wins_and_an_empty_override_is_ignored() {
-    assert_eq!(compose(Some("Do it"), &["work".to_string()], "T [bl-x]", "[bl-x]"), "Do it [bl-x]");
-    // A whitespace-only `-m` is treated as absent → the work message is used.
-    assert_eq!(compose(Some("   "), &["work".to_string()], "T [bl-x]", "[bl-x]"), "work [bl-x]");
+fn compose_leads_the_body_with_the_m_narration_then_keeps_the_work_context() {
+    // Both go in the body TOGETHER — `-m` first, then work; neither elects the
+    // other out, so bl-b9a6's rich work context survives even with `-m`.
+    let work = vec!["work rationale".to_string()];
+    assert_eq!(compose(Some("Do it"), &work, "T [bl-x]"), "T [bl-x]\n\nDo it\n\nwork rationale");
+    // A whitespace-only `-m` is absent → body is the work context alone.
+    assert_eq!(compose(Some("   "), &work, "T [bl-x]"), "T [bl-x]\n\nwork rationale");
 }
 
 #[test]
-fn with_marker_is_idempotent_and_tags_a_lone_subject_line() {
-    // Already carrying the tag (anywhere) → left untouched, no `[id] [id]`.
-    assert_eq!(compose(Some("Done [bl-x] already"), &[], "T [bl-x]", "[bl-x]"), "Done [bl-x] already");
-    // A single-line message with no body gets the tag appended.
-    assert_eq!(compose(Some("Just a subject"), &[], "T [bl-x]", "[bl-x]"), "Just a subject [bl-x]");
+fn compose_never_lets_narration_displace_or_duplicate_the_subject_tag() {
+    // A body-only multi-paragraph `-m` (the papercut of bl-9961) is body, NOT
+    // the subject — the tag stays clean on the title, no `[id]` mid-sentence.
+    assert_eq!(compose(Some("A para\n\nsecond para"), &[], "T [bl-x]"), "T [bl-x]\n\nA para\n\nsecond para");
+    // Narration mentioning the tag does not double it on the subject.
+    assert_eq!(compose(Some("Done [bl-x] already"), &[], "T [bl-x]"), "T [bl-x]\n\nDone [bl-x] already");
 }
 
 #[test]
@@ -87,31 +94,34 @@ fn deliver_close_carries_the_authors_rich_work_body_to_main() {
     };
     deliver_close(&p, &spec).unwrap();
 
-    // The delivered commit is the author's body, with the tag on the subject —
-    // not the bare "ball title", and no "Merge branch 'main'" anywhere.
+    // The subject is ALWAYS the tagged ball title; the author's rich work body
+    // lands UNDER it — not as the subject — and no "Merge branch 'main'" leaks.
     let body = Project::run(&root, &["log", "-1", "--format=%B", "main"]).unwrap();
-    assert_eq!(body.trim(), "Fix the squash message [bl-x]\n\nThe delivery commit used to be only the ball\ntitle; now it carries the body.");
-    assert_eq!(tip(&root), "Fix the squash message [bl-x]");
+    assert_eq!(body.trim(), "ball title [bl-x]\n\nFix the squash message\n\nThe delivery commit used to be only the ball\ntitle; now it carries the body.");
+    assert_eq!(tip(&root), "ball title [bl-x]");
 }
 
 #[test]
-fn deliver_close_honors_an_m_override_over_the_work_body() {
+fn deliver_close_keeps_the_m_narration_and_the_work_body_under_the_tagged_subject() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("f.txt"), "x\n").unwrap();
     Project::run(&wt, &["add", "-A"]).unwrap();
-    Project::run(&wt, &["commit", "-q", "-m", "work body that loses"]).unwrap();
+    Project::run(&wt, &["commit", "-q", "-m", "work body kept"]).unwrap();
 
     let spec = Spec {
         worktree: &wt,
         branch: "work/bl-x",
         subject: "ball title [bl-x]",
-        override_msg: Some("Override wins\n\nthe full message"),
+        override_msg: Some("Close note\n\nthe full narration"),
         marker: "[bl-x]",
     };
     deliver_close(&p, &spec).unwrap();
 
+    // Subject stays the tagged title; body = the `-m` narration FIRST, then the
+    // work context (both survive — bl-9961). tip (the subject) is never the -m.
     let body = Project::run(&root, &["log", "-1", "--format=%B", "main"]).unwrap();
-    assert_eq!(body.trim(), "Override wins [bl-x]\n\nthe full message");
+    assert_eq!(body.trim(), "ball title [bl-x]\n\nClose note\n\nthe full narration\n\nwork body kept");
+    assert_eq!(tip(&root), "ball title [bl-x]");
 }
