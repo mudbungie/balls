@@ -10,6 +10,10 @@ tags = ["bl-workhours"]
 [[blockers]]
 id = "bl-8b98"
 on = "claim"
+
+[[blockers]]
+id = "bl-70a8"
+on = "close"
 +++
 Build the clock-provider in ~/dev/bl-workhours (separate repo; git-initialized, design committed 7814ecd). CROSS-REPO: ball tracked in the balls center store, code lives in ~/dev/bl-workhours.
 
