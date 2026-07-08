@@ -1,7 +1,8 @@
 +++
 title = "Build the bl-workhours clock-provider binary (retire the shim)"
 created = 1783450180
-updated = 1783464970
+updated = 1783469454
+claimant = "Theorems"
 parent = "bl-c103"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-workhours"]
