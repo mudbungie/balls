@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8](https://github.com/mudbungie/balls/compare/v0.5.7...v0.5.8) - 2026-07-08
+
+### Changes
+
+- SKILL.md upgrade-front-door line + architecture §12/§15 amendments for prime convergence [bl-4ab1]
+- Core debris report: prime names orphan changes/ worktrees and the retired stealth.lock hazard [bl-3e5e]
+- clock_provider becomes a directly-set LOCAL value (absolute path or PATH-resolved name) in the non-traveling per-clone binding.toml / XDG layer, set by bl conf; it never travels on install and needs no bin/<name> symlink. Reverts bl-98ba (install --bin clock binding was the wrong layer) while KEEPING bl-8b98's op-instant SSOT + fail-open resolution ladder — only the provider read-site moved (config::clock_provider over binding+xdg; clock::locate resolves an absolute path or a PATH/beside-bl name). Separately narrows the plugin footgun: bl install --bin with neither an explicit path nor --from is now BIND-ONLY, so rebinding a plugin binary never silently mirrors the stale upstream config; adoption stays opt-in via a named path or --from. Docs: architecture §4/§6/§8/§15 + id-generation cross-ref; skill/conf.md. [bl-cfe3]
+- prime converges a version-skewed landing's retired plugin names [bl-2253]
+- Delivery-side debris report: unsettled work/<id> with an absent worktree (bl-18bf piece 3) [bl-c117]
+- Delivery squash: subject is always the tagged ball title, -m and work-branch context both go in the body [bl-9961]
+- Design record: prime as the upgrade converger [bl-18bf]
+- bl install --bin binds the clock_provider (bl-8b98 follow-up) [bl-98ba]
+- op-instant SSOT + clock_provider resolution ladder [bl-8b98]
+- Dissolve the two bl-bfcc display asymmetries (follow-up to converged bl-5b09). (1) The seed prune note was the ONE hint surface bypassing the ordinary stderr/log path — a bare eprintln inside seed_landing that never landed in the per-clone op log and ignored log-level. Now seed_landing RETURNS its rendered notes (the seed stays log-free like the rest of the git-free layer), found_landing propagates them, and prime emits each through the op Log at info once it exists — same rendered line, same stderr echo, now persisted and threshold-gated exactly like install's dangling report. The rebind path prunes nothing and carries none. (2) A renamed first-party name that is unbound was skipped with a rename notice carrying no acquisition pointer even when [source] was authored. Now the name→hint stitch (Hooks::refs) falls back to the renamed-to name's hint — the coherent one: the notice's remedy is a conf edit to the NEW name, and the new name's hint says where that binary comes from — and the notice appends '— source: <hint>' when present; a hint authored for the old name itself still wins. Same refusals, same formats, hintless behavior byte-identical. Docs: §12 seed-note sentence (op-log path, not bare stderr), §6 hint paragraph (rename-notice decoration). Tests: seed notes asserted by value, prime op-log persistence, stitch fallback + precedence, decorated notice. clippy clean, 100% coverage (3717/3717). [bl-b1be]
+- Tighten usage-error footer to the usage block + a --skill pointer (was the full doc); README command table + blurb updated for the two-tier --skill model [bl-aed7]
+- Realign [source] doc examples to the real first consumers (adversary + github-issues): the bl-5b09 design record, architecture §6/§15, README, skill/install.md, and the hooks.rs module doc all illustrated with bl-adversary = 'cargo install balls-adversary' — a plugin name and acquisition command that never existed. Real entries as authored on the center landing 2026-07-07: adversary = 'git clone https://github.com/mudbungie/balls-adversary && make install'; github-issues = 'git clone https://github.com/mudbungie/balls-github-plugin && make install' (one command since bl-6ebc installs the issues binary under its schedule name). Generic possibilities stay generic (cargo install <name>, the --version pin example); every message FORMAT string is byte-identical — only interpolated names changed, so tests/source_hints.rs and the shipped behavior are untouched. Amendment note recorded in the design doc's Touches. Docs + one src comment. [bl-6a5f]
+
 ## [0.5.7](https://github.com/mudbungie/balls/compare/v0.5.6...v0.5.7) - 2026-07-07
 
 ### Changes
