@@ -99,6 +99,31 @@ fn update_is_refused_while_an_on_update_blocker_is_open() {
 }
 
 #[test]
+fn update_refuses_a_needs_edge_that_closes_a_deadlock() {
+    // bl-54fe defect 2: the parent already close-gates on the gate; adding the
+    // "obvious fix" (gate --needs parent) post-hoc is refused at stage, naming
+    // the loop — instead of springing at `bl close` with the work already done.
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(
+        dir,
+        "bl-work",
+        "+++\ntitle = \"work\"\ncreated = 0\nupdated = 0\n\n[[blockers]]\nid = \"bl-gate\"\non = \"close\"\n+++\n",
+    );
+    write(dir, "bl-gate", TASK);
+    let u = Update {
+        id: "bl-gate".into(),
+        actor: "me".into(),
+        now: 9,
+        message: None,
+        edits: vec![FieldEdit::AddBlocker(Blocker { id: "bl-work".into(), on: On::Claim })],
+    };
+    let err = u.stage(dir).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    assert!(err.to_string().contains("bl-gate -claim-> bl-work -close-> bl-gate"), "{err}");
+}
+
+#[test]
 fn update_clears_optional_fields_with_none() {
     let d = tempdir().unwrap();
     let dir = d.path();

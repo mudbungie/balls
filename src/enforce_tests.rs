@@ -133,3 +133,86 @@ fn gate_allows_once_the_blocker_resolves() {
     let d = tempdir().unwrap(); // bl-x absent ⇒ resolved
     gate(&task(vec![op_blocker("bl-x", Verb::Unclaim)]), Verb::Unclaim, "bl-1", d.path()).unwrap();
 }
+
+/// Write a REAL parseable ball carrying `blockers` — the acyclicity walk reads
+/// files, unlike the in-hand guards above (an empty [`touch`] file fails parse
+/// and reads as resolved).
+fn ball(dir: &Path, id: &str, blockers: Vec<Blocker>) {
+    crate::taskfile::write_task(dir, id, &task(blockers)).unwrap();
+}
+
+#[test]
+fn acyclic_allows_the_one_edge_gate() {
+    // The standard §10 topology: a gate close-blocks its parent, nothing waits
+    // back — no loop, no refusal.
+    let d = tempdir().unwrap();
+    ball(d.path(), "bl-gate", vec![]);
+    acyclic(d.path(), Verb::Create, "bl-work", &close_blocker("bl-gate")).unwrap();
+}
+
+#[test]
+fn acyclic_refuses_the_lernie_two_edge_deadlock() {
+    // bl-54fe's shape: the parent is already close-gated on the gate; adding
+    // the gate's claim-blocker back on the parent closes the loop.
+    let d = tempdir().unwrap();
+    ball(d.path(), "bl-work", vec![close_blocker("bl-gate")]);
+    let err = acyclic(d.path(), Verb::Update, "bl-gate", &claim_blocker("bl-work")).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    let msg = err.to_string();
+    assert!(msg.contains("bl-gate -claim-> bl-work -close-> bl-gate"), "{msg}");
+    assert!(msg.contains("bl-54fe"), "{msg}");
+}
+
+#[test]
+fn acyclic_refuses_a_self_edge() {
+    let d = tempdir().unwrap();
+    ball(d.path(), "bl-a", vec![close_blocker("bl-a")]);
+    let err = acyclic(d.path(), Verb::Update, "bl-a", &close_blocker("bl-a")).unwrap_err();
+    assert!(err.to_string().contains("bl-a -close-> bl-a —"), "{err}");
+}
+
+#[test]
+fn acyclic_names_every_hop_of_a_longer_loop() {
+    // A -close-> B -claim-> C -close-> A: the refusal renders the whole walk.
+    let d = tempdir().unwrap();
+    ball(d.path(), "bl-b", vec![claim_blocker("bl-c")]);
+    ball(d.path(), "bl-c", vec![close_blocker("bl-a")]);
+    let err = acyclic(d.path(), Verb::Create, "bl-a", &close_blocker("bl-b")).unwrap_err();
+    assert!(
+        err.to_string().contains("bl-a -close-> bl-b -claim-> bl-c -close-> bl-a"),
+        "{err}"
+    );
+}
+
+#[test]
+fn acyclic_ignores_edges_off_the_lifecycle() {
+    let d = tempdir().unwrap();
+    // The new edge itself gates a non-lifecycle op: never a resolution loop,
+    // even though the reverse edge exists.
+    ball(d.path(), "bl-b", vec![claim_blocker("bl-a")]);
+    acyclic(d.path(), Verb::Update, "bl-a", &op_blocker("bl-b", Verb::Update)).unwrap();
+    // A would-be loop routed through a non-lifecycle hop: B waits on C only
+    // for update, so B still claims and closes — the chain is broken.
+    ball(d.path(), "bl-b", vec![op_blocker("bl-c", Verb::Update)]);
+    ball(d.path(), "bl-c", vec![close_blocker("bl-a")]);
+    acyclic(d.path(), Verb::Update, "bl-a", &close_blocker("bl-b")).unwrap();
+}
+
+#[test]
+fn acyclic_treats_an_absent_ball_as_resolved() {
+    // The blocker names a ball with no file (already closed): resolved on
+    // arrival, no live edges out — the walk stops there.
+    let d = tempdir().unwrap();
+    acyclic(d.path(), Verb::Update, "bl-a", &claim_blocker("bl-gone")).unwrap();
+}
+
+#[test]
+fn a_preexisting_side_loop_never_refuses_an_unrelated_edge() {
+    // B and C already deadlock each other (legacy wiring); A's new edge onto B
+    // is not ON that loop, so it passes — and the seen-set keeps the walk from
+    // circling B→C→B forever.
+    let d = tempdir().unwrap();
+    ball(d.path(), "bl-b", vec![claim_blocker("bl-c")]);
+    ball(d.path(), "bl-c", vec![claim_blocker("bl-b")]);
+    acyclic(d.path(), Verb::Update, "bl-a", &claim_blocker("bl-b")).unwrap();
+}

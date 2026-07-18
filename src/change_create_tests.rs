@@ -55,6 +55,24 @@ fn create_stages_a_new_ball_from_injected_id_clock_and_fields() {
 }
 
 #[test]
+fn create_refuses_a_needs_edge_that_loops_through_its_own_reciprocal() {
+    // `--subtask-of X --needs X` in one create: the reciprocal claim-gate lands
+    // on X and the needs edge points straight back — a two-edge deadlock,
+    // refused at stage so the whole create aborts and nothing mints (bl-54fe).
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1000", TASK);
+    let c = Create {
+        blockers: vec![Blocker { id: "bl-1000".into(), on: On::Claim }],
+        blocks: vec![("bl-1000".into(), On::Claim)],
+        ..create("bl-aaaa", vec![])
+    };
+    let err = c.stage(dir).unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    assert!(err.to_string().contains("bl-aaaa -claim-> bl-1000 -claim-> bl-aaaa"), "{err}");
+}
+
+#[test]
 fn create_writes_the_ball_body_from_the_body_flag() {
     // `--body` sets the ball's markdown body at create (no longer just a commit
     // note); an absent `--body` leaves it empty.

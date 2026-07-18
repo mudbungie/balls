@@ -18,7 +18,10 @@ reciprocal `--blocks` (an edge on ANOTHER task; that stays create-only).
 - `-p N` / `--no-priority` — set or clear priority.
 - `-t TAG` / `--no-tag TAG` — add or drop a tag.
 - `--needs ID[:OP]` / `--no-needs ID` — add or unlink one of THIS task's own
-  blockers (the in-band fix for a mis-wired or cyclic blocker).
+  blockers (the in-band fix for a mis-wired blocker). An add that would close a
+  claim/close cycle — e.g. `--needs X` on a task that already close-gates X —
+  is refused, naming the loop (bl-54fe); the unlink always passes. See "No
+  cycles through claim/close" in `bl create --skill`.
 - `key=value` — set a preserved extra field (a bare `key=` removes it).
 - `-m MSG` — commit note. A zero-edit update appends a progress note.
 - `--as ID` — worker identity.
