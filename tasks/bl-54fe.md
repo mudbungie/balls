@@ -1,7 +1,7 @@
 +++
 title = "Gate wiring is a footgun: --blocks close yields vacuous gates, and the obvious fix silently deadlocks"
 created = 1783830492
-updated = 1784337486
+updated = 1784337687
 claimant = "Dickers"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
@@ -80,3 +80,11 @@ Agents therefore approximate, and both approximations are wrong: `--blocks close
 ## Fix applied downstream
 
 lernie’s 15 gates were rewired to option 4 (gate `--needs parent`, close-blockers removed). Filed here because the next agent to follow the documented spelling will make the identical mistake.
+
+## Resolution (2026-07-17)
+
+Shipped candidate fixes **1 + 4**; 2 dissolves into 1 (a cycle that can never be written never needs rendering), 3/5 are bl-7b71's territory.
+
+- **Write-time cycle refusal** (`enforce::acyclic`): the front-door edge flags (`--needs`/`--blocks`/`--subtask-of`, create and update) refuse a new edge closing a loop over the lifecycle ops (claim/close), naming the full loop and the one-edge topology in the message. Only those two ops count — a ball resolves by closing, so an edge on any other op can never strand a loop. Write-side only, per the §10 live-target precedent: pre-existing cycles never refuse unrelated edits, `--no-needs` always passes, `--edit`/`import` stay verbatim escape hatches.
+- **Docs name the correct topology**: skill/create.md "No cycles through claim/close" (gate is ONE edge — `--needs parent` for post-delivery verification, or `--blocks close` alone knowing it verifies only what already landed; pre-merge enforcement is the repo pre-commit hook close already runs); architecture §10 deadlock paragraph rewritten — the old "links are mutable, unlink to fix" stance mis-predicted where the trap springs (claim never refuses; the refusal lands at close, after the work).
+- **Why not more**: the unexpressible state ("claimable once the parent's work exists, before it delivers") stays unexpressible here — that is bl-7b71's nested-delivery design (target ref = parent's work branch), under which `--parent X --blocks close` becomes correct as written. Cross-referenced, not gated.
