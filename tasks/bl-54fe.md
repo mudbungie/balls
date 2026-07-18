@@ -6,6 +6,10 @@ claimant = "Dickers"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug", "ergonomics"]
+
+[[blockers]]
+id = "bl-c8f8"
+on = "close"
 +++
 Agents wire parent/gate task sets **wrong by default**, and bl neither prevents it nor shows it. Observed live in `/home/mark/dev/lernie` on 2026-07-11 (5 parent tasks x 3 gate subtasks = 15 tasks, all mis-wired). Reported as a recurring failure, not a one-off.
 
