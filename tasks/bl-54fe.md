@@ -1,7 +1,8 @@
 +++
 title = "Gate wiring is a footgun: --blocks close yields vacuous gates, and the obvious fix silently deadlocks"
 created = 1783830492
-updated = 1783830492
+updated = 1784337486
+claimant = "Dickers"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug", "ergonomics"]
