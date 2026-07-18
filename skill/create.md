@@ -53,6 +53,26 @@ target id that is unknown or already closed, naming which — a never-minted id 
 a typo or hallucination (it would leave the task silently ungated), and a dead
 blocker can never block. The remedy is dropping the flag.
 
+**No cycles through claim/close.** The same flags refuse an edge that would
+close a loop over the lifecycle ops, naming it (`bl-a -claim-> bl-b -close->
+bl-a`): a ball resolves by closing, so no claim→close order can resolve every
+ball on such a loop — and `bl list` would render the pair as a healthy
+ready/blocked right up until `bl close` refuses with the work already done
+(bl-54fe). The classic mis-wiring is a verification gate spelled BOTH ways —
+`--parent X --blocks close` *plus* `--needs X`. A gate is ONE edge; pick the
+direction:
+
+- `--needs X` alone — the gate becomes claimable once X delivers
+  (post-delivery verification).
+- `--parent X --blocks close` alone — X can't close until the gate does; but
+  the gate is claimable immediately, against a `main` that does not yet carry
+  X's work, so it can only verify what already landed. True pre-merge
+  enforcement is the repo's own `pre-commit` hook, which `bl close` already
+  runs.
+
+Unlink a mis-wired edge with `bl update <id> --no-needs <id>` — the unlink is
+never refused.
+
 `--parent` is **containment only** — it builds the display tree and gates
 nothing. An "epic" is just a task with children; to make a parent wait on its
 children, add explicit edges (`--subtask-of` at create is the usual way).

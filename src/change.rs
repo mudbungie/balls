@@ -156,7 +156,16 @@ impl BaseChange for Update {
             edit.apply(&mut task);
         }
         task.updated = self.now;
-        write_task(dir, &self.id, &task)
+        write_task(dir, &self.id, &task)?;
+        // §10 acyclicity (bl-54fe): only the front-door adds (`--needs`) are
+        // checked, after the write so the walk sees this op's edges; a
+        // `--edit` Replace stays the verbatim hand-stitch escape hatch.
+        for edit in &self.edits {
+            if let FieldEdit::AddBlocker(b) = edit {
+                enforce::acyclic(dir, Verb::Update, &self.id, b)?;
+            }
+        }
+        Ok(())
     }
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {

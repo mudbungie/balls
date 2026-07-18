@@ -1026,17 +1026,29 @@ higher; absent last), then `created` ascending; ordering is display-only, never 
 the parent stays ready/claimed; the gate child ITSELF, having no blocker on itself, is an ordinary
 ready task and DOES show in `bl list` until closed.) **closeable(A)** = every CLOSE-blocker resolved; checked by core at close. "Resolved" = the blocker's file is gone.
 
-**Deadlock avoidance is now structural-by-default.** Because no edge is ever auto-minted (containment
-implies none), the reciprocal edge that would deadlock is simply never created unless you spell out
-both halves yourself. The standard gate is ONE edge — a gate child close-blocks its parent; the parent
-does NOT block the gate child, so the gate is freely claimable. The gate-check runs against the
-parent's pre-delivery WORK BRANCH (which exists once the parent is claimed), so nothing needs the
-parent formally "done" — no `review` window is resurrected. "Do the gate after the parent's work" is a
-skill habit, deliberately UNENFORCED. A cycle is now only reachable by explicitly authoring both
-edges; it is still not gated by code (links are mutable — unlink to fix). Readiness is immediate-only
-(a blocker resolves when its file is gone, not transitively), so a cycle never drives a recursive
-walk: it simply manifests as mutual permanent-block, and `claim` refuses naming the unresolved
-blocker, which `bl update` then unlinks.
+**Deadlock avoidance is structural-by-default, and the residue is refused at write (bl-54fe).**
+Because no edge is ever auto-minted (containment implies none), the cycle that would deadlock is only
+reachable by explicitly authoring both halves yourself. The standard gate is ONE edge — a gate child
+close-blocks its parent; the parent does NOT block the gate child, so the gate is freely claimable.
+"Do the gate after the parent's work" is a skill habit, deliberately UNENFORCED. But agents author
+both halves anyway, recurringly (observed at scale: 15/15 gates mis-wired in one repo): the lone
+close-gate reads as vacuous — the gate is claimable against a clean `main` the moment it is filed,
+before the work it purports to verify exists — so the "obvious fix" adds `--needs parent` back, and
+that pair is a deadlock `bl list` renders as a healthy ready/blocked pair. The original stance here
+("links are mutable — unlink to fix") mis-predicted where the trap springs: a close-blocker never
+shows in status and claim never refuses (the parent stays ready), so nothing prompts the unlink until
+`bl close` refuses — after the work is done. So the front-door edge flags
+(`--needs`/`--blocks`/`--subtask-of`, create and update alike) now REFUSE a new edge that closes a
+cycle over the lifecycle ops (`claim`/`close`), naming the full loop: a ball resolves by closing
+(usually via claim), so a loop over those two ops means no claim→close order resolves every ball on
+it, while an edge on any other op leaves close reachable and passes freely. Detection is write-side
+ONLY — the same validate-the-write-never-audit-the-store line as the live-target rule below: a
+pre-existing cycle never refuses an unrelated edit, `--no-needs` (the in-band unlink) always passes,
+and `update --edit`/`bl import` stay the verbatim hand-stitch escape hatches. Readiness stays
+immediate-only; the acyclicity walk runs only when an edge is written. (The intent behind the
+mis-wiring — a gate claimable once its parent's WORK exists, before the parent delivers — is
+unexpressible while close IS delivery-to-main; making the close-gate spelling carry that meaning via
+nested delivery is bl-7b71's design topic, not this rule.)
 
 **Enforcement is CORE.** Core stores the schema (`parent`, `blockers`, `tags`) AND enforces every
 blocker (the `.pre` of the named `on` op rejects while unresolved), joining the one occupancy guard

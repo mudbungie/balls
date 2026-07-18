@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use std::io;
 use std::path::Path;
 
+use crate::enforce;
 use crate::id;
 use crate::lifecycle::BaseChange;
 use crate::task::{Blocker, On, Task};
@@ -66,6 +67,15 @@ impl BaseChange for Create {
         write_task(dir, &self.id, &task)?;
         for (target, on) in &self.blocks {
             add_blocker(dir, target, Blocker { id: self.id.clone(), on: *on }, self.now)?;
+        }
+        // §10 acyclicity (bl-54fe), after the writes so the staged tree holds
+        // the union the walk reads. Only the `--needs` edges need checking: a
+        // reciprocal `--blocks`/`--subtask-of` edge always points AT this fresh
+        // ball, whose only outgoing edges are its own `--needs` — so any cycle
+        // a reciprocal closes is found from the needs side (`--subtask-of X
+        // --needs X` is the two-edge case).
+        for b in &self.blockers {
+            enforce::acyclic(dir, Verb::Create, &self.id, b)?;
         }
         Ok(())
     }
