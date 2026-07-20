@@ -26,6 +26,11 @@ stays claimed and the worktree stays up for the fix. A repo with no executable
 `main` also aborts the close cleanly (no half-merge is left behind); merge
 `main` into the worktree by hand, resolve, and close again.
 
+Concurrent closes in one checkout are safe: the delivery ref move is a
+compare-and-swap, so if a sibling close lands on `main` mid-delivery the loser
+aborts loudly (nothing overwritten) — just re-run `bl close` to deliver onto the
+new tip.
+
 The delivery commit lands on `main` tagged `[bl-xxxx]` — that tag is how a merge
 is recognized as the task's delivery.
 

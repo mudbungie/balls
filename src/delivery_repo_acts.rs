@@ -126,12 +126,39 @@ impl Repo for Project {
         let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &parent, "-m", subject])?
             .trim()
             .to_string();
-        // `-m subject`: a plumbing `update-ref` writes a BLANK reflog message;
-        // pass the delivery subject so `git reflog {integration}` is auditable
-        // (carries the `[bl-id]` tag). The ref move is the BINDING commit point
-        // (§14); the checkout sync that follows is its idempotent reconcile.
-        Self::run(&self.root, &["update-ref", "-m", subject, &format!("refs/heads/{integration}"), &commit])?;
+        commit_swap(&self.root, integration, subject, &commit, &parent)?;
         self.reconcile(integration)?;
         Ok(())
     }
+}
+
+/// COMPARE-AND-SWAP the integration ref onto the fresh squash (bl-a3bb).
+///
+/// `parent` is the tip read just before `commit` was minted onto it; passing it
+/// as `update-ref`'s optional old-value makes the ref move CONDITIONAL — git
+/// writes only while `integration` still points there. Two closes sharing one
+/// project checkout race the window between that read and this move: without the
+/// old-value `update-ref` writes UNCONDITIONALLY, so the loser overwrites the
+/// winner's already-landed squash off `integration` (reflog-only recovery,
+/// unreported). A rejected CAS is a LOUD pre-seal abort — nothing overwritten,
+/// the task stays claimed and the worktree stays up; the retried close re-folds
+/// the moved integration and re-squashes onto its new tip (§14 converge-on-retry),
+/// exactly as a gate failure or a merge conflict aborts. `parent` is always a
+/// real commit here (the `rev-parse integration` above errored otherwise), so the
+/// empty old-value / first-commit form never arises.
+///
+/// `-m subject`: a plumbing `update-ref` writes a BLANK reflog message; pass the
+/// delivery subject so `git reflog {integration}` is auditable (carries the
+/// `[bl-id]` tag). The ref move is the delivery's BINDING commit point (§14); the
+/// checkout sync that follows it is the idempotent reconcile.
+pub(crate) fn commit_swap(root: &Path, integration: &str, subject: &str, commit: &str, parent: &str) -> io::Result<()> {
+    let refname = format!("refs/heads/{integration}");
+    if Project::ok(root, &["update-ref", "-m", subject, &refname, commit, parent])? {
+        return Ok(());
+    }
+    Err(io::Error::other(format!(
+        "{integration} moved under the delivery — a concurrent close landed between the squash \
+         and the ref move; nothing was overwritten. Re-run `bl close` to re-fold {integration} \
+         and deliver onto the new tip"
+    )))
 }
