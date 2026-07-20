@@ -1,7 +1,8 @@
 +++
 title = "Exercise install's copy semantics, directions, and bind-only mode"
 created = 1784524140
-updated = 1784524140
+updated = 1784524224
+claimant = "Robber"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
