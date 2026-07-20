@@ -1,7 +1,8 @@
 +++
 title = "Run the lifecycle against a bare project repo, stale-worktree recovery, and a real clock provider"
 created = 1784524138
-updated = 1784524138
+updated = 1784524220
+claimant = "Robber"
 priority = 3
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
