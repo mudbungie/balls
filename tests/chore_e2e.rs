@@ -118,6 +118,84 @@ fn setup(chores_toml: &str) -> (TempDir, Env) {
 
 const TWO: &str = "[[chore]]\ntitle = \"Run the test suite\"\n[[chore]]\ntitle = \"Review the docs\"\n";
 
+/// The delivery worktree checked out on `work/<id>` — located by asking the
+/// project repo, so we never re-derive the §11 path arithmetic (or its temp-dir
+/// canonicalization) here.
+fn worktree_of(e: &Env, id: &str) -> PathBuf {
+    let out = Sys::new("git").arg("-C").arg(&e.repo).args(["worktree", "list", "--porcelain"]).output().unwrap();
+    let text = String::from_utf8(out.stdout).unwrap();
+    let want = format!("branch refs/heads/work/{id}");
+    let mut cur = None;
+    for line in text.lines() {
+        if let Some(p) = line.strip_prefix("worktree ") {
+            cur = Some(PathBuf::from(p));
+        } else if line == want {
+            return cur.expect("a `worktree` line precedes its `branch` line");
+        }
+    }
+    panic!("no delivery worktree on work/{id}");
+}
+
+/// The `main` tip subject in the project repo — the delivered squash's identity.
+fn main_subject(e: &Env) -> String {
+    let out = Sys::new("git").arg("-C").arg(&e.repo).args(["log", "-1", "--format=%s", "main"]).output().unwrap();
+    String::from_utf8(out.stdout).unwrap().trim().to_string()
+}
+
+/// Ids present in `bl list` (live: ready + claimed) — a closed task is absent.
+fn live_ids(e: &Env) -> Vec<String> {
+    list(e, &[]).iter().map(|v| v["id"].as_str().unwrap().to_string()).collect()
+}
+
+#[test]
+fn closing_the_chores_unblocks_a_parent_close_that_still_delivers() {
+    // The whole journey: claim mints the gate, the parent's real work waits in
+    // its worktree, the chores close as empty no-ops (the documented
+    // docs-unaffected gesture — an unclaimed close of an empty deliverable), and
+    // THEN the once-refused parent close succeeds and its code lands on main.
+    let (_tmp, e) = setup(TWO);
+    let x = bl_ok(&e, &["create", "real work", "--as", "e2e"]);
+    bl_ok(&e, &["claim", &x, "--as", "e2e"]);
+
+    // The parent's real code: a committed change in its own work/<id> worktree.
+    let wt = worktree_of(&e, &x);
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+    git(&wt, &["add", "-A"]);
+    git(&wt, &["commit", "-qm", "land the feature"]);
+
+    // The gate stands: while the chores are open the parent close is refused.
+    let refused = bl(&e, &["close", &x, "--as", "e2e"]);
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("blocked by"));
+
+    // Close each chore as an empty-deliverable no-op — an UNCLAIMED close (the
+    // chore is a ready leaf; no worktree, no diff, nothing to deliver).
+    let chores = chores_of(&e, &x);
+    assert_eq!(chores.len(), 2);
+    for c in &chores {
+        bl_ok(&e, &["close", c["id"].as_str().unwrap(), "--as", "e2e"]);
+    }
+
+    // The gate resolved: every chore has left the live list (archived, not a
+    // stored edge that lingers) — so the blocker tasks are gone.
+    let live = live_ids(&e);
+    for c in &chores {
+        assert!(!live.contains(&c["id"].as_str().unwrap().to_string()), "chore still live");
+    }
+
+    // The once-refused parent close now SUCCEEDS, and its real code lands as the
+    // `[id]` squash on main (an empty parent would no-op — this one delivers).
+    bl_ok(&e, &["close", &x, "--as", "e2e"]);
+    assert_eq!(main_subject(&e), format!("real work [{x}]"));
+    assert!(
+        Sys::new("git").arg("-C").arg(&e.repo).args(["cat-file", "-e", "main:feature.txt"]).status().unwrap().success(),
+        "the parent's committed change did not land on main",
+    );
+
+    // The parent archived too — it is no longer a live task.
+    assert!(!live_ids(&e).contains(&x), "closed parent still live");
+}
+
 #[test]
 fn claim_mints_a_tagged_close_gate_child_per_chore() {
     let (_tmp, e) = setup(TWO);
