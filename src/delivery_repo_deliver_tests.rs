@@ -128,6 +128,25 @@ fn deliver_skips_a_branch_already_fully_merged_into_integration() {
 }
 
 #[test]
+fn commit_swap_aborts_when_integration_moved_under_the_delivery() {
+    // The bl-a3bb race arm: a sibling close lands on `main` in the window
+    // between the parent read and the ref move, so the pre-read parent is now
+    // stale. The CAS must refuse the write (loud abort) rather than clobber it.
+    let (_tmp, root, _p) = project();
+    let stale = Project::run(&root, &["rev-parse", "main"]).unwrap().trim().to_string(); // the seed
+    fs::write(root.join("other.txt"), "x\n").unwrap();
+    Project::run(&root, &["add", "-A"]).unwrap();
+    Project::run(&root, &["commit", "-qm", "concurrent"]).unwrap(); // main moved past `stale`
+    let tip_sha = Project::run(&root, &["rev-parse", "main"]).unwrap().trim().to_string();
+
+    // A CAS carrying the STALE parent is rejected — git keeps main where the
+    // concurrent close left it and nothing is overwritten.
+    let err = super::acts::commit_swap(&root, "main", "late [bl-x]", &tip_sha, &stale).unwrap_err();
+    assert!(err.to_string().contains("moved under the delivery"));
+    assert_eq!(tip(&root), "concurrent");
+}
+
+#[test]
 fn marked_returns_the_marked_commits_newest_first() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");

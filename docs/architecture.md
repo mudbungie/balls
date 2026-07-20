@@ -958,7 +958,9 @@ self-merge default DELIVER and RETIRE are one act:
 - `close.pre`: the delivery plugin DELIVERS — folds integration into `work/<id>`, runs the
   project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
   close here, pre-seal), then squashes `work/<id>` → integration (conflicts
-  surface HERE). The squash is the delivery's BINDING commit point (§14): it stands through any
+  surface HERE). The ref move is a COMPARE-AND-SWAP on the pre-read tip (bl-a3bb), so two closes
+  sharing one checkout never clobber each other — a lost race aborts loudly pre-seal and the retry
+  re-folds. The squash is the delivery's BINDING commit point (§14): it stands through any
   later abort, and the retried close converges onto it. One path, no forge variant: a
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
   already-delivered check (§11) — delivery converges on retry whoever performed the merge.

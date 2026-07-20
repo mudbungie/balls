@@ -1,35 +1,24 @@
-//! PROBE (bl-860c): two concurrent closes in ONE shared project checkout must
-//! both land on `main`. `bl close` never pushes the code remote, so a documented
-//! bot pool sharing a single checkout coordinates only through claim occupancy —
-//! nothing warns that closing two DIFFERENT tasks at the same instant is unsafe.
+//! bl-a3bb: two concurrent closes in ONE shared project checkout must both land
+//! on `main`. `bl close` never pushes the code remote, so a documented bot pool
+//! sharing a single checkout coordinates only through claim occupancy — the
+//! delivery squash's ref move is what must be race-safe on its own.
 //!
-//! FINDING — CONFIRMED, ARCHITECTURAL LOST-DELIVERY RACE.
-//! `delivery_repo_acts.rs::deliver` is a non-atomic check-then-act on `main`:
-//!   line 125  parent = rev-parse(integration)      // read main
-//!   line 126  commit = commit-tree(tree, -p parent) // squash onto that parent
-//!   line 133  update-ref refs/heads/<integration> commit   // NO old-value arg
-//! `git update-ref <ref> <new>` (without the optional `<oldvalue>` compare-and-swap
-//! third argument) writes UNCONDITIONALLY. If actor A reads parent=main0, then
-//! actor B fully delivers (main0 -> B), then A's update-ref fires, A overwrites
-//! main with a commit whose parent is main0 — B's squash is silently dropped off
-//! main's history (recoverable only via reflog, and nothing reports it).
+//! `delivery_repo_acts.rs::deliver` reads the integration tip, squashes onto it,
+//! then moves the ref — a check-then-act window. The fix passes the pre-read tip
+//! as `update-ref`'s COMPARE-AND-SWAP old-value (`commit_swap`), so the write
+//! lands only while `integration` still points there; if a sibling close moved it
+//! in between, git rejects the write (exit != 0) and delivery aborts LOUDLY
+//! pre-seal — nothing overwritten, the task stays claimed, the retried close
+//! re-folds the moved tip and re-squashes onto it (§14 converge-on-retry).
 //!
 //! This test makes the interleave DETERMINISTIC, not timing-based: a `git` shim on
-//! PATH blocks actor A precisely at its delivery `update-ref refs/heads/main`
-//! (the write in line 133), AFTER A has already computed its parent (line 125) and
-//! its squash (line 126). While A is frozen there, actor B closes to completion
-//! and lands on main; then A is released and its stale-parent update-ref overwrites
-//! B. The assertions PIN the drop.
-//!
-//! THE FIX SHAPE (not applied here — this probe pins reality for the maintainer):
-//! pass the pre-read parent as `update-ref`'s old-value: `update-ref -m <subj>
-//! refs/heads/<int> <new> <parent>`. git then rejects the write when main moved
-//! under the delivery (exit != 0), turning the silent drop into a loud abort the
-//! close can retry (re-fold + re-squash on the new tip), exactly as the store
-//! push already does (`half_close.rs`). NOTE the suspected-race brief proposed
-//! blocking at the pre-commit gate; that CANNOT reproduce it — the gate runs at
-//! line 119, BEFORE the parent read, so a gate-blocked actor re-reads main after
-//! the other lands and both survive. The window is strictly 125->133.
+//! PATH freezes actor A precisely at its delivery `update-ref refs/heads/main`,
+//! AFTER A has computed its stale parent and its squash. While A is frozen, actor
+//! B closes to completion and lands on main. Releasing A now runs its CAS with the
+//! stale old-value — git REJECTS it, A's close exits non-zero and stays claimed,
+//! and B's squash is untouched. A retried close of A (no shim) then re-folds B's
+//! tip and delivers onto it, so BOTH squashes end as ancestors of final main —
+//! nothing dropped.
 
 #![cfg(unix)]
 
@@ -103,9 +92,10 @@ fn pre(inv: &str, title: &str) -> String {
 /// Install a `git` shim in its own dir and return that dir. The shim passes every
 /// call through to `$REAL_GIT` EXCEPT a delivery `update-ref refs/heads/main` made
 /// with `$BLOCK_DIR` set: it touches `$BLOCK_DIR/reached` and spins until
-/// `$BLOCK_DIR/release` appears, THEN runs the real write — freezing that one
-/// actor at line 133 with its stale parent already committed. Written once at
-/// setup (well before any spawn), sidestepping the write-then-exec ETXTBSY class.
+/// `$BLOCK_DIR/release` appears, THEN runs the real CAS write — freezing that one
+/// actor at its ref move with its stale parent already committed, so on release
+/// the compare-and-swap rejects. Written once at setup (well before any spawn),
+/// sidestepping the write-then-exec ETXTBSY class.
 fn install_git_shim(tmp: &Path, real_git: &str) -> PathBuf {
     let dir = tmp.join("shim");
     fs::create_dir(&dir).unwrap();
@@ -191,7 +181,7 @@ fn close_now(change: &Path, home: &Path, inv: &str, title: &str) {
 }
 
 #[test]
-fn concurrent_closes_in_one_clone_drop_the_first_delivery_off_main() {
+fn concurrent_closes_in_one_clone_abort_the_loser_and_keep_both_deliveries() {
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
     fs::create_dir_all(&home).unwrap();
@@ -249,23 +239,29 @@ fn concurrent_closes_in_one_clone_drop_the_first_delivery_off_main() {
     assert!(out(&root, &["log", "-1", "--format=%s", "main"]).contains("[bl-b]"), "B's squash is on main");
     assert_eq!(out(&root, &["show", "main:feat_b.txt"]), "shipped");
 
-    // Release A: its stale-parent update-ref overwrites main. Reap before asserting
-    // so a failed assertion can never leave A blocked and the suite hung.
+    // Release A: its stale-parent CAS update-ref is now REJECTED by git — the
+    // delivery aborts pre-seal. Reap before asserting so a failed assertion can
+    // never leave A blocked and the suite hung.
     fs::write(block_dir.join("release"), "go\n").unwrap();
     let a_status = reap(&mut a, 60).expect("actor A close.pre hung after release");
-    assert!(a_status.success(), "actor A close.pre failed");
+    assert!(!a_status.success(), "actor A close.pre must abort loudly on the rejected CAS");
+    // Nothing overwritten: B's squash still IS main, and A never landed.
+    assert_eq!(out(&root, &["rev-parse", "main"]), b_tip, "the rejected CAS left B's squash on main");
+    assert!(!git_ok(&root, &["cat-file", "-e", "main:feat_a.txt"]), "A's stale squash never landed");
 
-    // FINDING — the drop. A overwrote main with a commit parented on main0; B's
-    // squash (b_tip) is no longer reachable from main, though its object survives
-    // (reflog-only recovery, unreported).
+    // A's task is still claimed (the abort never sealed), so a retried close — no
+    // shim now — re-folds B's tip into work/bl-a and delivers onto it.
+    close_now(&change_a, &home, &inv, "Feature A");
+
+    // BOTH deliveries survive: final main carries [bl-a] on top of B's [bl-b],
+    // and every task's file is present — nothing was dropped.
     let final_tip = out(&root, &["rev-parse", "main"]);
-    assert!(out(&root, &["log", "-1", "--format=%s", "main"]).contains("[bl-a]"), "A is the surviving tip");
-    assert_eq!(out(&root, &["show", "main:feat_a.txt"]), "shipped");
-    assert_eq!(out(&root, &["rev-parse", "main^"]), main0, "A's squash parents main0, bypassing B");
+    assert!(out(&root, &["log", "-1", "--format=%s", "main"]).contains("[bl-a]"), "A's retry is the tip");
+    assert_eq!(out(&root, &["rev-parse", "main^"]), b_tip, "A's squash now parents B's squash");
     assert!(
-        !git_ok(&root, &["merge-base", "--is-ancestor", &b_tip, &final_tip]),
-        "LOST DELIVERY: B's squash {b_tip} must NOT be an ancestor of main {final_tip}"
+        git_ok(&root, &["merge-base", "--is-ancestor", &b_tip, &final_tip]),
+        "B's squash {b_tip} is an ancestor of final main {final_tip}"
     );
-    assert!(git_ok(&root, &["cat-file", "-e", &b_tip]), "B's squash survives as a dangling object (reflog only)");
-    assert!(!git_ok(&root, &["cat-file", "-e", "main:feat_b.txt"]), "feat_b.txt dropped off main");
+    assert_eq!(out(&root, &["show", "main:feat_a.txt"]), "shipped");
+    assert_eq!(out(&root, &["show", "main:feat_b.txt"]), "shipped");
 }
