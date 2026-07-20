@@ -231,14 +231,14 @@ fn kill_during_close_post_is_delivered_and_retirable_never_limbo() {
     assert!(ok && show.contains("closed"), "bl show gives a coherent closed answer: {show}");
 
     // Retry converges idempotently — with the blocker removed, re-closing an
-    // already-delivered+sealed task mints NO duplicate squash.
-    // FINDING (real-bug-simple, cosmetic): re-closing a closed/unknown id exits 1
-    // with a bare `bl: No such file or directory (os error 2)` — IDENTICAL to
-    // closing any nonexistent id in a clean repo (verified out-of-band), NOT crash
-    // corruption. The convergence invariant (one squash, no double delivery) holds.
+    // already-delivered+sealed task mints NO duplicate squash. Re-closing a
+    // closed id refuses in balls' voice (its `tasks/<id>.md` is gone — absence is
+    // the record), not the raw errno; the convergence invariant (one squash, no
+    // double delivery) holds.
     run(bl(&project, &home, &state, &["conf", "remove", "close.post", "blocker"]));
-    let (retry_ok, _, _) = run(bl(&project, &home, &state, &["close", &tid, "--as", "me"]));
+    let (retry_ok, _, retry_err) = run(bl(&project, &home, &state, &["close", &tid, "--as", "me"]));
     assert!(!retry_ok, "re-closing a sealed task is the no-open-task refusal, not a re-delivery");
+    assert!(retry_err.contains(&format!("no such open ball: {tid}")), "in-voice refusal, not errno: {retry_err}");
     assert_eq!(deliveries(&project, &tid), 1, "retry made no duplicate delivery:\n{}", subjects(&project));
 
     // prime reports the real crash debris and succeeds.
