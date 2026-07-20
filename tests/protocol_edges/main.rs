@@ -14,6 +14,7 @@
 mod harness;
 mod logging;
 mod ordering;
+mod signal;
 
 use predicates::str::contains;
 

@@ -14,6 +14,7 @@
 
 #![cfg(unix)]
 
+mod binding;
 mod directions;
 
 use std::fs;
