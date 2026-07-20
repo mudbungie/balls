@@ -8,6 +8,7 @@
 //! split for the 300-line cap.
 
 mod gates;
+mod hookspath;
 mod non_git;
 mod prime;
 mod reconcile;
