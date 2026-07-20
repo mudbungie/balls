@@ -9,6 +9,10 @@ tags = ["bl-covtest"]
 [[blockers]]
 id = "bl-860c"
 on = "claim"
+
+[[blockers]]
+id = "bl-0fde"
+on = "close"
 +++
 CONFIRMED by tests/close_race.rs (bl-860c): delivery_repo_acts.rs::deliver is a non-atomic check-then-act — parent = rev-parse(integration) (l.125), commit-tree -p parent (l.126), then update-ref refs/heads/<int> <commit> (l.133) with NO old-value argument. Two closes in one checkout: A reads main0, B delivers main0->B, A unconditionally overwrites main with a commit parented on main0 — B squash silently dropped (reflog-only, unreported). Shared-checkout agent pools are a documented deployment (close never pushes the code remote; coordination is claim occupancy only), so this is silent data loss in a sane topology.
 
