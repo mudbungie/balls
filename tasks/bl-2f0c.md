@@ -1,7 +1,8 @@
 +++
 title = "Enrich the legacy migration fixture for field-projection edges"
 created = 1784524141
-updated = 1784524141
+updated = 1784524157
+claimant = "Robber"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
