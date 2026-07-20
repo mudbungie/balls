@@ -121,3 +121,100 @@ fn update_overwrites_every_field_end_to_end() {
         .success()
         .stdout(contains("\"parent\": null"));
 }
+
+#[test]
+fn create_carries_both_tags_then_update_surgically_removes_one_and_clears_priority() {
+    // The mutate flag vocabulary is verb-agnostic (bl-9703): `-t`/`--tag` sets
+    // (repeatable), and the `--no-*` family clears — `--no-tag X` drops ONE
+    // member, `--no-priority` clears the scalar to null. The bedrock `--json`
+    // record always emits the canonical key (a cleared scalar is `null`, not an
+    // absent line), so the removal is observable, not merely inferred.
+    let tmp = TempDir::new().unwrap();
+    let (project, home, state) = primed_project(tmp.path());
+
+    // Two `-t` at create both land; `-p` sets the ordering scalar.
+    let id = created_id(
+        bl_primed(&project, &home, &state)
+            .args(["create", "Tagged ball", "-t", "alpha", "-t", "beta", "-p", "5", "--as", "me"])
+            .assert()
+            .success(),
+    );
+    bl_primed(&project, &home, &state)
+        .args(["show", &id, "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"alpha\"").and(contains("\"beta\"")).and(contains("\"priority\": 5")));
+
+    // `--no-tag alpha` is surgical: beta survives, alpha is gone.
+    bl_primed(&project, &home, &state).args(["update", &id, "--no-tag", "alpha", "--as", "me"]).assert().success();
+    bl_primed(&project, &home, &state)
+        .args(["show", &id, "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"beta\"").and(contains("\"alpha\"").not()).and(contains("\"priority\": 5")));
+
+    // `--no-priority` clears the scalar back to the bedrock null.
+    bl_primed(&project, &home, &state).args(["update", &id, "--no-priority", "--as", "me"]).assert().success();
+    bl_primed(&project, &home, &state)
+        .args(["show", &id, "--json"])
+        .assert()
+        .success()
+        .stdout(contains("\"priority\": null").and(contains("\"beta\"")));
+}
+
+/// The freshly-built `bl` path, so the `--edit` run can be driven under a pty
+/// (assert_cmd pipes stdin, which `--edit` refuses as a non-tty). `script(1)`
+/// allocates the controlling terminal `io::stdin().is_terminal()` demands.
+fn bl_bin() -> std::path::PathBuf {
+    assert_cmd::cargo::cargo_bin("bl")
+}
+
+#[test]
+fn edit_applies_exactly_the_editor_written_diff() {
+    // `update --edit` (§9) sources the whole change from `$EDITOR` over a rendered
+    // buffer — the HUMAN projection of the same seal the flags drive. It is
+    // interactive-only: a non-tty stdin is refused, so the run is wrapped in a
+    // pty. The scripted editor rewrites ONLY the title line; every untouched
+    // field (the tag, the priority) must survive verbatim — exactly the diff.
+    let tmp = TempDir::new().unwrap();
+    let (project, home, state) = primed_project(tmp.path());
+
+    let id = created_id(
+        bl_primed(&project, &home, &state)
+            .args(["create", "Before edit", "-t", "keep", "-p", "7", "--as", "me"])
+            .assert()
+            .success(),
+    );
+
+    // A fake editor: `sed` the title line of the buffer $EDITOR is handed, leaving
+    // the rest of the rendered taskfile intact. Invoked as `sh <script> <buffer>`
+    // so no exec bit is needed; the buffer path arrives as `$1`.
+    let editor = tmp.path().join("fake-editor.sh");
+    std::fs::write(&editor, "#!/bin/sh\nsed -i 's/^title = .*/title = \"Edited via editor\"/' \"$1\"\n").unwrap();
+
+    let cmd = format!("{} update {id} --edit --as me", bl_bin().display());
+    let out = std::process::Command::new("script")
+        .args(["-qec", &cmd, "/dev/null"])
+        .current_dir(&project)
+        .env("HOME", &home)
+        .env("XDG_STATE_HOME", &state)
+        .env("EDITOR", format!("sh {}", editor.display()))
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("BALLS_PLUGIN_DEPTH")
+        .env_remove("BALLS_PLUGIN_NAME")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "edit run failed: {out:?}");
+
+    // The editor-written title landed; the fields it never touched are preserved.
+    bl_primed(&project, &home, &state)
+        .args(["show", &id, "--json"])
+        .assert()
+        .success()
+        .stdout(
+            contains("\"Edited via editor\"")
+                .and(contains("Before edit").not())
+                .and(contains("\"keep\""))
+                .and(contains("\"priority\": 7")),
+        );
+}
