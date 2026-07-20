@@ -1,7 +1,8 @@
 +++
 title = "Drive the scalar bl conf surface through the literal CLI"
 created = 1784524139
-updated = 1784524139
+updated = 1784524223
+claimant = "Robber"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
