@@ -16,11 +16,17 @@ Releases your claim on a task and removes its `work/<id>` worktree.
 ## What survives
 
 Removing the worktree discards **uncommitted** work — it dies with the worktree.
-Work you **committed** on the `work/<id>` branch **survives**: a later `bl claim`
-+ `bl close` delivers it. To discard that committed work too, delete the branch
-explicitly: `git branch -D work/<id>`.
+Work you **committed** on the `work/<id>` branch **survives on this machine**: a
+later `bl claim` + `bl close` here delivers it. To discard that committed work
+too, delete the branch explicitly: `git branch -D work/<id>`.
+
+The `work/<id>` branch is machine-local — the store syncs through the remote,
+the work branch never does. A takeover from **another clone** materializes a
+fresh, empty branch; the original WIP stays stranded where it was committed
+until that machine itself claims + closes (or pushes the branch by hand).
 
 There is no separate `drop` verb and no identity check on unclaim. To abandon a
 task, unclaim then `bl close` (an empty worktree delivers nothing) — see `bl
 close --skill`. To hand a held task to another agent, unclaim first, then the new
-agent claims (cherry-pick preserves any committed WIP across the takeover).
+agent claims — a same-machine claim re-attaches the surviving branch, so
+committed WIP is already in the new worktree.
