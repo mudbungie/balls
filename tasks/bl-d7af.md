@@ -1,7 +1,8 @@
 +++
 title = "Assert reconcile heals the integration checkout after delivery"
 created = 1784524138
-updated = 1784524138
+updated = 1784524222
+claimant = "Robber"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
