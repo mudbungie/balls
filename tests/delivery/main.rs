@@ -10,6 +10,7 @@
 mod gates;
 mod non_git;
 mod prime;
+mod reconcile;
 mod standing;
 
 use std::fs;
