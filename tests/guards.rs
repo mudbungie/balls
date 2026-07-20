@@ -139,15 +139,13 @@ fn a_second_agent_reclaims_after_a_legit_unclaim_then_a_mismatched_close_retires
 }
 
 #[test]
-fn claim_on_a_closed_ball_and_close_on_a_missing_ball_both_leak_the_raw_read_errno() {
-    // FINDING (real-bug-simple, errno leak): `claim` and `close` both `read_task`
-    // the ball FIRST — `change.rs` `Occupancy::stage`/`Retire::stage` open with
-    // `let task = read_task(dir, &self.id)?`, and `taskfile::read_task` is
-    // `fs::read_to_string(task_path(dir, id))?`. A resolved (§10: absence =
-    // resolved) or never-existed ball has NO `tasks/<id>.md`, so the missing-file
-    // `io::Error` surfaces verbatim as the OS errno — NOT balls' voice. Absence
-    // IS the record, but the message leaks "No such file or directory (os error
-    // 2)" instead of saying "already closed"/"no such ball". Pinning it CURRENT.
+fn claim_on_a_closed_ball_and_close_on_a_missing_ball_both_refuse_in_balls_voice() {
+    // `claim` and `close` both `read_task` the ball FIRST — `change.rs`
+    // `Occupancy::stage`/`Retire::stage` open with `read_task(dir, &self.id)?`.
+    // A resolved (§10: absence = resolved) or never-existed ball has NO
+    // `tasks/<id>.md`; closed-vs-never-was is undecidable there BY DESIGN
+    // (absence IS the record), so `read_task` refuses in ONE voice covering both
+    // rather than leaking the raw `os error 2` errno.
     let tmp = TempDir::new().unwrap();
     let (project, home, state) = primed_project(tmp.path());
 
@@ -156,19 +154,20 @@ fn claim_on_a_closed_ball_and_close_on_a_missing_ball_both_leak_the_raw_read_err
     bl(&project, &home, &state).args(["claim", &id, "--as", "alice"]).assert().success();
     bl(&project, &home, &state).args(["close", &id, "--as", "alice"]).assert().success();
 
-    // Claiming the closed ball leaks the raw errno, not an "already closed" voice.
+    // Claiming the closed ball refuses in voice — no raw errno.
     bl(&project, &home, &state)
         .args(["claim", &id, "--as", "alice"])
         .assert()
         .failure()
-        .stderr(contains("bl: No such file or directory (os error 2)"));
+        .stderr(contains(format!("no such open ball: {id}")))
+        .stderr(contains("absence is the record"));
 
-    // Sibling probe (bl-d826): `close` of a never-existed id leaks the same errno.
+    // Sibling probe (bl-d826): `close` of a never-existed id refuses the same way.
     bl(&project, &home, &state)
         .args(["close", "bl-9999", "--as", "alice"])
         .assert()
         .failure()
-        .stderr(contains("bl: No such file or directory (os error 2)"));
+        .stderr(contains("no such open ball: bl-9999"));
 }
 
 #[test]

@@ -51,7 +51,19 @@ fn add_blocker_errors_when_the_target_is_absent() {
     let d = tempdir().unwrap();
     let err = add_blocker(d.path(), "bl-gone", Blocker { id: "bl-2".into(), on: On::Claim }, 0)
         .unwrap_err();
-    assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    assert!(err.to_string().contains("no such open ball: bl-gone"), "{err}");
+}
+
+#[test]
+fn read_task_refuses_a_missing_ball_in_balls_voice() {
+    // A resolved (closed) or never-was ball has no `tasks/<id>.md`; absence is
+    // the record, so the read refuses in voice, never leaking the raw errno.
+    let d = tempdir().unwrap();
+    let err = read_task(d.path(), "bl-gone").unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("no such open ball: bl-gone"), "{msg}");
+    assert!(msg.contains("absence is the record"), "{msg}");
+    assert!(!msg.contains("os error"), "no raw errno: {msg}");
 }
 
 #[test]

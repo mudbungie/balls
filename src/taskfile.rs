@@ -24,8 +24,16 @@ pub(crate) fn exists(dir: &Path, id: &str) -> bool {
     task_path(dir, id).exists()
 }
 
-/// Read and parse `tasks/<id>.md`; a parse failure maps to invalid-data.
+/// Read and parse `tasks/<id>.md`. A missing file is the §10 resolved (closed)
+/// or never-was case — absence IS the record — so it refuses in balls' voice
+/// rather than leaking the raw `os error 2`; a parse failure maps to
+/// invalid-data, and any other read error rides through verbatim.
 pub(crate) fn read_task(dir: &Path, id: &str) -> io::Result<Task> {
+    if !exists(dir, id) {
+        return Err(io::Error::other(format!(
+            "no such open ball: {id} (a closed ball has no task file — absence is the record)"
+        )));
+    }
     let text = fs::read_to_string(task_path(dir, id))?;
     Task::parse(&text).map_err(|e| invalid(e.to_string()))
 }
