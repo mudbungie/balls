@@ -57,6 +57,93 @@ fn center(dir: &Path) -> PathBuf {
     bare
 }
 
+/// A center like [`center`] whose committed config ALSO declares the stealth
+/// sentinel (`task_remote = "none"`, the §12 rung-2 policy) — team-wide "no store
+/// remote, on purpose". An adopting satellite inherits it like any team policy.
+fn stealth_center(dir: &Path) -> PathBuf {
+    let bare = dir.join("scenter.git");
+    git(dir, &["init", "--bare", "-q", "-b", "balls/config", &bare.to_string_lossy()]);
+    let seed = dir.join("scenter-seed");
+    git(dir, &["clone", "-q", &bare.to_string_lossy(), &seed.to_string_lossy()]);
+    git(&seed, &["config", "user.name", "c"]);
+    git(&seed, &["config", "user.email", "c@c"]);
+    std::fs::create_dir_all(seed.join("config")).unwrap();
+    std::fs::write(
+        seed.join("config/balls.toml"),
+        "tasks_branch = \"balls/tasks\"\ntask_remote = \"none\"\n# CENTER-MARKER\n",
+    )
+    .unwrap();
+    std::fs::write(
+        seed.join("config/plugins.toml"),
+        "[hooks]\n\"sync.pre\" = [\"bl-tracker\"]\n\"prime.pre\" = [\"bl-tracker\"]\n\"prime.post\" = [\"bl-tracker\"]\n\"install.pre\" = [\"bl-tracker\"]\n",
+    )
+    .unwrap();
+    git(&seed, &["add", "-A"]);
+    git(&seed, &["commit", "-q", "-m", "stealth center config"]);
+    git(&seed, &["push", "-q", "origin", "balls/config"]);
+    bare
+}
+
+/// `git -C <cwd> <args>` capturing trimmed stdout (a `for-each-ref` snapshot).
+fn git_out(cwd: &Path, args: &[&str]) -> String {
+    let out = std::process::Command::new("git").arg("-C").arg(cwd).args(args).output().unwrap();
+    assert!(out.status.success(), "git {args:?} failed in {}", cwd.display());
+    String::from_utf8(out.stdout).unwrap().trim().to_string()
+}
+
+#[test]
+fn a_center_declaring_stealth_makes_a_satellite_stealth_despite_a_pushable_origin() {
+    // The composition the docs assert but leave untested: the stealth sentinel
+    // "travels on install like any team policy". `--center` writes a durable binding
+    // to the center (rung 3), THEN `adopt` destructively copies the center's config
+    // in — re-introducing `task_remote = "none"` at rung 2, which OUTRANKS the
+    // binding. So enrollment AND every later op resolve stealth: no push anywhere,
+    // even with a pushable `origin` sitting as bait.
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    git(&project, &["init", "-q", "-b", "main"]);
+    git(&project, &["config", "user.name", "t"]);
+    git(&project, &["config", "user.email", "t@t"]);
+    std::fs::write(project.join("seed.txt"), "x").unwrap();
+    git(&project, &["add", "-A"]);
+    git(&project, &["commit", "-qm", "seed"]);
+    // The BAIT: a reachable, pushable origin. A stealth leak would found `balls/tasks` here.
+    let origin = tmp.path().join("origin.git");
+    git(tmp.path(), &["init", "--bare", "-q", "-b", "main", &origin.to_string_lossy()]);
+    git(&project, &["remote", "add", "origin", &origin.to_string_lossy()]);
+    let center = stealth_center(tmp.path());
+
+    // Enroll: durable bind to the center + adopt its stealth-declaring config + prime.
+    bl_primed(&project, &home, &state)
+        .args(["prime", "--center", &center.to_string_lossy()])
+        .assert()
+        .success();
+
+    let clone = clone_dir(&state, &project);
+    // (1) The sentinel travelled on install — the adopted landing carries it verbatim.
+    let cfg = std::fs::read_to_string(clone.landing().join("config/balls.toml")).unwrap();
+    assert!(cfg.contains("task_remote = \"none\""), "adopted the stealth sentinel: {cfg}");
+    // Enrollment itself founded nothing on the bait origin nor pushed the center.
+    assert!(!git_out(&origin, &["for-each-ref"]).contains("balls/tasks"), "enrollment founded no balls/tasks on origin");
+    let origin_before = git_out(&origin, &["for-each-ref"]);
+    let center_before = git_out(&center, &["for-each-ref"]);
+    // The op writes no binding of its OWN — snapshot the enrollment binding to prove it inert.
+    let binding_before = std::fs::read_to_string(clone.binding()).unwrap();
+
+    // (2) A later MUTATING op stays stealth: create founds/pushes nowhere.
+    bl_primed(&project, &home, &state).args(["create", "Local ball", "--as", "me"]).assert().success();
+
+    assert_eq!(git_out(&origin, &["for-each-ref"]), origin_before, "the sentinel keeps the bait origin untouched");
+    assert_eq!(git_out(&center, &["for-each-ref"]), center_before, "no push to the center either");
+    // The ball is real, and it landed in the LOCAL store only.
+    let store = clone.store();
+    assert!(git_out(&store, &["log", "-1", "--format=%B", "balls/tasks"]).contains("Local ball"), "ball in the local store");
+    // (3) The mutating op wrote NO durable binding of its own — the only binding is
+    // `--center`'s enrollment write, byte-identical across the stealth op.
+    assert_eq!(std::fs::read_to_string(clone.binding()).unwrap(), binding_before, "the stealth op wrote no new binding");
+}
+
 /// The clone bundle (landing/store/binding) for an invocation at `project`.
 fn clone_dir(state: &Path, project: &Path) -> balls::layout::CloneDir {
     balls::layout::Xdg::with(Path::new("/unused"), None, Some(&state.to_string_lossy())).clone_dir(project)

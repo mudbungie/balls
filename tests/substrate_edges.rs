@@ -149,6 +149,81 @@ fn a_stale_worktree_registration_is_pruned_on_reclaim_not_errored() {
     assert!(!git_out(&project, &["worktree", "list"]).contains("prunable"), "stale registration pruned");
 }
 
+/// A normal WORKING-TREE project on `main` with a seed commit (root A) plus a
+/// primed stealth store under the tempdir — the substrate `create` stamps a
+/// single `root_commit` from, and `merge --allow-unrelated-histories` can later
+/// graft a second root into (a bare repo has no index to merge into).
+fn worktree_project(tmp: &Path) -> (PathBuf, PathBuf, PathBuf) {
+    let (home, state) = (tmp.join("h"), tmp.join("s"));
+    fs::create_dir_all(&home).unwrap();
+    fs::create_dir_all(&state).unwrap();
+    let project = tmp.join("proj");
+    fs::create_dir_all(&project).unwrap();
+    git(&project, &["init", "-q", "-b", "main"]);
+    git(&project, &["config", "user.name", "t"]);
+    git(&project, &["config", "user.email", "t@t"]);
+    fs::write(project.join("seed.txt"), "seed\n").unwrap();
+    git(&project, &["add", "-A"]);
+    git(&project, &["commit", "-qm", "seed"]);
+    bl(&project, &home, &state).arg("prime").assert().success();
+    (project, home, state)
+}
+
+#[test]
+fn a_ball_survives_grafting_a_second_root_into_the_projects_history() {
+    // bl-0161 root-SET admit, end to end: the ball stamps its create-time `root_commit`
+    // from sole root A. Grafting an unrelated second root (vendoring) into `main`
+    // gives the checkout TWO roots — and rev-list (newest-first) prints the newer B
+    // FIRST, so A is NOT the head of the set. Admission must still hold, because the
+    // guard tests membership of the WHOLE set (`admits` = recorded ∈ current_roots),
+    // not equality with the first. Proven only by unit test until now (change_tests).
+    let tmp = TempDir::new().unwrap();
+    let (project, home, state) = worktree_project(tmp.path());
+
+    let root_a = git_out(&project, &["rev-list", "--max-parents=0", "HEAD"]);
+    let id = stdout(bl(&project, &home, &state).args(["create", "Multi-root", "--as", "me"]).assert().success());
+    // The pre-graft claim admits (recorded root A == the sole current root), then release.
+    bl(&project, &home, &state).args(["claim", &id, "--as", "me"]).assert().success();
+    bl(&project, &home, &state).args(["unclaim", &id, "--as", "me"]).assert().success();
+
+    // Graft a SECOND root: an orphan branch, committed with a STRICTLY-newer date so
+    // rev-list deterministically lists B before A (no same-second SHA coincidence),
+    // then merged with --allow-unrelated-histories so `main` reaches both roots.
+    git(&project, &["checkout", "-q", "--orphan", "grafted"]);
+    git(&project, &["rm", "-rfq", "."]);
+    fs::write(project.join("other.txt"), "b\n").unwrap();
+    git(&project, &["add", "-A"]);
+    let ok = std::process::Command::new("git")
+        .arg("-C").arg(&project).args(["commit", "-qm", "second root"])
+        .env("GIT_AUTHOR_DATE", "2030-01-01T00:00:00").env("GIT_COMMITTER_DATE", "2030-01-01T00:00:00")
+        .status().unwrap().success();
+    assert!(ok, "orphan commit");
+    let root_b = git_out(&project, &["rev-parse", "HEAD"]);
+    git(&project, &["checkout", "-q", "main"]);
+    git(&project, &["merge", "-q", "--allow-unrelated-histories", "--no-edit", "grafted"]);
+
+    // Two roots now, and B (not A) is newest — the exact shape the whole-set test defends.
+    let roots = git_out(&project, &["rev-list", "--max-parents=0", "HEAD"]);
+    let lines: Vec<&str> = roots.lines().collect();
+    assert_eq!(lines.len(), 2, "the merge grafted a second root: {roots}");
+    assert!(lines.contains(&root_a.as_str()) && lines.contains(&root_b.as_str()), "both roots present: {roots}");
+    assert_ne!(lines[0], root_a, "B, not A, heads the set — A is admitted only via whole-set membership");
+
+    // Admission holds through the real CLI: list shows it, show renders it, and a full
+    // claim/close cycle runs on the merged history.
+    let json = stdout(bl(&project, &home, &state).args(["list", "--json"]).assert().success());
+    assert!(live(&json).iter().any(|t| t["id"] == id.as_str()), "list still shows the ball on the merged history");
+    bl(&project, &home, &state).args(["show", &id]).assert().success().stdout(contains("Multi-root"));
+
+    let wt = stdout(bl(&project, &home, &state).args(["claim", &id, "--as", "me"]).assert().success());
+    fs::write(Path::new(&wt).join("done.txt"), "x\n").unwrap();
+    git(Path::new(&wt), &["add", "-A"]);
+    git(Path::new(&wt), &["commit", "-qm", &format!("work [{id}]")]);
+    bl(&project, &home, &state).args(["close", &id, "--as", "me"]).assert().success();
+    let after = stdout(bl(&project, &home, &state).args(["list", "--json"]).assert().success());
+    assert!(live(&after).iter().all(|t| t["id"] != id.as_str()), "the claim/close cycle sealed the ball");
+}
+
 /// Write an executable fake clock provider at `path` that prints `t` (one
 /// unix-seconds line) on every run — the `bl conf set clock-provider` seam.
 fn fixed_clock(path: &Path, t: i64) {
