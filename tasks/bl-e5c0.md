@@ -1,7 +1,8 @@
 +++
 title = "Round-trip plain bl import and its collision refusal"
 created = 1784524136
-updated = 1784524136
+updated = 1784524218
+claimant = "Robber"
 priority = 3
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
