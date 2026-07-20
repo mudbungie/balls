@@ -1,7 +1,8 @@
 +++
 title = "Root-set admit on a merged history; a center that declares stealth for the team"
 created = 1784525386
-updated = 1784525386
+updated = 1784525400
+claimant = "Revises"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bl-covtest"]
 +++
