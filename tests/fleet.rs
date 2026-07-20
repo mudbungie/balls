@@ -229,3 +229,59 @@ fn a_unicode_and_space_checkout_round_trips_the_encoded_clone_dir_idempotently()
         .failure()
         .stderr(predicates::str::contains("belongs to the project rooted at"));
 }
+
+#[test]
+fn show_resolves_a_foreign_id_and_everywhere_json_omits_the_fleet_label() {
+    // show stays GLOBAL — naming an id IS the signal (skill/show.md "show is always
+    // global"; docs/design bl-0161). A ball rooted in a FOREIGN checkout resolves
+    // from here even though plain `list` hides its row — correct today only by
+    // omission (show carries no scope guard), so pin it. And the fleet-view
+    // `[project]` label is a HUMAN render column ONLY: `--everywhere --json` stays
+    // the bedrock stored-frontmatter array (`render` returns before any label).
+    let tmp = TempDir::new().unwrap();
+    let (home, state) = (tmp.path().join("h"), tmp.path().join("s"));
+    std::fs::create_dir_all(&home).unwrap();
+    let bare = center(tmp.path());
+
+    let repo_a = mkrepo(&tmp.path().join("repoa"));
+    let repo_b = mkrepo(&tmp.path().join("repob"));
+
+    enroll(&repo_a, &home, &state, &bare);
+    let id_a = create_publish(&repo_a, &home, &state, "Ball in A");
+    enroll(&repo_b, &home, &state, &bare); // adopts A's established store
+    let id_b = create_publish(&repo_b, &home, &state, "Ball in B");
+    bl(&repo_a, &home, &state).arg("prime").assert().success(); // A imports B's push
+
+    // (1) `bl show <foreign-id>` from A resolves B's ball though plain `list` hides
+    // it: the JSON record's `id`/`title` round-trip the foreign-rooted ball.
+    let plain = list(&repo_a, &home, &state, &[]);
+    assert!(!plain.contains(&id_b), "foreign row is hidden from plain list:\n{plain}");
+    let shown = created_id(bl(&repo_a, &home, &state).args(["show", &id_b, "--json"]).assert().success());
+    let v: serde_json::Value = serde_json::from_str(&shown).unwrap();
+    assert_eq!(v["id"].as_str(), Some(id_b.as_str()), "show resolved the foreign id globally:\n{shown}");
+    assert_eq!(v["title"].as_str(), Some("Ball in B"), "and its stored title:\n{shown}");
+    // The human `bl show` resolves it too — global by omission, no scope refusal.
+    bl(&repo_a, &home, &state)
+        .args(["show", &id_b])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Ball in B"));
+
+    // (2) `--everywhere --json`: the foreign row is PRESENT and the render-only
+    // `[repob]` label NEVER leaks — no decorated string, no `label`-ish key.
+    let ew = list(&repo_a, &home, &state, &["--everywhere"]); // human view DOES label it
+    assert!(row_of(&ew, &id_b).contains("[repob]"), "human fleet view labels the foreign row:\n{ew}");
+    let json = created_id(bl(&repo_a, &home, &state).args(["list", "--everywhere", "--json"]).assert().success());
+    assert!(!json.contains("[repob]"), "the render-only label never appears in --json:\n{json}");
+    let arr: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+    let row_b = arr
+        .iter()
+        .find(|r| r["id"].as_str() == Some(id_b.as_str()))
+        .expect("the foreign row is present in the --everywhere --json array");
+    assert!(row_b.get("label").is_none(), "no `label` key on the machine record: {row_b}");
+    assert!(arr.iter().any(|r| r["id"].as_str() == Some(id_a.as_str())), "the home row is present too");
+    for r in &arr {
+        let keys: Vec<&String> = r.as_object().unwrap().keys().collect();
+        assert!(!keys.iter().any(|k| k.contains("label")), "no label-ish key on any row: {keys:?}");
+    }
+}
