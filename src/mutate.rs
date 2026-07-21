@@ -83,12 +83,25 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let Some((base, before)) = base_change(verb, &store, &flags, instant.t, roots, editor)? else {
         return Ok(());
     };
+    // The stale-read CAS (bl-9f1d): close refuses iff the task file changed
+    // since this actor's own last touch AND no seen-token matches — the refusal
+    // prints the unseen diff and mints the retry's token itself. Ordered before
+    // the engine so a refusal costs no worktree and no plugin chain; any store
+    // movement AFTER the check still aborts at the seal's ff-only integrate.
+    let consumed = match verb {
+        Verb::Close => {
+            let id = flags.positionals.first().expect("close authored above with exactly one positional");
+            crate::seen::guard(&store, &edge.invocation_path, id, &flags.actor)?
+        }
+        _ => Vec::new(),
+    };
     let ctx = Op {
         actor: flags.actor.clone(),
         remote: flags.remote.clone(),
         command: command(verb, &flags),
     };
     let sha = seal_op(edge, verb, &ctx, base.as_ref(), before, &instant)?;
+    crate::seen::consume(&consumed); // spent only on a successful seal
     report::emit(verb, &store, &sha)
 }
 

@@ -136,7 +136,12 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     let remote = opts.remote.or(opts.install);
     let (binding, level) = bind(edge, &landing, &store, remote, None)?;
     prime_chain(edge, &landing, &store, &opts.actor, binding.clone(), level, &seed_notes)?;
-    run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)
+    run_chain(edge, &landing, &store, Verb::Sync, &opts.actor, binding, level)?;
+    // Sweep bl-9f1d seen-tokens naming absent task files — absence is the
+    // closed-record, so a dead token is self-identifying debris (the
+    // prime-prunes-settled-state precedent, bl-292d). After sync: the sweep
+    // judges against the freshest store.
+    crate::seen::sweep(&store)
 }
 
 /// Run `prime`'s §12 chain — ONE pass (bl-698d): the `prime/pre` chain (the
