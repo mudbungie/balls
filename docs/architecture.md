@@ -955,6 +955,22 @@ self-merge default DELIVER and RETIRE are one act:
   review gate child minted at claim (§10/§11), so a close before the PR merges is refused naming the
   gate — cheap and plugin-free. The reject is abort-safe by construction: nothing ran, nothing sealed,
   the task stays alive.
+- core also refuses a STALE-READ close (bl-9f1d, pre-engine like the blocker reject): the task file
+  IS the contract close seals, so `close` refuses iff it changed since the closer's own last touch
+  (derived from store history via the §5 `bl-actor` trailer — claim counts, so a claimant always has
+  an anchor; no state) AND no matching seen-token is found. The refusal prints the unseen diff and
+  mints the token itself, so a bare retry passes — worst case ONE refusal per unseen edit, CAS
+  semantics like the delivery ref move one layer down (bl-a3bb). The token is a local acknowledgment
+  cursor, never store state: a file named for the ball id (content = the task file's blob sha),
+  minted by every `bl show <id>` — eager is safe, a token only ever SKIPS a refusal whose content
+  was just displayed. Scope-by-home is the proof-of-sight: minted into the current `work/<id>`
+  worktree's own admin gitdir when standing in one (per-agent — a writer's verify-after-edit `show`
+  cannot acknowledge for the claimant), else the store clone's gitdir (always exists, so gitless
+  invocation takes the identical code path; bl never writes the userspace `.git` itself). Close
+  reads the union: store gitdir + the task's worktree gitdir (computed from the id, never cwd) +
+  the current work-worktree gitdir. Cleanup is structural: worktree tokens die with the §11
+  teardown, a successful close deletes what it consumed, `bl prime` sweeps store tokens naming
+  absent task files (absence is the closed-record — a dead token is self-identifying debris).
 - `close.pre`: the delivery plugin DELIVERS — folds integration into `work/<id>`, runs the
   project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
   close here, pre-seal), then squashes `work/<id>` → integration (conflicts

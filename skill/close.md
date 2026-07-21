@@ -34,6 +34,18 @@ new tip.
 The delivery commit lands on `main` tagged `[bl-xxxx]` — that tag is how a merge
 is recognized as the task's delivery.
 
+## Close refuses a task file you haven't seen
+
+The task file IS the contract close seals. If it changed since **your own last
+touch of it** (claim counts, so a claimant always has one) and nothing shows you
+saw the change, close refuses and **prints the unseen diff** — then a bare
+re-run of the same `bl close` passes and seals exactly that content (the
+refusal itself acknowledges the diff it just put on your stdout). If yet
+another edit lands in between, it refuses again with the new diff:
+compare-and-swap semantics, worst case one refusal per unseen edit. Running
+`bl show <id>` after the foreign edit also counts as having seen it — the
+close then passes first try. Your own edits never trigger this.
+
 Close does **not** push the code remote; pushing `main` is your own deliberate
 `git push`.
 

@@ -157,7 +157,7 @@ fn strip_log_level(args: &[String]) -> Result<(Option<String>, Vec<String>), Str
 
 #[cfg(test)]
 #[path = "dispatch_test_support.rs"]
-mod support;
+pub(crate) mod support;
 
 #[cfg(test)]
 #[path = "dispatch_tests.rs"]

@@ -135,6 +135,7 @@ pub mod registry;
 pub mod renames;
 pub(crate) mod safegit;
 pub mod seed;
+pub(crate) mod seen;
 pub mod skill;
 pub mod substrate;
 pub mod task;

@@ -7,8 +7,9 @@
 idempotent: on first run it **founds** the local substrate (there is no separate
 `bl init`) — seeding `config/` from the install defaults and creating the store
 — then syncs with the remote. It also prunes the settled `work/<id>` branches
-that delivered closes leave behind. It prints no listing of its own (worktrees
-materialize at `claim`, not here).
+that delivered closes leave behind, and sweeps stale-read seen-tokens naming
+absent task files (see `bl close --skill`). It prints no listing of its own
+(worktrees materialize at `claim`, not here).
 
 ## Flags
 

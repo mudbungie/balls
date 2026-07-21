@@ -28,3 +28,10 @@ claimed ball — a derived `claimed <ISO> (<age> ago)` line under the `claimant`
 field. Both are human-only and store-derived: `--json` carries neither, nor the
 journal (derived history). See `bl update --skill` for how the journal is written
 (`-m`) and `bl list --skill` for how status and claim-age are derived.
+
+Every `bl show <id>` of a live ball also mints a local **seen-token** (`--json`
+included): proof the current content reached your stdout, which is what lets a
+later `bl close` of a ball someone else edited pass without a refusal — see
+"Close refuses a task file you haven't seen" in `bl close --skill`. Tokens are
+local acknowledgment cursors, never state: losing one costs at most one
+refusal-with-diff, and stray ones are inert (`bl prime` sweeps dead ones).

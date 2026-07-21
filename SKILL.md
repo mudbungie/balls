@@ -58,6 +58,9 @@ or you collide with another agent.
 - **Close is gated by the repo's own `pre-commit` hook.** Delivery folds `main`
   in first, then runs the hook; a failure aborts the close and leaves the task
   claimed for the fix.
+- **Close refuses a task file you haven't seen.** If someone edited the task
+  since your own last touch, `bl close` refuses once and prints the unseen
+  diff; a bare re-run then seals exactly that content (`bl close --skill`).
 - **stdout carries one product; parse with `--json`.** `create` prints the new
   id, `claim` prints the worktree path — nothing else. Every other mutating verb
   is silent on stdout; confirmations and the op log go to stderr. For `list` /

@@ -171,7 +171,16 @@ fn render(edge: &Edge, verb: Verb, flags: &Flags, store: &Path, cfg: &EffectiveC
     match verb {
         // `now` is the render clock the derived claim-age is measured against
         // (bl-46ef); like the journal walk, it is paid only on the human path.
-        Verb::Show => show::dispatch(store, &cat, flags, &style, &fold(flags.target.as_deref()), log::wall()),
+        Verb::Show => {
+            let out = show::dispatch(store, &cat, flags, &style, &fold(flags.target.as_deref()), log::wall())?;
+            // The content just went to this invoker's stdout: mint the bl-9f1d
+            // seen-token (eager is safe — a token only ever SKIPS a refusal).
+            // `--legacy` reads a different world, so it acknowledges nothing.
+            if flags.legacy.is_none() {
+                crate::seen::mint(&edge.invocation_path, store, flags.target.as_deref().expect("parser guarantees show has a target"));
+            }
+            Ok(out)
+        }
         Verb::List => {
             // The dead set is reconstructed from history only when the reach
             // calls for it — the live-only default never touches git (§9).
