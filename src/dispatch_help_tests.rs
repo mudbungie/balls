@@ -1,9 +1,9 @@
 //! Tests for the pre-verb help/skill affordances (`skill`/`--skill`/`help`/
-//! `--help`), the global `--log-level` strip, and the usage/exit-code conventions
-//! of [`crate::run`].
+//! `--help`), the global `--log-level` / `-C` strip, and the usage/exit-code
+//! conventions of [`crate::run`].
 
 use super::support::*;
-use super::{strip_log_level, SKILL_DEPRECATION};
+use super::{resolve_directory, strip_global, SKILL_DEPRECATION};
 use crate::verb::Verb;
 use tempfile::TempDir;
 
@@ -70,22 +70,82 @@ fn run_rejects_missing_verb() {
 }
 
 #[test]
-fn strip_log_level_pulls_the_flag_from_anywhere() {
+fn strip_global_pulls_a_flag_from_anywhere() {
     let s = |a: &[&str]| a.iter().map(ToString::to_string).collect::<Vec<_>>();
     // Leading the verb, with a value following.
-    let (lvl, rest) = strip_log_level(&s(&["--log-level", "debug", "create", "X"])).unwrap();
+    let (lvl, rest) = strip_global(&s(&["--log-level", "debug", "create", "X"]), "--log-level").unwrap();
     assert_eq!(lvl.as_deref(), Some("debug"));
     assert_eq!(rest, ["create", "X"]);
     // Mid-argv too — it is a global flag, position-independent.
-    let (lvl, rest) = strip_log_level(&s(&["create", "--log-level", "error", "X"])).unwrap();
+    let (lvl, rest) = strip_global(&s(&["create", "--log-level", "error", "X"]), "--log-level").unwrap();
     assert_eq!(lvl.as_deref(), Some("error"));
     assert_eq!(rest, ["create", "X"]);
     // Absent ⇒ no override, argv untouched.
-    let (lvl, rest) = strip_log_level(&s(&["list"])).unwrap();
+    let (lvl, rest) = strip_global(&s(&["list"]), "--log-level").unwrap();
     assert!(lvl.is_none());
     assert_eq!(rest, ["list"]);
     // Trailing with no value is a usage error.
-    assert!(strip_log_level(&s(&["list", "--log-level"])).is_err());
+    assert!(strip_global(&s(&["list", "--log-level"]), "--log-level").is_err());
+    // The same lifting serves `-C` — one stripper, both globals.
+    let (dir, rest) = strip_global(&s(&["list", "-C", "/proj"]), "-C").unwrap();
+    assert_eq!(dir.as_deref(), Some("/proj"));
+    assert_eq!(rest, ["list"]);
+    assert!(strip_global(&s(&["-C"]), "-C").is_err());
+}
+
+#[test]
+fn resolve_directory_canonicalizes_the_override_and_refuses_a_non_directory() {
+    let tmp = TempDir::new().unwrap();
+    let cwd = tmp.path().join("cwd");
+    // Absent ⇒ the host cwd passes through untouched.
+    assert_eq!(resolve_directory(None, &cwd).unwrap(), cwd);
+    // Present ⇒ canonicalized (here: the `..` traversal collapses).
+    let sub = tmp.path().join("sub");
+    std::fs::create_dir_all(&sub).unwrap();
+    let indirect = sub.join("..").join("sub");
+    let resolved = resolve_directory(Some(&indirect.to_string_lossy()), &cwd).unwrap();
+    assert_eq!(resolved, std::fs::canonicalize(&sub).unwrap());
+    // A path that does not exist, and a path that is a FILE, are both refused —
+    // `-C` names a directory or nothing.
+    let file = tmp.path().join("f.txt");
+    std::fs::write(&file, "x").unwrap();
+    for bad in [tmp.path().join("nope"), file] {
+        let e = resolve_directory(Some(&bad.to_string_lossy()), &cwd).unwrap_err();
+        assert!(e.contains("no such directory"), "balls-voice refusal, got {e}");
+    }
+}
+
+#[test]
+fn the_directory_override_addresses_the_store_keyed_by_that_path() {
+    let tmp = TempDir::new().unwrap();
+    // Found a substrate at the edge's own invocation path and file a ball there.
+    assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+    assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
+    // A SECOND directory, primed only through `-C` — the flag is what addresses
+    // it; the edge's cwd never changes.
+    let elsewhere = tmp.path().join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    let there = |args: &[&str]| {
+        let mut argv = vec!["-C".to_string(), elsewhere.to_string_lossy().into_owned()];
+        argv.extend(args.iter().map(ToString::to_string));
+        crate::run(&edge(&tmp), &argv)
+    };
+    assert_eq!(there(&["prime", "--as", "me"]), 0);
+    assert_eq!(there(&["create", "Their task", "--as", "me"]), 0);
+    // Two distinct stores: each holds exactly its own ball.
+    let mine = sole_task_id(&store(&tmp).join("tasks"));
+    let theirs = edge(&tmp).xdg.clone_dir(&std::fs::canonicalize(&elsewhere).unwrap()).store().join("tasks");
+    assert_ne!(mine, sole_task_id(&theirs), "the -C store is a different store, not a view");
+}
+
+#[test]
+fn a_directory_override_that_is_not_a_directory_is_a_usage_error() {
+    let tmp = TempDir::new().unwrap();
+    assert_eq!(run_in(&tmp, &["-C", &tmp.path().join("nope").to_string_lossy(), "list"]), 2);
+    // A dangling `-C` (no value) is the same usage error, before any verb runs.
+    assert_eq!(run_in(&tmp, &["-C"]), 2);
+    // But help output still prints from a bad directory — it needs no substrate.
+    assert_eq!(run_in(&tmp, &["-C", "/definitely/not/here", "--skill"]), 0);
 }
 
 #[test]

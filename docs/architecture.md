@@ -115,6 +115,14 @@ $XDG_STATE_HOME/balls/
   path contains a `%` (bl-f3e4). Mirroring is no less inspectable (§1's goal is *readable*, not
   *encoded*) and is always a valid path, since the invocation path already is one. Encoding is kept
   everywhere git data lives (clones, tracker), where nothing compiles and `%` is inert.
+- The **invocation path** keying every entry above is the LITERAL directory `bl` was run in; nothing
+  walks up and no git root is ever computed, so a subdirectory (or a delivery worktree) addresses a
+  *different* bundle. The global **`-C PATH`** flag, accepted by every verb and stripped before verb
+  dispatch (§8), replaces that path verbatim (canonicalized; a non-directory is refused) — the store
+  addressed is exactly the one keyed by `PATH`. It is a CAPABILITY, not a policy: it resolves nothing
+  on its own, which is what lets any future auto-resolution layer over it, and lets it stand alone if
+  none ever arrives (bl-c620, from bl-0bd8). The crate seam is the same one: `run()` takes the
+  invocation path as a parameter, so a library caller overrides it exactly as the CLI does.
 - `config/` and `tasks/` are SEPARATE checkouts of the two branches. There is NO `operating/` symlink
   and no terminus to resolve: config is read from `config/`, tasks from `tasks/` (named by
   `tasks_branch`, §4). `tasks_branch` may NOT name the landing: the two checkouts are worktrees of

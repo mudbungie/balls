@@ -44,6 +44,8 @@ pub fn directory() -> String {
         let _ = writeln!(out, "  {token:<width$}{summary}");
     }
     out.push_str("\nCommon flags: --json (machine-readable output), --as ID (worker identity).\n");
+    out.push_str("Global flags, on every command: -C PATH (address the store keyed by PATH,\n");
+    out.push_str("as if bl ran there), --log-level LEVEL.\n");
     out.push_str("Full usage for one command: bl <command> --skill (--help is an alias).\n");
     out.push_str("The operating guide (architecture + invariants): bl --skill.\n");
     out
