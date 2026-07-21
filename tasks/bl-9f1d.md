@@ -1,7 +1,8 @@
 +++
 title = "Stale-read close guard: seen-token CAS on task content, homed by context"
 created = 1784613730
-updated = 1784613730
+updated = 1784613737
+claimant = "Serener"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
 ## The race
