@@ -20,6 +20,10 @@ absent task files (see `bl close --skill`). It prints no listing of its own
   adopt its `config/` + prime, in one command. Prime-only; subsumes `--install`.
 - `--install CENTER` — adopt `config/` from CENTER only (no durable bind).
 - `--stealth` — opt out of any store remote, **durably**; the store stays local.
+- `-C PATH` — **global** (every command): found/address the substrate keyed by
+  PATH, as if `bl` had run there. `bl -C ~/dev/proj prime` founds the project's
+  checkout from anywhere; `-C` inside a `work/<id>` worktree points ops back at
+  the project root. No walking, no git-root discovery — the path is the address.
 
 ## Examples
 

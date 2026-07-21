@@ -52,6 +52,13 @@ or you collide with another agent.
 - **All edits go in the claimed `work/<id>` worktree, never on `main`.** `bl
   close` squashes the *worktree's* diff; a stray edit on `main` is invisible to
   it — the task closes clean while leaving your change behind, undelivered.
+- **The store you address is keyed on the directory you run in** — the literal
+  one, percent-encoded; there is no git-root discovery, so a subdirectory or a
+  `work/<id>` worktree addresses a *different* (usually empty) store. Every
+  command takes a global **`-C PATH`** (the git/make convention) that names that
+  directory outright: `bl -C ~/dev/proj list` reads the project's store from
+  anywhere. It is the explicit signal, nothing more — no walking, no fallback; a
+  `PATH` that is not an existing directory is refused.
 - **Status is derived, never stored.** A task has no `status` field; `ready` /
   `blocked` / `claimed` are computed on read (see `bl list --skill`). A closed
   task has no file — absence is the record.

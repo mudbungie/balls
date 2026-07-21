@@ -11,6 +11,8 @@ product, and the one moment a worktree materializes.
 - `--as ID` — worker identity (**always pass this**; see below).
 - `--remote URL` — per-op store remote (the top of the resolution ladder; see
   `bl prime --skill`). Not remembered.
+- `-C PATH` — **global** (every command): address the store keyed by PATH, as
+  if `bl` had run there. No walking, no git-root discovery.
 
 ## Examples
 

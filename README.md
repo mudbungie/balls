@@ -86,6 +86,8 @@ State lives on **two branches** of your repo, each with one job and its own tran
 
 balls does not keep its checkouts in your project tree. Per invocation path, the landing and store live under `$XDG_STATE_HOME/balls/clones/<percent-encoded-path>/` as `config/` and `tasks/`. Code worktrees live in the delivery plugin's territory at `$XDG_STATE_HOME/balls/plugins/<delivery>/<project-path>/<id>/` — the project path is **mirrored** there, not percent-encoded, so the build dir carries no `%` (which would break `cargo`/`rust-lld` linking; the clones/tracker dirs hold only git data, so they keep percent-encoding). You rarely touch these directly — the verbs read and write them — but that is where `git log`/`git show` of task history lives.
 
+"Per invocation path" means the **literal** directory you ran in — balls never walks up looking for a project root, so a subdirectory addresses a different (usually empty) store. Every command takes a global `-C PATH` that names the directory outright: `bl -C ~/dev/proj list` reads the project's store from anywhere, including from inside a `work/<id>` worktree. It resolves nothing on its own — no walking, no git detection; a `PATH` that is not an existing directory is refused.
+
 ### Status is derived, never stored
 
 A task has no `status` field. The three live states are computed on read:

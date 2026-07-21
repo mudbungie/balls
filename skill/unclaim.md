@@ -8,6 +8,8 @@ Releases your claim on a task and removes its `work/<id>` worktree.
 
 - `--as ID` — worker identity.
 - `--remote URL` — per-op store remote (see `bl prime --skill`).
+- `-C PATH` — **global** (every command): address the store keyed by PATH, as
+  if `bl` had run there. No walking, no git-root discovery.
 
 ## Examples
 

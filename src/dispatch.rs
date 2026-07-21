@@ -32,17 +32,20 @@ Note: `bl skill` is on a DEPRECATION PATH. Use `bl --skill` for this guide, and\
 /// on an op failure (a plugin aborted, a bad flag), `2` for an unknown or missing
 /// command (usage convention — the message points at `bl help`).
 ///
-/// `--log-level LEVEL` is the §4 layer-1 CLI override (the only global flag): it
-/// is stripped here from anywhere in argv and stamped onto the [`Edge`] the op
-/// reads, so the per-verb parsers never see it. A trailing `--log-level` with no
-/// value is a usage error (exit 2).
+/// Two GLOBAL flags are honoured by every command, stripped here from anywhere
+/// in argv and stamped onto the [`Edge`] the op reads, so the per-verb parsers
+/// never see them; either one trailing with no value is a usage error (exit 2).
+/// `--log-level LEVEL` is the §4 layer-1 CLI override. `-C PATH` (the git/make
+/// convention) replaces `invocation_path` verbatim — the substrate is keyed on
+/// that path exactly ([`crate::layout::Xdg::clone_dir`]), so `-C` addresses the
+/// store keyed by `PATH` with no walking, no git-root discovery, no fallback.
 pub fn run(edge: &Edge, args: &[String]) -> i32 {
-    let (log_level, rest) = match strip_log_level(args) {
+    let globals = strip_global(args, "--log-level").and_then(|(log_level, rest)| {
+        strip_global(&rest, "-C").map(|(dir, rest)| (log_level, dir, rest))
+    });
+    let (log_level, directory, rest) = match globals {
         Ok(split) => split,
-        Err(e) => {
-            eprintln!("bl: {e}");
-            return 2;
-        }
+        Err(e) => return usage_error(&e),
     };
     // `skill`/`--skill` (the guide) and `help` (terse command directory) are help
     // OUTPUT, not ops: kept out of `Verb`, dispatched here, print to stdout, exit
@@ -78,7 +81,13 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
         }
         _ => {}
     }
-    let edge = &Edge { log_level, ..edge.clone() };
+    // `-C` is resolved AFTER the help affordances, so a doc still prints from a
+    // bad directory: help output needs no substrate at all.
+    let invocation_path = match resolve_directory(directory.as_deref(), &edge.invocation_path) {
+        Ok(path) => path,
+        Err(e) => return usage_error(&e),
+    };
+    let edge = &Edge { invocation_path, log_level, ..edge.clone() };
     let Some(token) = rest.first().map(String::as_str) else {
         eprintln!("usage: bl <command> — run `bl help` for the list");
         return 2;
@@ -136,23 +145,46 @@ pub fn run(edge: &Edge, args: &[String]) -> i32 {
     }
 }
 
-/// Pull the global `--log-level LEVEL` flag out of argv (from any position),
-/// returning the requested level and argv with the flag removed. A `--log-level`
-/// with no following value is a usage error.
-fn strip_log_level(args: &[String]) -> Result<(Option<String>, Vec<String>), String> {
-    let mut level = None;
+/// Report a malformed command line and yield the usage exit code (2) — the one
+/// shape every pre-verb argv failure takes.
+fn usage_error(e: &str) -> i32 {
+    eprintln!("bl: {e}");
+    2
+}
+
+/// Pull a global `<flag> VALUE` pair out of argv (from any position), returning
+/// the value and argv with both words removed. The globals are position-
+/// independent by construction: they are lifted before the verb's own parser
+/// ever runs. A `flag` with no following value is a usage error.
+fn strip_global(args: &[String], flag: &str) -> Result<(Option<String>, Vec<String>), String> {
+    let mut value = None;
     let mut rest = Vec::new();
     let mut i = 0;
     while i < args.len() {
-        if args[i] == "--log-level" {
+        if args[i] == flag {
             i += 1;
-            level = Some(args.get(i).ok_or("--log-level needs a value")?.clone());
+            value = Some(args.get(i).ok_or_else(|| format!("{flag} needs a value"))?.clone());
         } else {
             rest.push(args[i].clone());
         }
         i += 1;
     }
-    Ok((level, rest))
+    Ok((value, rest))
+}
+
+/// Resolve the `-C PATH` override to the op's invocation path: `PATH`
+/// canonicalized, or `cwd` untouched when the flag is absent. Canonicalization
+/// is the whole of the policy — the store addressed is exactly the one keyed by
+/// the resolved path, so a directory with no substrate behaves precisely as if
+/// `bl` had been run inside it (a read is silent-empty, `prime` founds). Only a
+/// path that is not an existing directory is refused; there is no walking and no
+/// git-root discovery to fall back on.
+fn resolve_directory(directory: Option<&str>, cwd: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    let Some(d) = directory else { return Ok(cwd.to_path_buf()) };
+    std::fs::canonicalize(d)
+        .ok()
+        .filter(|p| p.is_dir())
+        .ok_or_else(|| format!("-C {d}: no such directory — -C addresses the store keyed by a path that exists"))
 }
 
 #[cfg(test)]
