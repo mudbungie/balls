@@ -4,6 +4,10 @@ created = 1784613730
 updated = 1784613737
 claimant = "Serener"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-8448"
+on = "close"
 +++
 ## The race
 
