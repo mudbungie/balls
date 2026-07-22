@@ -123,6 +123,16 @@ $XDG_STATE_HOME/balls/
   on its own, which is what lets any future auto-resolution layer over it, and lets it stand alone if
   none ever arrives (bl-c620, from bl-0bd8). The crate seam is the same one: `run()` takes the
   invocation path as a parameter, so a library caller overrides it exactly as the CLI does.
+  **bl-0bd8 converged (bl-b915) on report-only scrutiny, never auto-resolution:** `prime`'s
+  local-miss (founding) branch first walks `invocation_path`'s ancestors — stat-ing each one's own
+  percent-encoded clone dir (balls' own record, `Xdg::nearest_founded_ancestor`; git is never
+  consulted) — and if the NEAREST one already carries a founded landing, warns on stderr naming it
+  and the `-C` escape hatch before founding here anyway: `founding a new store here; an existing
+  store sits at <ancestor> — meant that one? (cd there, or bl -C <ancestor>)`. Zero mechanism added
+  to resolution — it never refuses, never redirects, and an already-founded cwd (an ordinary
+  re-prime) never reaches this branch, so it stays exactly as silent as before. Founding a deliberate
+  nested/sibling store under an existing project remains fully supported; this only demotes the
+  bl-0bd8 invisible-sibling footgun from a silent split to a warned deliberate act.
 - `config/` and `tasks/` are SEPARATE checkouts of the two branches. There is NO `operating/` symlink
   and no terminus to resolve: config is read from `config/`, tasks from `tasks/` (named by
   `tasks_branch`, §4). `tasks_branch` may NOT name the landing: the two checkouts are worktrees of

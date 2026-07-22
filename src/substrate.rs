@@ -125,6 +125,22 @@ fn identify(landing: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// The bl-b915 founding advisory: report-only scrutiny, zero mechanism added to
+/// resolution — never a refusal, never a redirect. Call only on the miss branch
+/// of `prime`, right before [`found_landing`]: the caller is ABOUT to found a
+/// brand-new store at `invocation_path`, so if a founded store already sits at
+/// some ANCESTOR directory (balls' own record — [`Xdg::nearest_founded_ancestor`]
+/// stats the ancestor's own clone dir, git never consulted), that is almost
+/// always the bl-0bd8 invisible-sibling-substrate footgun rather than a
+/// deliberate nested/sibling store: warn on stderr, naming the `-C` escape
+/// hatch (bl-c620), and let founding proceed regardless.
+pub fn warn_founded_ancestor(xdg: &Xdg, invocation_path: &Path) {
+    if let Some(ancestor) = xdg.nearest_founded_ancestor(invocation_path) {
+        let a = ancestor.display();
+        eprintln!("prime: founding a new store here; an existing store sits at {a} — meant that one? (cd there, or bl -C {a})");
+    }
+}
+
 /// Found a COMPLETE bootstrapped substrate in one call — the landing plus an
 /// orphan-founded default store — for callers and tests that want the whole shape
 /// eager founding used to make, with no remote in play (bl-0a23). Founds as the

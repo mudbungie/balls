@@ -159,6 +159,30 @@ fn found_landing_without_any_plugin_binary_seeds_an_empty_schedule() {
 }
 
 #[test]
+fn warn_founded_ancestor_is_silent_with_no_founded_ancestor() {
+    // bl-b915: the common case. Nothing to assert on stderr (the tests/
+    // e2e pins the printed text) — this exercises the no-warning branch for
+    // coverage against a real, empty tempdir with no ancestor founded.
+    let tmp = TempDir::new().unwrap();
+    let deep = tmp.path().join("a/b/c");
+    fs::create_dir_all(&deep).unwrap();
+    warn_founded_ancestor(&xdg(&tmp), &deep);
+}
+
+#[test]
+fn warn_founded_ancestor_warns_when_an_ancestor_is_already_founded() {
+    // bl-b915: the advisory branch. Found the parent's landing directly (the
+    // same shape found_landing leaves), then scan from a fresh subdir — this
+    // just needs to exercise the Some(ancestor) branch for coverage.
+    let tmp = TempDir::new().unwrap();
+    let x = xdg(&tmp);
+    let (project, sub) = (tmp.path().join("proj"), tmp.path().join("proj/src"));
+    fs::create_dir_all(&sub).unwrap();
+    found_landing(&x.clone_dir(&project).landing(), &x, None, "tester").unwrap();
+    warn_founded_ancestor(&x, &sub);
+}
+
+#[test]
 fn found_landing_with_the_shipped_binaries_keeps_and_binds_them() {
     let tmp = TempDir::new().unwrap();
     let (landing, _store) = paths(&tmp);

@@ -22,7 +22,12 @@
 //!     create" does NOT happen; the write path is fenced.
 //!   - `bl prime` from a subdirectory DOES bootstrap: it founds a second,
 //!     fully-distinct clone bundle — a genuine invisible sibling store for the
-//!     same project (test 3). This is the real silent-split entry point.
+//!     same project (test 3). Founding still proceeds (this stays fully
+//!     supported — a nested/sibling store is a sane use case), but it is no
+//!     longer SILENT: bl-b915 has prime stat the ancestor directories' own
+//!     clone dirs first (balls' own record, git never consulted) and warn on
+//!     stderr naming the nearest founded ancestor before founding anyway — the
+//!     invisible-sibling footgun demoted to a warned deliberate act (test 3b).
 //!   - From inside a claimed `work/<id>` worktree (a mirrored deep path), the op
 //!     addresses yet another bundle and never sees the project's store (test 4).
 //!

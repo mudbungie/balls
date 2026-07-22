@@ -98,6 +98,23 @@ impl Xdg {
             root: self.clones_dir().join(enc),
         }
     }
+
+    /// Walk `path`'s ancestors (excluding `path` itself, which by construction
+    /// has no store here — the caller is about to found one) for the NEAREST one
+    /// whose own percent-encoded clone dir already carries a founded landing —
+    /// the `bl prime` founding advisory (bl-b915, the bl-0bd8 invisible-sibling
+    /// footgun demoted from silent split to a warned deliberate act). Balls' own
+    /// record only: a clone dir's `config/` presence, the same test
+    /// [`crate::checkout`]'s `is_landing` uses; git is never consulted, so this
+    /// catches a plain (non-git) ancestor project too. `None` is the common
+    /// case — no ancestor is founded, and `prime` founds silently as today.
+    #[must_use]
+    pub fn nearest_founded_ancestor(&self, path: &Path) -> Option<PathBuf> {
+        path.ancestors()
+            .skip(1)
+            .find(|a| self.clone_dir(a).landing().join("config").is_dir())
+            .map(Path::to_path_buf)
+    }
 }
 
 fn resolve_base(home: &Path, default_rel: &str, xdg: Option<&str>) -> PathBuf {

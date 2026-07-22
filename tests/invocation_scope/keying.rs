@@ -75,6 +75,39 @@ fn priming_from_a_subdirectory_founds_an_invisible_sibling_substrate() {
 
 
 #[test]
+fn priming_a_subdir_under_a_primed_project_warns_which_ancestor_was_meant() {
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project, sub) = primed_project(tmp.path());
+
+    // bl-b915: unlike the SILENT sibling-founding in the finding above, prime
+    // now scans ancestors (balls' own clone-dir record, no git involved) and
+    // warns before founding a second bundle for the subdir — naming the
+    // ancestor it suspects was meant, and the `-C` escape hatch (bl-c620) back
+    // to it. Still a WARNING only: the founding proceeds regardless.
+    bl(&sub, &home, &state)
+        .arg("prime")
+        .assert()
+        .success()
+        .stderr(contains("an existing store sits at").and(contains(project.to_string_lossy().as_ref())).and(contains("bl -C")));
+    assert_eq!(bundle_count(&state), 2, "the advisory never blocks founding — a second bundle still lands");
+}
+
+#[test]
+fn priming_at_an_unrelated_directory_carries_no_ancestor_warning() {
+    let tmp = TempDir::new().unwrap();
+    let (home, state, _project, _sub) = primed_project(tmp.path());
+    let elsewhere = tmp.path().join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+
+    // No founded store sits above `elsewhere` (a sibling of `project`, not a
+    // descendant) — the ancestor advisory stays exactly as silent as before
+    // bl-b915 (a non-git-repo notice from the delivery plugin is unrelated and
+    // still fires here — only the ancestor-warning text is pinned absent).
+    bl(&elsewhere, &home, &state).arg("prime").assert().success().stderr(contains("an existing store sits at").not());
+    assert_eq!(bundle_count(&state), 2);
+}
+
+#[test]
 fn a_read_from_inside_a_claimed_work_worktree_never_sees_the_projects_store() {
     let tmp = TempDir::new().unwrap();
     let (project, home, state) = bare_project(tmp.path());
