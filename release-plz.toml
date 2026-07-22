@@ -23,5 +23,9 @@ custom_major_increment_regex = '(^|\s)\[major\](\s|$)'
 
 [changelog]
 commit_parsers = [
+    # `balls:`-prefixed commits are release/changelog housekeeping by this
+    # repo's own tooling — they maintain the changelog, so they must not
+    # appear in it.
+    { message = "^balls:", skip = true },
     { message = ".*", group = "Changes" },
 ]
