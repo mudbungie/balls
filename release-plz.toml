@@ -1,22 +1,27 @@
+# Version-bump policy.
+#
+# Every source commit here is a short imperative subject plus a `[bl-xxxx]`
+# trailer — not Conventional Commits — so release-plz's default increment
+# applies, which is PATCH: 0.0.1 -> 0.0.2. That is the intended default; the
+# release PR should always propose the smallest step.
+#
+# To opt in to a bigger bump, put `[minor]` or `[major]` as a standalone
+# bracketed token in any commit message that lands in the release window —
+# preceded by start-of-string or whitespace, followed by end-of-string or
+# whitespace. For non-conventional messages release-plz matches the regex
+# against the full commit text, so the marker can sit in the subject (alongside
+# `[bl-xxxx]`) or in the body. Prose mentions like `[minor]/[major]`
+# (slash-joined, no boundary whitespace) do not match — that keeps a commit
+# describing this convention from bumping itself.
+#
+# `features_always_increment_minor` is left at its default (false), so even a
+# Conventional-Commit `feat:` lands as a patch bump below 1.0.0.
 [workspace]
 semver_check = false
-
-# Bump signaling. release-plz defaults to patch when no Conventional Commit
-# prefixes are present, which is what every source commit here looks like
-# (short imperative subject + `[bl-xxxx]` trailer). To opt in to a non-patch
-# bump, include `[minor]` or `[major]` as a standalone bracketed token in any
-# commit's message that lands in the release window — preceded by start-of-
-# string or whitespace, followed by end-of-string or whitespace. For non-
-# conventional messages release-plz matches the regex against the full commit
-# text, so the marker can sit in the subject (alongside `[bl-xxxx]`) or in
-# the body. Prose mentions like `[minor]/[major]` (slash-joined, no boundary
-# whitespace) do not match — keeps a commit describing the marker convention
-# from self-bumping.
 custom_minor_increment_regex = '(^|\s)\[minor\](\s|$)'
 custom_major_increment_regex = '(^|\s)\[major\](\s|$)'
 
 [changelog]
 commit_parsers = [
-    { message = "^balls:", skip = true },
     { message = ".*", group = "Changes" },
 ]
