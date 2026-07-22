@@ -1,7 +1,8 @@
 +++
 title = "Per-task delivery target: core derives, one wire field, plugin consumes"
 created = 1784690289
-updated = 1784690289
+updated = 1784691343
+claimant = "Betides-Core"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["nested-delivery"]
 +++
