@@ -4,8 +4,10 @@
 the target derivation lives in `src/target.rs`, rides the §7 `Command.target`
 (`src/wire.rs`), and the delivery plugin consumes it as
 `target.map(work_branch).unwrap_or(integration()?)`
-(`delivery::target_branch`). Still open as separate balls: `--subtask-of`'s
-claim-gate → close-gate flip (bl-e844); the rendered target column (bl-6915) is IMPLEMENTED.**
+(`delivery::target_branch`). The `--subtask-of` claim-gate → close-gate flip is
+IMPLEMENTED too (bl-e844): the sugar mints `--parent E --blocks close`, so the
+everyday subtask spelling IS the nesting declaration. The rendered target column
+(bl-6915) is IMPLEMENTED. Nothing here is open.**
 
 ## What is actually hardcoded today
 
@@ -285,9 +287,11 @@ as a decomposition smell rather than a feature to tune.
 
 ## Still open
 
-1. **`--subtask-of` doc/migration sweep.** Every place claim-gate semantics
-   are taught: SKILL.md, `skill/create.md`, `skill/close.md`, import. Scope
-   for the implementation ball, not a design question.
+1. ~~**`--subtask-of` doc/migration sweep.**~~ DONE (bl-e844): SKILL.md,
+   `skill/create.md`, `skill/close.md`, `skill/import.md`, §9/§10/§16 of
+   `docs/architecture.md`. The one place claim-gate semantics deliberately
+   SURVIVE is §16's legacy epic reciprocal edge — reproducing what the old store
+   meant, so a migrated epic keeps flat delivery.
 2. **`--subtask-of`'s age split.** Old subtasks carry no close-gate, so they
    keep flat delivery and two identically-spelled epics behave differently by
    creation date. Self-migrating and harmless, but `prime` is the established

@@ -41,8 +41,9 @@ is recognized as the task's delivery.
 `main` above is the **default** target, not a constant. A task delivers to the
 ref it targets, derived per op and never stored:
 
-- it close-gates its **live parent** (`--parent X` *and* `--blocks close`, see
-  `bl create --skill`) ⇒ its target is `work/<X>`, the parent's own branch;
+- it close-gates its **live parent** (`--parent X` *and* `--blocks close` — one
+  word, `--subtask-of X`; see `bl create --skill`) ⇒ its target is `work/<X>`,
+  the parent's own branch;
 - otherwise ⇒ the repo's integration branch (whatever HEAD points at, usually
   `main`).
 
@@ -85,15 +86,20 @@ Close does **not** push the code remote; pushing `main` is your own deliberate
 
 A closed task has **no file** (absence = resolved); its history is the record.
 To abandon a held task, `bl unclaim` then `bl close` — an empty worktree
-delivers no code, so a `close`-gate guards every way a task can die. Closing a
-task that still has live children prints a notice ("closed with N open children,
-none gating") — informational, never a block; the children survive with
-dangling, display-only parent pointers.
+delivers no code, so a `close`-gate guards every way a task can die.
+
+Closing an **epic** is therefore gated by its subtasks: `--subtask-of E` mints a
+close-blocker on E, so `bl close E` is refused while any subtask is open, naming
+it. Children wired with bare `--parent` gate nothing — a close that leaves only
+those succeeds and prints a notice ("closed with N open children, none gating"),
+informational and never a block; they survive with dangling, display-only parent
+pointers.
 
 ## Submit/approve flows
 
 The default is solo: the agent that claims also closes. For a split flow, add a
-review gate as an ordinary close-blocker subtask (`bl create "review X" --parent
-X --blocks close`, or a forge plugin that mints one at claim). Submission is
+review gate as an ordinary close-blocker subtask (`bl create "review X"
+--subtask-of X`, or a forge plugin that mints one at claim — the gate then forks
+and delivers into X's own branch, per the target rule above). Submission is
 git-native — push the work branch and open the PR yourself with the `[bl-id]`
 tag in the PR title so the merge is recognized as the delivery.

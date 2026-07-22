@@ -181,6 +181,12 @@ impl BaseChange for Ingest {
 /// status; greenfield `parent:` is containment-only (§10), so the edge is a
 /// reconstruction, and it rides the real edge machinery (real ops, real
 /// `updated` stamps) rather than a second transform path.
+///
+/// The edge stays a CLAIM edge, deliberately — not the close-gate `--subtask-of`
+/// now mints (bl-e844). It reproduces what the legacy store meant, and a
+/// migrated epic therefore keeps FLAT delivery (a claim-gate is not the §11
+/// nesting declaration, [`crate::target`]). Nesting is opted into by spelling a
+/// close edge afterwards, never by conversion in the migration path.
 fn button(edge: &Edge, flags: &Flags, spec: &str) -> io::Result<()> {
     let balls = legacy::balls(&edge.invocation_path, spec)?;
     // The projection already nulled dangling parents (§16), so every surviving
