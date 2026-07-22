@@ -56,6 +56,18 @@ pub struct Command {
     /// it before the seal. Absent without `-m`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// The §11 DELIVERY TARGET (bl-7b71): the **id** of the ball whose branch
+    /// this op's delivery forks from and folds back into — `None` (the common
+    /// case) meaning the integration branch. Derived per op from the graph, never
+    /// stored ([`crate::target::derive`]): a ball that close-gates its live
+    /// parent delivers into that parent, so an epic accumulates its children and
+    /// lands whole. It carries an ID, not a branch name — `work/<id>` is the
+    /// delivery plugin's own formula
+    /// ([`crate::delivery_path::work_branch`]), and core spelling it would be a
+    /// second home for the naming. `None` is never serialized, so every existing
+    /// payload shape is byte-identical (the `stealth` precedent, bl-9df0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
 }
 
 /// The op-constant §7 wire data: everything identical across a plugin's `pre`

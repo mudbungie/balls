@@ -9,6 +9,7 @@
 
 mod gates;
 mod hookspath;
+mod nested;
 mod non_git;
 mod prime;
 mod reconcile;

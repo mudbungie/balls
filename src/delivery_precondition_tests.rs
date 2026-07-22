@@ -28,6 +28,9 @@ impl Repo for FakeRepo {
     fn integration(&self) -> io::Result<String> {
         unreachable!("the gate consults only is_git_repo")
     }
+    fn mint(&self, _: &str, _: &str) -> io::Result<()> {
+        unreachable!("the gate consults only is_git_repo")
+    }
     fn deliver(&self, _: &Path, _: &str, _: &str, _: &str, _: &str) -> io::Result<()> {
         unreachable!("the gate consults only is_git_repo")
     }

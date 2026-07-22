@@ -104,7 +104,8 @@ fn ingest(edge: &Edge, flags: &Flags, balls: Vec<(String, Task)>) -> io::Result<
     let op = Op {
         actor: flags.actor.clone(),
         remote: flags.remote.clone(),
-        command: Command { op: Verb::Import.token().to_string(), body_change: None, message: None },
+        // A bulk import authors no delivery — no worktree, no target (§16).
+        command: Command { op: Verb::Import.token().to_string(), body_change: None, message: None, target: None },
     };
     // Records carry their OWN timestamps verbatim (§16 — no restamp), so the op
     // instant dates only the seal commit, keeping the import's store commit on the

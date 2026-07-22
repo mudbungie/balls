@@ -713,7 +713,9 @@ hook-list order; balls neither arbitrates nor tracks ownership.
 **pre payload (stdin):** `protocol`, `op`/`phase`, `plugin_name`, `actor`, `binding`
 (`{ remote, tasks_branch, store, landing, invocation_path }` — `store`/`landing` are the two checkout
 paths (§1), `tasks_branch` names the store branch (§4), `invocation_path` is where `bl` was invoked,
-the project-repo root the delivery plugin needs, §11), `command` (`op` + intended `body_change`),
+the project-repo root the delivery plugin needs, §11), `command` (`op` + intended `body_change` +
+the derived delivery `target`, §11 — the id of the ball whose ref this op delivers into, ABSENT for
+the ordinary integration-branch case so every pre-nesting payload is byte-identical),
 `current_state` (`null` on create). There is **no wire-carried field changeset**: the op's field-level
 diff has one authoritative home — the change worktree plus the op-start state to diff against — and a
 plugin reads it there, never from a second wire description (derive-don't-store, §14; bl-3bfd, §15).
@@ -1290,9 +1292,25 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   paths (its combined `--cc` diff; a fold-conflict resolution IS a work commit, so it counts). An
   excess path means the squash carries something the task never wrote — a resurrection or a leak —
   and aborts the close NAMING the path. Pure plumbing: two `--name-only` path-set compares over
-  existing refs, zero new state (derive-don't-store, §0). Integration branch is the delivery plugin's own config (default
-  `HEAD@project-repo`); a per-task override, if ever needed, rides as a preserved frontmatter key
-  (§3 seam), NEVER a core field — core opens no project repo, so it has no integration branch to name.
+  existing refs, zero new state (derive-don't-store, §0). The delivery destination is the task's TARGET REF, derived per op and never stored (bl-7b71,
+  docs/design/bl-7b71-nested-delivery.md): a task that close-gates its LIVE parent (`--parent X` plus
+  a `{this, on: close}` edge on X) targets `work/<X>`; every other task targets the integration
+  branch (the plugin's own `HEAD@project-repo` default — never hardcoded to `main`). `claim` forks
+  the target (minting `work/<X>` at the integration head if it does not exist yet — a bare ref, no
+  worktree, nothing to orphan), `close` folds it in, gates, and squashes back onto it. Flat delivery
+  is the degenerate case — main is what a PARENTLESS ball targets — and depth recurses for free.
+  The derivation is a GRAPH fact and lives in core: the gating edge sits on the PARENT's task file,
+  which the kind-blind plugin never sees (§7 carries the ball's own state), so a plugin re-deriving
+  it would open the store and fork core's graph semantics into a second home. Core therefore puts the
+  target ID on the §7 wire and the plugin's whole rule is `target.map(work/<id>) or integration()`:
+  one optional wire field in, one hardcoded assumption out. It is an ID, not a branch name — `work/<id>`
+  is the plugin's formula above, and core spelling it would be a second home for the naming. NEVER a
+  stored field: a frontmatter override would drift from the edges that define it.
+  `prime` pruning needs no target awareness — a child delivered into an epic is simply UNSETTLED
+  (not yet contained in the integration branch) until the epic lands, then settles and prunes with
+  zero new logic. And the pre-commit GATE runs at every close, children included: attribution —
+  breakage fails in the worktree that caused it, at its own close, rather than surfacing at whoever
+  closes last. The root run stays non-redundant (two children can each pass alone and fail merged).
 - FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. Forge is a COMPOSITION over
   the §10 create-side primitive: **`bl-chore` (mint the approval gate child at `claim.post`) +
   forge-`sync` (resolve it on PR merge)**. It mints an **approval gate child** at `claim.post` (a

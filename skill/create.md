@@ -64,18 +64,21 @@ direction:
 
 - `--needs X` alone — the gate becomes claimable once X delivers
   (post-delivery verification).
-- `--parent X --blocks close` alone — X can't close until the gate does; but
-  the gate is claimable immediately, against a `main` that does not yet carry
-  X's work, so it can only verify what already landed. True pre-merge
-  enforcement is the repo's own `pre-commit` hook, which `bl close` already
-  runs.
+- `--parent X --blocks close` alone — X can't close until the gate does, and
+  the pair is also the **nesting** declaration: the gate's worktree forks X's
+  live branch and its close delivers back into it, so it verifies the work it
+  gates rather than a `main` without it (`bl close --skill`). It stays claimable
+  immediately, so it can still be picked up mid-flight, before X's work exists.
 
 Unlink a mis-wired edge with `bl update <id> --no-needs <id>` — the unlink is
 never refused.
 
 `--parent` is **containment only** — it builds the display tree and gates
 nothing. An "epic" is just a task with children; to make a parent wait on its
-children, add explicit edges (`--subtask-of` at create is the usual way).
+children, add explicit edges (`--subtask-of` at create is the usual way). It is
+also containment that licenses nested delivery: `--parent X --blocks close`
+makes X the child's delivery target, while a bare `--blocks X:close` on a
+NON-parent is pure ordering and keeps both balls delivering independently.
 
 **Splitting work? Wire the gates.** Filing N balls with no edges declares them
 fully independent — and since one agent is dispatched per UNBLOCKED ball, that

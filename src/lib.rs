@@ -138,6 +138,7 @@ pub mod seed;
 pub(crate) mod seen;
 pub mod skill;
 pub mod substrate;
+pub(crate) mod target;
 pub mod task;
 pub mod taskfile;
 pub mod tracker;
