@@ -42,7 +42,8 @@ pub(super) fn base_change(
         Verb::Create => {
             guards::forbid_removals_on_create(flags)?;
             let title = one_positional(flags, "create")?;
-            // `--subtask-of` folds into the parent + a claim-gate edge (§10).
+            // `--subtask-of` folds into the parent + a close-gate edge (§10) —
+            // together the §11 nesting declaration (`crate::target`).
             let parent = build::effective_parent(flags)?;
             let blockers = build::needs_blockers(flags)?;
             let blocks = build::blocks_edges(flags, parent.as_deref())?;

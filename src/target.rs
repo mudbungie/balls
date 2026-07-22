@@ -22,6 +22,9 @@
 //! enforcement and never redirects delivery (two sibling features ordered by a
 //! close-gate must keep delivering independently). Containment is what licenses
 //! the redirection.
+//!
+//! `--subtask-of E` is both coordinates in one word (bl-e844) — the everyday way
+//! a nested ball is filed.
 
 use std::path::Path;
 

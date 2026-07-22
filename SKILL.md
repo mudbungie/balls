@@ -94,7 +94,10 @@ Run `bl help` for the terse one-line directory. Full usage for any command is
 
 - **Tasks gate each other** through blocker edges (`--needs` / `--blocks` /
   `--subtask-of`). The full dependency model — and why filing flat balls is a
-  parallelism decision — is in `bl create --skill`.
+  parallelism decision — is in `bl create --skill`. `--subtask-of E` is the
+  everyday one: it gates E's **close** on the subtask and makes E the subtask's
+  delivery target, so an epic accumulates its children on its own ref and lands
+  them as one commit (`bl close --skill`).
 - **Behavior beyond "commit the task file" is plugins**, subprocesses wired in
   the landing's `[hooks]` schedule (`bl-tracker` syncs the remote, `bl-delivery`
   owns the worktree). The schedule and its ordering rules are in `bl conf

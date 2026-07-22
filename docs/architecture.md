@@ -927,7 +927,7 @@ the RCE gate is unchanged).
 **`create`** (op `create`; no prior state): balls generates a default-scheme id (§ id generation)
 and stages `tasks/<id>.md` (title, timestamps, optional `parent`/`priority` (`-p`)/`tags`, plus any
 `blockers` edges spelled out by `--blocks`/`--needs` — §10; `--parent` adds containment only, no
-blocker; `--subtask-of E` is the everyday bundle, `--parent E --blocks claim` in one word — §10;
+blocker; `--subtask-of E` is the everyday bundle, `--parent E --blocks close` in one word — §10;
 no status field is written, §3). A `create/pre`
 plugin may reject or *reassign*
 the id by `git mv`-ing the single staged `tasks/*.md` (it discovers the current name by reading
@@ -1057,10 +1057,10 @@ late-add gaps. Now every edge is explicit and says exactly what it gates.
   all this — a "review gate" is not a mechanism, it is `--blocks close` plus a skill-doc convention.
 - **epic** = a task with children — a pure CONTAINMENT/display rollup, emergent from `parent`
   pointers, gating NOTHING by itself. If you want "the epic can't START until its children land,"
-  add a `claim` edge per child (`--blocks claim`, which `--subtask-of` sugars — the presumptive
-  subtask shape, since an epic's work is usually its children); if "can't FINISH until they land," a
+  add a `claim` edge per child (`--blocks claim`); if "can't FINISH until they land," a
   `close` edge
-  (`--blocks close`); if neither, the epic is freely claimable and closeable alongside open children
+  (`--blocks close`, which `--subtask-of` sugars — the presumptive subtask shape, and the §11
+  nesting declaration: the child delivers into the epic's ref); if neither, the epic is freely claimable and closeable alongside open children
   (their `parent:` simply dangles — display-only, §3 — never corruption). The presumptive pattern is
   a skill-doc hint, not a core rule.
 
@@ -1078,8 +1078,8 @@ reachable by explicitly authoring both halves yourself. The standard gate is ONE
 close-blocks its parent; the parent does NOT block the gate child, so the gate is freely claimable.
 "Do the gate after the parent's work" is a skill habit, deliberately UNENFORCED. But agents author
 both halves anyway, recurringly (observed at scale: 15/15 gates mis-wired in one repo): the lone
-close-gate reads as vacuous — the gate is claimable against a clean `main` the moment it is filed,
-before the work it purports to verify exists — so the "obvious fix" adds `--needs parent` back, and
+close-gate READ as vacuous — the gate forked a clean `main` the moment it was filed, verifying a tree
+without the work it gates — so the "obvious fix" adds `--needs parent` back, and
 that pair is a deadlock `bl list` renders as a healthy ready/blocked pair. The original stance here
 ("links are mutable — unlink to fix") mis-predicted where the trap springs: a close-blocker never
 shows in status and claim never refuses (the parent stays ready), so nothing prompts the unlink until
@@ -1091,10 +1091,13 @@ it, while an edge on any other op leaves close reachable and passes freely. Dete
 ONLY — the same validate-the-write-never-audit-the-store line as the live-target rule below: a
 pre-existing cycle never refuses an unrelated edit, `--no-needs` (the in-band unlink) always passes,
 and `update --edit`/`bl import` stay the verbatim hand-stitch escape hatches. Readiness stays
-immediate-only; the acyclicity walk runs only when an edge is written. (The intent behind the
-mis-wiring — a gate claimable once its parent's WORK exists, before the parent delivers — is
-unexpressible while close IS delivery-to-main; making the close-gate spelling carry that meaning via
-nested delivery is bl-7b71's design topic, not this rule.)
+immediate-only; the acyclicity walk runs only when an edge is written. (Half the intent behind the
+mis-wiring is now satisfied by nested delivery, bl-7b71/§11: the lone close-gate is no longer
+vacuous — the gate forks its parent's LIVE branch and delivers findings back into it, so it verifies
+the work it gates, and `--subtask-of X` is that spelling in one word. What stays unexpressible is
+the TIMING half — "claimable once the parent's work EXISTS" — which is dispatch signaling, bl-6c84,
+not this rule; a stranger can still pick up a gate mid-flight and verify a half-done tree, a
+strictly softer failure than verifying a clean `main`.)
 
 **Enforcement is CORE.** Core stores the schema (`parent`, `blockers`, `tags`) AND enforces every
 blocker (the `.pre` of the named `on` op rejects while unresolved), joining the one occupancy guard
@@ -1126,23 +1129,31 @@ fact — containment and blocking never travel together implicitly:
   finish before the parent can CLOSE). `OP` is required — there is no default-gated transition.
 - `--needs B` (or `--needs B:OP`) → `self.blockers += {B, OP}`, default `OP = claim` — the inverse
   direction: the new task is gated BY `B` (cross-tree dependency).
-- `--subtask-of E` → `parent: E` AND `E.blockers += {child, claim}` — the everyday subtask bundle,
-  the intent named by the flag (bl-788e). The gate is on the epic's CLAIM, not its close (bl-5d9a):
-  an epic whose work IS its children is unactionable until they land, so a claim-gate per open child
-  makes it derive as *blocked* and drop out of the ready set — `bl ready | head -1 | xargs bl claim`
-  can never seat a context-free agent on a container with nothing to do. This is the SAME edge count
-  the close variant laid down (one per child, stored on the blocked epic); only the `on` op swaps,
-  so it is no double-wiring. It also drops no enforcement: `close` never required a prior `claim`
-  (abandonment is unclaim-then-close), so the old close-gate never *enforced* lifecycle — gating
-  claim keeps agents off the paved path to a premature epic close behaviorally, the stray `bl close E`
-  on an unclaimed epic being an off-path case left unpoliced. When the last child closes the
-  claim-blockers resolve by file-absence and the epic flips blocked → ready with no teardown.
+- `--subtask-of E` → `parent: E` AND `E.blockers += {child, close}` — the everyday subtask bundle,
+  the intent named by the flag (bl-788e). The gate is on the epic's CLOSE, not its claim (bl-e844,
+  restoring bl-788e's `on` op after bl-5d9a's swap): the pair — a parent pointer PLUS a close-gate on
+  that same parent — IS the §11 nesting declaration, so the child forks and delivers into
+  `work/<E>` and E lands the accumulated work as one commit. The order it declares is "E claimed
+  first (or never), children deliver into it, E retires last", the exact inverse of bl-5d9a's
+  "epic claim-blocked until its children close". This is the SAME edge count either variant laid
+  down (one per child, stored on the blocked epic); only the `on` op swaps, so it is no
+  double-wiring. The accepted cost is bl-5d9a's dispatch hygiene: an epic with open children derives
+  *ready* again and re-enters the ready set. What is bought is enforcement bl-5d9a never had — a
+  close-blocker is enforced at close (§10), so `bl close E` over an open subtask is REFUSED, where
+  the claim-gate only kept agents off the paved path (`close` never required a prior `claim`, so the
+  stray `bl close E` on an unclaimed epic went unpoliced). When the last child closes the
+  close-blockers resolve by file-absence and the epic becomes closeable with no teardown. The flip is
+  SELF-MIGRATING: balls filed under the old sugar carry a claim-gate and no close-gate, so pre-existing
+  epics keep flat delivery untouched and nothing converts. The residue — two identically-spelled
+  epics behaving differently by creation date — is left UNDECIDED on purpose; if it ever bites,
+  `prime` is the established home for version-skew convergence (bl-18bf), and no converter is built
+  speculatively. `import` is unaffected either way: it reproduces edges verbatim, applying no sugar.
   The explicit-edge model's one failure mode was the SILENT
   forget: `--parent` is the natural spelling and gates nothing, so an unstated gate vanished without
   a signal. The sugar puts the gate in the flag's name; it is pure front-door expansion over the two
   primitives above — zero new schema. Mutually exclusive with `--parent` (it IS a parent spelling),
   create-only like `--blocks` (it carries the reciprocal edge), deduped against an explicit
-  `--blocks claim`.
+  `--blocks close`.
 
 **The edge flags require a LIVE target (bl-6b8c).** `--needs ID[:OP]` and `--blocks ID:OP` /
 `--blocks OP` — create and update alike, `--subtask-of`'s reciprocal gate included — REFUSE a target
@@ -1168,10 +1179,11 @@ display-only (§3) — so the notice is information about a containment rollup e
 open, exactly the case a forgotten gate produces. The scan is the `show` tree's containment read,
 reduced to a count.
 
-The retired `--gates X` was exactly `--parent X --blocks close`; since `--subtask-of X` now gates
-CLAIM (bl-5d9a), that close-gate is no longer a one-flag spelling — write it as `--parent X --blocks
-close` when you genuinely want "X can't FINISH until this lands" (a review/build/forge gate, §10's
-gate case) rather than "X can't START." Any
+The retired `--gates X` was exactly `--parent X --blocks close`; since `--subtask-of X` gates CLOSE
+again (bl-e844), that IS its one-flag spelling — `--subtask-of X` and `--parent X --blocks close` are
+the same two edges, so the everyday subtask and the review/build/forge gate (§10's gate case) are one
+shape, nested delivery included. Spell "X can't START until this lands" the long way, `--parent X
+--blocks claim`. Any
 edge the one-liner can't express
 (gate a third op, multiple blockers, a post-hoc edge) is an ordinary `bl update … blockers` edit —
 the create flags are sugar over the general primitive, never a constraint on it.
@@ -1179,7 +1191,7 @@ the create flags are sugar over the general primitive, never a constraint on it.
 **Gates are tasks only** — every gate-check is "is task X closed?". Build/test = a build-gate child a
 build plugin creates and closes on pass; forge/PR approval = a child the forge plugin creates and a
 forge `sync` closes on merge; human approval = a child a person closes. Creation rides `claim.post`
-(the deliverable signal). A close-gate child — `--parent X --blocks close` — never makes its PARENT
+(the deliverable signal). A close-gate child — `--parent X --blocks close`, i.e. `--subtask-of X` — never makes its PARENT
 non-ready (only claim-blockers do that; the parent stays claimed/ready and the gate just denies its
 *close*); the gate child itself is an ordinary ready task that DOES surface in `bl list` until closed.
 The resolution mechanism is pluggable; the blocking mechanism is one thing.
@@ -1986,6 +1998,29 @@ or the new HEAD, never wedged — re-running converges.
 Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
 
 RESOLVED (folded into the body, no longer open):
+- **`--subtask-of` gates CLOSE again — the sugar IS the nesting declaration (2026-07-21, bl-e844 —
+  post-freeze; SUPERSEDES bl-5d9a below and restores bl-788e's `on` op; design record
+  `docs/design/bl-7b71-nested-delivery.md`, mechanism bl-ad5d).** Nested delivery (§11) makes a
+  ball's target ref the parent's branch when it close-gates its LIVE parent. That inverts the order
+  `--subtask-of` was tuned for: bl-5d9a assumed "epic claim-blocked until its children close", while
+  nesting means "epic claimed first (or never), children deliver into `work/<E>`, epic retires last".
+  So the everyday sugar must mint the everyday nesting edge: `--subtask-of E` ≡ `--parent E --blocks
+  close`. The change is ONE token in `mutate_build::blocks_edges`; the rest is doc sweep. Accepted
+  cost, stated not hidden: bl-5d9a's dispatch hygiene is given back — an epic with open children
+  derives *ready* and re-enters the ready set. Bought in exchange: real enforcement (a close-blocker
+  IS enforced at close, so `bl close E` over an open subtask is refused, where the claim-gate only
+  kept agents off the paved path) plus composition — the epic exists in git as a ref and lands as one
+  commit. SELF-MIGRATING by construction: pre-existing subtasks carry a claim-gate and no close-gate,
+  so old epics keep flat delivery and nothing converts; the known wart (two identically-spelled epics
+  behaving differently by creation date) is left UNDECIDED on purpose — decide it when an old epic
+  bites, and `prime` is the established home for version-skew convergence (bl-18bf) if it ever needs
+  one. No speculative converter, and `import` is untouched: it reproduces edges verbatim, and the §16
+  legacy button's epic reciprocal edge stays a CLAIM edge (reproducing what legacy meant, so a
+  migrated epic keeps flat delivery). Touched §9 (create prose), §10 (the flag bullet, the epic
+  pattern, the retired-`--gates` line, the close-gate-child line), §16 (the epic reciprocal edge).
+  Code: `src/mutate_build.rs` (`blocks_edges` + `effective_parent` refusal wording),
+  `src/mutate_args.rs`, `src/mutate_guards.rs`, `src/import.rs` (rationale), SKILL.md,
+  `skill/create.md`, `skill/close.md`, `skill/import.md`.
 - **Version skew is not drift — prime converges it, folded in rather than a doctor verb
   (2026-07-08, bl-18bf — design record `docs/design/bl-18bf-prime-convergence.md`).** The bl-77a7
   no-repair-verb rationale (below) stands unchanged: it was an analysis of steady-state drift, and
@@ -2324,8 +2359,8 @@ RESOLVED (folded into the body, no longer open):
   `src/mutate.rs` (`seal_op` — one shared road to the anvil), `scripts/migrate-legacy.py`/
   `tests/migrate.rs` (deleted). Tracked under bl-72a8.
 - **`--subtask-of` names the everyday bundle; close notices open children (2026-06-09, bl-788e —
-  post-freeze; the `on` op SUPERSEDED by bl-5d9a — subtask-of now gates `claim`, not `close`, so the
-  `≡ --parent E --blocks close` below is the original 2026-06-09 wiring, not current).** §10's
+  post-freeze; the `on` op was swapped to `claim` by bl-5d9a and swapped BACK to `close` by bl-e844,
+  so the `≡ --parent E --blocks close` below is current again).** §10's
   explicit-edge model (bl-7d46(6)) is correct — containment never mints a
   blocker — but its failure mode is SILENT: `--parent` is the natural spelling and gates nothing, so
   a forgotten `--blocks close` left an epic closeable over open children with no signal, and the fix
@@ -2342,7 +2377,8 @@ RESOLVED (folded into the body, no longer open):
   `blocks_edges` sugar/dedup + create-only/shaping guards), `src/mutate_report.rs` (the notice),
   SKILL.md. Tracked under bl-72a8.
 - **`--subtask-of` gates CLAIM, not close — epics drop out of `ready` (2026-06-17, bl-5d9a —
-  post-freeze).** bl-788e wired `--subtask-of E` to `--parent E --blocks close`, which gates the
+  post-freeze; SUPERSEDED by bl-e844 above: nested delivery inverts the order this assumed, so the
+  sugar gates CLOSE again. The reasoning below is the 2026-06-17 wiring, not current).** bl-788e wired `--subtask-of E` to `--parent E --blocks close`, which gates the
   epic's CLOSE but not its CLAIM. But status derivation is "blocked = unresolved CLAIM-blocker only"
   (`Task::status`), so a close-gate yields NO blocked status: the epic with open children read
   *ready* and `bl ready | head -1 | xargs bl claim` seated a context-free agent on an unactionable
@@ -3018,7 +3054,10 @@ migration is NOT one transform but **base-migrates-core PLUS each-plugin-migrate
   in the BUTTON, not the projection: the shim is a RENAME, never a reconstruction, so `bl import
   --legacy` mints the edge through the ordinary `update --needs` machinery — real ops, real edge
   logic — after the nodes land.) Closed children are skipped (absent file = resolved); a live child
-  whose parent did not migrate has its now-dangling `parent:` nulled by the projection.
+  whose parent did not migrate has its now-dangling `parent:` nulled by the projection. It stays a
+  CLAIM edge after bl-e844 flipped `--subtask-of` to a close-gate: the reconstruction reproduces what
+  legacy MEANT, and a claim-gate is not the §11 nesting declaration, so a migrated epic keeps flat
+  delivery. Nesting is opted into by spelling a close edge afterwards, never by conversion here.
 - **dropped** (no core home): `id` (= filename, §3); `status`/`delivered_in`/`branch`/
   `closed_children` (derived, §3/§11); `repo` (the store knows it, §12); `type` (folded to tag);
   `links` (legacy-unused); `external`/`synced_at` (plugin territory — below).

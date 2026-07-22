@@ -133,7 +133,7 @@ pub(crate) fn acyclic(dir: &Path, verb: Verb, blocked: &str, edge: &Blocker) -> 
     Err(io::Error::new(
         io::ErrorKind::PermissionDenied,
         format!(
-            "{}: blocker '{}' on {blocked} closes a deadlock: {cycle} — no claim/close order resolves that loop, and it only surfaces at close, after the work (bl-54fe). A verification gate is ONE edge: the gate carries --needs <parent>, the parent carries no close-blocker (see `bl create --skill`). Unlink an edge with `bl update <id> --no-needs <id>`",
+            "{}: blocker '{}' on {blocked} closes a deadlock: {cycle} — no claim/close order resolves that loop, and it only surfaces at close, after the work (bl-54fe). A verification gate is ONE edge, either direction but not both: --needs <parent> alone (verify after the parent delivers), or the close-gate alone (--subtask-of <parent>: verify INSIDE the parent's branch, see `bl create --skill`). Unlink an edge with `bl update <id> --no-needs <id>`",
             verb.token(),
             edge.id
         ),

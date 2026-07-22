@@ -26,11 +26,13 @@ pub(super) struct Flags {
     pub parent: Option<String>,
     pub no_parent: bool,
     /// `--subtask-of E` (§10): the everyday subtask spelling — `--parent E
-    /// --blocks claim` in one word, the intent named by the flag so the
-    /// claim-gate cannot be silently forgotten. Gating the epic's CLAIM (not
-    /// close) keeps an unactionable container out of the ready set until its
-    /// children land (bl-5d9a). Create-only (it carries the reciprocal edge);
-    /// mutually exclusive with `--parent`.
+    /// --blocks close` in one word, the intent named by the flag so the gate
+    /// cannot be silently forgotten. Gating the epic's CLOSE (not claim) is
+    /// what the nesting model needs (bl-e844): the epic is claimed first (or
+    /// never), its children deliver into `work/<E>` ([`crate::target`]), and
+    /// `E` cannot RETIRE while one is open — enforcement where bl-5d9a's
+    /// claim-gate only bought dispatch hygiene. Create-only (it carries the
+    /// reciprocal edge); mutually exclusive with `--parent`.
     pub subtask_of: Option<String>,
     pub blocks: Vec<String>,
     pub needs: Vec<String>,

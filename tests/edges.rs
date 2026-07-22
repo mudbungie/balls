@@ -5,7 +5,7 @@
 //! What the src/ unit tests (fake stores, hand-built [`Blocker`]s) cannot reach,
 //! this file asserts as OBSERVABLE outcomes of the shipped binary: `show --json`
 //! carries the RECIPROCAL edges `--subtask-of`/`--blocks` mint on OTHER balls
-//! (parent + `on=claim` for the subtask, `on=close` for `--blocks close`); the
+//! (parent + `on=close` for the subtask, likewise for `--blocks close`); the
 //! bl-54fe write-time acyclicity refusal names the full claim/close loop and
 //! exits nonzero; the edge-target liveness refusal DISTINGUISHES a never-minted
 //! id ("not a known id") from an already-closed one ("already closed"); and a
@@ -81,13 +81,14 @@ fn subtask_of_and_blocks_wire_the_reciprocal_edges_on_the_target() {
     let tmp = TempDir::new().unwrap();
     let (project, home, state) = primed_project(tmp.path());
 
-    // `--subtask-of E` = `--parent E --blocks claim` in one word: the child's
-    // parent points at E, and E gains an `on=claim` gate naming the child (so an
-    // epic with open children derives BLOCKED and drops out of the ready set).
+    // `--subtask-of E` = `--parent E --blocks close` in one word: the child's
+    // parent points at E, and E gains an `on=close` gate naming the child — the
+    // two coordinates of §11 nesting (E cannot retire until the child closes,
+    // and the child delivers into E's ref).
     let epic = create(&project, &home, &state, "Epic E", &[]);
     let child = create(&project, &home, &state, "Subtask", &["--subtask-of", &epic]);
     assert_eq!(show(&project, &home, &state, &child)["parent"], epic.as_str(), "child's parent is the epic");
-    assert!(has_edge(&show(&project, &home, &state, &epic), &child, "claim"), "epic claim-gated on the child");
+    assert!(has_edge(&show(&project, &home, &state, &epic), &child, "close"), "epic close-gated on the child");
 
     // `--parent P --blocks close`: the bare `--blocks OP` gates the parent P's
     // `close` on the new gate G — the reciprocal `on=close` edge lands on P.

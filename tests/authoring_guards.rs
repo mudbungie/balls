@@ -103,7 +103,7 @@ fn create_only_and_occupancy_flags_are_refused_and_never_mutate_the_store() {
     let cases: [(Vec<String>, &str); 7] = [
         // §9: `update` edits this task's OWN fields; the two reciprocal edges an
         // edge-on-ANOTHER-task would mint stay create-only, refused by name.
-        (vec!["update".into(), a.clone(), "--subtask-of".into(), b.clone()], "--subtask-of carries a reciprocal claim-gate"),
+        (vec!["update".into(), a.clone(), "--subtask-of".into(), b.clone()], "--subtask-of carries a reciprocal close-gate"),
         (vec!["update".into(), a.clone(), "--blocks".into(), "close".into()], "--blocks (a reciprocal edge on ANOTHER task) is create-only"),
         // A bare `--blocks OP` has no target without a parent/subtask-of home.
         (vec!["create".into(), "gate".into(), "--blocks".into(), "close".into()], "--blocks OP needs --parent/--subtask-of"),
@@ -166,7 +166,7 @@ fn edge_targets_that_are_already_closed_are_refused_by_both_edge_flags() {
 
 #[test]
 fn a_single_call_claim_cycle_is_refused_leaving_no_orphan_task() {
-    // The classic mis-wiring in ONE call: `--subtask-of E` claim-gates E on the
+    // The classic mis-wiring in ONE call: `--subtask-of E` close-gates E on the
     // new ball, and `--needs E` claim-gates the new ball on E — a loop no
     // claim/close order resolves (bl-54fe). The write-time acyclicity guard names
     // the full loop and aborts before minting anything: no `tasks/<id>.md` orphan.
