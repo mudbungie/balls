@@ -14,7 +14,7 @@ use std::io;
 use std::path::Path;
 
 use super::history::{resolve_dead, Dead};
-use super::{claim_age, journal, json_line, task_json, Catalog, Entry, Flags, Style};
+use super::{claim_age, journal, json_line, target, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 use crate::task::Task;
 
@@ -38,7 +38,7 @@ pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style
         // history — the legacy set is the whole world the flag names (§16).
         None if flags.legacy.is_some() => Err(io::Error::other(format!("no such legacy ball: {id}"))),
         None => match resolve_dead(store, id)? {
-            Some(dead) => journaled(render_dead(&dead, flags, style, folded), store, id, flags),
+            Some(dead) => journaled(render_dead(cat, &dead, flags, style, folded), store, id, flags),
             None => Err(io::Error::other(format!("no such ball: {id}"))),
         },
     }
@@ -77,7 +77,7 @@ fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &
     let mut out = header(&badge, &e.id, &e.task);
     field(&mut out, "status", cat.status(e).word());
     let claimed = claimed_line(e, flags, store, now)?;
-    body_block(&mut out, &e.task, &claimed, |out| {
+    body_block(&mut out, &e.task, &claimed, target::of(cat, &e.id, &e.task), |out| {
         kids(out, cat, &child_ids(cat, &e.id), style);
         out.push_str(folded);
     });
@@ -103,7 +103,7 @@ fn claimed_line(e: &Entry, flags: &Flags, store: &Path, now: i64) -> io::Result<
 /// Render a dead (history-served) ball: the same bedrock `--json` record (its
 /// reconstructed frontmatter round-trips), else the human block with the
 /// retirement badge and an extra `retired` date line in place of the live status.
-fn render_dead(d: &Dead, flags: &Flags, style: &Style, folded: &str) -> String {
+fn render_dead(cat: &Catalog, d: &Dead, flags: &Flags, style: &Style, folded: &str) -> String {
     if flags.json {
         return json_line(&task_json(&d.id, &d.task));
     }
@@ -114,7 +114,7 @@ fn render_dead(d: &Dead, flags: &Flags, style: &Style, folded: &str) -> String {
     // Dead balls render no children rollup and no claim-age (retirement, not
     // occupancy, §9); a read-dispatch line still folds (in practice none — a
     // retired ball's worktree is torn down, §11).
-    body_block(&mut out, &d.task, "", |out| out.push_str(folded));
+    body_block(&mut out, &d.task, "", target::of(cat, &d.id, &d.task), |out| out.push_str(folded));
     out
 }
 
@@ -126,8 +126,12 @@ fn header(badge: &str, id: &str, task: &Task) -> String {
 /// The fields, blockers, kind-specific `extra` section, and body common to both
 /// renders. `extra` injects the live children rollup (dead balls pass a no-op);
 /// `claimed` is the derived claim-age line pushed under `claimant` (`""` for a
-/// dead ball or an unaged live one, bl-46ef).
-fn body_block(out: &mut String, task: &Task, claimed: &str, extra: impl FnOnce(&mut String)) {
+/// dead ball or an unaged live one, bl-46ef); `into` is the derived delivery
+/// target (bl-6915), rendered under `parent` — the coordinate that turns bare
+/// containment into nesting — and absent for the flat integration-branch case.
+/// On a CLOSED ball it reads as "delivered here, not landed on the integration
+/// branch"; its absence reads as landed. Human-only, like every derived line.
+fn body_block(out: &mut String, task: &Task, claimed: &str, into: Option<&str>, extra: impl FnOnce(&mut String)) {
     field(out, "created", &iso8601(task.created));
     field(out, "updated", &iso8601(task.updated));
     if let Some(c) = &task.claimant {
@@ -139,6 +143,9 @@ fn body_block(out: &mut String, task: &Task, claimed: &str, extra: impl FnOnce(&
     }
     if let Some(p) = &task.parent {
         field(out, "parent", p);
+    }
+    if let Some(t) = into {
+        field(out, "delivers", t);
     }
     if !task.tags.is_empty() {
         field(out, "tags", &task.tags.join(", "));

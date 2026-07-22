@@ -29,6 +29,14 @@ field. Both are human-only and store-derived: `--json` carries neither, nor the
 journal (derived history). See `bl update --skill` for how the journal is written
 (`-m`) and `bl list --skill` for how status and claim-age are derived.
 
+A nested ball also gets a `delivers <id>` line under `parent`: its work forks
+from and folds back into `work/<id>`, not the integration branch. It appears
+only when the ball BOTH sits under that parent and close-gates it — bare
+containment stays flat. On a **closed** ball it reads "delivered there, not
+landed on main"; its absence reads "landed", because the line derives only
+against a live target. Same derived, human-only column `bl list` renders as
+`->bl-xxxx` — see `bl list --skill`.
+
 Every `bl show <id>` of a live ball also mints a local **seen-token** (`--json`
 included): proof the current content reached your stdout, which is what lets a
 later `bl close` of a ball someone else edited pass without a refusal — see

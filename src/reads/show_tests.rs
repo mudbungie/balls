@@ -248,3 +248,41 @@ fn show_omits_the_claim_age_line_when_the_claimant_has_no_claim_commit() {
     assert!(out.contains("claimant alice"));
     assert!(!out.contains("ago)"), "no derived claim line: {out}");
 }
+
+#[test]
+fn show_renders_the_delivery_target_under_parent_for_a_nested_ball() {
+    // bl-6915: `show` reads one ball deeply, so it carries the same derived
+    // column `list` does — as a `delivers` field under `parent`, the coordinate
+    // that turns bare containment into nesting.
+    let mut epic = task("Epic", 0);
+    epic.blockers = vec![blocker("bl-kid", On::Close)];
+    let s = git_store();
+    s.create("bl-epic", &epic, 1).create("bl-kid", &child_of("bl-epic"), 2);
+    let cat = Catalog::load(s.dir()).unwrap();
+    let out = dispatch(s.dir(), &cat, &flags(false, "bl-kid"), &plain(), "", NOW).unwrap();
+    assert!(out.contains("parent   bl-epic\n  delivers bl-epic\n"), "delivers under parent:\n{out}");
+    // Bare containment stays flat: the epic gates nothing on THIS child.
+    let flat = git_store();
+    flat.create("bl-epic", &task("Epic", 0), 1).create("bl-kid", &child_of("bl-epic"), 2);
+    let cat = Catalog::load(flat.dir()).unwrap();
+    let out = dispatch(flat.dir(), &cat, &flags(false, "bl-kid"), &plain(), "", NOW).unwrap();
+    assert!(!out.contains("delivers"), "flat ball has no target:\n{out}");
+    // And `--json` stays the bedrock record — projection grows, schema does not.
+    let json = dispatch(nostore(), &cat, &flags(true, "bl-kid"), &plain(), "", NOW).unwrap();
+    assert!(!json.contains("delivers"), "no derived target in bedrock:\n{json}");
+}
+
+#[test]
+fn a_dead_ball_renders_the_target_it_was_delivered_into() {
+    // The case the column earns its keep on: a CLOSED child of a still-live
+    // epic. The marker IS the landed-vs-delivered signal — present means
+    // delivered into `work/bl-epic` and not yet on the integration branch.
+    let s = git_store();
+    let mut epic = task("Epic", 1);
+    epic.blockers = vec![blocker("bl-d", On::Close)];
+    s.create("bl-epic", &epic, 1);
+    s.create("bl-d", &child_of("bl-epic"), 2).retire("bl-d", "close", 9);
+    let cat = Catalog::load(s.dir()).unwrap();
+    let out = dispatch(s.dir(), &cat, &flags(false, "bl-d"), &plain(), "", NOW).unwrap();
+    assert!(out.contains("delivers bl-epic"), "dead ball keeps its target:\n{out}");
+}

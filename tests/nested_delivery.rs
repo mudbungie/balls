@@ -145,3 +145,42 @@ fn a_bare_parent_gates_nothing_and_keeps_delivering_flat_to_main() {
         .success();
     assert!(!minted, "no nesting ⇒ no target ref is ever minted");
 }
+
+#[test]
+fn the_rendered_column_says_delivered_here_until_the_target_itself_lands() {
+    // bl-6915: a closed child is DELIVERED to its target, not LANDED on main,
+    // and absence is a closed ball's whole record. The fix is a rendered column,
+    // not a stored field — and the column IS the landed-vs-delivered marker: it
+    // derives only against a LIVE target, so it vanishes the moment the target
+    // lands. No git query, no schema growth.
+    let tmp = TempDir::new().unwrap();
+    let (root, home, state) = project(tmp.path());
+    let create = |args: &[&str]| stdout(bl(&root, &home, &state).args(args).assert().success());
+    let epic = create(&["create", "The epic", "--as", "me"]);
+    let kid = create(&["create", "Kid", "--parent", &epic, "--blocks", "close", "--as", "me"]);
+
+    // Live and open: where this ball's work is GOING.
+    let live = stdout(bl(&root, &home, &state).args(["list", "--plain"]).assert().success());
+    assert!(live.contains(&format!("{kid}  Kid  ->{epic}")), "open ball shows its target:\n{live}");
+    assert!(!live.contains(&format!("{epic}  The epic  ->")), "a parentless epic delivers flat:\n{live}");
+
+    // Closed into the epic: the marker is now "delivered, not landed" — the ball
+    // is otherwise invisible, which is exactly the cost this column pays off.
+    work_and_close(&root, &home, &state, &kid, "kid.txt");
+    let dead = stdout(bl(&root, &home, &state).args(["list", "--all", "--plain"]).assert().success());
+    assert!(dead.contains(&format!("closed   {kid}  Kid")) && dead.contains(&format!("->{epic}")),
+        "closed child still names its target:\n{dead}");
+    let shown = stdout(bl(&root, &home, &state).args(["show", &kid, "--plain"]).assert().success());
+    assert!(shown.contains(&format!("delivers {epic}")), "show carries the same derived fact:\n{shown}");
+
+    // `--json` is the lossless bedrock schema record and does NOT grow (§9).
+    let json = stdout(bl(&root, &home, &state).args(["list", "--all", "--json"]).assert().success());
+    assert!(!json.contains("delivers") && !json.contains("\"target\""), "projection only:\n{json}");
+
+    // The epic lands, and with it the child's work: the target is no longer
+    // live, so the marker is gone. Landed is the unmarked state, as it always was.
+    bl(&root, &home, &state).args(["close", &epic, "--as", "me"]).assert().success();
+    assert_eq!(git_out(&root, &["show", "main:kid.txt"]), "done");
+    let landed = stdout(bl(&root, &home, &state).args(["list", "--all", "--plain"]).assert().success());
+    assert!(!landed.contains("->"), "a landed ball carries no target marker:\n{landed}");
+}

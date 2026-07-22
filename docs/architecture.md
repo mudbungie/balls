@@ -879,6 +879,14 @@ ordering was never special. Filters COMPOSE (AND):
   it is a HUMAN-render column only: bedrock `--json` stays the stored-frontmatter mirror and never pays
   the walk, the machine reader derives age from the store by the same one-liner. The walk is paid only
   per live claimed row that renders (dead rows render retirement, not claim-age).
+- A NESTED row (§11 delivery target) carries a trailing `  ->bl-xxxx` DELIVERY-TARGET marker, and human
+  `show` renders the same fact as a `delivers` field under `parent` (bl-6915). Derived, never stored — it is
+  `parent` plus that parent's `{this, on: close}` blocker, read off the already-loaded catalog, so it
+  costs no IO and no git per row. On a CLOSED row it is the landed-vs-delivered signal: a target
+  derives only against a LIVE target ball, so the marker's presence means "delivered to that ref, not
+  landed on the integration branch" and its absence means landed. "Is it on main" needs no
+  `merge-base` probe — it is a graph read up the chain of targets to the parentless ball, whose target
+  IS the integration branch. `--json` grows no `target` key: the projection grows, the schema does not.
 
 **`show <id>`** resolves by RECENCY (the unifying discipline, § id generation): live `tasks/<id>.md`
 first; on a miss it walks `balls/tasks` history newest→oldest and reconstructs from the most recent
