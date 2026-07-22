@@ -41,6 +41,7 @@ mod record;
 mod scope;
 mod show;
 mod style;
+mod target;
 
 pub(crate) use catalog::{Catalog, Entry};
 pub(crate) use flags::parse;

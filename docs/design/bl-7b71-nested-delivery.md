@@ -5,7 +5,7 @@ the target derivation lives in `src/target.rs`, rides the §7 `Command.target`
 (`src/wire.rs`), and the delivery plugin consumes it as
 `target.map(work_branch).unwrap_or(integration()?)`
 (`delivery::target_branch`). Still open as separate balls: `--subtask-of`'s
-claim-gate → close-gate flip (bl-e844) and the rendered target column (bl-6915).**
+claim-gate → close-gate flip (bl-e844); the rendered target column (bl-6915) is IMPLEMENTED.**
 
 ## What is actually hardcoded today
 
@@ -252,6 +252,26 @@ answer is still not a stored field. It is a **rendered column**: `bl list`
 shows a ball's target when that target is not HEAD, exactly as the root-aware
 `--everywhere` labels are render-only decoration over a derived fact
 (bl-0161). The query surface stays schema-complete; only the projection grows.
+
+**IMPLEMENTED (bl-6915), and both open questions resolved by subtraction.**
+`src/reads/target.rs` derives the target from the already-loaded catalog (the
+decision itself stays in `crate::target::close_gated` — one home), so a listing
+pays no IO and no git per row. `bl list` renders it as a trailing `  ->bl-xxxx`
+on live and dead rows alike; `bl show` renders it as a `delivers` field under
+`parent`. `--json` is untouched on both.
+
+- *Does the decoration belong on `bl show`?* **Yes** — it is the same derived
+  fact at the same cost (nothing), and `show` is where the coordinate that turns
+  bare containment into nesting is read, right under `parent`.
+- *Is a landed-vs-delivered marker on the CLOSED side worth a git query per
+  row?* **There is no git query, at any depth — the column already IS that
+  marker.** A target derives only against a LIVE parent, so on a closed ball a
+  rendered target means "delivered, not landed" and its absence means "landed".
+  Where the work actually is, is then an ordinary graph read: follow the target,
+  which renders its own target, up to the parentless ball whose target is the
+  integration branch. A `merge-base --is-ancestor` against a delivery tag would
+  re-derive the delivery PLUGIN's tag naming inside core to re-answer what the
+  ball graph answers already.
 
 ### Depth costs hook runs — two levels is the shape, deeper is a smell
 The uniform hook means the repo's pre-commit gate (clippy + line cap +

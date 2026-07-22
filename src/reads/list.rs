@@ -16,7 +16,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use super::history::Dead;
-use super::{claim_age, filter, json_line, scope, task_json, Catalog, Entry, Flags, Style};
+use super::{claim_age, filter, json_line, scope, target, task_json, Catalog, Entry, Flags, Style};
 use crate::layout::Xdg;
 use crate::task::Task;
 
@@ -120,7 +120,11 @@ fn render(cat: &Catalog, rows: &[Row], flags: &Flags, style: &Style, ctx: &Ctx, 
     for r in rows {
         let age = age_hint(r, flags, ctx.store, ctx.now)?;
         let label = scope::row_label(labels.as_ref(), r.task().root_commit.as_deref(), this_roots);
-        out.push_str(&line(&badge(cat, r, style), r.id(), r.task(), &age, &label));
+        // The delivery-target marker (bl-6915): catalog-derived, so it costs no
+        // IO and no git — uniform over live and dead rows, which is the point
+        // (a CLOSED child's marker is the "delivered, not landed" signal).
+        let into = target::row_marker(cat, r.id(), r.task());
+        out.push_str(&line(&badge(cat, r, style), r.id(), r.task(), &age, &label, &into));
     }
     Ok(out)
 }
@@ -154,8 +158,10 @@ fn badge(cat: &Catalog, r: &Row, style: &Style) -> String {
 /// suffix (` (3h)`) for a live claimed row, `""` otherwise — it rides the
 /// claimant, not a free-floating column (bl-46ef). `label` is the trailing
 /// `  [project]` fleet-view marker for a foreign row under `--everywhere`, `""`
-/// otherwise (bl-0161) — it already carries its own leading spacing.
-fn line(badge: &str, id: &str, task: &Task, age: &str, label: &str) -> String {
+/// otherwise (bl-0161) — it already carries its own leading spacing. `into` is
+/// the trailing `  ->bl-xxxx` delivery-target marker when the ball nests, `""`
+/// for the flat integration-branch default (bl-6915); it too brings its spacing.
+fn line(badge: &str, id: &str, task: &Task, age: &str, label: &str, into: &str) -> String {
     let mut row = format!("{badge} {id}  {}", task.title);
     if let Some(p) = task.priority {
         let _ = write!(row, "  p{p}");
@@ -163,6 +169,7 @@ fn line(badge: &str, id: &str, task: &Task, age: &str, label: &str) -> String {
     if let Some(c) = &task.claimant {
         let _ = write!(row, "  @{c}{age}");
     }
+    row.push_str(into);
     row.push_str(label);
     row.push('\n');
     row

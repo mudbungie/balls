@@ -47,6 +47,25 @@ claimed` doubles as the fleet's staleness view. It is DERIVED and human-only:
 `--json` carries stored frontmatter alone (no age), so a machine reader derives
 it itself. There is no `--count` — count a rung with `bl list -s ready | wc -l`.
 
+## The delivery-target column: `->bl-xxxx`
+
+A row ending `  ->bl-epic` means this ball's work does **not** go to the
+integration branch — it forks from and folds back into `work/bl-epic`, because
+the ball both sits under `bl-epic` (`--parent`) and close-gates it (nesting
+needs BOTH coordinates; a bare `--parent` is containment only and stays flat).
+No marker = the integration branch, the default and the overwhelming case.
+
+On a **closed** row the marker is the "delivered, not landed" signal: the ball
+is done and squashed onto its target ref, but nothing reached main yet. Its
+absence on a closed row means landed — a target derives only against a LIVE
+target ball, so the marker vanishes the moment that ball closes and lands. To
+find where work actually is, follow the chain: each target renders its own
+target, up to the parentless ball whose target is the integration branch.
+
+Derived and human-only, like claim-age and the fleet label: `--json` carries
+stored frontmatter alone. There is no `target` field to filter on and none to
+store — it is `parent` plus a `close` blocker, both already in the record.
+
 ## Status is derived, never stored
 
 A task has no `status` field. The three live states are **computed on read**:

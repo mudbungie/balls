@@ -6,9 +6,9 @@ use std::path::Path;
 use super::*;
 use crate::layout::Xdg;
 use crate::reads::history::Dead;
-use crate::reads::test_support::{catalog, git_store, task};
+use crate::reads::test_support::{blocker, catalog, git_store, task};
 use crate::reads::{Catalog, Flags, Reach, Style};
-use crate::task::{Status, Task};
+use crate::task::{On, Status, Task};
 
 /// A fixed render clock — the derived claim-age is measured against it.
 const NOW: i64 = 1_000_000;
@@ -255,3 +255,29 @@ fn a_claimed_row_without_a_claim_commit_renders_the_bare_claimant() {
 // fixture above through `super::*` (the decomposition convention).
 #[path = "list_scope_tests.rs"]
 mod scope;
+
+#[test]
+fn nested_rows_render_their_delivery_target_live_and_dead() {
+    // bl-6915: the rendered column. `bl-kid` close-gates its live parent, so it
+    // delivers into `work/bl-epic`; `bl-flat` merely CONTAINS-under the same
+    // epic and stays flat-to-main. The dead row is the case that earns the
+    // column — a CLOSED child whose marker says "delivered here, not landed".
+    let mut epic = task("Epic", 0);
+    epic.blockers = vec![blocker("bl-kid", On::Close), blocker("bl-gone", On::Close)];
+    let mut kid = task("Kid", 1);
+    kid.parent = Some("bl-epic".into());
+    let mut flat = task("Flat", 2);
+    flat.parent = Some("bl-epic".into());
+    let cat = catalog(&[("bl-epic", epic), ("bl-kid", kid), ("bl-flat", flat)]);
+    let mut gone = task("Gone", 3);
+    gone.parent = Some("bl-epic".into());
+    let dead_set = [Dead { id: "bl-gone".into(), task: gone, retired_at: 4 }];
+    let out = render(&cat, &dead_set, &flags_reach(Reach::All), &plain());
+    assert_eq!(
+        out,
+        "ready    bl-epic  Epic\nready    bl-kid  Kid  ->bl-epic\nready    bl-flat  Flat\nclosed   bl-gone  Gone  ->bl-epic\n"
+    );
+    // The bedrock record never grows a target — the projection alone does (§9).
+    let json = render(&cat, &dead_set, &Flags { json: true, reach: Reach::All, ..Default::default() }, &plain());
+    assert!(!json.contains("target"), "no target key in:\n{json}");
+}
