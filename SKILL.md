@@ -58,7 +58,10 @@ or you collide with another agent.
   command takes a global **`-C PATH`** (the git/make convention) that names that
   directory outright: `bl -C ~/dev/proj list` reads the project's store from
   anywhere. It is the explicit signal, nothing more — no walking, no fallback; a
-  `PATH` that is not an existing directory is refused.
+  `PATH` that is not an existing directory is refused. `bl prime` on a
+  subdirectory miss still founds (a nested/sibling store is a supported use
+  case), but warns on stderr if an ancestor directory already has a founded
+  store, naming it and the `-C` fix — cd there, or address it directly.
 - **Status is derived, never stored.** A task has no `status` field; `ready` /
   `blocked` / `claimed` are computed on read (see `bl list --skill`). A closed
   task has no file — absence is the record.

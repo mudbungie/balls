@@ -25,6 +25,14 @@ absent task files (see `bl close --skill`). It prints no listing of its own
   checkout from anywhere; `-C` inside a `work/<id>` worktree points ops back at
   the project root. No walking, no git-root discovery — the path is the address.
 
+Founding on a miss first checks whether an ANCESTOR directory already carries a
+founded store (balls' own record; git is never consulted) and, if so, warns on
+stderr before founding here anyway — a report only, never a refusal or a
+redirect: `founding a new store here; an existing store sits at <ancestor> —
+meant that one? (cd there, or bl -C <ancestor>)`. A re-prime of an already-founded
+checkout stays silent, and founding a deliberate nested/sibling store still
+works exactly as before — just no longer invisibly.
+
 ## Examples
 
     bl prime --as alice

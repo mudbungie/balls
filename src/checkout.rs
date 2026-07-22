@@ -95,6 +95,8 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
         seed::rebind(&landing, edge.exe_dir.as_deref())?;
         Vec::new()
     } else {
+        // bl-b915 founding advisory: report-only, never a refusal/redirect.
+        substrate::warn_founded_ancestor(&edge.xdg, &edge.invocation_path);
         substrate::found_landing(&landing, &edge.xdg, edge.exe_dir.as_deref(), &opts.actor)?
     };
     if opts.stealth {
