@@ -155,3 +155,46 @@ jobs:
           archive: balls-$target
           ref: refs/tags/${{ steps.tag.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  prune-release-branches:
+    name: prune superseded release branches
+    # `needs` with no `if` means: only after the release-PR job actually ran and
+    # succeeded. On the workflow_run/dispatch triggers that job is skipped, so
+    # this one is too — pruning only ever follows a PR refresh.
+    needs: release-plz-pr
+    # release-plz pushes a NEW timestamped `release-plz-*` branch every time it
+    # refreshes the release PR and leaves the previous one behind. Worse, it
+    # pushes the branch BEFORE opening the PR, so if PR creation fails (as it
+    # did across brazen before "Allow GitHub Actions to create and approve pull
+    # requests" was enabled — 24 orphaned branches, zero PRs) the branch is
+    # stranded with no PR to ever close or merge. Unattended, that is one dead
+    # branch per push to main.
+    #
+    # The repo's "Automatically delete head branches" setting only fires on
+    # MERGE, which covers the happy path and nothing else. This job covers the
+    # rest: it runs immediately after the PR job, so the branch backing the
+    # CURRENT release PR is already open, and "has no open PR" is therefore an
+    # exact test for "superseded or orphaned". No allowlist, no age heuristic,
+    # no state to keep — the open-PR set is the single source of truth.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete every release-plz-* branch with no open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          open="$(gh pr list --state open --json headRefName -q '.[].headRefName')"
+          git ls-remote --heads origin 'refs/heads/release-plz-*' |
+            awk '{print $2}' | sed 's#refs/heads/##' |
+            while read -r branch; do
+              if grep -qxF "$branch" <<<"$open"; then
+                echo "keep    $branch (backs an open PR)"
+              else
+                echo "delete  $branch"
+                git push origin --delete "$branch"
+              fi
+            done
