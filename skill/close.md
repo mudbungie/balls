@@ -36,6 +36,36 @@ new tip.
 The delivery commit lands on `main` tagged `[bl-xxxx]` — that tag is how a merge
 is recognized as the task's delivery.
 
+## Where "main" actually is: the delivery target
+
+`main` above is the **default** target, not a constant. A task delivers to the
+ref it targets, derived per op and never stored:
+
+- it close-gates its **live parent** (`--parent X` *and* `--blocks close`, see
+  `bl create --skill`) ⇒ its target is `work/<X>`, the parent's own branch;
+- otherwise ⇒ the repo's integration branch (whatever HEAD points at, usually
+  `main`).
+
+So an epic accumulates its children on `work/<epic>` and lands them as ONE
+commit when the epic itself closes — main is simply what a parentless ball
+targets. Everything above holds unchanged at every depth: the fold, the
+pre-commit gate and the tagged squash all run against *that ball's* target, so
+a child that breaks the gate fails at its own close, in its own worktree.
+
+Two consequences worth knowing:
+
+- **A closed child is delivered, not landed.** Its work is on the epic's ref,
+  not on main, until the epic closes. Whether a ball's work is on main is a git
+  question, as it always was: `git log --grep '[bl-xxxx]' main`.
+- **Any checkout of a moved ref is stale.** A delivery advances a ref by
+  plumbing and never touches a checkout of it — that is the non-bare root after
+  a close, and equally an epic's own worktree after a child closes into it.
+  Refresh before working there.
+
+Deleting a live epic ref (`git branch -D work/<epic>`) discards the delivered
+work of every child that closed into it. `bl` never does that — prune deletes
+only settled branches — but you can.
+
 ## Close refuses a task file you haven't seen
 
 The task file IS the contract close seals. If it changed since **your own last

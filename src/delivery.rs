@@ -53,9 +53,17 @@ pub trait Repo {
     /// `rollback claim.post` (§14): remove the worktree AND delete `branch` —
     /// the transactional undo of a just-made claim.
     fn discard(&self, path: &Path, branch: &str) -> io::Result<()>;
-    /// The integration branch a delivery squashes onto (default the project
-    /// repo's own HEAD branch, §11).
+    /// The integration branch a delivery squashes onto — the DEFAULT target
+    /// (the project repo's own HEAD branch, §11), used by every ball that does
+    /// not nest ([`target_branch`]).
     fn integration(&self) -> io::Result<String>;
+    /// Create `branch` at `base` if it does not exist yet; a no-op when it does.
+    /// The LAZY MINT of a target ref (bl-7b71): the first child to claim into an
+    /// epic brings `work/<epic>` into being at the integration head — a bare ref,
+    /// nothing to orphan, no worktree. Minting there and forking it is
+    /// bit-identical to forking the integration branch directly, so this is a
+    /// naming, not a new code path.
+    fn mint(&self, branch: &str, base: &str) -> io::Result<()>;
     /// `close.pre` deliver (direct): capture any pending worktree work onto
     /// `branch`, fold `integration` into it, run the project repo's own
     /// pre-commit gate on the result (bl-ee85 — the squash is plumbing, so
@@ -99,6 +107,23 @@ pub struct Spec<'a> {
     /// a close that carried `-m`.
     pub override_msg: Option<&'a str>,
     pub marker: &'a str,
+    /// The §7 `command.target` (bl-7b71): the id of the ball whose `work/<id>`
+    /// ref this op delivers into. `None` — the flat case — is the integration
+    /// branch. Core derives it from the graph; the plugin only turns it into a
+    /// ref ([`target_branch`]).
+    pub target: Option<&'a str>,
+}
+
+/// The ref this op forks from and folds back into (bl-7b71): the target's
+/// `work/<id>` when the ball nests, else [`Repo::integration`] — which survives
+/// as the DEFAULT, not a rival (it is not, and never was, hardcoded to `main`).
+/// A nested target is minted at the integration head if it does not exist yet,
+/// so the first child into an epic needs no prior epic claim.
+pub fn target_branch(repo: &dyn Repo, target: Option<&str>) -> io::Result<String> {
+    let Some(id) = target else { return repo.integration() };
+    let branch = crate::delivery_path::work_branch(id);
+    repo.mint(&branch, &repo.integration()?)?;
+    Ok(branch)
 }
 
 /// Run the hook `(op, phase)` — or its rollback when `rolling_back` is `Some`
@@ -106,7 +131,10 @@ pub struct Spec<'a> {
 /// is wired).
 pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     match (op, phase, rolling_back) {
-        ("claim", "post", false) => repo.materialize(spec.worktree, spec.branch),
+        ("claim", "post", false) => {
+            fork(repo, spec)?;
+            repo.materialize(spec.worktree, spec.branch)
+        }
         ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec),
         // Every worktree-deleting teardown is the same act — release the
         // worktree directory — whichever deleting op (close.post, unclaim)
@@ -121,6 +149,17 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
         // branch, so their rollback is a no-op too (§14); any unwired hook too.
         _ => Ok(()),
     }
+}
+
+/// A NESTED claim forks its work branch off the TARGET's ref rather than the
+/// integration head (bl-7b71): mint `work/<id>` at the target branch before the
+/// worktree materializes on it, so the child starts from the work it gates and
+/// its close folds back into the same ref. A flat claim (no target) declines —
+/// `worktree add -b` forks the repo's HEAD, exactly as it always did.
+fn fork(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
+    let Some(target) = spec.target else { return Ok(()) };
+    let base = target_branch(repo, Some(target))?;
+    repo.mint(spec.branch, &base)
 }
 
 /// The §11 path surfacing — the stdout line a hook prints, if any (the §6

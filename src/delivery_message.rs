@@ -14,13 +14,15 @@ use std::io;
 use crate::delivery::{Repo, Spec};
 
 /// The §11 close.pre delivery (split from [`crate::delivery::dispatch`] so the
-/// message policy sits beside [`compose`]): resolve the integration branch,
+/// message policy sits beside [`compose`]): resolve the delivery TARGET ref
+/// ([`crate::delivery::target_branch`] — the nesting parent's `work/<id>` when
+/// the ball nests, else the integration branch, bl-7b71),
 /// read the author's substantive `work/<id>` messages off it — BEFORE
 /// [`Repo::deliver`] captures pending work or folds integration in, so neither
 /// the ball-titled capture nor the reintegration merge commit pollutes them —
 /// compose the delivery message, then squash.
 pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
-    let integration = repo.integration()?;
+    let integration = crate::delivery::target_branch(repo, spec.target)?;
     let work = repo.work_messages(spec.branch, &integration)?;
     let message = compose(spec.override_msg, &work, spec.subject);
     repo.deliver(spec.worktree, spec.branch, &integration, &message, spec.marker)

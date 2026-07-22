@@ -3,8 +3,11 @@
     usage: bl claim <id> [--as ID] [--remote URL]
 
 Starts work: takes occupancy of the task and materializes its `work/<id>` code
-worktree off `main`. Prints the **worktree path to stdout** — the verb's one
-product, and the one moment a worktree materializes.
+worktree off its **delivery target** — the integration branch (`main`) for an
+ordinary ball, or the parent's `work/<parent>` ref when the ball close-gates its
+parent (`bl close --skill`, "the delivery target"; the parent's ref is minted at
+the integration head the first time a child needs it). Prints the **worktree path
+to stdout** — the verb's one product, and the one moment a worktree materializes.
 
 ## Flags
 

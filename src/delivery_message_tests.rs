@@ -91,6 +91,7 @@ fn deliver_close_carries_the_authors_rich_work_body_to_main() {
         subject: "ball title [bl-x]",
         override_msg: None,
         marker: "[bl-x]",
+        target: None,
     };
     deliver_close(&p, &spec).unwrap();
 
@@ -116,6 +117,7 @@ fn deliver_close_keeps_the_m_narration_and_the_work_body_under_the_tagged_subjec
         subject: "ball title [bl-x]",
         override_msg: Some("Close note\n\nthe full narration"),
         marker: "[bl-x]",
+        target: None,
     };
     deliver_close(&p, &spec).unwrap();
 

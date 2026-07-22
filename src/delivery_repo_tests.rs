@@ -90,6 +90,23 @@ fn discard_removes_the_worktree_and_deletes_the_branch() {
 }
 
 #[test]
+fn mint_creates_the_target_ref_at_its_base_then_declines_to_move_it() {
+    // The lazy mint of a nesting target (bl-7b71): a bare ref at the base, no
+    // worktree. Create-if-absent — a second mint NEVER moves a ref that already
+    // holds delivered children (that would discard their work).
+    let (_tmp, root, p) = project();
+    p.mint("work/bl-epic", "main").unwrap();
+    let head = |rev: &str| Project::run(&root, &["rev-parse", rev]).unwrap().trim().to_string();
+    assert_eq!(head("work/bl-epic"), head("main"));
+
+    fs::write(root.join("moved.txt"), "1\n").unwrap();
+    Project::run(&root, &["add", "-A"]).unwrap();
+    Project::run(&root, &["commit", "-q", "-m", "main moved"]).unwrap();
+    p.mint("work/bl-epic", "main").unwrap(); // already exists → no-op
+    assert_ne!(head("work/bl-epic"), head("main"));
+}
+
+#[test]
 fn integration_is_the_project_head_branch() {
     let (_tmp, _root, p) = project();
     assert_eq!(p.integration().unwrap(), "main");

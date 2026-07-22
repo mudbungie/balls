@@ -54,6 +54,14 @@ impl Repo for Project {
         Ok(Self::run(&self.root, &["symbolic-ref", "--short", "HEAD"])?.trim().to_string())
     }
 
+    fn mint(&self, branch: &str, base: &str) -> io::Result<()> {
+        if self.branch_exists(branch)? {
+            return Ok(()); // create-if-absent: the ref already names a point in history
+        }
+        Self::run(&self.root, &["branch", branch, base])?;
+        Ok(())
+    }
+
     fn work_messages(&self, branch: &str, integration: &str) -> io::Result<Vec<String>> {
         if !self.branch_exists(branch)? {
             return Ok(Vec::new()); // never worked → the caller falls back to the title

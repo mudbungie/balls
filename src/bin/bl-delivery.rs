@@ -71,12 +71,16 @@ fn run(args: &[String]) -> io::Result<()> {
     // bl-9961: a close's `-m` note is free BODY narration under the tagged
     // subject (never a subject override, §5).
     let override_msg = wire.command.as_ref().and_then(|c| c.message.as_deref());
+    // bl-7b71: the delivery target core derived from the graph — an id, which
+    // only here becomes the `work/<id>` ref. Absent ⇒ the integration branch.
+    let target = wire.command.as_ref().and_then(|c| c.target.as_deref());
     let spec = Spec {
         worktree: &worktree,
         branch: &branch,
         subject: &subject,
         override_msg,
         marker: &marker,
+        target,
     };
     // bl-4a88: the delivery precondition gate — claim.post / close.pre abort
     // cleanly here when `root` is not a git repo, in balls' voice, rather than

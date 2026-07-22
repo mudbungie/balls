@@ -1,6 +1,11 @@
 # bl-7b71 — Nested delivery: the target ref
 
-**Status: CONVERGED by dialogue 2026-07-21. Ready to cut an implementation ball.**
+**Status: CONVERGED by dialogue 2026-07-21. The MECHANISM is IMPLEMENTED (bl-ad5d):
+the target derivation lives in `src/target.rs`, rides the §7 `Command.target`
+(`src/wire.rs`), and the delivery plugin consumes it as
+`target.map(work_branch).unwrap_or(integration()?)`
+(`delivery::target_branch`). Still open as separate balls: `--subtask-of`'s
+claim-gate → close-gate flip (bl-e844) and the rendered target column (bl-6915).**
 
 ## What is actually hardcoded today
 

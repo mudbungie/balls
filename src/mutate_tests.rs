@@ -168,7 +168,7 @@ fn base_change_rejects_a_non_mutating_verb() {
 fn command_marks_a_mutating_op_and_carries_the_body() {
     let mut f = flags();
     f.body = Some("para".into());
-    let c = command(Verb::Create, &f);
+    let c = command(Verb::Create, &f, None);
     assert_eq!(c.op, "create");
     assert_eq!(c.body_change.as_deref(), Some("para"));
 }

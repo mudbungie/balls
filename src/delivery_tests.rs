@@ -44,6 +44,10 @@ impl Repo for FakeRepo {
         self.log("integration".into());
         Ok("main".into())
     }
+    fn mint(&self, branch: &str, base: &str) -> io::Result<()> {
+        self.log(format!("mint {branch} at {base}"));
+        Ok(())
+    }
     fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
         self.log(format!("deliver {} {branch} -> {integration} : {subject} : {marker}", path.display()));
         Ok(())
@@ -57,19 +61,31 @@ impl Repo for FakeRepo {
 }
 
 fn spec() -> Spec<'static> {
+    targeted(None)
+}
+
+/// The same spec with a §11 delivery target (bl-7b71) — the id of the ball whose
+/// `work/<id>` ref this op forks from and folds back into.
+fn targeted(target: Option<&'static str>) -> Spec<'static> {
     Spec {
         worktree: Path::new("/wt"),
         branch: "work/bl-f813",
         subject: "Title [bl-f813]",
         override_msg: None,
         marker: "[bl-f813]",
+        target,
     }
 }
 
 /// Drive one hook against a fresh fake and return the calls it made.
 fn drive(op: &str, phase: &str, rolling_back: bool) -> Vec<String> {
+    drive_spec(op, phase, rolling_back, &spec())
+}
+
+/// [`drive`] with an explicit spec (the nested cases pass a target).
+fn drive_spec(op: &str, phase: &str, rolling_back: bool, spec: &Spec) -> Vec<String> {
     let repo = FakeRepo::default();
-    dispatch(op, phase, rolling_back, &repo, &spec()).unwrap();
+    dispatch(op, phase, rolling_back, &repo, spec).unwrap();
     repo.calls()
 }
 
@@ -124,6 +140,44 @@ fn declining_rollbacks_and_unwired_hooks_are_noops() {
     assert!(drive("claim", "pre", false).is_empty()); // wrong phase
 }
 
+
+#[test]
+fn a_nested_claim_mints_the_targets_ref_then_forks_its_own_off_it() {
+    // bl-7b71: the target ref is minted at the integration head if the epic has
+    // no branch yet (nothing to orphan — a bare ref), the child's branch is
+    // minted ON it, and only then does the worktree materialize. So the child
+    // starts from the work it gates instead of from clean main.
+    assert_eq!(
+        drive_spec("claim", "post", false, &targeted(Some("bl-epic"))),
+        [
+            "integration",
+            "mint work/bl-epic at main",
+            "mint work/bl-f813 at work/bl-epic",
+            "materialize /wt work/bl-f813",
+        ]
+    );
+}
+
+#[test]
+fn a_nested_close_delivers_into_the_targets_ref_not_the_integration_branch() {
+    // "done" stops meaning "on main": it means delivered to MY target. The epic
+    // accumulates its children on `work/bl-epic` and lands whole later.
+    assert_eq!(
+        drive_spec("close", "pre", false, &targeted(Some("bl-epic"))),
+        [
+            "integration",
+            "mint work/bl-epic at main",
+            "deliver /wt work/bl-f813 -> work/bl-epic : Title [bl-f813] : [bl-f813]",
+        ]
+    );
+}
+
+#[test]
+fn a_flat_claim_forks_head_and_mints_nothing() {
+    // The DEFAULT is untouched: no target ⇒ no integration read, no mint —
+    // `worktree add -b` forks the repo's HEAD exactly as it always did.
+    assert_eq!(drive("claim", "post", false), ["materialize /wt work/bl-f813"]);
+}
 
 #[test]
 fn an_integration_failure_aborts_a_close() {

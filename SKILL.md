@@ -50,8 +50,9 @@ or you collide with another agent.
   few names and step on each other's claims. Have the harness pick one at session
   start and pass it through.
 - **All edits go in the claimed `work/<id>` worktree, never on `main`.** `bl
-  close` squashes the *worktree's* diff; a stray edit on `main` is invisible to
-  it — the task closes clean while leaving your change behind, undelivered.
+  close` squashes the *worktree's* diff to the ball's delivery target (`main`,
+  or the parent's ref when the ball close-gates its parent — `bl close --skill`);
+  a stray edit on `main` is invisible to it — the task closes clean while leaving your change behind, undelivered.
 - **The store you address is keyed on the directory you run in** — the literal
   one, percent-encoded; there is no git-root discovery, so a subdirectory or a
   `work/<id>` worktree addresses a *different* (usually empty) store. Every
@@ -112,7 +113,9 @@ A common deployment is a **bare** project repo (no working tree at the root). A
 not a broken repo — use `bl list` for task state and run `git status` / `git
 diff` inside your `work/<id>` worktree. All `bl` verbs run from the bare root.
 
-In a **non-bare** repo the verbs work the same, with one trap: delivery moves
-`main` by plumbing and never touches the root checkout's working tree, so after
-a close the root is **stale** — refresh it (`git checkout` / `git reset --hard`)
-before touching it. `bl` never resets it for you; it may hold uncommitted work.
+In a **non-bare** repo the verbs work the same, with one trap: a delivery
+advances a ref by plumbing and never touches any checkout of it, so after a close
+the root checkout on `main` is **stale** — refresh it (`git checkout` / `git
+reset --hard`) before touching it. `bl` never resets it for you; it may hold
+uncommitted work. The rule is general: an epic's own worktree goes equally stale
+when a child delivers into its ref.
