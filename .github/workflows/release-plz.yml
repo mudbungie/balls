@@ -1,31 +1,157 @@
-name: release-plz
+name: Release-plz
+
+# Build-gated, hands-off release. Three jobs:
+#
+#   * release-plz PR (every push to main) — opens/updates ONE "release PR" that
+#     bumps the version in Cargo.toml and stages the CHANGELOG.md entry for it.
+#     It never publishes; it just keeps the next release queued. Merging that PR
+#     is the human control point.
+#   * release (when the CI workflow concludes `success` on main) — releases any
+#     version on main that is not out yet: tags it `v<version>`, cuts a GitHub
+#     Release and publishes it to crates.io. Gated on `workflow_run` of CI, so a
+#     release only ever ships a GREEN build — never an untested commit.
+#   * release-binaries — builds the `bl`, `bl-delivery` and `bl-chore` binaries and attaches one linux-gnu archive to that
+#     Release. It runs in the SAME workflow run and `needs:` the release job,
+#     NOT as a separate `on: release` workflow — a Release created by the
+#     default GITHUB_TOKEN cannot trigger another workflow (GitHub's
+#     anti-recursion rule), so a separate binaries workflow would silently never
+#     fire without a PAT. `workflow_dispatch` with `binaries_tag` backfills an
+#     existing tag.
+#
+# So the flow is: merge work to main -> CI runs -> the release PR is kept fresh;
+# merge the release PR -> CI runs -> on green the new version is released AND
+# its binaries build and upload.
+#
+# Bumps default to PATCH (0.0.1 -> 0.0.2). See release-plz.toml for the
+# `[minor]` / `[major]` opt-in markers.
+#
+# One-time repo setup:
+#   * Settings -> Actions -> General -> Workflow permissions: enable "Allow
+#     GitHub Actions to create and approve pull requests" — else the release-pr
+#     job 403s ("GitHub Actions is not permitted to create or approve pull
+#     requests").
+#   * CARGO_REGISTRY_TOKEN (Settings -> Secrets and variables -> Actions) — a
+#     crates.io API token with publish scope, owned by the crate owner. REQUIRED
+#     for the release job to publish.
+#   * RELEASE_PLZ_TOKEN — OPTIONAL fine-grained PAT (contents + pull-requests
+#     write), so the release PR's own commits re-trigger CI. The default
+#     GITHUB_TOKEN cannot trigger workflows from its own pushes; the job falls
+#     back to it when RELEASE_PLZ_TOKEN is unset.
 
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      binaries_tag:
+        description: "Build + upload binaries for this existing tag (e.g. v0.0.1). Leave empty for a normal publish."
+        required: false
+        default: ""
 
-concurrency:
-  group: release-plz-${{ github.ref }}
-  cancel-in-progress: false
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  release-plz:
-    name: release-plz
+  release-plz-pr:
+    name: release-plz PR
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+    # Only a direct push to main maintains the release PR (not the CI
+    # workflow_run). Owner guard: never runs in a fork. Safe against fork-PR
+    # abuse because none of this workflow's triggers are reachable from a fork
+    # PR — a fork PR fires `pull_request` (not requested here), never
+    # `push`-to-main / `workflow_run` / `workflow_dispatch`, all of which need
+    # write access to upstream.
+    if: github.repository_owner == 'mudbungie' && github.event_name == 'push'
+    # Never run two release-PR updates at once — they would race on the branch.
+    concurrency:
+      group: release-plz-pr-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
+      - uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
         uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  release-plz-release:
+    name: release-plz release
+    runs-on: ubuntu-latest
+    # Release only on a GREEN build: a CI run that concluded `success` on main,
+    # or a manual dispatch. A push event alone never reaches here.
+    if: >-
+      github.repository_owner == 'mudbungie' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    concurrency:
+      group: release-plz-release
+      cancel-in-progress: false
+    # Tell the binaries job whether a release actually happened.
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Check out the BRANCH, not a bare SHA: release-plz runs `git rev-parse
+          # @{upstream}` to find the current branch, which fails on a detached
+          # HEAD. `head_branch` is the branch CI ran on (main) for workflow_run;
+          # `ref_name` is main for a manual dispatch.
+          ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        id: release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  release-binaries:
+    name: bl + bl-delivery + bl-chore x86_64-unknown-linux-gnu
+    needs: release-plz-release
+    # Build binaries when a release was just cut, OR for a tag named manually
+    # (backfill). `needs` is skipped when the release job was skipped, so this
+    # can never run in a fork either.
+    if: >-
+      needs.release-plz-release.outputs.releases_created == 'true' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.binaries_tag != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve + check out the release tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.binaries_tag }}"
+          [ -n "$tag" ] || tag="$(git describe --tags --abbrev=0)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # Build the tagged (released) code, not whatever main's tip is now.
+          git checkout "$tag"
+      - uses: dtolnay/rust-toolchain@stable
+      # Builds `cargo build --release`, archives the binaries as
+      # balls-x86_64-unknown-linux-gnu.tar.gz and uploads it to the Release
+      # for the resolved tag. Uploading assets with GITHUB_TOKEN is fine — only
+      # *triggering a new workflow* from a token-made event is what GitHub blocks.
+      - name: Build and upload bl + bl-delivery + bl-chore
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: bl,bl-delivery,bl-chore
+          target: x86_64-unknown-linux-gnu
+          archive: balls-$target
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
