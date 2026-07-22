@@ -5,6 +5,10 @@ updated = 1784691343
 claimant = "Betides-Core"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["nested-delivery"]
+
+[[blockers]]
+id = "bl-439d"
+on = "close"
 +++
 Implements the mechanism half of docs/design/bl-7b71-nested-delivery.md (CONVERGED; read it first — it argues every choice below).
 
