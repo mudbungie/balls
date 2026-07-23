@@ -49,6 +49,27 @@ fn status_climbs_the_three_rung_ladder() {
 }
 
 #[test]
+fn the_linked_consumer_surface_composes_and_derives_status_itself() {
+    // The bl-9901 library contract (yog, DESIGN §16.7 U-balls): a linked
+    // consumer loads the catalog, enumerates rows and resolves one id exactly as
+    // `bl list`/`bl show` do, gets NO derived status in the record, and derives
+    // it with `Task::status` handed the catalog's own `is_resolved` resolver.
+    let mut blocked = task("Blocked", 1);
+    blocked.blockers = vec![blocker("bl-dep", On::Claim)];
+    let cat = catalog(&[("bl-blocked", blocked), ("bl-dep", task("Dep", 1))]);
+    // list: the enumeration mirror.
+    let ids: Vec<&str> = cat.entries().iter().map(|e| e.id.as_str()).collect();
+    assert_eq!(ids, ["bl-blocked", "bl-dep"]);
+    // show: resolve one id, then derive status ourselves via the resolver.
+    let e = cat.get("bl-blocked").unwrap();
+    let resolved = |id: &str| cat.is_resolved(id);
+    assert_eq!(e.task.status(&resolved), Status::Blocked);
+    assert!(!e.task.ready(&resolved));
+    // The bedrock record is the stored file alone — it carries no status.
+    assert!(task_json(&e.id, &e.task).get("status").is_none());
+}
+
+#[test]
 fn a_corrupt_ball_degrades_per_file_instead_of_blinding_the_store() {
     // bl-528c: one bad ball must not fail every list/show repo-wide. The
     // corrupt file is skipped (warned on stderr), the rest stays readable —

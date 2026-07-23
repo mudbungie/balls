@@ -25,7 +25,17 @@ use crate::task::Task;
 /// UNKNOWN keys, so none can collide with the canonical fields layered over
 /// them; the canonical set is always present (a cleared scalar emits `null`,
 /// an empty body `""`), unlike the file's skip-if-absent frontmatter.
-pub(crate) fn task_json(id: &str, task: &Task) -> Value {
+///
+/// Public for LINKED consumers (yog, DESIGN §16.7): this is the exact record
+/// `bl list --json` / `bl show --json` emit per ball, so an in-process consumer
+/// reproduces the machine contract byte-for-byte without a subprocess. Like the
+/// wire, it carries NO derived status — derive that via [`Task::status`] with a
+/// caller-supplied resolver ([`super::Catalog::is_resolved`]).
+///
+/// # Panics
+/// Only if `task.extra` fails to serialize to a JSON object, which a well-formed
+/// in-memory [`Task`] (a parsed `toml::Table`) never does.
+pub fn task_json(id: &str, task: &Task) -> Value {
     let blockers: Vec<Value> = task
         .blockers
         .iter()

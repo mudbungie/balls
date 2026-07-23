@@ -177,8 +177,10 @@ fn line(badge: &str, id: &str, task: &Task, age: &str, label: &str, into: &str) 
 
 impl Catalog {
     /// The parsed balls, id-sorted at load — the row source for `list` and
-    /// `show`'s children scan.
-    pub(crate) fn entries(&self) -> &[Entry] {
+    /// `show`'s children scan, and the linked-consumer's `bl list` enumeration
+    /// ([`Catalog`] doc). Stored frontmatter only; derive status per-row via
+    /// [`Task::status`] with [`Catalog::is_resolved`].
+    pub fn entries(&self) -> &[Entry] {
         &self.entries
     }
 }

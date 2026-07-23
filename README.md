@@ -283,6 +283,8 @@ cargo publish
 
 balls is published as the `balls` crate and its modules are public, but the supported, stable surface is the **`bl` CLI** — in particular `--json` on the read verbs, the bedrock projection. The crate API tracks the internal greenfield architecture (`task`, `lifecycle`, `checkout`, `plugin`, …, documented in `src/lib.rs`) and may change between releases. For programmatic integration, prefer shelling out to `bl ... --json`: agents already have shell access, so `bl list --status ready --json` is a tool call with no adapter to maintain.
 
+The one exception is the **typed read surface** for linking consumers: `reads::Catalog::load` / `Catalog::entries` / `Catalog::get` / `Catalog::is_resolved` and `reads::task_json` are the in-process mirror of `bl list --json` / `bl show --json` — same bedrock records, no derived status (derive it via `task::Task::status/ready/closeable` with a caller-supplied resolver, e.g. `Catalog::is_resolved`). It exists for hosts that embed balls wholesale (exact-pinned) rather than shell out; pin an exact version — the surface is not semver-stable. Mutations have no library path: they go through the `bl` verb surface only, which is what carries the change-worktree/seal protocol and the plugin chain.
+
 ---
 
 ## Why not existing alternatives
