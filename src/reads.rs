@@ -43,10 +43,15 @@ mod show;
 mod style;
 mod target;
 
-pub(crate) use catalog::{Catalog, Entry};
+// The typed read surface a LINKED consumer imports (yog, DESIGN §16.7): the
+// catalog + its row, and the bedrock `--json` projection — the in-process
+// mirror of `bl list --json` / `bl show --json`, carrying no derived status
+// (see [`Catalog`] / [`task_json`]). Everything else here stays crate-private.
+pub use catalog::{Catalog, Entry};
+pub use record::task_json;
 pub(crate) use flags::parse;
 pub(crate) use history::resolve_dead;
-pub(crate) use record::{json_line, task_json};
+pub(crate) use record::json_line;
 pub(crate) use style::Style;
 
 #[cfg(test)]
