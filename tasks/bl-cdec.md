@@ -1,0 +1,7 @@
++++
+title = "bl close is not atomic against a busy main: mid-gate advances abort on no-resurrection; store seal can fail after delivery landed"
+created = 1784959126
+updated = 1784959126
+root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
++++
+Observed during ~15 parallel agent closes on the lernie repo (each close gate runs a 10-13 min tarpaulin). Two distinct failures: (1) bl close aborts on the no-resurrection invariant when main advances DURING the close's own gate run — the close loses a race it cannot win under parallel merge traffic; a retry after re-merging main eventually wins, but each attempt costs a full gate. (2) One close delivered its squash to main successfully and then failed the store seal with 'expected exactly one changed task file, found 0' plus a failed rollback — the ball ended up closed and main correct, but delivery+seal is not atomic; the error message asserts an inconsistency the operator has to go verify by hand. Repro conditions: concurrent closes + long pre-commit hooks + main advancing between fold-in and seal. Worth deciding: should close re-fold main and re-run the hook in a loop until it wins (bounded), and should the seal tolerate/reconcile an already-delivered squash instead of attempting rollback?
