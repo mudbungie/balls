@@ -1,7 +1,7 @@
 +++
 title = "bl close is not atomic against a busy main: mid-gate advances abort on no-resurrection; store seal can fail after delivery landed"
 created = 1784959126
-updated = 1785027730
+updated = 1785028311
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 
 [[blockers]]
@@ -21,3 +21,5 @@ MODE 2 — store seal failed AFTER the squash landed on main. Error: 'expected e
 MODE 3 (adjacent, same root) — a create with a title starting with '--' is refused by getopt unless the documented '-- TITLE' form is used; fine — but note create/close under concurrent store writers still occasionally needs the documented single retry ('store race'), which held up (retries clean, no corruption seen).
 
 All three observed on stock bl from PATH (~/.local/bin/bl) against the lernie repo store. Concurrency level is the trigger; single-agent flows never hit any of this.
+
+MODE 4 (worst yet, silent data loss on main): a close whose gate ran long enough for main to advance delivered a squash COMPUTED AGAINST THE STALE BASE and silently REVERTED a sibling ball's already-landed content (bl-cd6b's close reverted bl-a227's README rewrite on the lernie repo, 2026-07-25). No invariant fired — the no-resurrection check caught path-level leaks in other cases but not this content-level revert of a file both branches touched. The closing agent detected it only by manual diff, restored the sibling's text, and re-closed. Root cause hypothesis: the squash base is not re-derived after the fold-in / after the gate completes, so gate-duration races produce silently-wrong squashes rather than aborts. This elevates the severity of the ball: modes 1-2 waste time; mode 4 corrupts main.
