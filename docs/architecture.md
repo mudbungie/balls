@@ -72,6 +72,22 @@ child plus a tag), never core rules. Destination semantics, not source.
   carve-out. Swap that folder and you swap the default capability set: policy lives in config, not core.
 - **Subtract before adding.** A new verb/state/field/flag is a smell; prefer an existing signal.
   Derive values rather than store them; make a component indifferent rather than teach it cases.
+- **Every op is ATOMIC PER REPOSITORY (bl-cdec).** An op has exactly ONE commit point per repository
+  it touches; that commit point is a COMPARE-AND-SWAP against the state the op's work was DERIVED
+  from; before it nothing is observable and after it everything is. An op spanning repositories (a
+  `close`: the project repo, then the store) is atomic in each and CONVERGENT across them (§14) — the
+  commit points are ordered so every prefix is a state a retry converges from. Per-repository is the
+  ceiling, not a compromise: git offers `--atomic` within one repo and nothing across it (bl-0161).
+  Four obligations make each commit point real, and they are git's own disciplines, not new
+  mechanism: **(1) prepare, then commit** — all fallible/expensive work produces INERT content
+  (objects, a change worktree, a squash nothing points at), and the commit point is one ref move;
+  **(2) CAS against what you READ** — the expected old value is the one the work was derived from,
+  never a fresh read taken at flip time (a window between the read and the flip is a lost update,
+  whatever guards sit inside it); **(3) failure is a NON-EVENT** — a rejected commit point leaves
+  observable state exactly as the op found it, so nothing needs repair before a retry; **(4) identity
+  is CARRIED, not re-derived** — the ball an op is about is an op input on the wire, never re-read
+  from mutable scratch (git writes `MERGE_HEAD`; it does not infer the merge from the index). Audit,
+  gaps and the open starvation question: `docs/design/bl-cdec-atomicity.md`.
 
 **Vocabulary** (see §2/§12): the **landing** is the always-present, path-derived local `balls/config`
 branch holding this checkout's config — including `tasks_branch`, the one pointer that says where the
@@ -1995,7 +2011,35 @@ or the new HEAD, never wedged — re-running converges.
 
 ## §15 Open topics (epic bl-b465)
 
-Each becomes a § edit here when settled. **None open** — every topic resolved into the body.
+Each becomes a § edit here when settled. **One open** (bl-ea55, atomicity — the guarantee is recorded
+in §0; the starvation half is not settled); every other topic resolved into the body.
+
+OPEN:
+- **atomicity is a CORE GUARANTEE, with four obligations — and two shipped commit points violate it
+  (2026-07-25, bl-ea55, from the bl-cdec report; design record
+  `docs/design/bl-cdec-atomicity.md`).** balls had every component atomicity needs — inert change
+  worktrees, `merge --ff-only` as the store CAS, `update-ref` old-values since bl-a3bb, §14
+  converge-on-retry — and had never STATED the guarantee, so each commit point was hand-built and two
+  were wrong. §0 now carries the guarantee (one CAS commit point per repository per op; atomic in
+  each, convergent across) and its four obligations (prepare-then-commit; CAS against what you READ;
+  failure is a non-event; identity is carried, not re-derived). The audit found the gaps the bl-cdec
+  report saw and one it did not: (a) the delivery CAS (§11) reads its expected old value AFTER the
+  10-13 min gate, while the gated tree was derived from the tip BEFORE the fold — so a mid-gate
+  advance either false-fires the no-resurrection invariant (the reported abort, wrong voice, a whole
+  gate run wasted) or, when the mover's paths are a SUBSET of the branch's authored paths, passes
+  every guard and SILENTLY REVERTS the mover; fix is to pin the fold base and use it as parent, CAS
+  old-value, and resurrection comparison point (bl-8b89); (b) a lost store seal leaves the change
+  worktree COMMITTED (the ff failed after the commit) with no seal record, so the unwind runs as a
+  pre-abort whose delivery rollback re-derives its id from a now-clean worktree — `expected exactly
+  one changed task file, found 0` plus a FAILED ROLLBACK report over a state that is actually fine;
+  fix is obligation (4) — carry the id on the pre wire and DELETE `resolve_id`'s changed-file
+  fallback (bl-a5f3), which retires §7's "the id is NOT on the pre wire" clause. Still OPEN and NOT
+  recorded in §0: whether a mid-gate loser deserves more than a clean rejection — a delivery lease
+  (`update-ref refs/balls/delivery/<integration> <sha> ''`, atomic create-if-absent, stale = prime
+  debris) serializes the gate and costs no throughput on a saturated box, but it is the one option
+  that adds mechanism. Lower-severity gaps (`binding.toml`'s uncontrolled read-modify-write, the
+  founding crash window, `bl-chore`'s nested `create` outside the parent atom) are bl-ffbf; the store
+  seal's raw-git contention voice is bl-fa89. Touched §0 (the new principle), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
 - **`--subtask-of` gates CLOSE again — the sugar IS the nesting declaration (2026-07-21, bl-e844 —
