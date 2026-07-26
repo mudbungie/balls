@@ -1,8 +1,12 @@
 +++
 title = "bl close is not atomic against a busy main: mid-gate advances abort on no-resurrection; store seal can fail after delivery landed"
 created = 1784959126
-updated = 1784959154
+updated = 1785027726
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-8b89"
+on = "close"
 +++
 bl close is specified-atomic but observably is not, under parallel merge traffic. Evidence from the lernie 0.0.1 release drive (2026-07-24, ~15 concurrent agent closes, each close gate a 10-13 min tarpaulin run, load avg 25-30):
 
