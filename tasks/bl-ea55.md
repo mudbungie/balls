@@ -1,7 +1,8 @@
 +++
 title = "Atomicity as a core guarantee: one CAS commit point per repo per op — audit every op, close the gaps"
 created = 1785027722
-updated = 1785027722
+updated = 1785027736
+claimant = "Buildings"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["design"]
 +++
