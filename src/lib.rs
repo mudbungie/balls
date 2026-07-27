@@ -116,6 +116,7 @@ pub mod conf;
 pub mod config;
 pub mod converge;
 pub mod delivery;
+pub mod delivery_bin;
 pub mod delivery_fold;
 pub mod delivery_message;
 pub mod delivery_path;

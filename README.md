@@ -287,6 +287,8 @@ balls is published as the `balls` crate and its modules are public, but the supp
 
 The one exception is the **typed read surface** for linking consumers: `reads::Catalog::load` / `Catalog::entries` / `Catalog::get` / `Catalog::is_resolved` and `reads::task_json` are the in-process mirror of `bl list --json` / `bl show --json` — same bedrock records, no derived status (derive it via `task::Task::status/ready/closeable` with a caller-supplied resolver, e.g. `Catalog::is_resolved`). It exists for hosts that embed balls wholesale (exact-pinned) rather than shell out; pin an exact version — the surface is not semver-stable. Mutations have no library path: they go through the `bl` verb surface only, which is what carries the change-worktree/seal protocol and the plugin chain.
 
+A second exception serves hosts that embed balls **and multiplex the plugin binaries themselves** (a host whose `bl` is its own executable has no sibling `bl-tracker`/`bl-delivery` beside it): `tracker::run` and `delivery_bin::run` are the two shipped plugins' whole argv/wire boundaries as library entrypoints — the shipped binaries are thin edges over exactly these, so a multiplexing host answers the same §6/§7 contract from the same code, with env resolution left at the host's own process boundary.
+
 ---
 
 ## Why not existing alternatives
