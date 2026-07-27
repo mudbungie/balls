@@ -64,8 +64,11 @@ impl Project {
     /// delivery's own tree. A conflict or any tree drift is non-containment —
     /// the branch carries something the delivery does not. This is what keeps
     /// the forge squash-merge a skip (same content, rewritten commits) while
-    /// catching a genuinely undelivered commit.
-    fn contained(&self, branch: &str, delivery: &str) -> io::Result<bool> {
+    /// catching a genuinely undelivered commit. `delivery` is any commit-ish:
+    /// the prune's closed-ball debris arm ([`Project::prune`]) asks the same
+    /// question of the integration TIP, where containment means the branch is
+    /// safe to delete even though no `[bl-id]` delivery ever tagged it.
+    pub(crate) fn contained(&self, branch: &str, delivery: &str) -> io::Result<bool> {
         let out = Project::git(&self.root, &["merge-tree", "--write-tree", delivery, branch])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

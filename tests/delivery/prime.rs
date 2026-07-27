@@ -55,7 +55,10 @@ fn prime_does_not_materialize_a_claimed_worktree() {
 fn prime_reports_an_unsettled_branch_whose_worktree_is_gone() {
     // bl-c117 (bl-18bf piece 3): unclaim tore the worktree down but the branch
     // carries a committed-yet-undelivered diff — prime must SAY so on stderr,
-    // naming both remedies, and prune nothing.
+    // naming both remedies, and prune nothing. Then bl-baa0: with the ball
+    // CLOSED (its task file gone from the very store checkout core runs
+    // prime.post in) the same debris reports the discard arm ALONE. This is the
+    // one place the cwd-IS-the-store wiring is proven end to end.
     let tmp = TempDir::new().unwrap();
     let home = tmp.path().join("home");
     fs::create_dir_all(&home).unwrap();
@@ -74,11 +77,20 @@ fn prime_reports_an_unsettled_branch_whose_worktree_is_gone() {
     assert!(!wt.exists());
 
     let store = tmp.path().join("store");
-    fs::create_dir_all(store.join("tasks")).unwrap();
+    claimed_ball(&store, "bl-gone", "me"); // still OPEN: both remedies stand
     delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success().stderr(
         "bl-delivery: work/bl-gone is committed but its worktree is gone — bl claim bl-gone \
          re-materializes onto it (a later close still delivers, bl-65e0), \
          or discard with git branch -D work/bl-gone\n",
+    );
+
+    // Close the ball the only way §10 records it: the task file goes away.
+    fs::remove_file(store.join("tasks").join("bl-gone.md")).unwrap();
+    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success().stderr(
+        "bl-delivery: work/bl-gone is committed but its worktree is gone, and bl-gone is closed \
+         (no task file — absence is the record), so nothing can re-claim or deliver it: \
+         its content is NOT contained in main — read it with git diff main...work/bl-gone, \
+         then discard with git branch -D work/bl-gone\n",
     );
 
     // Reported, never pruned: the branch — the only copy of the diff — survives.

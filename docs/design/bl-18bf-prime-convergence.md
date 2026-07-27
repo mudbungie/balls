@@ -156,6 +156,25 @@ wire or breaking the plugin's kind-blind/stateless contract, both out of
 proportion. The report above covers the same debris from the side that can see
 it (branch present, dir absent), without asserting claim state.
 
+**Amendment (bl-baa0, 2026-07-27): "both remedies" was wrong for the common
+case.** A branch outlives its ball — close deletes `tasks/<id>.md` and leaves
+the branch for exactly this deferred cleanup — so the debris of a CLOSED ball is
+the *typical* line, and there the re-claim remedy is a lie: the ball cannot be
+claimed and no close can deliver it (observed 2026-07-24: prime told an operator
+to `bl claim bl-04eb`, long closed, whose content had landed inside bl-06d5's
+squash). The report now has two arms, decided by one `exists()` on
+`tasks/<id>.md`. Open ⇒ the line above, unchanged. Closed ⇒ the discard arm
+alone, prefixed by content-containment against the integration TIP
+(`Project::contained`) so the operator knows whether deletion loses anything —
+the case `Standing` cannot see, because content delivered under another ball's
+tag reads `Undelivered` forever. Non-contained ⇒ name the three-dot diff, claim
+nothing. This does NOT revive the dropped variant: it reads ball EXISTENCE, not
+the claim set, and it reads it from the store checkout core already runs
+`prime.post` in (§13 diffless — the plugin's cwd, the same one `close.pre`
+recovers its id from), so the wire is untouched. Cost stays off the clean path:
+the `exists()` rides the per-branch probe already there, and the `merge-tree`
+runs only for a closed ball's debris branch.
+
 ### 3. The front door (docs)
 
 - `SKILL.md`, one line in the invariants/flow area: *upgraded and things are
