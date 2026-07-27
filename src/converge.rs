@@ -43,8 +43,9 @@
 //! name each cycle.
 //!
 //! §12.2 [`debris`] (bl-18bf piece 2, bl-3e5e) — the SAME module boundary, a
-//! DIFFERENT contract: REPORT ONLY, prime deletes nothing here (an orphan
-//! worktree may hold uncommitted work). Two crash-debris checks, one `readdir` +
+//! DIFFERENT contract: REPORT ONLY, prime deletes nothing here (what it names
+//! may hold uncommitted work, and may belong to a LIVE op — bl-7f82, which is
+//! why every line hedges rather than instructing). Three checks, one `readdir` +
 //! one `exists()` on the clean path, returned as rendered lines the SAME way
 //! [`crate::seed::seed_landing`]'s prune notes are (this layer stays log-free;
 //! `prime` emits each line through the op log at `info` + stderr echo once it
@@ -180,7 +181,7 @@ fn subject(map: &BTreeMap<String, &'static str>) -> String {
     format!("balls: converge {}", pairs.join(" "))
 }
 
-/// The core-side crash-debris report (§12.2, bl-18bf piece 2): [`orphan_changes`],
+/// The core-side crash-debris report (§12.2, bl-18bf piece 2): [`change_worktrees`],
 /// [`stealth_lock`], then [`index_lock`], concatenated in that order. REPORT ONLY
 /// — nothing here deletes; each line names the fixing command and `prime` carries the returned
 /// lines into the op log at `info` + stderr echo, exactly like [`seed::seed_landing`]'s
@@ -189,20 +190,40 @@ fn subject(map: &BTreeMap<String, &'static str>) -> String {
 /// scope `changes/` and `stealth.lock` both live under. A converged, debris-free
 /// checkout costs one `readdir` + two `exists()` and returns empty.
 pub fn debris(clone: &CloneDir, landing: &Path) -> io::Result<Vec<String>> {
-    let mut notes = orphan_changes(clone)?;
+    let mut notes = change_worktrees(clone)?;
     notes.extend(stealth_lock(clone, landing)?);
     notes.extend(index_lock(landing));
     Ok(notes)
 }
 
 /// Every `changes/<uuid>/` entry present at prime time ([`CloneDir::change`],
-/// §1/§8): crash debris from an op whose teardown never removed its own change
-/// worktree (an op that finishes normally always does). One `readdir`; a
-/// `changes/` directory that has never been created (no op has ever run here)
-/// is not an error, just nothing to report. Each line names `git worktree
-/// remove <path>` — never deleted here, because an orphan may hold uncommitted
-/// work (the reason this is a report, not a prune).
-fn orphan_changes(clone: &CloneDir) -> io::Result<Vec<String>> {
+/// §1/§8). One `readdir`; a `changes/` directory that has never been created
+/// (no op has ever run here) is not an error, just nothing to report.
+///
+/// **The line never claims the worktree is orphaned (bl-7f82).** It once did —
+/// "crash debris — its op's teardown never ran", plus an unconditional `git
+/// worktree remove` — and that claim is unprovable: a worktree is open from
+/// [`crate::git::Anvil::open`] until teardown, which for `close` spans the whole
+/// `close.pre` gate, so under fleet concurrency the common occupant of
+/// `changes/` is a LIVE op. Observed 2026-07-26: an agent followed this advice,
+/// removed a running `close`'s worktree, and that op's seal died on a vanished
+/// cwd — a failure manufactured by our own report.
+///
+/// **Nor can anything here name the owning op.** The worktree is detached at the
+/// store tip and stays there until the seal commits, so its HEAD carries the
+/// *previous* op's §5 trailers, never its own; a stale base only means siblings
+/// sealed while it worked, which is the normal state of a long op. There is no
+/// op identity to ask the store about, and every candidate discriminator (base
+/// staleness, HEAD reachability, tree dirtiness) misreads a live op in exactly
+/// the window that matters.
+///
+/// So the line degrades to the honest report [`index_lock`] already gives for
+/// the same hazard, in the same words: name the path and the removal, and
+/// CONDITION the advice on no op running. Silence was rejected (a real crash's
+/// debris must still be reported), as were an age bound and pid tracking (a knob
+/// and new state, for a question the operator can answer and prime cannot).
+/// Deletion stays a human act either way: an occupant may hold uncommitted work.
+fn change_worktrees(clone: &CloneDir) -> io::Result<Vec<String>> {
     let changes = clone.root().join("changes");
     let entries = match fs::read_dir(&changes) {
         Ok(entries) => entries,
@@ -213,7 +234,7 @@ fn orphan_changes(clone: &CloneDir) -> io::Result<Vec<String>> {
         .map(|entry| {
             let path = entry?.path();
             Ok(format!(
-                "orphan change worktree {} (crash debris — its op's teardown never ran): remove with `git worktree remove {}`",
+                "change worktree {} (crash debris unless an op is running here right now — an op holds its change worktree for its whole run, a close for its whole gate): with none running, remove with `git worktree remove {}`",
                 path.display(),
                 path.display()
             ))

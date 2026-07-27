@@ -5,7 +5,8 @@
 //! the two properties that must survive it — the task lands in exactly ONE of
 //! {still-claimed, delivered-and-retired} (never both-gone limbo), a retried
 //! close converges on a single `[bl-id]` squash, and `bl prime` REPORTS the real
-//! crash debris (the orphan change worktree) rather than choking.
+//! crash debris (the abandoned change worktree) rather than choking — hedged,
+//! since prime cannot prove the op is gone (bl-7f82).
 //!
 //! Two kill points, mirroring the half-close direction-lock (tests/half_close.rs):
 //! - during the `close.pre` delivery GATE, before the squash lands — the task
@@ -186,11 +187,13 @@ fn kill_during_close_pre_gate_stays_claimed_and_retry_converges() {
     let (_, json, _) = run(bl(&project, &home, &state, &["list", "--json"]));
     assert!(!json.contains(&tid), "retry archived the task: {json}");
 
-    // prime REPORTS the real crash debris (the killed op's orphan change worktree)
-    // and still succeeds — it does not choke on what the kill left.
+    // prime REPORTS the real crash debris (the killed op's change worktree) and
+    // still succeeds — it does not choke on what the kill left. This IS a real
+    // crash, and the line is the same hedged one a live op would draw (bl-7f82):
+    // prime cannot tell them apart, so it names the removal and conditions it.
     let (ok, _, err) = run(bl(&project, &home, &state, &["prime"]));
     assert!(ok, "prime after kill must not choke: {err}");
-    assert!(err.contains("orphan change worktree") && err.contains("crash debris"), "prime names the debris: {err}");
+    assert!(err.contains("change worktree") && err.contains("crash debris unless an op is running"), "prime names the debris: {err}");
 }
 
 #[test]
@@ -244,5 +247,5 @@ fn kill_during_close_post_is_delivered_and_retirable_never_limbo() {
     // prime reports the real crash debris and succeeds.
     let (ok, _, err) = run(bl(&project, &home, &state, &["prime"]));
     assert!(ok, "prime after kill must not choke: {err}");
-    assert!(err.contains("orphan change worktree") && err.contains("crash debris"), "prime names the debris: {err}");
+    assert!(err.contains("change worktree") && err.contains("crash debris unless an op is running"), "prime names the debris: {err}");
 }

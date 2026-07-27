@@ -1521,6 +1521,27 @@ debris-report voice, and `found_landing` refuses in **those same words** before 
 call sites, one sentence, because the report alone could never be heard: prime emits debris only
 *after* founding, which is precisely the op the lock kills.
 
+**Debris advice never asserts a liveness it cannot prove** (bl-7f82). The lock line's hedge —
+*"crash debris unless an op is running here right now: with none running, remove with …"* — is not
+local caution about locks; it is the general rule, and the `changes/<uuid>/` line now speaks in
+exactly those words. It did not: it claimed *"orphan change worktree — its op's teardown never
+ran"* and handed over `git worktree remove` unconditionally. That claim is unprovable. A change
+worktree is open from `Anvil::open` until teardown (§8), which for `close` spans the whole
+`close.pre` gate, so under fleet concurrency the ordinary occupant of `changes/` is a **live op**,
+and on 2026-07-26 an agent following the advice removed a running `close`'s worktree — that op's
+seal then died on a vanished cwd, a failure manufactured by our own report. **Nor can prime name
+the owning op.** The worktree is detached at the store tip and stays there until the seal commits,
+so its HEAD carries the *previous* op's §5 trailers, never its own; a stale base means only that
+siblings sealed while it worked, which is the normal state of a long op. There is no op identity to
+ask the store about, and every candidate discriminator (base staleness, HEAD reachability, tree
+dirtiness) misreads a live op in exactly the window that matters — so the closure-aware arm the
+delivery-side report gets from the store (bl-baa0, below) has no core-side analogue. Silence was
+rejected (a real crash's debris must still be reported), as were an age bound and pid tracking: a
+knob and new state, bought to answer a question the operator can answer by looking and prime
+cannot answer at all. This also bounds `prime`'s deletion license — prime may not delete what it
+cannot prove is dead, and the license cannot widen over `changes/` without a liveness signal that
+does not exist today.
+
 Core only (a) ensures the landing + store substrate and (b) runs the configured plugin chain, then
 commits — it has zero knowledge of tracker/remotes/stealth. **The local-miss branch SEEDS a fresh
 landing by copying the app-level `default-config/` folder (§1) into `balls/config`** (`git init` if no
@@ -1582,12 +1603,16 @@ read, so the same op that rewrites also dispatches the rewritten schedule and bi
   schedule cannot re-inject the old name on every adopt cycle — otherwise the rewrite would be a
   commit-per-install instead of once ever.
 - **Debris report (`converge::debris` core-side; `Project::prune` delivery-side) — report only,
-  prime deletes nothing here** (an orphan worktree or unsettled branch may hold uncommitted work).
+  prime deletes nothing here** (an abandoned worktree or unsettled branch may hold uncommitted work).
   Each line names the fixing command, riding the ordinary op-log path at `info` + stderr echo (the
   bl-b1be idiom already used for the seed's prune notes and install's dangling report) — never a
-  bare stderr line the log file never sees. Core-side, one `readdir` plus two `exists()`:
-  **orphan `changes/<uuid>/` worktrees** (crash debris from an op whose teardown never ran; reported
-  with `git worktree remove <path>`), **the landing's own `.git/index.lock`** (bl-3e89 — see below),
+  bare stderr line the log file never sees. **A line asserts only what prime can prove**, and for
+  two of the three core-side checks that stops short of "this is dead": the named thing may belong
+  to a LIVE op, so the advice is CONDITIONED on none running rather than instructing (bl-3e89 for
+  the lock, bl-7f82 for the change worktree — see *Debris advice never asserts a liveness it cannot
+  prove* below). Core-side, one `readdir` plus two `exists()`:
+  **`changes/<uuid>/` worktrees** (`crash debris unless an op is running here right now`; with none
+  running, `git worktree remove <path>`), **the landing's own `.git/index.lock`** (bl-3e89 — see below),
   and **a `stealth.lock` file present while stealth is
   undeclared** — the one *silent-publish* hazard in the catalog: an operator who declared stealth
   with the old, retired lock mechanism is silently un-stealthed by the modern remote ladder, since
