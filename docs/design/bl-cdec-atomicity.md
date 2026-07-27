@@ -130,6 +130,23 @@ the gate was run against, a mid-gate move is one clean rejection in bl-a3bb's
 existing voice, and the resurrection invariant goes back to detecting only
 resurrections. One variable, read earlier; no new state, no new flag.
 
+**Closed out (bl-9522): the fold consumes the pin too.** bl-8b89 left the
+`merge` reading the REF NAME, so the pin and the fold were two reads of one ref
+with a sub-second window between them. Forward movement in that window was
+already safe (the CAS on the pinned base rejects cleanly); the unsafe shape was
+contrived — `integration` RESET back to the pin after the fold read a newer tip,
+so the CAS passes and delivers content integration no longer wants. It is closed
+structurally rather than argued away: `reintegrate` takes the SHA, so ONE read is
+the whole delivery's notion of where integration was, and there is no second read
+left to disagree. The ref NAME survives in the delivery-conflict voice beside the
+pin (*delivery conflict merging `main` (pinned at `<sha>`) into the work branch*)
+— the operator thinks in branches, the delivery acts on a commit. **No residual
+window remains here.** The window itself was never testable without a seam
+between the `rev-parse` and the `merge`, and adding one to prove a race that no
+longer exists is the wrong trade; the deterministic receipt is asserted instead —
+git records `Merge commit '<pinned sha>'`, which `git merge main` could not
+produce.
+
 ## 5. G2 — a failed seal destroys the state its own abort path reads (A3/A4)
 
 MODE 2, root-caused. `Git::seal` (`src/git.rs`) is two acts: `add -A` + `commit`

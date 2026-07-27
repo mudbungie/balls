@@ -1060,10 +1060,13 @@ self-merge default DELIVER and RETIRE are one act:
   project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
   close here, pre-seal), then squashes `work/<id>` → integration (conflicts
   surface HERE). The ref move is a COMPARE-AND-SWAP on the PINNED FOLD BASE — the integration tip
-  read before the fold, the one value that also serves as the squash's parent and the
-  no-resurrection comparison point (bl-a3bb, bl-8b89) — so two closes sharing one checkout never
+  read ONCE before the fold, the single value that is also what the fold merges, the squash's parent
+  and the no-resurrection comparison point (bl-a3bb, bl-8b89, bl-9522) — so two closes sharing one
+  checkout never
   clobber each other, even across the whole gate run: a lost race aborts loudly pre-seal and the
-  retry re-folds. The squash is the delivery's BINDING commit point (§14): it stands through any
+  retry re-folds. The delivery reads `integration` exactly once and acts on that COMMIT thereafter;
+  the branch NAME survives only in the voice (*delivery conflict merging `main` (pinned at `<sha>`)
+  into the work branch*), because the operator thinks in branches and the delivery acts on a commit. The squash is the delivery's BINDING commit point (§14): it stands through any
   later abort, and the retried close converges onto it. One path, no forge variant: a
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
   already-delivered check (§11) — delivery converges on retry whoever performed the merge.
@@ -2165,7 +2168,9 @@ OPEN:
   gate run wasted) or, when the mover's paths are a SUBSET of the branch's authored paths, passes
   every guard and SILENTLY REVERTS the mover; FIXED (bl-8b89): the fold base is pinned before
   reintegration and is the parent, the CAS old-value, and the resurrection comparison point, so a
-  mid-gate advance is one clean CAS rejection in the bl-a3bb voice; (b) a lost store seal leaves the change
+  mid-gate advance is one clean CAS rejection in the bl-a3bb voice — and bl-9522 closed the residual
+  pin-vs-fold window by feeding the fold the pinned SHA rather than the ref name, so the delivery
+  reads `integration` ONCE and nothing is left to disagree; (b) a lost store seal leaves the change
   worktree COMMITTED (the ff failed after the commit) with no seal record, so the unwind ran as a
   pre-abort whose delivery rollback re-derived its id from a now-clean worktree — `expected exactly
   one changed task file, found 0` plus a FAILED ROLLBACK report over a state that is actually fine;

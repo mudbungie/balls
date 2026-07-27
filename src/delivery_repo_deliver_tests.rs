@@ -86,6 +86,36 @@ fn deliver_is_a_no_op_when_the_branch_was_never_made() {
 }
 
 #[test]
+fn the_fold_consumes_the_pinned_sha_not_the_integration_ref() {
+    // bl-9522: bl-8b89 made the pinned tip the squash parent, the CAS old-value
+    // and the no-resurrection comparison point, but the fold still re-read
+    // `integration` — two reads of one ref, disagreeable for a sub-second
+    // window (unsafe only if something RESET the ref inside it). The fold now
+    // consumes the pin, so ONE read is the whole delivery's notion of where
+    // integration was. The merge commit git writes is the receipt: it names the
+    // commit it was given, and it was given the pin.
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
+    Project::run(&wt, &["add", "-A"]).unwrap();
+    Project::run(&wt, &["commit", "-qm", "work"]).unwrap();
+    // Integration moves after the claim, so the fold is a REAL merge commit.
+    fs::write(root.join("late.txt"), "landed meanwhile\n").unwrap();
+    Project::run(&root, &["add", "-A"]).unwrap();
+    Project::run(&root, &["commit", "-qm", "late main edit"]).unwrap();
+    let pinned = Project::run(&root, &["rev-parse", "main"]).unwrap().trim().to_string();
+
+    p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
+
+    // `git merge <sha>` records "Merge commit '<sha>'"; `git merge main` would
+    // have recorded "Merge branch 'main'".
+    let fold = Project::run(&root, &["log", "-1", "--format=%s", "work/bl-x"]).unwrap();
+    assert_eq!(fold.trim(), format!("Merge commit '{pinned}' into work/bl-x"));
+    assert_eq!(tip(&root), "Add feature [bl-x]");
+}
+
+#[test]
 fn deliver_surfaces_a_conflict_as_an_error() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
@@ -96,8 +126,12 @@ fn deliver_surfaces_a_conflict_as_an_error() {
     fs::write(root.join("seed.txt"), "from main\n").unwrap();
     Project::run(&root, &["commit", "-qam", "main edit"]).unwrap();
 
+    let pinned = Project::run(&root, &["rev-parse", "main"]).unwrap().trim().to_string();
     let err = p.deliver(&wt, "work/bl-x", "main", "clash [bl-x]", "[bl-x]").unwrap_err();
-    assert!(err.to_string().contains("delivery conflict"));
+    // The fold consumes a SHA now (bl-9522), so the voice names BOTH: the branch
+    // the operator thinks in, and the pinned tip that actually conflicted.
+    let msg = err.to_string();
+    assert!(msg.starts_with(&format!("delivery conflict merging main (pinned at {pinned}) into the work branch: ")), "{msg}");
     // The half-merge was aborted: no MERGE_HEAD pending, the worktree is clean
     // for the agent to reintegrate by hand.
     assert!(!Project::ok(&wt, &["rev-parse", "--verify", "--quiet", "MERGE_HEAD"]).unwrap());

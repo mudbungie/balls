@@ -146,17 +146,29 @@ impl Project {
         Ok(())
     }
 
-    /// Fold `integration` into the work branch IN the worktree, so the tree the
-    /// gate checks IS the tree the squash delivers even when integration moved
-    /// since claim. STRICT (bl-a04a): git's default merge, no `-X`/strategy
-    /// side-picking ever — anything git marks conflicted (modify/delete and
-    /// rename/delete included) aborts. Already-up-to-date is a commitless
-    /// no-op; a conflict aborts the half-merge (the worktree stays clean for
-    /// the agent to merge by hand) and surfaces as the delivery-conflict error.
-    pub(crate) fn reintegrate(path: &Path, integration: &str) -> io::Result<()> {
-        if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", integration]) {
+    /// Fold the PINNED integration tip `base` into the work branch IN the
+    /// worktree, so the tree the gate checks IS the tree the squash delivers
+    /// even when integration moved since claim. STRICT (bl-a04a): git's default
+    /// merge, no `-X`/strategy side-picking ever — anything git marks
+    /// conflicted (modify/delete and rename/delete included) aborts.
+    /// Already-up-to-date is a commitless no-op; a conflict aborts the
+    /// half-merge (the worktree stays clean for the agent to merge by hand) and
+    /// surfaces as the delivery-conflict error.
+    ///
+    /// The SHA, not the ref name (bl-9522). bl-8b89 made the pinned tip the
+    /// squash parent, the CAS old-value and the no-resurrection comparison
+    /// point, but the fold still re-read `integration` — so the pin and the
+    /// fold were two reads of one ref and could disagree for a sub-second
+    /// window. Folding the pin closes it structurally: ONE read is now the
+    /// whole delivery's notion of "where integration was". `integration` stays
+    /// on for the VOICE — a conflict names the branch the operator thinks in,
+    /// with the pinned tip beside it.
+    pub(crate) fn reintegrate(path: &Path, integration: &str, base: &str) -> io::Result<()> {
+        if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", base]) {
             let _ = Self::run(path, &["merge", "--abort"]); // best-effort: a never-started merge has nothing to abort
-            return Err(io::Error::other(format!("delivery conflict merging {integration} into the work branch: {e}")));
+            return Err(io::Error::other(format!(
+                "delivery conflict merging {integration} (pinned at {base}) into the work branch: {e}"
+            )));
         }
         Ok(())
     }
