@@ -5,6 +5,10 @@ updated = 1785124702
 claimant = "marrow"
 parent = "bl-ea55"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-4233"
+on = "close"
 +++
 MODE 3 of bl-cdec ('create/close under concurrent store writers still occasionally needs the documented single retry'). The store seal's ff-only IS the compare-and-swap and it behaves correctly — nothing is overwritten, the retry converges. But the operator sees raw git ('fatal: Not possible to fast-forward, aborting' or 'cannot lock ref HEAD'), which reads as corruption rather than as the one-line instruction it is.
 
