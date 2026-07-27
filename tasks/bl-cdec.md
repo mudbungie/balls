@@ -1,7 +1,8 @@
 +++
 title = "bl close is not atomic against a busy main: mid-gate advances abort on no-resurrection; store seal can fail after delivery landed"
 created = 1784959126
-updated = 1785028311
+updated = 1785124848
+claimant = "thence"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 
 [[blockers]]
