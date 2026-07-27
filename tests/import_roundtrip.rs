@@ -36,6 +36,14 @@ fn git(cwd: &Path, args: &[&str]) {
 impl Store {
     /// Found a real project repo on `main` (a seed commit lets the delivery
     /// plugin fork `work/<id>` worktrees) and prime its checkout.
+    ///
+    /// The seed content is the `tag`, so every store's repo gets a DISTINCT
+    /// root commit — the same rule tests/fleet.rs states. A constant seed made
+    /// the root commit a function of the wall-clock SECOND alone (identical
+    /// tree, message and identity, only the timestamp varying), so two stores
+    /// founded inside one second shared a root and two straddling a boundary
+    /// did not — and the root-aware `bl list` scope (bl-0161) then flipped with
+    /// it. That coincidence is what made this file flake under load (bl-36f1).
     fn found(tmp: &Path, tag: &str) -> Store {
         let s = Store {
             project: tmp.join(format!("{tag}-p")),
@@ -46,7 +54,7 @@ impl Store {
         git(&s.project, &["init", "-q", "-b", "main"]);
         git(&s.project, &["config", "user.name", "test"]);
         git(&s.project, &["config", "user.email", "test@example.com"]);
-        std::fs::write(s.project.join("seed.txt"), "x").unwrap();
+        std::fs::write(s.project.join("seed.txt"), tag).unwrap();
         git(&s.project, &["add", "-A"]);
         git(&s.project, &["commit", "-qm", "seed"]);
         s.cmd().arg("prime").assert().success();
@@ -120,8 +128,14 @@ fn plain_import_round_trips_a_ball_byte_for_byte() {
     assert_eq!(record, b.show_json(&id), "imported ball must round-trip byte-for-byte in show --json");
     // And the id survived verbatim rather than a fresh mint being substituted.
     assert!(record.contains(&format!("\"id\": \"{id}\"")), "the source id is preserved: {record}");
-    // Nothing extra minted: B holds exactly the one imported id.
-    b.cmd().args(["list", "--json"]).assert().success().stdout(contains(&id[..]).count(1));
+    // Nothing extra minted: B holds exactly the one imported id. `--everywhere`
+    // is the honest reach for that count — byte-for-byte means the imported
+    // record still carries store A's `root_commit`, so B's checkout is a
+    // different project and the default root-aware scope (bl-0161) rightly
+    // hides the row. Both halves are asserted: the scope hides it, the lifted
+    // scope holds exactly one of it.
+    b.cmd().args(["list", "--json"]).assert().success().stdout(contains(&id[..]).count(0));
+    b.cmd().args(["list", "--everywhere", "--json"]).assert().success().stdout(contains(&id[..]).count(1));
 }
 
 #[test]
