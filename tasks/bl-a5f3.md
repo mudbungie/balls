@@ -1,7 +1,8 @@
 +++
 title = "A failed store seal leaves the change worktree committed, so the abort path cannot re-derive the ball id: 'found 0' + FAILED ROLLBACK"
 created = 1785027730
-updated = 1785027730
+updated = 1785124418
+claimant = "marrow"
 parent = "bl-ea55"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
