@@ -19,6 +19,14 @@ integration branch. Nothing converts them; nesting is declared by a `close` edge
 (`bl create --skill`), so to nest an imported tree, spell the `close` edges in
 the stream. An import authors no delivery of its own — no worktree, no target.
 
+Verbatim also includes `root_commit` — the project identity a ball recorded at
+birth. Import a ball rooted in ANOTHER project and it lands correctly but sits
+outside this checkout's default `bl list` scope, which shows only what `bl claim`
+would admit. The import says so: alongside the count it prints one stderr hint
+naming how many records are rooted elsewhere and the read that lifts the scope,
+`bl list --everywhere`. The ball is there — `bl show <id>` resolves it — it is
+simply not this project's.
+
 ## Flags
 
 - `--legacy[=REF]` — instead migrate a pre-greenfield store (preview first with
