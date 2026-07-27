@@ -222,6 +222,20 @@ fn update_refuses_a_non_live_needs_target() {
 }
 
 #[test]
+fn update_refuses_a_parent_that_is_not_an_id() {
+    // bl-1fc4: the parent pointer may DANGLE (a closed or never-existed ball —
+    // containment is display-only), but it must be an id; a flag token read as
+    // one is refused on the update path exactly as on create's.
+    let d = tempdir().unwrap();
+    write(d.path(), "bl-1", TASK);
+    let mut f = flags();
+    f.positionals = vec!["bl-1".into()];
+    f.parent = Some("--needs".into());
+    let err = base_change(Verb::Update, d.path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("update: parent '--needs' is not a task id"), "{err}");
+}
+
+#[test]
 fn update_rejects_subtask_of() {
     // --subtask-of carries a reciprocal close-gate, so like --blocks it is
     // create-only; update sets --parent (containment) but never a foreign edge.

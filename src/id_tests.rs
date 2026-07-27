@@ -52,6 +52,40 @@ fn generate_draws_a_valid_id_from_entropy() {
 }
 
 #[test]
+fn mint_re_rolls_a_draw_that_hit_a_live_id() {
+    // The § id-generation collision rule, core's half (bl-1fc4): a draw landing
+    // on a LIVE id is re-rolled, not written over that ball. Injected bytes so
+    // the collision is certain rather than lucky: 0 → "x0" (taken), 7 → "x7".
+    let scheme = IdScheme { prefix: "x".to_string(), length: 1, alphabet: "0123456789".to_string() };
+    let bytes = [0u8, 7];
+    let mut i = 0;
+    let id = scheme.mint_with(&["x0".to_string()], &mut || {
+        let b = bytes[i];
+        i += 1;
+        b
+    });
+    assert_eq!(id.as_deref(), Some("x7"));
+}
+
+#[test]
+fn mint_draws_a_free_id_from_entropy() {
+    let taken = vec!["bl-0000".to_string()];
+    let id = IdScheme::default().mint(&taken).unwrap();
+    assert!(is_valid(&id));
+    assert_ne!(id, "bl-0000");
+}
+
+#[test]
+fn mint_reports_an_exhausted_space_instead_of_looping() {
+    // A one-id space, that id live: every draw must collide. Bounded retry
+    // means this REPORTS rather than spins — the space is full, and no re-roll
+    // can fix that.
+    let scheme = IdScheme { prefix: "x".to_string(), length: 1, alphabet: "a".to_string() };
+    let err = scheme.mint(&["xa".to_string()]).unwrap_err();
+    assert!(err.to_string().contains("no free id after 8 draws"), "{err}");
+}
+
+#[test]
 fn validation_is_string_safety() {
     assert!(is_valid("bl-1a2f"));
     assert!(is_valid("A"));

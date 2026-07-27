@@ -1186,8 +1186,18 @@ existing edge pointing at a void remains cheap and inert (resolved = file gone) 
 unlinks it — we validate the WRITE, never audit the store. The escape hatch stays open by hand:
 `bl import` remains verbatim (a reproduction, not a transition — §9's no-enforce-gate unchanged),
 and `update --edit` or a direct store edit still stitches anything; the front door takes no risk to
-help that case through. (`--parent` is untouched — containment is display-only and dangles freely,
-§3; the §16 epic edge-mint already targets live children only.)
+help that case through. (`--parent` takes no LIVENESS check — containment is display-only and dangles
+freely, §3; the §16 epic edge-mint already targets live children only.)
+
+**Every id a flag names must be SHAPED like an id (bl-1fc4).** One rung below liveness, and it is the
+rung `--parent` does take: a value failing § id generation's string-safety pattern is refused by every
+id-taking flag, `--parent`/`--subtask-of` included. Liveness cannot cover this — a parent is *allowed*
+to dangle — yet the failure it catches is the same silent-corruption shape: a mis-quoted create loop
+(`--parent $P --needs $B` with `$P` empty) slides the next FLAG TOKEN into `--parent`, and the store
+accepted `parent = "--needs"` — an id no recency walk can ever resolve, and with a `/` or `..` in it a
+`tasks/<id>.md` path outside the store. Shape is asked of every id the front door WRITES; the store is
+still never audited, so an already-stored malformed pointer stays inert and `--no-parent`/`--edit`
+clear it.
 
 The forget-residue is caught by a close-time NOTICE, never a block (the §12 "diagnostic, never
 authority" pattern, bl-788e): a close that leaves live children prints "closed with N open children,
@@ -2057,6 +2067,23 @@ OPEN:
   seal's raw-git contention voice is bl-fa89. Touched §0 (the new principle), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **the auto-gen collision retry was SPECIFIED but never built; front-door ids now take a shape check
+  (2026-07-26, bl-1fc4 — post-freeze; dissolves the bl-a2bc flake).** § id generation has always split
+  collision by WHO chose the id — "auto-gen → retry (bounded); plugin-assigned → abort (an explicit
+  choice is authoritative)" — but core's draw was written BLIND: `create` minted `bl-xxxx` with no
+  read of the live set, staged it over whatever ball already held it, and died at finalize as
+  `a create.pre plugin reassigned the new task to bl-xxxx, which already exists` — with, in the
+  common case, no create.pre plugin in the chain at all. A 1-in-65536 draw against each live ball, so
+  it surfaced as an unattributable intermittent (a test-suite flake, bl-a2bc; a stray abort mid-loop
+  on a real store). Fixed where the spec already said: the draw re-rolls off the live id set, bounded
+  at 8 (`IdScheme::mint`) — exhausting the bound REPORTS a full space rather than spinning, because
+  termination must be a property of the space, not of luck. The plugin half is untouched and its
+  message is now SOUND: after the re-roll, a collision there IS an explicit choice. Second limb, same
+  create: `--parent` accepted any string, so a mis-quoted loop stored `parent = "--needs"` — every
+  id-taking flag now takes the § id-generation string-safety check (liveness stays edge-flags-only,
+  §10). Touched §10 (the new shape paragraph + the `--parent` parenthetical), §15 (this entry). Code:
+  `src/id.rs` (`mint`/`mint_with`), `src/mutate_author.rs` (the create draw),
+  `src/mutate_build.rs` (`require_id_shape`), `skill/create.md`, tests.
 - **`--subtask-of` gates CLOSE again — the sugar IS the nesting declaration (2026-07-21, bl-e844 —
   post-freeze; SUPERSEDES bl-5d9a below and restores bl-788e's `on` op; design record
   `docs/design/bl-7b71-nested-delivery.md`, mechanism bl-ad5d).** Nested delivery (§11) makes a

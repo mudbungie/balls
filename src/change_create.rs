@@ -108,6 +108,13 @@ impl Create {
     /// task) or deleted the file outright. Name the collision when the staged
     /// content (this op's clock + title) is found under an existing id —
     /// "expected exactly one new task file, found 0" was oblique (bl-3ddb).
+    ///
+    /// The attribution is now sound: core's own draw is re-rolled off the live
+    /// set before staging ([`crate::id::IdScheme::mint`], bl-1fc4), so a
+    /// collision here IS a plugin's explicit choice — and an explicit choice is
+    /// authoritative, hence an abort rather than a re-roll. Before that, a
+    /// core draw that happened to hit a live id staged over that ball and died
+    /// here blaming a plugin chain that was often empty (the bl-a2bc flake).
     fn vanished(&self, dir: &Path) -> String {
         let collided = self.existing.iter().find(|id| {
             read_task(dir, id).is_ok_and(|t| t.created == self.now && t.title == self.title)
