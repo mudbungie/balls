@@ -15,7 +15,7 @@
 //!   besides) — the resurrection's open door. Resolving is the AGENT's job;
 //!   their resolution merge commit is ordinary work on `work/<id>`.
 //! - **No-resurrection invariant** ([`ensure_no_resurrection`]): at squash,
-//!   the squash's changed paths (diff vs the integration tip) must be a subset
+//!   the squash's changed paths (diff vs the pinned fold base, bl-8b89) must be a subset
 //!   of the paths authored on `work/<id>` since its fork — every non-merge
 //!   commit's changed paths plus each fold merge commit's resolution paths
 //!   (its combined `--cc` diff; a fold-conflict resolution IS a work commit,
@@ -45,18 +45,22 @@ pub(crate) fn ensure_no_merge_in_progress(path: &Path) -> io::Result<()> {
 }
 
 /// The no-resurrection invariant, checked at squash time: every path the
-/// squash would change (vs the integration tip) must have been authored on the
-/// work branch since its fork. Authored = the union of `--name-only` paths
-/// over the commits on `branch` not on `integration` — `--cc` so a fold merge
-/// commit contributes exactly its resolution paths (where the result differs
-/// from every parent), nothing main brought in. An excess path aborts the
-/// close naming it.
-pub(crate) fn ensure_no_resurrection(root: &Path, branch: &str, integration: &str) -> io::Result<()> {
-    let squash = path_set(&Project::run(root, &["diff", "--name-only", integration, branch])?);
-    let not_integration = format!("^{integration}");
+/// squash would change (vs `base`, the PINNED integration tip the fold derived
+/// the gated tree from — bl-8b89) must have been authored on the work branch
+/// since its fork. Authored = the union of `--name-only` paths over the
+/// commits on `branch` not on `base` — `--cc` so a fold merge commit
+/// contributes exactly its resolution paths (where the result differs from
+/// every parent), nothing main brought in. An excess path aborts the close
+/// naming it. Comparing against the LIVE tip instead made a mid-gate sibling
+/// landing read as excess (a false resurrection abort naming innocent paths);
+/// against the pin, a mid-gate move is the delivery CAS's clean rejection and
+/// excess means only a real resurrection or leak.
+pub(crate) fn ensure_no_resurrection(root: &Path, branch: &str, base: &str) -> io::Result<()> {
+    let squash = path_set(&Project::run(root, &["diff", "--name-only", base, branch])?);
+    let not_base = format!("^{base}");
     let authored = path_set(&Project::run(
         root,
-        &["log", "--format=", "--name-only", "--cc", branch, &not_integration],
+        &["log", "--format=", "--name-only", "--cc", branch, &not_base],
     )?);
     let excess: Vec<&str> = squash.difference(&authored).map(String::as_str).collect();
     if excess.is_empty() {
