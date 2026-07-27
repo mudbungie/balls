@@ -113,6 +113,35 @@ fn run_writes_the_stream_through_the_real_store_verbatim() {
 }
 
 #[test]
+fn the_foreign_root_hint_names_the_lifted_scope_and_stays_silent_at_home() {
+    // bl-d3fa: an import whose records are rooted in ANOTHER project succeeds,
+    // and the root-aware default `list` scope then rightly hides them — correct,
+    // but it reads as if the import lost them. The success carries one hint line
+    // naming the fact and `list --everywhere`. Asserted on the returned string
+    // (the eprintln! is one line away) with the real `is_foreign` predicate.
+    let tmp = TempDir::new().unwrap();
+    let here = crate::reads::test_support::git_checkout(&tmp.path().join("proj"), "here");
+    let proj = tmp.path().join("proj");
+    let rooted = |root: &str| {
+        let mut t = crate::reads::test_support::task("T", 5);
+        t.root_commit = Some(root.to_string());
+        t
+    };
+
+    // Foreign root ⇒ the hint, counting only the foreign ones against the total.
+    let balls = vec![("bl-f1".to_string(), rooted("deadbeef")), ("bl-h1".to_string(), rooted(&here))];
+    let hint = foreign_root_hint(&proj, &balls).expect("a foreign-rooted record earns the hint");
+    assert!(hint.starts_with("import: 1 of 2 rooted in another project"), "{hint}");
+    assert!(hint.contains("bl list --everywhere"), "names the lifted-scope read: {hint}");
+
+    // This checkout's own root, and a rootless record (admitted everywhere), are
+    // both silent — the hint decorates the surprise, not every import.
+    assert!(foreign_root_hint(&proj, &[("bl-h1".to_string(), rooted(&here))]).is_none());
+    let rootless = vec![("bl-r1".to_string(), crate::reads::test_support::task("T", 5))];
+    assert!(foreign_root_hint(&proj, &rootless).is_none(), "a rootless stream never walks git or hints");
+}
+
+#[test]
 fn run_with_narration_on_an_empty_stream_fails_loud() {
     let tmp = TempDir::new().unwrap();
     let edge = primed(&tmp);

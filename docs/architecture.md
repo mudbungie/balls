@@ -1095,6 +1095,17 @@ close` the holder, or filter the stream) — so there is no `--skip`/`--replace`
 `import` prints nothing to stdout (the caller supplied every id — there is no product to print);
 confirmation goes to stderr. `bl import --legacy[=REF]` is the §16 cutover button.
 
+**The foreign-root hint (bl-d3fa)** decorates that confirmation. `root_commit` is verbatim like every
+other field, so importing a ball born in another project lands it correctly and then the root-aware
+default `list` scope (bl-0161) rightly hides it — `list` shows what `claim` admits, and this checkout
+does not admit it. Correct, and silent in the wrong place: the operator's next command appears to
+contradict the "import N balls" they just read. So a successful import whose records are foreign to
+this checkout adds ONE stderr line naming the fact and the lifted-scope read (`bl list --everywhere`),
+in the same [source]-hint voice that decorates a capability refusal — **the hint is the entire fix**:
+no flag, no scope change, no refusal, and nothing an operator must know to configure. The root walk
+is lazy on §12's rule (skipped when no record carries a root) and runs only after the seal, so a
+refused stream pays nothing for a line it will never print.
+
 **There is no `drop` verb** (deleted 2026-06-09, bl-65e0 — §15). Closing is the ONLY retirement, so
 a `--blocks close` gate guards every way a ball can die. Abandonment is the composite spelled out:
 `unclaim` (clears occupancy, releases the worktree — uncommitted work dies with it) then `close` (the

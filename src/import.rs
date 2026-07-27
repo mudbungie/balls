@@ -32,6 +32,7 @@ use crate::lifecycle::BaseChange;
 use crate::message::Message;
 use crate::mutate::{self, Op};
 use crate::reads::legacy;
+use crate::reads::scope;
 use crate::task::Task;
 use crate::taskfile::{exists, write_task};
 use crate::verb::Verb;
@@ -120,7 +121,36 @@ fn ingest(edge: &Edge, flags: &Flags, balls: Vec<(String, Task)>) -> io::Result<
     let instant = clock::for_op(edge)?;
     mutate::seal_op(edge, Verb::Import, &op, &base, None, &instant)?;
     eprintln!("import {n} ball{}", if n == 1 { "" } else { "s" });
+    if let Some(hint) = foreign_root_hint(&edge.invocation_path, &base.balls) {
+        eprintln!("{hint}");
+    }
     Ok(())
+}
+
+/// The foreign-root hint (bl-d3fa): ONE stderr line decorating a SUCCESSFUL
+/// import whose records carry a `root_commit` this checkout does not answer to.
+///
+/// Nothing is wrong — the balls are real, `show` resolves them — but the
+/// root-aware default `list` scope (bl-0161) rightly hides them, so the
+/// operator's very next command reads as a contradiction of the confirmation
+/// just printed: "import 1 ball", then an empty `bl list`. Correct behavior can
+/// still be silent in the wrong place. So the success is decorated in the
+/// [source]-hint voice — name the fact, name the lifted-scope read — and nothing
+/// else changes: no flag, no scope change, no refusal. The hint is the fix.
+///
+/// The root walk is LAZY on [`scope::checkout_roots`]'s own rule (skipped when no
+/// record carries a root — a rootless stream stays git-free) and runs only AFTER
+/// the seal, so a refused stream pays nothing for a line it will never print.
+fn foreign_root_hint(invocation_path: &Path, balls: &[(String, Task)]) -> Option<String> {
+    let carried = balls.iter().any(|(_, t)| t.root_commit.is_some());
+    let roots = scope::checkout_roots(invocation_path, carried);
+    let foreign = balls.iter().filter(|(_, t)| scope::is_foreign(t.root_commit.as_deref(), &roots)).count();
+    (foreign > 0).then(|| {
+        format!(
+            "import: {foreign} of {} rooted in another project, hidden from this checkout's default `bl list` scope — read with `bl list --everywhere`",
+            balls.len()
+        )
+    })
 }
 
 /// The bulk [`BaseChange`]: write every record verbatim through the §3

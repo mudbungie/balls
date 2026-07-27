@@ -38,7 +38,7 @@ pub(crate) mod legacy;
 mod list;
 mod readop;
 mod record;
-mod scope;
+pub(crate) mod scope;
 mod show;
 mod style;
 mod target;

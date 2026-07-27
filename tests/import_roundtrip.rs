@@ -116,13 +116,19 @@ fn plain_import_round_trips_a_ball_byte_for_byte() {
 
     // The pipe: B holds nothing yet, so the import lands one ball (stdout stays
     // silent per §9 — the caller supplied the id — the count rides stderr).
+    // The record still carries store A's `root_commit`, so B's default
+    // root-aware scope will hide it — and the import SAYS so (bl-d3fa): the
+    // confirmation is decorated with one hint naming the fact and the lifted
+    // read, so the empty `bl list` below never reads as a lost import.
     b.cmd()
         .args(["import", "--as", "me"])
         .write_stdin(record.clone())
         .assert()
         .success()
         .stdout("")
-        .stderr(contains("import 1 ball"));
+        .stderr(contains("import 1 ball"))
+        .stderr(contains("1 of 1 rooted in another project"))
+        .stderr(contains("bl list --everywhere"));
 
     // Byte-equivalent record on the far side: nothing was minted or restamped.
     assert_eq!(record, b.show_json(&id), "imported ball must round-trip byte-for-byte in show --json");
@@ -146,7 +152,16 @@ fn a_colliding_stream_is_refused_wholesale_before_any_write() {
     // every offending id — so the genuinely-fresh record between them is dropped.
     let tmp = TempDir::new().unwrap();
     let b = Store::found(tmp.path(), "b");
-    b.cmd().args(["import", "--as", "me"]).write_stdin(record("bl-c0de")).assert().success();
+    // The other half of bl-d3fa: `record()` carries no `root_commit`, so the
+    // ball is admitted everywhere and the default scope shows it — no surprise,
+    // therefore no hint. The line decorates the hidden case only.
+    b.cmd()
+        .args(["import", "--as", "me"])
+        .write_stdin(record("bl-c0de"))
+        .assert()
+        .success()
+        .stderr(contains("rooted in another project").not());
+    b.cmd().args(["list", "--json"]).assert().success().stdout(contains("\"id\": \"bl-c0de\""));
 
     let stream = format!(
         "[{},{},{},{}]",
