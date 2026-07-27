@@ -19,8 +19,8 @@ use crate::taskfile;
 /// way the human render does — [`crate::task::Task::status`] / `ready` /
 /// `closeable`, passing [`Catalog::is_resolved`] as the caller-supplied §10
 /// resolver. Reads only: mutations stay behind the verb surface (the CAS/plugin
-/// protocol is not consumable piecemeal), so no constructor beyond [`load`] is
-/// exported. [`load`]: Catalog::load
+/// protocol is not consumable piecemeal), so no constructor beyond [`Catalog::load`] is
+/// exported.
 pub struct Catalog {
     /// `pub(super)` so the `list` module's own `impl Catalog` (its `entries()`
     /// accessor + filters) reaches the parsed set; the resolver fields stay private.

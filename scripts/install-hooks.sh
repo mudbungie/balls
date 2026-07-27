@@ -60,6 +60,7 @@ echo "  - clippy or compiler warnings"
 echo "  - any Rust source file >= 300 lines"
 echo "  - failing tests"
 echo "  - test coverage below 100%"
+echo "  - any rustdoc warning (a broken intra-doc link)"
 echo
 echo "Requires cargo-tarpaulin. If missing:"
 echo "  cargo install cargo-tarpaulin"

@@ -4,7 +4,7 @@
 //! IN a §6 read-op plugin dispatch ([`readop`] — `show`'s delivery worktree
 //! line, §11); `--json` never dispatches. Each walks `tasks/` on the STORE checkout
 //! (§12 — reads run with cwd = the store, never the landing), parses every
-//! [`Task`], and renders the §3 derived status ladder plus the §10
+//! [`crate::task::Task`], and renders the §3 derived status ladder plus the §10
 //! ready/closeable predicates two ways: a human view (status glyphs, ANSI
 //! colour) and `--json` (the supported machine contract).
 //!
@@ -67,7 +67,7 @@ pub(crate) struct Flags {
     /// a predicate. `None` ⇒ no live filter (every live ball). Only `list`
     /// accepts it; it filters the LIVE rung alone (dead balls left no ladder
     /// behind). The fourth rung, `closed`, carries no live predicate — it steers
-    /// `reach` to `Dead` instead (see [`super::flags`]).
+    /// `reach` to `Dead` instead (see [`self::flags`]).
     pub status: Option<Status>,
     /// How far into history a listing reaches (§9). `Live` (default) is the
     /// current `tasks/`; `Dead` (`--status closed`) / `All` (`--all`)

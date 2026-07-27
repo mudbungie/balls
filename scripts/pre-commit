@@ -6,6 +6,7 @@
 #   2. Contains a Rust source file >= 300 lines
 #   3. Has failing tests
 #   4. Drops line coverage below 100%
+#   5. Has any rustdoc warning — a broken intra-doc link included
 #
 # To install: scripts/install-hooks.sh
 
@@ -24,6 +25,11 @@ unset $(git rev-parse --local-env-vars)
 
 echo "pre-commit: clippy..."
 cargo clippy --all-targets -- -D warnings 2>&1
+
+# The blessed doc build (bl-3d09). The invocation lives ONLY in the Makefile —
+# this gate just runs it, so the flags have one home.
+echo "pre-commit: docs..."
+make doc
 
 echo "pre-commit: line lengths..."
 "$ROOT/scripts/check-line-lengths.sh"

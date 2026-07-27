@@ -68,7 +68,7 @@ pub struct Blocker {
 }
 
 /// Which of the blocked task's own ops an edge gates — ANY op (§10/§15). The op
-/// an edge names is precisely the op a guard refuses, so `On` IS a [`Verb`]:
+/// an edge names is precisely the op a guard refuses, so `On` IS a [`crate::verb::Verb`]:
 /// one type, one source of truth, no claim/close special case. `claim`/`close`
 /// are merely the two ops with front-door sugar.
 pub type On = crate::verb::Verb;

@@ -1,4 +1,4 @@
-.PHONY: build test check \
+.PHONY: build test check doc \
 	install install-core install-tracker install-delivery install-chore \
 	uninstall clean hooks
 
@@ -11,10 +11,23 @@ build:
 test:
 	cargo test
 
-check: test
+check: test doc
 	cargo clippy --all-targets -- -D warnings
 	scripts/check-line-lengths.sh
 	scripts/check-coverage.sh
+
+# THE blessed doc build (bl-3d09) — the only invocation this repo's docs are
+# guaranteed warning-clean under, so it is the one to run and the one to trust.
+#
+#   --document-private-items  the docs are a connected map: a module note links
+#                             to the private helper carrying the reasoning, so
+#                             the private items must be in the rendered graph.
+#   -D warnings               every rustdoc warning is an error. A broken link is
+#                             a build failure, not a line lost in the scroll —
+#                             which is the whole point (68 private-link warnings
+#                             used to bury the real ones).
+doc:
+	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
 
 # The whole suite: core + every shipped sibling plugin. A core-only install
 # leaves `bl` resolving no `bl-tracker`/`bl-delivery` beside it (Edge::resolve

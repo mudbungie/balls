@@ -93,6 +93,18 @@
 //! filesystem ops — no git, no env reads (the binary edge supplies those), no
 //! bootstrap (that is prime's job).
 
+// HOUSE STYLE (bl-3d09): the docs are one connected map — a module's `//!` note
+// links to the private helper it is describing, not just to the public surface,
+// because the private helper is usually the thing that carries the reasoning.
+// `make doc` is the blessed build and passes `--document-private-items`, so
+// those links RESOLVE there; rustdoc's `private_intra_doc_links` lint only warns
+// that they would not resolve in a public-only build, which is a build we do not
+// bless. Silencing it costs nothing in link safety: a link to a NONEXISTENT item
+// is `broken_intra_doc_links`, a different lint that stays on and is denied by
+// `make doc`'s `RUSTDOCFLAGS=-D warnings`. This one line is the whole opt-out —
+// there is no per-warning allowlist, and no link is exempt from being correct.
+#![allow(rustdoc::private_intra_doc_links)]
+
 pub mod adopt;
 pub mod change;
 pub mod checkout;

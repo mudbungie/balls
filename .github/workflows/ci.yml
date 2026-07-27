@@ -43,6 +43,12 @@ jobs:
       - name: cargo audit
         run: cargo audit
 
+      # The blessed doc build: private items documented, every rustdoc warning
+      # denied, so a broken intra-doc link fails the build (bl-3d09). The
+      # invocation itself lives only in the Makefile.
+      - name: rustdoc (warning-clean)
+        run: make doc
+
       - name: line-length check
         run: bash scripts/check-line-lengths.sh
 

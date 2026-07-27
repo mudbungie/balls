@@ -27,7 +27,7 @@ pub trait Anvil {
     /// **INVARIANT — ONE HEAD PER OP (bl-057a): the tip forked here is the same
     /// commit the base change read the live store from.** `create` reads the live
     /// id set off the anvil CHECKOUT before the lifecycle opens the worktree
-    /// ([`crate::change_create::Create::existing`]) and recovers the minted ball at
+    /// ([`crate::change::Create::existing`]) and recovers the minted ball at
     /// finalize as the set difference against the WORKTREE — two reads of one
     /// store, sound only while both name the same commit. They agree by
     /// construction today: the seal's `merge --ff-only` advances the checkout
@@ -38,7 +38,7 @@ pub trait Anvil {
     /// exactly one new task file, found N", a symptom with no route back to its
     /// cause. Deliberately NOT a `debug_assert` here: `open` sees only the
     /// checkout, where HEAD equals HEAD vacuously; the invariant spans the read in
-    /// [`crate::mutate_author`] and this fork, which is exactly why it is written
+    /// `mutate::author` and this fork, which is exactly why it is written
     /// down rather than checked.
     fn open(&self, dir: &Path) -> io::Result<()>;
     /// (§8.3) The paths the change worktree `dir` touched relative to the anvil
@@ -124,7 +124,7 @@ fn run_env(cwd: &Path, args: &[&str], stdin: Option<&str>, env: &[(&'static str,
 }
 
 /// A REJECTED STORE SEAL, in balls' voice (bl-fa89) — the bl-a3bb precedent one
-/// layer down ([`crate::delivery_repo_acts::commit_swap`] does the same for the
+/// layer down (`delivery_repo::acts::commit_swap` does the same for the
 /// delivery ref).
 ///
 /// The seal's `merge --ff-only` IS the §8 compare-and-swap and a rejection is

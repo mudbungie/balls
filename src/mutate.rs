@@ -12,7 +12,7 @@
 //! binding + the `[hooks]` plugin sets, INJECTS the clock, and drives the
 //! engine. The §10/§15 front-door flags (`--parent` containment-only, `--blocks
 //! OP`/`--blocks ID:OP`, `--needs B[:OP]`) write their `{id,on}` edges through
-//! [`Create`]'s authoring — `on` is ANY op; all flag parsing is core — plugins
+//! [`crate::change::Create`]'s authoring — `on` is ANY op; all flag parsing is core — plugins
 //! are hook binaries and never extend the parser (§10).
 
 use std::io;

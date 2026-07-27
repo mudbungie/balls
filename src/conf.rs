@@ -9,7 +9,7 @@
 //! (XDG `config.toml`; a URL must not travel on `install`), the stealth
 //! sentinel `none` is per-checkout POLICY on the landing `balls.toml` (§12,
 //! bl-9df0) — while `task-branch`/`log-level` live on the landing `balls.toml`
-//! and the `[hooks]` schedule keys on the landing `plugins.toml` ([`write`],
+//! and the `[hooks]` schedule keys on the landing `plugins.toml` ([`mod@write`],
 //! the sibling module).
 //!
 //! `conf` is Diffless (§8) and CHAINLESS: it authors no ball diff, seals
@@ -98,7 +98,7 @@ fn hook_key(token: &str) -> bool {
 }
 
 /// `bl conf [<key>] | bl conf set|append|prepend|remove <key> <value...>` —
-/// dispatch on the first token: a write op routes to the sibling [`write`]
+/// dispatch on the first token: a write op routes to the sibling [`mod@write`]
 /// module, no args is the full provenance dump, one arg reads one key. Reads
 /// put the value on stdout (the verb's one product) and provenance on stderr.
 pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {

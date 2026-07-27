@@ -3,7 +3,7 @@
 //!
 //! [`crate::install`] is the pure path-copy; this sibling gives it the §8
 //! sealing shape. A throwaway detached worktree materializes `--from` (any
-//! local ref — `<ref>` is a *synced* repo/branch, §6); [`Copier`] stages the
+//! local ref — `<ref>` is a *synced* repo/branch, §6); `Copier` stages the
 //! copy into the change worktree the engine opens on `--to`'s CURRENT tip; the
 //! seal commits + ff-integrates it, swapping only `<path>` — never a
 //! whole-tree replace, never a ref reset (§6 "siblings are never touched") —
@@ -15,7 +15,7 @@
 //! bl-b8d6).
 //!
 //! An omitted `--from` is the §6 default — the CONFIGURED UPSTREAM, resolved
-//! by [`upstream`]: the `install.pre` chain (the tracker, the only
+//! by `upstream`: the `install.pre` chain (the tracker, the only
 //! remote-talker, §0) fetches the upstream's `balls/config` to the landing's
 //! `FETCH_HEAD` and the copy stages from that git-standard ref. The chain must
 //! run BEFORE the engine stages (staging reads the ref the fetch leaves, so
@@ -158,7 +158,7 @@ pub(crate) struct Chain<'a> {
 /// SEAL `<path>` from the local ref `from` onto the `to` checkout's CURRENT
 /// tip through the §8 engine — the ONE sealing path `bl install` and
 /// `prime --install` share. Materializes `from` as a throwaway detached
-/// worktree (the copy's source root), drives [`Engine::seal`] with [`Copier`]
+/// worktree (the copy's source root), drives [`Engine::seal`] with [`self::Copier`]
 /// as the base change, tears the source down whatever the outcome, and
 /// returns the change [`Summary`].
 pub(crate) fn seal_copy(

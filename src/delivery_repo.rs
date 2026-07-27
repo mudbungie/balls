@@ -18,7 +18,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The production [`Repo`]: git against one project-repo root.
+/// The production [`crate::delivery::Repo`]: git against one project-repo root.
 pub struct Project {
     pub(crate) root: PathBuf,
 }
@@ -132,7 +132,7 @@ impl Project {
     /// `subject` is the delivery message's SUBJECT LINE, never the whole
     /// message (bl-a500). The capture commit is bookkeeping that the squash
     /// erases, but it survives on `work/<id>` across an ABORTED close — and the
-    /// next attempt reads it back through [`Repo::work_messages`]. Labelling it
+    /// next attempt reads it back through [`crate::delivery::Repo::work_messages`]. Labelling it
     /// with the composed message therefore folded that message into the next
     /// composition, which the next capture folded in again: the delivery
     /// message DOUBLED per retry, reaching 142 KB after four (the reported
