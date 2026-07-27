@@ -135,7 +135,7 @@ fn ingest(edge: &Edge, flags: &Flags, balls: Vec<(String, Task)>) -> io::Result<
 /// operator's very next command reads as a contradiction of the confirmation
 /// just printed: "import 1 ball", then an empty `bl list`. Correct behavior can
 /// still be silent in the wrong place. So the success is decorated in the
-/// [source]-hint voice — name the fact, name the lifted-scope read — and nothing
+/// `[source]`-hint voice — name the fact, name the lifted-scope read — and nothing
 /// else changes: no flag, no scope change, no refusal. The hint is the fix.
 ///
 /// The root walk is LAZY on [`scope::checkout_roots`]'s own rule (skipped when no

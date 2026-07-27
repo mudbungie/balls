@@ -93,7 +93,7 @@ pub trait Repo {
     /// (bl-4a88): every other act shells out to git against `root`, so a `root`
     /// that is not a git repo makes the whole `work/<id>` lifecycle unusable.
     /// Surfaced explicitly and early — a clean abort on claim.post / close.pre
-    /// ([`require_repo`]), a warning on prime.post — instead of git's raw
+    /// ([`crate::delivery_precondition::require_repo`]), a warning on prime.post — instead of git's raw
     /// `fatal: not a git repository` from the first worktree call.
     fn is_git_repo(&self) -> io::Result<bool>;
 }

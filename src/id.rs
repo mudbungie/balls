@@ -9,7 +9,7 @@
 //!
 //! Collision is the § id-generation rule, split by WHO chose the id: core's own
 //! draw RE-ROLLS off the live set ([`IdScheme::mint`], bounded), a plugin's
-//! explicit reassignment ABORTS ([`crate::change::Create::finalize`]) — an
+//! explicit reassignment ABORTS ([`crate::change::Create`]) — an
 //! explicit choice is authoritative, a draw is not.
 
 use std::io;

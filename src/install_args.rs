@@ -1,5 +1,5 @@
 //! §6 `bl install` argv — the parse layer, a sibling of the run-wiring (the
-//! [`crate::checkout_args`] convention; bl-4c45).
+//! `checkout_args` convention; bl-4c45).
 //!
 //! `bl install [<path>] [--from <ref>] [--to <ref>] [--bin <name>=<path>]…
 //! [--as ID]`. The §6 defaults: `<path>` is the recommended bundle

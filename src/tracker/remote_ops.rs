@@ -53,7 +53,7 @@ pub fn sync(b: &Binding) -> io::Result<()> {
 }
 
 /// A REFUSED STORE IMPORT, in balls' voice (bl-3129) — [`crate::git`]'s seal
-/// rejection (bl-fa89) and [`crate::delivery_repo_acts::commit_swap`]'s (bl-a3bb),
+/// rejection (bl-fa89) and `delivery_repo::acts::commit_swap`'s (bl-a3bb),
 /// one layer out at the remote.
 ///
 /// The fetched tip failed to fast-forward, which is §13 working: the import is
