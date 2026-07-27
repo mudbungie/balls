@@ -84,7 +84,7 @@ An "anvil" is one repository whose ref an op moves. Verdicts are against §2.
 | `close` | ① project repo | `commit_swap` — `update-ref <int> <new> <old>` (`src/delivery_repo_acts.rs`) | old value read AFTER the gate | **G1 — violates A2** |
 | `close` | ② store branch | `Git::seal` | yes | atomic; ordered after ① so a retry converges (`Standing::Settled` skips the squash) |
 | `close.post` push | remote | tracker push | yes — non-ff reject | atomic; converges on `sync` + retry |
-| `sync` | store branch | `merge --ff-only FETCH_HEAD` / ff refspec | yes | atomic; "a partial sync leaves the branch at the old or the new tip, never wedged" |
+| `sync` | store branch | `merge --ff-only FETCH_HEAD` / ff refspec | yes | atomic; "a partial sync leaves the branch at the old or the new tip, never wedged"; the merge's refusal speaks balls' voice (bl-3129) |
 | `prime` founding | landing/store | the landing seal — the predicate is a COMMIT, not a directory | the commit is the only observable | G5 CLOSED (bl-ffbf) — a crashed founding is re-runnable debris, not a brick |
 | `bl-chore` `claim.post` | store branch | a NESTED `bl create` — its own commit point | yes (its own) | G6 CLOSED (bl-ffbf) — still outside the parent atom, but the rollback now deletes the orphan (§14 appendix) |
 | op log | `clones/<enc>/log` | `O_APPEND` under `PIPE_BUF` | n/a | atomic by construction (§1) |
@@ -217,6 +217,17 @@ of the loss (`Not possible to fast-forward`, `cannot lock ref HEAD`, `Your local
 changes would be overwritten`), because the fact and the remedy are identical in
 each and only the raw text differed. Detection was already the existing `Err`
 path; no mechanism was added.
+
+The same gap one layer out — `sync`'s ff-only import — is FIXED too (bl-3129):
+*`<remote>`'s `<branch>` moved and this store could not take the fast-forward —
+nothing was imported and nothing local was changed. Re-run `bl sync`…* One
+DIFFERENCE, and the sentence carries it: a refused import is not always
+transient. The optimistic cycle un-seals a rejected push (tests/claim_race.rs),
+so the ordinary cause is a concurrent `bl` whose seal was in flight across the
+fetch and a re-run converges — but a store that really holds an unpublished
+commit keeps refusing, and saying only "re-run" would send the operator into a
+loop. Naming both readings is what makes it an instruction. Again no mechanism:
+no probe of WHICH case it is, no retry.
 
 ## 7. Gaps, filed
 

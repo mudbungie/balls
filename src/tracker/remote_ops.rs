@@ -22,10 +22,10 @@ use std::path::Path;
 /// `merge --ff-only FETCH_HEAD` (the working tree moves with it); any other
 /// branch is a pure ref move via the `<branch>:<branch>` refspec (ff-only by
 /// git's own default). Either way the ff is atomically detect-and-act — a
-/// non-ff IS the contention signal (git's non-zero exit becomes ours: "remote
-/// wins, re-run"), so there is no separate contention probe. Nothing is pushed,
-/// so a partial sync leaves the branch at the old or the new tip, never wedged
-/// (§13 rollback).
+/// non-ff IS the contention signal, so there is no separate contention probe;
+/// on the checked-out branch it speaks in balls' voice ([`import_refused`],
+/// bl-3129) rather than git's. Nothing is pushed, so a partial sync leaves the
+/// branch at the old or the new tip, never wedged (§13 rollback).
 pub fn sync(b: &Binding) -> io::Result<()> {
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
@@ -39,13 +39,45 @@ pub fn sync(b: &Binding) -> io::Result<()> {
     }
     if git(store, &["symbolic-ref", "--short", "HEAD"]).ok().as_deref() == Some(branch) {
         git(store, &["fetch", remote, branch])?;
-        if let Err(e) = git(store, &["merge", "--ff-only", "FETCH_HEAD"]) {
-            return not_yet_cut_over(store, remote, branch).then_some(()).ok_or(e);
+        if git(store, &["merge", "--ff-only", "FETCH_HEAD"]).is_err() {
+            let refused = || import_refused(remote, branch);
+            return not_yet_cut_over(store, remote, branch).then_some(()).ok_or_else(refused);
         }
     } else {
+        // The refspec form's own non-ff is git's to spell: that one command is
+        // fetch AND ref move, so its failure is ambiguous (unreachable remote,
+        // absent ref, non-ff) and only the merge above is a positive loss.
         git(store, &["fetch", remote, &format!("{branch}:{branch}")])?;
     }
     Ok(())
+}
+
+/// A REFUSED STORE IMPORT, in balls' voice (bl-3129) — [`crate::git`]'s seal
+/// rejection (bl-fa89) and [`crate::delivery_repo_acts::commit_swap`]'s (bl-a3bb),
+/// one layer out at the remote.
+///
+/// The fetched tip failed to fast-forward, which is §13 working: the import is
+/// ff-only by contract (no union, no merge, no force), so the refusal means the
+/// remote's history and this store's are no longer one line — and NOTHING moved,
+/// neither imported nor overwritten. Raw git ("fatal: Not possible to
+/// fast-forward, aborting", "Your local changes … would be overwritten") reads
+/// as damage rather than as the two facts it is.
+///
+/// Unlike the seal's, this refusal is not always transient, and the sentence says
+/// so. The optimistic §12 cycle (mutate → push, and a rejected push UN-SEALS,
+/// tests/claim_race.rs) leaves the store non-diverged, so the ordinary cause is a
+/// concurrent local `bl` whose seal was in flight across this fetch — a re-run
+/// converges once it settles. A store that really does hold an unpublished
+/// commit (a crash between seal and push, a hand-edited checkout) keeps refusing,
+/// and the operator must reconcile it; naming both is the difference between an
+/// instruction and a loop. No retry in core — the retry is one command (§14).
+fn import_refused(remote: &str, branch: &str) -> io::Error {
+    io::Error::other(format!(
+        "`{remote}`'s `{branch}` moved and this store could not take the fast-forward — nothing was \
+         imported and nothing local was changed. Re-run `bl sync`: it converges once a concurrent \
+         `bl` settles its in-flight seal, and keeps refusing while this store carries commits the \
+         remote never took"
+    ))
 }
 
 /// Is `remote`'s `branch` tip NOT a store — no `tasks/` tree at its root? That

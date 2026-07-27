@@ -1859,6 +1859,13 @@ not a consent breach, because consent governs config + executable plugins, never
   surfaced as the tracker's non-zero exit ("remote wins, re-run"). A distinct `sync/pre` "has the
   remote moved?" check is rejected: it adds a round-trip and a TOCTOU window and duplicates what
   ff-only already decides in one step (contention is the ff-failure path, not a phase of its own).
+  That exit SPEAKS (bl-3129, the bl-fa89 seal precedent one layer in) — "`<remote>`'s `<branch>` moved
+  and this store could not take the fast-forward — nothing was imported and nothing local was changed.
+  Re-run `bl sync`…" — never git's `Not possible to fast-forward`. Unlike the seal's, the refusal is not
+  always transient, so the sentence names both readings: the optimistic §12 cycle un-seals a rejected
+  push, so the ordinary cause is a concurrent `bl` whose seal was in flight across the fetch and a
+  re-run converges, while a store that really holds an unpublished commit keeps refusing until the
+  operator reconciles it. Still no retry in core (§14) and still no union: the ff-only stands.
 - **Where the integration sits.** With no core commit, sync's pre/post boundary IS the tracker's
   fetch+ff: the tracker is wired into **`sync/pre`** so it imports remote store state first;
   **`sync/post`** plugins (e.g. cache rebuild) react to the now-current store. A

@@ -73,18 +73,33 @@ fn sync_in_stealth_is_a_no_op() {
 }
 
 #[test]
-fn sync_fails_on_a_non_fast_forward_the_contention_signal() {
+fn sync_refusing_a_non_fast_forward_speaks_balls_voice_not_gits() {
+    // bl-3129: the ff-only IS §13's detect-and-act and refusing is it working —
+    // but raw git ("fatal: Not possible to fast-forward, aborting") reads as
+    // damage rather than as the two facts it is. The refusal names the moved
+    // remote, that nothing was imported or changed, and BOTH readings of a
+    // re-run: convergence once an in-flight seal settles, or a store that
+    // really does hold commits the remote never took.
     let tmp = TempDir::new().unwrap();
     let remote = remote_with_branch(tmp.path());
     let store = store_clone(tmp.path(), &remote);
     // Diverge: a local commit AND a remote commit off the same base.
-    commit(&store, "local.txt", "local");
+    let held = commit(&store, "local.txt", "local");
     let other = checkout(tmp.path(), &remote, "other");
     commit(&other, "remote.txt", "remote");
     git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
 
-    let err = sync(&binding(Some(&remote), &store)).unwrap_err();
-    assert!(err.to_string().contains("git merge --ff-only"));
+    let err = sync(&binding(Some(&remote), &store)).unwrap_err().to_string();
+    assert!(err.contains(&format!("`{BRANCH}` moved")), "{err}");
+    assert!(err.contains("could not take the fast-forward"), "{err}");
+    assert!(err.contains("nothing was imported and nothing local was changed"), "{err}");
+    assert!(err.contains("Re-run `bl sync`"), "{err}");
+    assert!(err.contains("carries commits the remote never took"), "{err}");
+    assert!(!err.contains("Not possible to fast-forward"), "raw git leaked: {err}");
+    assert!(!err.contains("git merge"), "raw git leaked: {err}");
+    // And the claim holds: the refusal imported nothing, so the store still
+    // sits on its own tip with the local commit intact.
+    assert_eq!(tip(&store, "HEAD"), held);
 }
 
 #[test]
