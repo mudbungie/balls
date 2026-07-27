@@ -6,6 +6,10 @@ claimant = "oakum"
 parent = "bl-ea55"
 priority = -1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-2292"
+on = "close"
 +++
 Three low-severity gaps the bl-ea55 audit turned up. Each is a real hole in 'one CAS commit point per repo per op', none is load-bearing under today's traffic; filed together so they are not lost.
 
