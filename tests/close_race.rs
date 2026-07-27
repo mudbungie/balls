@@ -63,8 +63,8 @@ fn project(tmp: &Path) -> PathBuf {
     root
 }
 
-/// A change worktree seeding then deleting `tasks/<id>.md` — the close.pre cwd,
-/// the staged deletion being how the pre hook recovers the id.
+/// A change worktree seeding then deleting `tasks/<id>.md` — the close.pre cwd
+/// shape of a real close (the ball itself rides the wire, bl-a5f3).
 fn change_dir(tmp: &Path, name: &str, id: &str) -> PathBuf {
     let change = tmp.join(name);
     fs::create_dir(&change).unwrap();
@@ -85,8 +85,10 @@ fn post(inv: &str, id: &str, title: &str) -> String {
     )
 }
 
-fn pre(inv: &str, title: &str) -> String {
-    format!(r#"{{"binding":{{"invocation_path":"{inv}"}},"current_state":{{"title":"{title}"}}}}"#)
+fn pre(inv: &str, id: &str, title: &str) -> String {
+    format!(
+        r#"{{"binding":{{"invocation_path":"{inv}"}},"command":{{"op":"close","id":"{id}"}},"current_state":{{"title":"{title}"}}}}"#
+    )
 }
 
 /// Install a `git` shim in its own dir and return that dir. The shim passes every
@@ -163,7 +165,7 @@ fn claim_and_work(root: &Path, home: &Path, xdg: &Xdg, inv: &str, id: &str, titl
 }
 
 /// Run a close.pre foreground to completion (actor B — no block), asserting success.
-fn close_now(change: &Path, home: &Path, inv: &str, title: &str) {
+fn close_now(change: &Path, home: &Path, inv: &str, id: &str, title: &str) {
     let bin = assert_cmd::cargo::cargo_bin("bl-delivery");
     let mut c = Command::new(&bin)
         .current_dir(change)
@@ -176,7 +178,7 @@ fn close_now(change: &Path, home: &Path, inv: &str, title: &str) {
         .stderr(Stdio::inherit())
         .spawn()
         .unwrap();
-    c.stdin.take().unwrap().write_all(pre(inv, title).as_bytes()).unwrap();
+    c.stdin.take().unwrap().write_all(pre(inv, id, title).as_bytes()).unwrap();
     assert!(reap(&mut c, 60).expect("actor B close.pre hung").success(), "actor B close.pre failed");
 }
 
@@ -222,7 +224,7 @@ fn concurrent_closes_in_one_clone_abort_the_loser_and_keep_both_deliveries() {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    a.stdin.take().unwrap().write_all(pre(&inv, "Feature A").as_bytes()).unwrap();
+    a.stdin.take().unwrap().write_all(pre(&inv, "bl-a", "Feature A").as_bytes()).unwrap();
 
     if !wait_for(&block_dir.join("reached"), 60) {
         let _ = a.kill();
@@ -233,7 +235,7 @@ fn concurrent_closes_in_one_clone_abort_the_loser_and_keep_both_deliveries() {
     assert_eq!(out(&root, &["rev-parse", "main"]), main0, "A must not have written main yet");
 
     // Actor B closes fully and lands its squash on main (parent still main0).
-    close_now(&change_b, &home, &inv, "Feature B");
+    close_now(&change_b, &home, &inv, "bl-b", "Feature B");
     let b_tip = out(&root, &["rev-parse", "main"]);
     assert_ne!(b_tip, main0, "B delivered");
     assert!(out(&root, &["log", "-1", "--format=%s", "main"]).contains("[bl-b]"), "B's squash is on main");
@@ -251,7 +253,7 @@ fn concurrent_closes_in_one_clone_abort_the_loser_and_keep_both_deliveries() {
 
     // A's task is still claimed (the abort never sealed), so a retried close — no
     // shim now — re-folds B's tip into work/bl-a and delivers onto it.
-    close_now(&change_a, &home, &inv, "Feature A");
+    close_now(&change_a, &home, &inv, "bl-a", "Feature A");
 
     // BOTH deliveries survive: final main carries [bl-a] on top of B's [bl-b],
     // and every task's file is present — nothing was dropped.

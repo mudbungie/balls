@@ -171,14 +171,6 @@ impl Project {
     }
 }
 
-/// The `tasks/<id>.md` paths the op changed in the change worktree at `cwd` —
-/// how a `close.pre` hook recovers the id off the pre wire (§7). Reads the
-/// working tree against `HEAD`, so a staged-or-unstaged deletion both show.
-pub fn changed_task_paths(cwd: &Path) -> io::Result<Vec<String>> {
-    let out = Project::run(cwd, &["diff", "--name-only", "HEAD", "--", "tasks"])?;
-    Ok(out.lines().map(str::to_string).collect())
-}
-
 /// Whether `meta` describes an executable regular file. On Unix this is the
 /// owner-or-group-or-other `+x` bit — git's own rule for hook execution. On
 /// Windows there is no executable bit and git-for-Windows resolves hook

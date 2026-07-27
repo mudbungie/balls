@@ -15,7 +15,7 @@ use std::process::exit;
 use balls::delivery::{self, Repo, Spec};
 use balls::delivery_path;
 use balls::delivery_precondition::{precondition_unmet, require_repo};
-use balls::delivery_repo::{changed_task_paths, Project};
+use balls::delivery_repo::Project;
 use balls::delivery_wire::Wire;
 use balls::layout::Xdg;
 
@@ -53,13 +53,15 @@ fn run(args: &[String]) -> io::Result<()> {
     // `prime` carries no single ball (§13 diffless) — it derives no worktree
     // (worktrees materialize at CLAIM only, bl-c2bf), only prunes settled
     // `work/<id>` branches (+ reports debris on the unsettled ones, bl-c117),
-    // so it takes its own path here.
-    let cwd = env::current_dir()?;
+    // so it takes its own path here. The STORE checkout it runs in is its cwd —
+    // the one act that still reads one.
     if op == "prime" {
-        return prime(phase, &wire, &repo, &xdg, &plugin, &cwd);
+        return prime(phase, &wire, &repo, &xdg, &plugin, &env::current_dir()?);
     }
 
-    let id = delivery::resolve_id(wire.metadata.as_ref(), || changed_task_paths(&cwd))?;
+    // §0 obligation 4: the ball is an op INPUT off the wire, never re-derived
+    // from the change worktree's staged diff (bl-a5f3).
+    let id = delivery::resolve_id(wire.metadata.as_ref(), wire.command.as_ref().and_then(|c| c.id.as_deref()))?;
 
     let worktree = delivery_path::worktree_path(&xdg, &plugin, invocation, &id);
     let branch = delivery_path::work_branch(&id);
@@ -106,8 +108,8 @@ fn run(args: &[String]) -> io::Result<()> {
 /// 3 of docs/design/bl-18bf-prime-convergence.md). `xdg`/`plugin` are the same
 /// binding inputs `claim` resolves its own worktree path from; `cwd` is the
 /// STORE checkout core runs `prime.post` in (§13 diffless), which is how the
-/// report tells an open ball's debris from a closed one's (bl-baa0) — the same
-/// cwd `close.pre` recovers its id from.
+/// report tells an open ball's debris from a closed one's (bl-baa0) — and the
+/// only cwd any hook still reads, now that identity rides the wire (bl-a5f3).
 fn prime(phase: &str, wire: &Wire, repo: &Project, xdg: &Xdg, plugin: &str, cwd: &Path) -> io::Result<()> {
     // §14: prime is an idempotent refresher — its prune is exactly the state a
     // re-prime converges to, so its rollback DECLINES before touching anything

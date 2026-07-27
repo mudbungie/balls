@@ -8,11 +8,12 @@
 //!
 //! **Kind-blind & stateless across ops.** The plugin NEVER branches on task
 //! kind. The worktree path and branch are pure functions of `(binding, id)`
-//! ([`crate::delivery_path::worktree_path`] / `work/<id>`); `<id>` rides the post wire (the immutable
-//! `bl-id` trailer) or — on a pre hook, where the id is not sealed yet (§7) —
-//! is read back from the single changed `tasks/<id>.md` in the change worktree
-//! ([`resolve_id`]). Every hook recomputes its resource and checks the
-//! filesystem, so every hook is idempotent by construction.
+//! ([`crate::delivery_path::worktree_path`] / `work/<id>`); `<id>` rides EVERY
+//! wire — `command.id` on a pre/post/rollback payload, the immutable `bl-id`
+//! trailer once the op sealed ([`resolve_id`]) — so the plugin never reads
+//! identity back out of the change worktree (§0 obligation 4; bl-a5f3). Every
+//! hook recomputes its resource and checks the filesystem, so every hook is
+//! idempotent by construction.
 //!
 //! **Worktrees materialize at CLAIM only (bl-c2bf).** A `work/<id>` worktree is
 //! a durable filesystem entity, so `prime` re-creates nothing — re-priming a
@@ -180,27 +181,20 @@ pub fn surfaced(op: &str, phase: &str, rolling_back: bool, worktree: &Path, exis
     }
 }
 
-/// Resolve the op's task id. A post hook carries it as the sealed `bl-id`
-/// trailer in `metadata`; a pre hook does not (the id is not on the pre wire,
-/// §7), so it is read back from the single changed `tasks/<id>.md` the op
-/// staged — `changed` lists those paths (lazily: git is only run on the pre
-/// path). Zero or many changed task files is a protocol error.
-pub fn resolve_id(
-    metadata: Option<&Metadata>,
-    changed: impl FnOnce() -> io::Result<Vec<String>>,
-) -> io::Result<String> {
+/// Resolve the op's task id — always from the WIRE, never from the change
+/// worktree (§0 obligation 4: identity is carried, not re-derived; bl-a5f3).
+/// A sealed op carries it as the immutable `bl-id` trailer in `metadata` (the
+/// only channel a §6 read-op has, since a read wire has no `command`); every
+/// other payload — `pre`, `post`, and either phase's rollback — carries
+/// `command.id`, the ball core named at op-start. Neither present is a protocol
+/// error: the caller wired this plugin onto an op that names no ball.
+pub fn resolve_id(metadata: Option<&Metadata>, command_id: Option<&str>) -> io::Result<String> {
     if let Some(id) = metadata.and_then(|m| m.get("bl-id")).and_then(|v| v.first()) {
         return Ok(id.clone());
     }
-    let ids: Vec<String> = changed()?
-        .iter()
-        .filter_map(|p| p.strip_prefix("tasks/").and_then(|s| s.strip_suffix(".md")))
+    command_id
         .map(str::to_string)
-        .collect();
-    match ids.as_slice() {
-        [id] => Ok(id.clone()),
-        other => Err(io::Error::other(format!("expected exactly one changed task file, found {}", other.len()))),
-    }
+        .ok_or_else(|| io::Error::other("no ball on the wire: neither `command.id` nor a sealed `bl-id` trailer (§7)"))
 }
 
 #[cfg(test)]

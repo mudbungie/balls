@@ -189,28 +189,25 @@ fn an_integration_failure_aborts_a_close() {
 fn resolve_id_prefers_the_sealed_metadata_trailer() {
     let mut md = Metadata::new();
     md.insert("bl-id".into(), vec!["bl-abc1".into()]);
-    let id = resolve_id(Some(&md), || unreachable!("git is not consulted when metadata carries the id")).unwrap();
-    assert_eq!(id, "bl-abc1");
+    assert_eq!(resolve_id(Some(&md), None).unwrap(), "bl-abc1");
 }
 
 #[test]
-fn resolve_id_reads_the_single_changed_task_file_on_a_pre_hook() {
-    let id = resolve_id(None, || Ok(vec!["tasks/bl-9f9f.md".into(), "README.md".into()])).unwrap();
-    assert_eq!(id, "bl-9f9f");
+fn resolve_id_takes_the_ball_off_the_pre_wires_command() {
+    // The pre wire has no sealed trailer, so `command.id` — the ball core named
+    // at op-start — IS the identity (§0 obligation 4, bl-a5f3). Nothing is read
+    // from the change worktree, so a committed-but-unintegrated failed seal
+    // (worktree clean, no seal record) resolves exactly like the forward run
+    // instead of erroring "found 0" and voicing a FAILED ROLLBACK.
+    assert_eq!(resolve_id(None, Some("bl-9f9f")).unwrap(), "bl-9f9f");
 }
 
 #[test]
-fn resolve_id_rejects_zero_or_many_changed_task_files() {
-    let none = resolve_id(None, || Ok(vec!["README.md".into()])).unwrap_err();
-    assert!(none.to_string().contains("found 0"));
-    let many = resolve_id(None, || Ok(vec!["tasks/a.md".into(), "tasks/b.md".into()])).unwrap_err();
-    assert!(many.to_string().contains("found 2"));
-}
-
-#[test]
-fn resolve_id_propagates_a_lister_error() {
-    let err = resolve_id(None, || Err(io::Error::other("git blew up"))).unwrap_err();
-    assert_eq!(err.to_string(), "git blew up");
+fn resolve_id_rejects_a_wire_that_names_no_ball() {
+    // The plugin was wired onto an op with no ball (a §16 bulk import) — a
+    // protocol error, and now the ONLY way identity can be missing.
+    let err = resolve_id(None, None).unwrap_err();
+    assert!(err.to_string().contains("no ball on the wire"), "{err}");
 }
 
 #[test]

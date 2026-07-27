@@ -161,12 +161,16 @@ staged task file left to re-derive its id from") and fixed it by putting
 did not anticipate: *committed, not integrated, no seal record*. The bl-cf93
 narration abort is a fourth (clean worktree, no seal record).
 
-**Fix (bl-a5f3): carry the id (A4).** Put the ball id on the pre wire — it is
-op-constant and core always knows it (the verb names it; `create` mints it) —
-and delete `resolve_id`'s changed-file fallback and
-`delivery_repo::changed_task_paths`. No plugin then derives *which ball* from
-mutable staging state, and pre / failed-seal / post all carry one id. This
-subtracts a code path rather than adding one.
+**Fix (bl-a5f3) — SHIPPED.** Carry the id (A4): the ball rides `command.id` on
+the pre wire — it is op-constant and core always knows it (the verb names it;
+`create` mints it) — and `resolve_id`'s changed-file fallback plus
+`delivery_repo::changed_task_paths` are DELETED. No plugin derives *which ball*
+from mutable staging state any more, and pre / failed-seal / post all carry one
+id. This subtracted a code path rather than adding one. `tests/lost_seal.rs`
+constructs the losing state end to end (a conformant `close.pre` plugin wired
+after `bl-delivery` commits to the store checkout, so core's ff cannot win) and
+asserts the unwind is clean, the squash stands, the ball stays claimed, and the
+retry converges to exactly one delivery.
 
 *Rejected:* special-casing `rolling_back` with an empty changed set into a silent
 no-op. That branches on a symptom; the missing reframe is that identity was never
@@ -208,7 +212,7 @@ wall-clock on a real conflict. The work is the voice, not the loop.
 | gap | ball | severity |
 | --- | --- | --- |
 | G1 delivery CAS validates the wrong old value (A2) | bl-8b89 | **high** — silent lost update |
-| G2 failed seal + re-derived identity (A3/A4) | bl-a5f3 | **high** — false alarm, unwind reports failure |
+| G2 failed seal + re-derived identity (A3/A4) | bl-a5f3 | **high** — false alarm, unwind reports failure — FIXED |
 | G3 store-seal contention speaks git's voice | bl-fa89 | medium — legibility |
 | G4 `binding.toml` read-modify-write | bl-ffbf | low |
 | G5 founding crash window (`is_landing` = a directory, not a commit) | bl-ffbf | low |
@@ -223,9 +227,10 @@ losing state can be constructed:
   after `reintegrate`, before `deliver` returns) with the mover touching a path
   the branch also authored; assert the close ABORTS and the mover's content
   survives on `integration`. This is the silent-revert case and has no test today.
-- **A3/A4:** make the ff fail (the `seal_fails_when_the_anvil_cannot_fast_forward`
-  fixture) with the delivery plugin wired, and assert the rollback succeeds and
-  the log carries no `rollback failed`.
+- **A3/A4:** DONE — `tests/lost_seal.rs` makes the ff fail with the real close
+  chain wired and asserts the unwind names no `changed task file` and no
+  `rollback failed`. (A3 literally — restoring the change worktree — stayed
+  unbuilt: once nothing reads that worktree its state is unobservable.)
 - **A1:** already covered — a rejected CAS leaves `integration` unmoved
   (`commit_swap`'s tests).
 

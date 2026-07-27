@@ -729,14 +729,24 @@ hook-list order; balls neither arbitrates nor tracks ownership.
 **pre payload (stdin):** `protocol`, `op`/`phase`, `plugin_name`, `actor`, `binding`
 (`{ remote, tasks_branch, store, landing, invocation_path }` — `store`/`landing` are the two checkout
 paths (§1), `tasks_branch` names the store branch (§4), `invocation_path` is where `bl` was invoked,
-the project-repo root the delivery plugin needs, §11), `command` (`op` + intended `body_change` +
-the derived delivery `target`, §11 — the id of the ball whose ref this op delivers into, ABSENT for
-the ordinary integration-branch case so every pre-nesting payload is byte-identical),
-`current_state` (`null` on create). There is **no wire-carried field changeset**: the op's field-level
-diff has one authoritative home — the change worktree plus the op-start state to diff against — and a
-plugin reads it there, never from a second wire description (derive-don't-store, §14; bl-3bfd, §15).
-The id is NOT on the pre wire (it is not sealed
-yet — a reassigning plugin reads it from the single staged `tasks/*.md`).
+the project-repo root the delivery plugin needs, §11), `command` (`op` + the ball `id` +
+intended `body_change` + the derived delivery `target`, §11 — the id of the ball whose ref this op
+delivers into, ABSENT for the ordinary integration-branch case so every pre-nesting payload is
+byte-identical), `current_state` (`null` on create). There is **no wire-carried field changeset**:
+the op's field-level diff has one authoritative home — the change worktree plus the op-start state to
+diff against — and a plugin reads it there, never from a second wire description
+(derive-don't-store, §14; bl-3bfd, §15).
+
+`command.id` is the ball the op is about, and it is on EVERY payload — `pre` included (§0 obligation
+4: **identity is CARRIED, not re-derived**; bl-a5f3). It is op-constant and core always knows it: the
+verb names it as its positional, `create` mints it. So no plugin reads identity back out of the change
+worktree, whose staged diff is mutable scratch — empty on a clean-tree abort, and empty on a FAILED
+SEAL (the ff lost, so the worktree is committed but nothing integrated and there is no seal record),
+where the old "scan for the single changed `tasks/<id>.md`" reported `found 0` and turned a healthy
+unwind into a FAILED ROLLBACK over a state that was fine. It is `null` on the §16 bulk `import` alone,
+which authors a whole stream rather than one ball. A `create/pre` plugin that REASSIGNS the id still
+does so by renaming the staged file — `command.id` is what core minted, and the sealed `bl-id` trailer
+is the authority afterwards.
 
 **post payload (stdin):** same plus `commit`/`previous_commit`, the final `command`, `metadata`
 (parsed from the §5 trailer block, incl. the now-sealed `bl-id`), and `previous_state` (the op-start
@@ -748,9 +758,9 @@ after-state is a read, not a payload field; `current_state` exists on the `pre` 
 **rollback payload:** the shape of the op being undone plus `rolling_back: pre|post`; once the op
 has SEALED, every rollback — whichever phase it undoes — also carries the post facts
 (`commit`/`previous_commit`/`metadata`): §14's id rule ("post/rollback from the sealed §5 trailer")
-makes no phase split, and the post-abort change worktree is clean, so a pre-phase rollback starved of
-the trailer has no staged task file left to re-derive its id from (bl-430e). The plugin
-tracks its own intermediate state (§11 rollback is the worked derived-state example; general rule §14).
+makes no phase split (bl-430e). Identity does not depend on that any more — the ball rides
+`command.id` on every rollback wire too (bl-a5f3), which is what lets the THIRD abort state, a lost
+store seal, unwind exactly like the other two. The plugin tracks its own intermediate state (§11 rollback is the worked derived-state example; general rule §14).
 
 ## §8 Op lifecycle
 
@@ -2054,11 +2064,12 @@ OPEN:
   every guard and SILENTLY REVERTS the mover; FIXED (bl-8b89): the fold base is pinned before
   reintegration and is the parent, the CAS old-value, and the resurrection comparison point, so a
   mid-gate advance is one clean CAS rejection in the bl-a3bb voice; (b) a lost store seal leaves the change
-  worktree COMMITTED (the ff failed after the commit) with no seal record, so the unwind runs as a
-  pre-abort whose delivery rollback re-derives its id from a now-clean worktree — `expected exactly
+  worktree COMMITTED (the ff failed after the commit) with no seal record, so the unwind ran as a
+  pre-abort whose delivery rollback re-derived its id from a now-clean worktree — `expected exactly
   one changed task file, found 0` plus a FAILED ROLLBACK report over a state that is actually fine;
-  fix is obligation (4) — carry the id on the pre wire and DELETE `resolve_id`'s changed-file
-  fallback (bl-a5f3), which retires §7's "the id is NOT on the pre wire" clause. Still OPEN and NOT
+  FIXED (bl-a5f3) by obligation (4) — the ball rides `command.id` on EVERY wire and `resolve_id`'s
+  changed-file fallback plus `delivery_repo::changed_task_paths` are DELETED, which retires §7's
+  "the id is NOT on the pre wire" clause and subtracts a code path rather than adding one. Still OPEN and NOT
   recorded in §0: whether a mid-gate loser deserves more than a clean rejection — a delivery lease
   (`update-ref refs/balls/delivery/<integration> <sha> ''`, atomic create-if-absent, stale = prime
   debris) serializes the gate and costs no throughput on a saturated box, but it is the one option

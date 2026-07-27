@@ -25,22 +25,22 @@ fn post_into(invocation: &str, id: &str, title: &str, target: &str) -> String {
     )
 }
 
-/// A §7 pre wire (the id comes off the change worktree) carrying a `target`.
-fn pre_into(invocation: &str, title: &str, target: &str) -> String {
+/// A §7 pre wire (the ball rides `command.id`, bl-a5f3) carrying a `target`.
+fn pre_into(invocation: &str, id: &str, title: &str, target: &str) -> String {
     format!(
-        r#"{{"binding":{{"invocation_path":"{invocation}"}},"command":{{"op":"close","target":"{target}"}},"current_state":{{"title":"{title}"}}}}"#
+        r#"{{"binding":{{"invocation_path":"{invocation}"}},"command":{{"op":"close","id":"{id}","target":"{target}"}},"current_state":{{"title":"{title}"}}}}"#
     )
 }
 
 /// A §7 pre wire with NO target — the parentless case: deliver to integration.
-fn pre_flat(invocation: &str, title: &str) -> String {
+fn pre_flat(invocation: &str, id: &str, title: &str) -> String {
     format!(
-        r#"{{"binding":{{"invocation_path":"{invocation}"}},"command":{{"op":"close"}},"current_state":{{"title":"{title}"}}}}"#
+        r#"{{"binding":{{"invocation_path":"{invocation}"}},"command":{{"op":"close","id":"{id}"}},"current_state":{{"title":"{title}"}}}}"#
     )
 }
 
-/// A close.pre change worktree whose staged deletion of `tasks/<id>.md` is how
-/// the pre hook recovers the id (the harness's own helper is fixed to `bl-x`).
+/// A close.pre change worktree staging the deletion of `tasks/<id>.md` — the
+/// cwd shape of a real close (the harness's own helper is fixed to `bl-x`).
 fn change_for(tmp: &Path, name: &str, id: &str) -> PathBuf {
     let change = tmp.join(name);
     fs::create_dir(&change).unwrap();
@@ -79,7 +79,7 @@ fn a_child_delivers_into_its_epics_ref_and_the_epic_lands_the_whole_thing_on_mai
 
     fs::write(kid.join("kid.txt"), "child work\n").unwrap();
     let change = change_for(tmp.path(), "change-kid", "bl-kid");
-    delivery(&change, &home, "close", "pre", &pre_into(inv, "Kid", "bl-epic")).assert().success();
+    delivery(&change, &home, "close", "pre", &pre_into(inv, "bl-kid", "Kid", "bl-epic")).assert().success();
     delivery(&root, &home, "close", "post", &post_into(inv, "bl-kid", "Kid", "bl-epic")).assert().success();
 
     // Delivered, NOT landed: the squash sits on the epic's ref and `main` has
@@ -95,14 +95,14 @@ fn a_child_delivers_into_its_epics_ref_and_the_epic_lands_the_whole_thing_on_mai
     assert!(sib.join("kid.txt").exists(), "a later child forks the epic's ref, seeing the earlier child's work");
     fs::write(sib.join("sib.txt"), "sibling work\n").unwrap();
     let change = change_for(tmp.path(), "change-sib", "bl-sib");
-    delivery(&change, &home, "close", "pre", &pre_into(inv, "Sib", "bl-epic")).assert().success();
+    delivery(&change, &home, "close", "pre", &pre_into(inv, "bl-sib", "Sib", "bl-epic")).assert().success();
     assert_eq!(subject(&root, "work/bl-epic"), "Sib [bl-sib]");
     assert_eq!(subject(&root, "main"), "seed");
 
     // The epic itself is parentless — its target IS main — so its close folds
     // main in and lands both children as ONE commit. One reviewable unit.
     let change = change_for(tmp.path(), "change-epic", "bl-epic");
-    delivery(&change, &home, "close", "pre", &pre_flat(inv, "The epic")).assert().success();
+    delivery(&change, &home, "close", "pre", &pre_flat(inv, "bl-epic", "The epic")).assert().success();
     assert_eq!(subject(&root, "main"), "The epic [bl-epic]");
     let files = String::from_utf8(
         Command::new("git").current_dir(&root).args(["ls-tree", "--name-only", "main"]).output().unwrap().stdout,
@@ -138,7 +138,7 @@ fn a_nested_close_runs_the_repos_own_pre_commit_gate_against_the_epics_ref() {
     fs::write(kid.join("kid.txt"), "child work\n").unwrap();
 
     let change = change_for(tmp.path(), "change-kid", "bl-kid");
-    delivery(&change, &home, "close", "pre", &pre_into(inv, "Kid", "bl-epic")).assert().failure();
+    delivery(&change, &home, "close", "pre", &pre_into(inv, "bl-kid", "Kid", "bl-epic")).assert().failure();
     // Nothing delivered: the epic's ref still sits where it was minted.
     assert_eq!(subject(&root, "work/bl-epic"), "seed");
 }

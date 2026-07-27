@@ -1,7 +1,7 @@
 //! [`Project`] tests on throwaway project repos — every worktree git act and
 //! its idempotent re-run (materialize / release / discard / integration /
-//! is_git_repo) plus the task-path and repo-identity reads. The direct squash
-//! itself lives in the sibling `deliver_tests` module.
+//! is_git_repo) plus the repo-identity reads. The direct squash itself lives in
+//! the sibling `deliver_tests` module.
 
 use super::*;
 use crate::delivery::Repo;
@@ -130,23 +130,10 @@ fn is_git_repo_holds_for_a_worktree_and_a_bare_repo_but_not_a_plain_dir() {
 }
 
 #[test]
-fn changed_task_paths_lists_the_ops_touched_task_file() {
-    let (tmp, root, _p) = project();
-    fs::create_dir(root.join("tasks")).unwrap();
-    fs::write(root.join("tasks/bl-9f9f.md"), "x\n").unwrap();
-    Project::run(&root, &["add", "-A"]).unwrap();
-    Project::run(&root, &["commit", "-qm", "add task"]).unwrap();
-    fs::remove_file(root.join("tasks/bl-9f9f.md")).unwrap(); // the close diff
-
-    assert_eq!(changed_task_paths(&root).unwrap(), ["tasks/bl-9f9f.md"]);
-    let _ = tmp;
-}
-
-#[test]
 fn a_git_failure_surfaces_with_stderr() {
     let outside = TempDir::new().unwrap(); // not a git repo
-    let err = changed_task_paths(outside.path()).unwrap_err();
-    assert!(err.to_string().starts_with("git diff"));
+    let err = Project::run(outside.path(), &["rev-parse", "HEAD"]).unwrap_err();
+    assert!(err.to_string().starts_with("git rev-parse HEAD"), "{err}");
 }
 
 #[test]

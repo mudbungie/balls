@@ -48,6 +48,17 @@ pub struct Binding {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Command {
     pub op: String,
+    /// The BALL this op is about — on EVERY payload, `pre` included (§0
+    /// obligation 4: identity is CARRIED, not re-derived). It is op-constant and
+    /// core always knows it: the verb names it as its positional, `create` mints
+    /// it. So a plugin never reads WHICH ball an op is about back out of the
+    /// change worktree, whose staged diff is mutable scratch — it is empty on a
+    /// clean-tree abort and on a FAILED SEAL (committed, not integrated, no seal
+    /// record), where the old scan reported "found 0" and turned a healthy
+    /// unwind into a FAILED ROLLBACK (bl-a5f3). `None` only on the §16 bulk
+    /// `import`, which authors a whole stream rather than one ball.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body_change: Option<String>,
     /// The op's `-m` note. A close reads it as the FULL delivery message

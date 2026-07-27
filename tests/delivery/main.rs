@@ -60,8 +60,13 @@ fn post(invocation: &str, id: &str, title: &str) -> String {
     )
 }
 
+/// A §7 PRE wire: no sealed trailer yet, so the ball rides `command.id` — the
+/// op input core named at op-start (§0 obligation 4, bl-a5f3). The harness ball
+/// is `bl-x` throughout.
 fn pre(invocation: &str, title: &str) -> String {
-    format!(r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}}}}"#)
+    format!(
+        r#"{{"binding":{{"invocation_path":"{invocation}"}},"command":{{"op":"close","id":"bl-x"}},"current_state":{{"title":"{title}"}}}}"#
+    )
 }
 
 /// A `prime` diffless wire (§13): the actor + the binding's invocation. No ball
@@ -72,7 +77,8 @@ fn prime(actor: &str, invocation: &str) -> String {
 }
 
 /// A change worktree named `name` with `tasks/bl-x.md` seeded then deleted —
-/// the close.pre cwd, the staged deletion being how the pre hook derives the id.
+/// the close.pre cwd, i.e. the shape a real close hands the hook. Nothing reads
+/// the id back out of it any more (bl-a5f3); it stands in for the real cwd.
 fn change_dir(tmp: &Path, name: &str) -> std::path::PathBuf {
     let change = tmp.join(name);
     fs::create_dir(&change).unwrap();
@@ -145,7 +151,7 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
     // work happens in the code worktree.
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
 
-    // close.pre — id recovered from the change worktree's deleted task file.
+    // close.pre — the ball comes off `command.id`, not the staged diff.
     let change = change_dir(tmp.path(), "change");
     delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
 
@@ -235,7 +241,7 @@ fn a_post_abort_unwind_declines_and_the_retried_close_converges_without_a_duplic
     delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
 
-    // Forward close.pre delivers (id off the staged deletion, as in a real close).
+    // Forward close.pre delivers (the ball off `command.id`, as in a real close).
     let change = change_dir(tmp.path(), "change");
     delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
     git(&change, &["add", "-A"]);

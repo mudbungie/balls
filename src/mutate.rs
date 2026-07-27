@@ -44,7 +44,7 @@ mod guards;
 #[path = "mutate_report.rs"]
 mod report;
 
-use author::{base_change, command};
+use author::{base_change, command, Authored};
 
 /// Run a mutating verb (§9) end to end: parse `args`, author the verb's base
 /// change against the STORE checkout, and seal it onto `tasks_branch` through the
@@ -80,7 +80,7 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     // frontmatter here AND — threaded into `seal_op` — the store seal commit and
     // every plugin's spawn env (so the delivery squash agrees), three-to-one.
     let instant = clock::for_op(edge)?;
-    let Some((base, before)) = base_change(verb, &store, &flags, instant.t, roots, editor)? else {
+    let Some(Authored { base, before, id }) = base_change(verb, &store, &flags, instant.t, roots, editor)? else {
         return Ok(());
     };
     // The stale-read CAS (bl-9f1d): close refuses iff the task file changed
@@ -89,21 +89,18 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     // the engine so a refusal costs no worktree and no plugin chain; any store
     // movement AFTER the check still aborts at the seal's ff-only integrate.
     let consumed = match verb {
-        Verb::Close => {
-            let id = flags.positionals.first().expect("close authored above with exactly one positional");
-            crate::seen::guard(&store, &edge.invocation_path, id, &flags.actor)?
-        }
+        Verb::Close => crate::seen::guard(&store, &edge.invocation_path, &id, &flags.actor)?,
         _ => Vec::new(),
     };
     // The §11 delivery target (bl-7b71), derived from the graph at op time and
     // never stored: a ball that close-gates its live parent delivers into that
     // parent's ref, so `claim` forks it and `close` folds back into it. `None`
     // — every flat ball, and `create` (no ball yet) — is the integration branch.
-    let target = crate::target::derive(&store, flags.positionals.first(), before.as_ref());
+    let target = crate::target::derive(&store, &id, before.as_ref());
     let ctx = Op {
         actor: flags.actor.clone(),
         remote: flags.remote.clone(),
-        command: command(verb, &flags, target),
+        command: command(verb, &flags, target, id),
     };
     let sha = seal_op(edge, verb, &ctx, base.as_ref(), before, &instant)?;
     crate::seen::consume(&consumed); // spent only on a successful seal
