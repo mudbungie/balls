@@ -60,6 +60,20 @@ to capture at unit level. Left as-is — low severity, decision already covered.
   the `delivered_in` ordering test relies on commit *topology* (the reused-id
   incarnation is a descendant), not timestamp luck. No equality-of-independent-
   commits assertion remains.
+
+  This bullet was too narrow: the hazard needs no *assertion* of SHA equality to
+  bite, only a **dependency** on it — and since bl-0161 the root commit IS the
+  project identity, so two fixture repos built from the same tree, message and
+  identity are the SAME project when their seed commits land in one wall-clock
+  second and DIFFERENT projects when they straddle the boundary. That flipped
+  `bl list`'s root-aware default scope under load and made
+  `tests/import_roundtrip.rs` intermittent (bl-36f1): the second store's plain
+  `list --json` returned `[]` whenever the two `git init` fixtures fell either
+  side of a second. The standing rule for any test founding more than one repo
+  is therefore **make the roots deterministically distinct** — seed content
+  derived from the repo's own tag or path, as `tests/fleet.rs:56` and now
+  `tests/import_roundtrip.rs` do — and reach across projects explicitly with
+  `--everywhere` rather than relying on the scope to be lifted by luck.
 - **ETXTBSY exec race.** `plugin.rs:57` retains the bounded busy-retry backoff.
 
 ## Finding 5 — tarpaulin false-negatives cannot mask holes at 100%
