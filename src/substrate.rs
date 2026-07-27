@@ -69,7 +69,18 @@ pub fn is_landing(landing: &Path) -> bool {
 /// here — that is
 /// [`materialize`]'s lazy job, run after the tracker's `prime/pre` has
 /// had its chance to clone an established remote branch in (bl-0a23).
+///
+/// The ONE piece of crash debris that transaction cannot overwrite is git's own
+/// `.git/index.lock` (bl-3e89): `git init` re-inits and the seed rewrites, but the
+/// `git add -A` below fails on a leftover lock with git's raw error, and prime's
+/// debris report — which runs only AFTER founding — never gets to speak. So the
+/// same report line refuses here, up front, before any half-founding work:
+/// founding cannot delete the lock (it may be LIVE, and prime never deletes what
+/// may hold work), so it names it and the removal in the debris-report voice.
 pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>, actor: &str) -> io::Result<Vec<String>> {
+    if let Some(note) = crate::converge::index_lock(landing) {
+        return Err(io::Error::other(note));
+    }
     fs::create_dir_all(landing)?;
     git::run(landing, &["init", "-q", "-b", LANDING_BRANCH], None)?;
     identify(landing)?;
