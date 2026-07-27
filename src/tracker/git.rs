@@ -4,8 +4,10 @@
 //! tracker act is an ordinary `git fetch` / `git merge` / `git push` on the
 //! state branch (no database, no daemon). [`git`] is the single spawn site, so
 //! every handler funnels its failure through one place that carries git's
-//! stderr — a non-ff merge or a rejected push surfaces verbatim, which is the
-//! contention signal the §13 ff-only contract relies on.
+//! stderr — the raw material for the §13 contention signal. The two losses that
+//! contract EXPECTS, a refused import and a rejected push, are re-spoken by
+//! their handler in balls' voice (bl-3129/bl-3ddb); git's own text survives for
+//! the failures that are not contention (unreachable remote, absent ref).
 //!
 //! This is deliberately separate from [`crate::git`] (the §8 anvil seal):
 //! that seam never talks to a remote, this one only does. Keeping them apart is
