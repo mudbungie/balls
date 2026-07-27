@@ -8,6 +8,7 @@ use crate::git;
 use crate::layout::{CloneDir, Xdg};
 use crate::substrate;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -42,6 +43,14 @@ fn commits(landing: &Path) -> usize {
 
 fn subject(landing: &Path) -> String {
     git::run(landing, &["log", "-1", "--format=%s"], None).unwrap().trim().to_string()
+}
+
+/// Is any `binding.toml.<pid>.tmp` staging file left in the clone bundle? The
+/// atomic replace's temp must never outlive the write, landed or failed.
+fn temps_beside(clone: &CloneDir) -> bool {
+    fs::read_dir(clone.root())
+        .unwrap()
+        .any(|entry| entry.unwrap().file_name().to_string_lossy().ends_with(".tmp"))
 }
 
 fn landing_text(clone: &CloneDir, name: &str) -> String {
@@ -142,6 +151,34 @@ fn set_clock_provider_writes_the_per_clone_binding_not_the_landing() {
     conf(&e, &["set", "task-remote", "git@hub:r"]).unwrap();
     let body = fs::read_to_string(clone.binding()).unwrap();
     assert!(body.contains("clock_provider = \"/opt/bl-workhours\"") && body.contains("remote = \"git@hub:r\""), "{body}");
+}
+
+#[test]
+fn a_binding_write_replaces_by_rename_so_a_failed_write_loses_nothing() {
+    // bl-ffbf: binding.toml is the one balls-owned mutable fact outside git, so
+    // it has no seal to CAS against — the replace is made atomic by hand (temp +
+    // rename, git's index.lock discipline). A write that cannot land therefore
+    // leaves the ESTABLISHED binding whole, where the in-place `fs::write` this
+    // replaced would have truncated it to nothing. The clone directory is made
+    // unwritable to stand in for the torn write: creating the temp beside the
+    // target fails, while an in-place truncate of the (still writable) file
+    // would have succeeded — which is exactly the distinction being asserted.
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    conf(&e, &["set", "clock-provider", "/opt/bl-workhours"]).unwrap();
+    let established = fs::read_to_string(clone.binding()).unwrap();
+    assert!(!temps_beside(&clone), "a landed write leaves no temp behind");
+
+    let denied = fs::Permissions::from_mode(0o555);
+    let restored = fs::metadata(clone.root()).unwrap().permissions();
+    fs::set_permissions(clone.root(), denied).unwrap();
+    let failed = conf(&e, &["set", "clock-provider", "/opt/other"]);
+    fs::set_permissions(clone.root(), restored).unwrap();
+
+    assert!(failed.is_err(), "an unwritable clone dir must fail the binding write");
+    assert_eq!(fs::read_to_string(clone.binding()).unwrap(), established, "the established binding survived");
+    assert!(!temps_beside(&clone), "a failed write leaves no temp behind either");
 }
 
 #[test]

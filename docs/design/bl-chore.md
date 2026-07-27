@@ -4,7 +4,10 @@
 optional body/priority.** The three open questions below are all resolved in
 favour of the recommendation — the maintainer blessed the reversal of the epic's
 free-form lean (A over B), the rollback deviation from §11 (no-op), and the
-optional `body`/`priority` fields. This file is the authoritative reasoning
+optional `body`/`priority` fields. **AMENDED 2026-07-26 (bl-ffbf): the no-op
+rollback is REVERSED** — an aborted claim's gates are §14 appendix orphans and
+the rollback closes them; see "Rollback" below for what the original argument
+missed. Everything else here stands. This file is the authoritative reasoning
 record; the spec text the bl-759f doc-update lands (§6/§10/§11) is the
 authoritative *behaviour*.
 
@@ -179,24 +182,41 @@ bl-chore, never core. **They are not peers:**
 
 Check tag-skip first (off-wire, cheap) before spending the epic-skip query.
 
-## Rollback — none, a stated deviation from §11
+## Rollback — REVERSED 2026-07-26 (bl-ffbf): the mint is undone when the claim is
 
-bl-chore ships a **no-op rollback** (handles `claim post` with `rolling_back`
-set, exits 0). Each `bl create` bl-chore shells seals+pushes independently via
-its *own* `create.post` — so a minted gate is **published state the moment it
-returns**, not the claim op's private derived state. On a `claim.post` abort the
-gates correctly persist to gate whoever next holds the task, and a reclaim is
-de-duped by epic-skip → no dup. §14 blesses exactly this: "persistence-through-
-abort is a plugin choosing a no-op rollback, not a core carve-out"; and a
-teardown rollback would have to shell N `bl close` ops (each a seal+push that can
+**Superseded decision (2026-06-18, below) — bl-chore shipped a no-op rollback.**
+The reasoning was that each shelled `bl create` seals+pushes independently via
+its *own* `create.post`, so a minted gate is **published state the moment it
+returns**, not the claim op's private derived state; §14's "persistence-through-
+abort is a plugin choosing a no-op rollback, not a core carve-out" blessed it,
+and a teardown would have to shell N `bl close` ops (each a seal+push that can
 fail or hit the cap — rollback can't spawn at the cap), turning a tidy into a
-recursive transaction.
+recursive transaction. It read as a stated deviation from §11's forge
+parenthetical "(forge: also remove the just-minted gate child)", on the ground
+that forge's gate is a single *unpushed* edge while bl-chore's are independently
+sealed.
 
-This **deviates** from §11:1115's forge parenthetical "(forge: also remove the
-just-minted gate child)." The deviation is correct *for bl-chore* because
-forge's gate is a single *unpushed* edge while bl-chore's are independently
-sealed — so the doc-update amends §11 to record the distinction rather than
-inherit forge's teardown.
+**What that missed** (the bl-cdec atomicity audit's G6, fixed in bl-ffbf): the
+argument silently split "the claim succeeded" from "the claim aborted" and
+applied the success answer to both. A gate minted for a claim that SUCCEEDS is
+indeed correct standing state, and epic-skip de-dups the reclaim — that half
+stands. A gate minted for a claim that ABORTS gates a task nobody holds: it is
+§14's APPENDIX case verbatim — an artifact keyed to an op that never sealed,
+onto which a retry (which mints a fresh gate) never converges — and the appendix
+says the plugin's rollback must delete it. Being *published* is not a reason to
+keep it; it is precisely what makes the rollback load-bearing, since core's
+tier-1 un-seal reaches only the local branch.
+
+So `rollback claim.post` now closes exactly the ids that claim minted (`bl close`
+IS the delete — §2 keeps no archive dir), reading them from §14 id-keyed scratch
+in the plugin's own territory (`plugins/<name>/<pct-enc invocation>/<bl-id>/`),
+rewritten as each child lands so the record can never name an earlier claim's
+mints. A `create` that fails mid-list does the same INLINE, since core never
+calls a failing plugin's own rollback. The "recursive transaction" worry is
+answered by §14's own terms rather than avoided: rollback is best-effort, its
+exit is ignored, and at the recursion cap it cannot spawn and so no-ops. §11's
+forge parenthetical is therefore INHERITED after all — the pushed-vs-unpushed
+distinction changes what deleting costs, not whether an orphan should stand.
 
 ## Wiring & order
 
@@ -252,13 +272,14 @@ The bl-759f doc-update amends, in order:
 - **§11:1085-1096 (forge bullet)** — reframe forge as `bl-chore` (create) +
   forge-`sync` (resolve), state forge sits on the mint *with its own tag*, and
   leave a breadcrumb that the shipped forge plugin is stale (abolished
-  `review`). Note bl-chore ships no rollback, so §11:1115's teardown is not
-  inherited.
+  `review`). ~~Note bl-chore ships no rollback, so §11:1115's teardown is not
+  inherited.~~ (bl-ffbf: it IS inherited — an aborted claim's gate is deleted.)
 
 ## Recommendation & net mechanism
 
 **Ship Option A.** Two guards (tag-skip always-on, epic-skip default-on knob in
-plugin territory). No rollback handler. Opt-in via `bl conf prepend claim.post
+plugin territory). ~~No rollback handler.~~ (bl-ffbf: a rollback handler that
+closes the aborted claim's mints.) Opt-in via `bl conf prepend claim.post
 bl-chore`, before bl-tracker. bl-chore is the create-side reference capability;
 resolution is orthogonal (a separate plugin), said explicitly to block scope
 creep. Net mechanism: **+1 first-party binary, +1 tag convention (`bl-chore`),

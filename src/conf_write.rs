@@ -124,12 +124,34 @@ fn clear_stealth(landing: &Path, actor: &str, url: &str) -> io::Result<()> {
 /// repo the way the machine-wide XDG file once did (bl-d081/bl-cfe3). Local state:
 /// never committed — it lives beside the landing/store checkouts in the clone
 /// bundle.
+///
+/// The binding is the ONE balls-owned mutable fact outside git, so it has no CAS
+/// commit point to seal against; the replace is therefore made ATOMIC by hand
+/// (bl-ffbf): the new document goes to a private temp file beside the target and
+/// is `rename`d over it — git's own `index.lock` discipline. A reader (every
+/// op's §12 ladder resolution) sees the whole old file or the whole new one,
+/// never a truncated prefix, and a crash mid-write leaves the established
+/// binding standing. What remains — and is ACCEPTED — is the lost update: two
+/// concurrent `bl conf set` in one clone read the same table and the later
+/// rename wins whole, dropping the other's field. A lock would trade that for a
+/// stale lockfile bricking every later write, the same true-forever debris the
+/// founding predicate had to shed; the fix, if this ever bites, is to move the
+/// binding under a ref, not to add a lock.
 fn binding_set(clone: &CloneDir, field: &str, value: &str) -> io::Result<()> {
     let path = clone.binding();
     let mut table = read_table(&path)?;
     table.insert(field.into(), Value::String(value.to_string()));
+    let body = toml::to_string(&Value::Table(table)).expect("a string field always serializes");
     fs::create_dir_all(path.parent().expect("the clone binding always has a parent"))?;
-    fs::write(&path, toml::to_string(&Value::Table(table)).expect("a string field always serializes"))
+    // The pid keeps two concurrent writers in their own temp, so neither can
+    // interleave bytes into the other's — the failure they share is losing a
+    // field, never a corrupt document.
+    let temp = path.with_file_name(format!("binding.toml.{}.tmp", std::process::id()));
+    let replaced = fs::write(&temp, body).and_then(|()| fs::rename(&temp, &path));
+    if replaced.is_err() {
+        let _ = fs::remove_file(&temp); // a half-written temp is never left behind
+    }
+    replaced
 }
 
 /// Set a landing `balls.toml` scalar and seal it on `balls/config` (§4).

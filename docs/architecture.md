@@ -159,6 +159,16 @@ $XDG_STATE_HOME/balls/
   delivery plugin's CODE worktree (§11), which lives in plugin territory and checks out the *project*
   repo.
 - Two clones sharing one store remote share one `plugins/tracker/<remote>/` dir.
+- **`binding.toml` is REPLACED BY RENAME, never edited in place** (bl-ffbf). It is the one
+  balls-owned mutable fact outside git, so it has no CAS commit point to seal against: a `bl conf`
+  write renders the whole document to a private temp file beside it and `rename`s that over the
+  target — git's own `index.lock` discipline. A reader resolving the §12 ladder therefore sees the
+  whole old file or the whole new one, never a truncated prefix, and a crash mid-write leaves the
+  established binding standing. The residual LOST UPDATE is ACCEPTED: two concurrent `bl conf set`
+  in one clone read the same table and the later rename wins whole, dropping the other's field. A
+  lock would trade a torn field for a stale lockfile bricking every later write — the same
+  true-forever debris the §12 founding predicate had to shed — so if this ever bites, the fix is to
+  move the binding under a ref, not to add a lock.
 - **`log` is ONE unified per-clone op log** (not a per-plugin or per-op-phase tree): JSON-lines, one
   object per line `{ts, lvl, src, op, phase, msg}` with `src ∈ {core, <plugin>}`. balls owns the
   format — the source is a stamped FIELD, so you grep one source or read the whole sequence; metrics
@@ -1415,11 +1425,14 @@ property AND the disambiguation. (A cross-clone miss is reported honestly or res
 BINDING commit point and STANDS through an abort; everything else the plugin makes is derived and
 recomputes. `rollback claim.post` = remove the worktree + delete `work/<id>` (forge: also remove
 the just-minted gate child) — a tidy of derived state, never load-bearing (a retried claim would
-re-create both). (bl-chore, by contrast, ships NO rollback: each chore it shells is an independently
-SEALED `bl create` — published state the moment it returns, not the claim op's private derived state —
-so the gates correctly persist through a `claim.post` abort to gate the task's next holder, and a
-reclaim is de-duped by epic-skip. The forge teardown above is for a single UNPUSHED gate edge and is
-NOT inherited.) `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
+re-create both). (bl-chore's rollback is the OPPOSITE of derived-state tidy and REVERSES its original
+no-op (bl-ffbf, superseding the bl-3df3 dialogue): each chore it shells is an independently SEALED
+`bl create` — published state the moment it returns — so a gate minted for a claim that ABORTS is
+§14's appendix orphan, an artifact keyed to an op that never sealed which nothing converges onto,
+and `rollback claim.post` closes exactly the ids that claim minted. The old reading — "the gates
+persist to gate the task's next holder" — held only for a claim that SUCCEEDED, which still stands
+and is still de-duped by epic-skip on reclaim. Nested `bl` ops are precisely what makes this
+load-bearing rather than a tidy: see the §14 appendix.) `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
 un-squash): the reset raced concurrent integration movement in a shared hub — a sibling's commit
 landing between squash and reset gets eaten by it — and a standing squash without a sealed close
 is exactly the bl-430e state the retried close completes; the squash is always GATED code (the
@@ -1452,6 +1465,16 @@ every step is create-if-absent → no-op-converge. **Converging predicate:** the
 (`balls/config`) exists and the store (`tasks_branch`) resolves to a valid, current `tasks/` checkout,
 whether the path was empty, fresh-cloned, freshly-onboarded, or already established — base balls
 cannot tell which ran, so re-running prime is never an error (no `--reinit`).
+
+**"The landing exists" means a COMMIT on `balls/config`, never a `config/` directory** (bl-ffbf).
+Founding is a transaction whose one commit point is the seal at the end, and every step before it —
+`git init`, the `.gitignore`, the seeded `config/` — overwrites rather than creates. Keyed on the
+directory, a crash mid-founding left debris that read as "founded" FOREVER: prime skipped founding,
+and every later op then opened its change worktree on an unborn HEAD, with no act that could ever
+converge it. Keyed on the commit, that same debris is simply "not founded yet" and the ordinary
+founding path runs straight over it — the general path with the seed already on disk, not a
+bootstrap special case, and nothing to detect or repair. (The bl-b915 ancestor advisory above keeps
+its cheaper `config/`-presence stat: a half-founded ancestor is still an ancestor worth naming.)
 
 Core only (a) ensures the landing + store substrate and (b) runs the configured plugin chain, then
 commits — it has zero knowledge of tracker/remotes/stealth. **The local-miss branch SEEDS a fresh
@@ -2045,6 +2068,28 @@ converges onto the orphan — the plugin's rollback must delete it.
 - `rollback create.pre`: read the id from scratch/worktree, best-effort delete the remote issue,
   remove the scratch dir. Idempotent: absent ⇒ nothing created ⇒ no-op.
 
+**A NESTED `bl` OP IS THE SAME CASE — the shipped instance is `bl-chore` (bl-ffbf).** A plugin that
+shells `bl` makes balls itself the "external tracker that assigns its own id": `bl-chore`'s
+`claim.post` mint is a whole nested `create` with its OWN commit point, sealed (and in a tracked
+checkout PUSHED) outside the claiming op's atom. So a gate minted for a claim that then aborts is
+precisely the appendix case — an artifact keyed to an op that never sealed, onto which a retry (which
+mints a fresh gate) never converges — and it takes the appendix answer: the rollback DELETES it.
+`bl close` is that delete; a closed ball's `tasks/<id>.md` is removed (§2, no archive dir). Two
+details make it exact:
+- **The ids ride §14 scratch, because nothing else crosses the process boundary.** The minted id is
+  knowable only in the forward process (§7 has no return channel, `BALLS_*` never crosses to the
+  later rollback process), so `claim.post` writes it to `plugins/<name>/<pct-enc invocation>/<bl-id>/`
+  as each child lands. The record is REWRITTEN, never appended, so it names exactly THIS claim's
+  mints — a rollback is scoped to one op invocation and must never reach back into a claim that
+  already succeeded. A `create` that fails mid-list unwinds the landed ones INLINE, since core never
+  calls a failing plugin's own rollback. The record a successful claim leaves is inert bytes the next
+  claim of that ball overwrites; only a rollback consumes it.
+- **What actually survives is the PUBLISHED copy.** Core's tier-1 un-seal resets the store branch to
+  the pre-op tip, which already discards the nested commit locally; the orphan that persists is the
+  one the nested op pushed. The nested close is what takes it off the shared record. This is the
+  general shape of the tier-3 line: a nested `bl` op's push is beyond core's local un-seal, which is
+  exactly why plugin rollback stays load-bearing here.
+
 **sync/prime have no change worktree** (§13): tier 1 is empty (no ball seal), so rollback reduces to
 each plugin's own `rollback`. Most sync/prime plugins are idempotent refreshers (no-op rollback); the
 tracker's ff is a local ref move with nothing pushed, so a partial sync leaves the store at the old
@@ -2080,10 +2125,13 @@ OPEN:
   recorded in §0: whether a mid-gate loser deserves more than a clean rejection — a delivery lease
   (`update-ref refs/balls/delivery/<integration> <sha> ''`, atomic create-if-absent, stale = prime
   debris) serializes the gate and costs no throughput on a saturated box, but it is the one option
-  that adds mechanism. Lower-severity gaps (`binding.toml`'s uncontrolled read-modify-write, the
-  founding crash window, `bl-chore`'s nested `create` outside the parent atom) are bl-ffbf; the store
-  seal's raw-git contention voice is FIXED (bl-fa89 — one balls sentence for every spelling of the
-  loss, §8; an in-core retry loop was considered and REFUSED). Touched §0 (the new principle), §15 (this entry).
+  that adds mechanism. The three lower-severity gaps are CLOSED (bl-ffbf, folded into the body):
+  `binding.toml` is replaced by rename with the lost update named as accepted (§1), the founding
+  predicate is a COMMIT on the landing branch so a crashed founding is re-runnable debris rather than
+  a permanent brick (§12), and `bl-chore`'s nested `create` is unwound by its rollback as the
+  first-party instance of the §14 appendix. The store seal's raw-git contention voice is FIXED
+  (bl-fa89 — one balls sentence for every spelling of the loss, §8; an in-core retry loop was
+  considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
 - **the auto-gen collision retry was SPECIFIED but never built; front-door ids now take a shape check

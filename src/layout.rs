@@ -104,9 +104,11 @@ impl Xdg {
     /// whose own percent-encoded clone dir already carries a founded landing —
     /// the `bl prime` founding advisory (bl-b915, the bl-0bd8 invisible-sibling
     /// footgun demoted from silent split to a warned deliberate act). Balls' own
-    /// record only: a clone dir's `config/` presence, the same test
-    /// [`crate::checkout`]'s `is_landing` uses; git is never consulted, so this
-    /// catches a plain (non-git) ancestor project too. `None` is the common
+    /// record only: a clone dir's `config/` presence — deliberately a cheaper,
+    /// broader test than the founding predicate ([`crate::substrate::is_landing`],
+    /// a commit on the landing branch since bl-ffbf), because an
+    /// ancestor half-founded by a crash is still an ancestor worth naming, and
+    /// this layer stays pure path arithmetic + a stat, never git. `None` is the common
     /// case — no ancestor is founded, and `prime` founds silently as today.
     #[must_use]
     pub fn nearest_founded_ancestor(&self, path: &Path) -> Option<PathBuf> {

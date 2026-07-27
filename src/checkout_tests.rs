@@ -56,6 +56,29 @@ fn prime_founds_both_branches_on_a_miss_then_converges_on_the_hit_path() {
 }
 
 #[test]
+fn prime_founds_over_a_crashed_foundings_config_dir_instead_of_bricking() {
+    // bl-ffbf: the §12 founding predicate is a COMMIT on the landing branch, not
+    // the `config/` directory founding creates on its way there. A crash in that
+    // window used to read as "founded" forever — prime would skip founding, and
+    // every op after it opened a change worktree on an unborn HEAD. Keyed on the
+    // commit, the debris is just an unfounded landing: prime founds over it and
+    // the checkout is ordinary afterwards (a re-prime converges as always).
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp, None);
+    let l = landing(&e);
+    std::fs::create_dir_all(l.join("config")).unwrap();
+    crate::git::run(&l, &["init", "-q", "-b", crate::LANDING_BRANCH], None).unwrap();
+    assert!(!crate::substrate::is_landing(&l), "a config/ dir with no commit is not a founded landing");
+
+    prime(&e, &argv(&["--as", "me"])).unwrap();
+
+    assert!(crate::substrate::is_landing(&l));
+    assert!(l.join("config").join("plugins.toml").is_file());
+    assert!(store(&e).join("tasks").is_dir()); // the store materialized off a born HEAD
+    prime(&e, &[]).unwrap(); // and the hit path converges from here
+}
+
+#[test]
 fn prime_drives_a_sync_after_the_prime_chain() {
     // §12/§13 gap (A): prime is an orchestrator of syncs — after the prime chain
     // it must drive `sync` so an established checkout is brought current. Core
