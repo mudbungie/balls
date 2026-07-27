@@ -70,6 +70,11 @@ fn prune_preserves_a_diverged_branch_carrying_work_beyond_its_delivery() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     let xdg = Xdg::with(&root, None, Some(&root.join("state").to_string_lossy()));
+    // The store `prime.post` runs in, still holding the ball — an OPEN-arm
+    // report (bl-baa0); the divergence under test is the same either way.
+    let store = tmp.path().join("store");
+    fs::create_dir_all(store.join("tasks")).unwrap();
+    fs::write(store.join("tasks").join("bl-x.md"), "+++\n+++\n").unwrap();
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
     Project::run(&wt, &["add", "-A"]).unwrap();
@@ -80,7 +85,7 @@ fn prune_preserves_a_diverged_branch_carrying_work_beyond_its_delivery() {
     Project::run(&wt, &["commit", "-qm", "more work"]).unwrap();
     p.release(&wt).unwrap(); // teardown: the branch is the only copy
 
-    let reports = p.prune(&xdg, "bl-delivery").unwrap();
+    let reports = p.prune(&xdg, "bl-delivery", &store).unwrap();
     assert_eq!(reports.len(), 1);
     assert!(Project::ok(&root, &["rev-parse", "--verify", "--quiet", "refs/heads/work/bl-x"]).unwrap());
 }

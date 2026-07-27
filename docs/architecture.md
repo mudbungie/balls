@@ -1499,12 +1499,24 @@ read, so the same op that rewrites also dispatches the rewritten schedule and bi
   not a live hazard. Delivery-side, beside the existing bl-292d settled-branch prune (§11/§13, same
   `for-each-ref` enumeration and `Standing` computation, zero new spawns): an **unsettled `work/<id>`
   whose worktree directory is absent** — committed-but-undelivered content with nothing checked out
-  on it — is reported (never pruned) naming both remedies, `bl claim <id>` (re-materializes onto the
+  on it — is reported, never pruned. The remedies it names are the ones that actually exist, which
+  the STORE decides (bl-baa0): a branch outlives its ball, so debris usually belongs to a CLOSED one.
+  **Open ball** (`tasks/<id>.md` present) — both remedies: `bl claim <id>` (re-materializes onto the
   branch; the bl-65e0 contract that a later claim-and-close still delivers it) or explicit discard
-  with `git branch -D work/<id>`. A wider "claimed ball, missing worktree" variant was attacked and
-  dropped: the §7 prime payload carries no claim set and the worktree is plugin territory core
-  cannot stat, so the report stays narrow to what the delivery plugin can compute alone
-  (branch present, directory absent).
+  with `git branch -D work/<id>`. **Closed ball** (no task file — §10 absence IS the record) — the
+  discard arm ALONE, because nothing can re-claim a ball that does not exist and no close can deliver
+  it; and since deletion is then the only path, the line first says whether anything is lost, by
+  content-containment against the integration TIP (`Project::contained`, one `merge-tree` per closed
+  debris branch, off the clean path). That is the gap `Standing` structurally cannot see: content
+  that landed inside ANOTHER ball's squash carries no `[bl-id]` tag, so it reads `Undelivered`
+  forever while being fully present on the integration branch. A non-contained branch is handed
+  `git diff <integration>...work/<id>` to read rather than a claim about its content. The arm costs
+  one `exists()` on the store checkout, which for `prime.post` is simply the plugin's CWD (§13
+  diffless — the same cwd `close.pre` recovers its id from): no wire widening, no claim set. A wider
+  "claimed ball, missing worktree" variant was attacked and dropped: the §7 prime payload carries no
+  claim set and the worktree is plugin territory core cannot stat, so the report stays narrow to what
+  the delivery plugin can compute alone (branch present, directory absent, ball present-or-not) and
+  asserts nothing about claim state.
 
   **Severability.** All of the above sits behind the one `src/converge.rs` module boundary (plus the
   delivery-side report beside `delivery_prune.rs`, same one-call-site shape) — decomposed to sibling

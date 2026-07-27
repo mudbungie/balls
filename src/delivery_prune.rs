@@ -27,14 +27,27 @@
 //! spawns: the same `for-each-ref` enumeration and [`Project::standing`] call
 //! serve both the delete and the report; the only addition is one `exists()`
 //! per unsettled branch.
+//!
+//! The report has TWO ARMS, decided by the store (bl-baa0). A branch outlives
+//! its ball: close deletes `tasks/<id>.md` (§10 — absence IS the record) and
+//! leaves the branch for this deferred cleanup, so the debris of a CLOSED ball
+//! is the common case, and the re-claim remedy is a lie there — the ball cannot
+//! be claimed and no close can deliver it. Deciding costs one more `exists()`
+//! on the store checkout, which for `prime.post` is simply the plugin's CWD
+//! (§13 diffless — the same cwd `close.pre` recovers its id from): no wire
+//! widening, no claim set, no assertion about claim state — only "is there a
+//! task file". This is narrower than the "claimed ball, missing worktree"
+//! variant bl-18bf's attack record broke, and does not revive it.
 
 use std::io;
+use std::path::Path;
 
 use crate::delivery::Repo;
 use crate::delivery_path::{marker, worktree_path};
 use crate::delivery_repo::Project;
 use crate::delivery_standing::Standing;
 use crate::layout::Xdg;
+use crate::taskfile;
 
 impl Project {
     /// Delete every local `work/<id>` branch that is SETTLED on the
@@ -53,12 +66,15 @@ impl Project {
     ///
     /// Every SURVIVING branch is then checked for debris (bl-c117): if its
     /// worktree — the same `(xdg, plugin, invocation, id)` formula `claim`
-    /// derives ([`worktree_path`]) — is absent, one report line naming both
-    /// remedies is RETURNED (never printed here; the plugin binary owns
-    /// stderr, matching every other bl-b1be-style report in this codebase).
-    /// `xdg`/`plugin` are exactly the binding inputs `claim` resolves its own
-    /// worktree from — the caller already has them for that reason.
-    pub fn prune(&self, xdg: &Xdg, plugin: &str) -> io::Result<Vec<String>> {
+    /// derives ([`worktree_path`]) — is absent, one report line is RETURNED
+    /// (never printed here; the plugin binary owns stderr, matching every other
+    /// bl-b1be-style report in this codebase), naming the remedies that are
+    /// actually open given whether `store` still holds the ball
+    /// ([`Self::debris_report`]). `xdg`/`plugin` are exactly the binding inputs
+    /// `claim` resolves its own worktree from, and `store` is the store
+    /// checkout `prime.post` already runs in — the caller has all three for
+    /// reasons that predate this report.
+    pub fn prune(&self, xdg: &Xdg, plugin: &str, store: &Path) -> io::Result<Vec<String>> {
         let Ok(integration) = self.integration() else {
             return Ok(Vec::new()); // no repo / no HEAD branch — nothing to prune or report
         };
@@ -73,25 +89,56 @@ impl Project {
                 }
                 Standing::Undelivered | Standing::Diverged => {
                     if !worktree_path(xdg, plugin, &invocation, id).exists() {
-                        reports.push(debris_report(id, branch));
+                        reports.push(self.debris_report(store, &integration, id, branch)?);
                     }
                 }
             }
         }
         Ok(reports)
     }
-}
 
-/// The bl-c117 debris line: `branch` (`work/<id>`) is committed but its
-/// worktree is gone. Names both remedies the design record specifies — re-claim
-/// (the bl-65e0 contract: a later claim-and-close still delivers it) or
-/// explicit discard — and prunes neither.
-fn debris_report(id: &str, branch: &str) -> String {
-    format!(
-        "{branch} is committed but its worktree is gone — bl claim {id} \
-         re-materializes onto it (a later close still delivers, bl-65e0), \
-         or discard with git branch -D {branch}"
-    )
+    /// The bl-c117 debris line for `branch` (`work/<id>`): committed, worktree
+    /// gone. Which remedies exist is the STORE's answer (bl-baa0), so the arm
+    /// turns on `tasks/<id>.md` under the `store` checkout (§10 — absence IS
+    /// the record):
+    ///
+    /// - **Open ball** — both remedies the design record specifies: re-claim
+    ///   (the bl-65e0 contract, a later claim-and-close still delivers it) or
+    ///   explicit discard.
+    /// - **Closed ball** — re-claim is impossible and no close can deliver, so
+    ///   ONLY discard is named. Because deletion is then the sole path, the
+    ///   line first says whether anything would be lost: content-containment
+    ///   against the integration TIP ([`Project::contained`]), not against a
+    ///   `[bl-id]`-tagged delivery. That is the exact gap `Standing` cannot
+    ///   see — content that landed inside ANOTHER ball's squash reads
+    ///   `Undelivered` forever while being fully present on `integration`. One
+    ///   `merge-tree` per closed-ball debris branch, off the clean path
+    ///   entirely; a non-contained branch gets the three-dot diff to inspect
+    ///   instead of a claim about its content.
+    ///
+    /// Prunes neither arm — reporting is the whole contract.
+    fn debris_report(&self, store: &Path, integration: &str, id: &str, branch: &str) -> io::Result<String> {
+        if taskfile::exists(store, id) {
+            return Ok(format!(
+                "{branch} is committed but its worktree is gone — bl claim {id} \
+                 re-materializes onto it (a later close still delivers, bl-65e0), \
+                 or discard with git branch -D {branch}"
+            ));
+        }
+        let fate = if self.contained(branch, integration)? {
+            format!("its content is already contained in {integration}, so discard it with git branch -D {branch}")
+        } else {
+            format!(
+                "its content is NOT contained in {integration} — read it with \
+                 git diff {integration}...{branch}, then discard with git branch -D {branch}"
+            )
+        };
+        Ok(format!(
+            "{branch} is committed but its worktree is gone, and {id} is closed \
+             (no task file — absence is the record), so nothing can re-claim or \
+             deliver it: {fate}"
+        ))
+    }
 }
 
 #[cfg(test)]
