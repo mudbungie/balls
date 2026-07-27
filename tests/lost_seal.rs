@@ -166,6 +166,13 @@ fn a_lost_store_seal_unwinds_with_the_ball_off_the_wire_and_the_retry_converges(
     assert!(!err.contains("changed task file"), "identity was re-derived from the worktree: {err}");
     assert!(!err.contains("rollback failed"), "a healthy unwind reported failure: {err}");
 
+    // And the abort SPEAKS (bl-fa89): the ff-only rejection is the §8 CAS
+    // working, so the operator gets balls' sentence — what happened, that
+    // nothing is damaged, and the one move that converges — never raw git.
+    assert!(err.contains("the store moved under this op"), "{err}");
+    assert!(err.contains("Re-run the command"), "{err}");
+    assert!(!err.contains("Not possible to fast-forward"), "raw git leaked: {err}");
+
     // And the state really is fine: the delivery squash STANDS on main (it is
     // the BINDING commit point, §14), while the ball is still open and claimed —
     // the store never took the seal.

@@ -106,6 +106,29 @@ fn run_env(cwd: &Path, args: &[&str], stdin: Option<&str>, env: &[(&'static str,
     }
 }
 
+/// A REJECTED STORE SEAL, in balls' voice (bl-fa89) — the bl-a3bb precedent one
+/// layer down ([`crate::delivery_repo_acts::commit_swap`] does the same for the
+/// delivery ref).
+///
+/// The seal's `merge --ff-only` IS the §8 compare-and-swap and a rejection is
+/// working correctly: it means the store branch is no longer where this op's
+/// commit forks from, so the commit did not integrate and nothing was written.
+/// Whichever way git spells the loss — `Not possible to fast-forward`,
+/// `cannot lock ref HEAD`, `Your local changes would be overwritten` — the fact
+/// and the remedy are identical, and raw git reads as CORRUPTION rather than as
+/// the one-line instruction it is. So the whole rejection speaks once, naming
+/// what happened, that nothing is damaged, and the §14 converge-on-retry move.
+///
+/// Deliberately NOT a retry loop in core: the retry is one command, and an
+/// in-core loop would hide contention and double the wall-clock of a genuine
+/// conflict.
+fn contended() -> io::Error {
+    io::Error::other(
+        "the store moved under this op — a concurrent `bl` won the seal; nothing was written. \
+         Re-run the command: it re-reads the moved store and seals onto its new tip",
+    )
+}
+
 impl Anvil for Git {
     fn head(&self) -> io::Result<String> {
         Ok(run(&self.checkout, &["rev-parse", "HEAD"], None)?.trim().to_string())
@@ -137,7 +160,7 @@ impl Anvil for Git {
             None => run(dir, &["commit", "-F", "-"], Some(message))?,
         };
         let sha = run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
-        if let Err(e) = run(&self.checkout, &["merge", "--ff-only", &sha], None) {
+        if run(&self.checkout, &["merge", "--ff-only", &sha], None).is_err() {
             // A lost merge (e.g. the ref-lock race two simultaneous claims run,
             // bl-07d6) can strand the loser's tree STAGED in the checkout
             // index/worktree while HEAD never moved — wedging every later op
@@ -145,7 +168,7 @@ impl Anvil for Git {
             // phantom claim. The seal is atomic: restore the unmoved HEAD
             // (best-effort, like the §14 un-seal) before reporting the failure.
             let _ = run(&self.checkout, &["reset", "--hard", "HEAD"], None);
-            return Err(e);
+            return Err(contended());
         }
         Ok(sha)
     }

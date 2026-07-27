@@ -202,10 +202,16 @@ Leaning (3), but it is the one place here that adds mechanism, and a lease wants
 staleness story (a holder that dies mid-gate). Worth attacking before building:
 option (1) plus G1 may be enough, and is free.
 
-Separately open: whether the store seal's contention deserves an in-core bounded
-retry. Filed as bl-fa89 with the recommendation **no** — converge-on-retry is the
-rule and the retry is one command; an in-core loop hides contention and doubles
-wall-clock on a real conflict. The work is the voice, not the loop.
+Separately: whether the store seal's contention deserves an in-core bounded
+retry. RESOLVED **no** (bl-fa89) — converge-on-retry is the rule and the retry is
+one command; an in-core loop hides contention and doubles wall-clock on a real
+conflict. The work was the voice, and it SHIPPED: `Git::seal`'s ff-only rejection
+now returns one balls sentence — *the store moved under this op — a concurrent
+`bl` won the seal; nothing was written. Re-run the command…* — for EVERY spelling
+of the loss (`Not possible to fast-forward`, `cannot lock ref HEAD`, `Your local
+changes would be overwritten`), because the fact and the remedy are identical in
+each and only the raw text differed. Detection was already the existing `Err`
+path; no mechanism was added.
 
 ## 7. Gaps, filed
 
@@ -213,7 +219,7 @@ wall-clock on a real conflict. The work is the voice, not the loop.
 | --- | --- | --- |
 | G1 delivery CAS validates the wrong old value (A2) | bl-8b89 | **high** — silent lost update |
 | G2 failed seal + re-derived identity (A3/A4) | bl-a5f3 | **high** — false alarm, unwind reports failure — FIXED |
-| G3 store-seal contention speaks git's voice | bl-fa89 | medium — legibility |
+| G3 store-seal contention speaks git's voice | bl-fa89 | medium — legibility — FIXED |
 | G4 `binding.toml` read-modify-write | bl-ffbf | low |
 | G5 founding crash window (`is_landing` = a directory, not a commit) | bl-ffbf | low |
 | G6 `bl-chore`'s nested `create` is outside the parent atom | bl-ffbf | low — orphan child on an aborted claim |

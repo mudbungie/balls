@@ -818,6 +818,13 @@ The canonical task-op sequence (verb-agnostic):
    only home is the commit's §5 free body: rather than silently drop the note, the op ABORTS and
    unwinds like any seal failure (bl-cf93; only `update` can stage a byte-identical tree, and its
    `updated` restamp ticks in seconds, so a retried pure-note update seals one second later).
+   The integrate is a `merge --ff-only`, i.e. the §0 CAS: it lands only while the branch still points
+   where the change forked from. A REJECTION IS THE MECHANISM WORKING and it speaks in balls' voice —
+   "the store moved under this op — a concurrent `bl` won the seal; nothing was written. Re-run the
+   command…" — never git's `Not possible to fast-forward` / `cannot lock ref HEAD`, which read as
+   corruption instead of as the one-line instruction they are (bl-fa89, the bl-a3bb precedent one
+   layer down). Core does NOT retry internally: converge-on-retry (§14) is the rule, the retry is one
+   command, and a loop would hide contention and double the wall-clock of a genuine conflict.
 4. **post reactors run in hook-list order** — the §7 wire with the sealed `bl-id`/state. They act on the
    landed record (tracker pushes the store; the delivery plugin acts on the project repo) but DO NOT edit
    the ball — anything that had to live on the ball was written in pre; post-only values are DERIVED,
@@ -2075,7 +2082,8 @@ OPEN:
   debris) serializes the gate and costs no throughput on a saturated box, but it is the one option
   that adds mechanism. Lower-severity gaps (`binding.toml`'s uncontrolled read-modify-write, the
   founding crash window, `bl-chore`'s nested `create` outside the parent atom) are bl-ffbf; the store
-  seal's raw-git contention voice is bl-fa89. Touched §0 (the new principle), §15 (this entry).
+  seal's raw-git contention voice is FIXED (bl-fa89 — one balls sentence for every spelling of the
+  loss, §8; an in-core retry loop was considered and REFUSED). Touched §0 (the new principle), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
 - **the auto-gen collision retry was SPECIFIED but never built; front-door ids now take a shape check

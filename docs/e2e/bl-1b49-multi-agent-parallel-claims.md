@@ -176,6 +176,12 @@ bl claim: ... cannot lock ref 'HEAD': is at <won> but expected <stale>   # OR
 fatal: Not possible to fast-forward, aborting.
 ```
 
+> **Since bl-fa89** the loser no longer sees either line. Both spellings are the
+> §8 CAS rejecting, so the seal reports them identically, in balls' voice: *the
+> store moved under this op — a concurrent `bl` won the seal; nothing was
+> written. Re-run the command…* The transcript above is preserved as the
+> observation that motivated the change.
+
 Across **12** such races: the loser **never** succeeded (there is no ref-lock
 retry) — `both_succeeded=0  one_lost_clean=5  clone_wedged_dirty=7`.
 
