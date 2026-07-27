@@ -120,21 +120,30 @@ impl Repo for Project {
         // Reintegration and the gate both act in the worktree; a close on a box
         // that never materialized it recreates it (create-if-absent).
         self.materialize(path, branch)?;
+        // Pin the fold BASE before reintegration (bl-8b89): the tree the gate
+        // checks and the squash delivers is derived from THIS tip, so this one
+        // value must serve as the squash parent, the CAS old-value, and the
+        // no-resurrection comparison point. Re-reading the ref after the gate
+        // validated only "integration has not moved since a moment ago" —
+        // letting a mid-gate sibling landing either false-fire the resurrection
+        // invariant (its paths look like excess) or, when its paths were a
+        // subset of this branch's authored set, pass every guard and be
+        // SILENTLY REVERTED by a squash computed from the pre-move fold.
+        let base = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
         Self::reintegrate(path, integration)?;
-        if Self::ok(&self.root, &["diff", "--quiet", integration, branch])? {
+        if Self::ok(&self.root, &["diff", "--quiet", &base, branch])? {
             return Ok(()); // no tree change — empty, or reintegration dissolved the diff
         }
         Self::gate(path)?;
-        ensure_no_resurrection(&self.root, branch, integration)?;
+        ensure_no_resurrection(&self.root, branch, &base)?;
         // After reintegration the branch tree IS the merged tree — the squash
         // is pure plumbing on it, never touching integration's checkout.
         let tree = format!("{branch}^{{tree}}");
         let tree = Self::run(&self.root, &["rev-parse", &tree])?.trim().to_string();
-        let parent = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
-        let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &parent, "-m", subject])?
+        let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &base, "-m", subject])?
             .trim()
             .to_string();
-        commit_swap(&self.root, integration, subject, &commit, &parent)?;
+        commit_swap(&self.root, integration, subject, &commit, &base)?;
         self.reconcile(integration)?;
         Ok(())
     }
@@ -142,18 +151,23 @@ impl Repo for Project {
 
 /// COMPARE-AND-SWAP the integration ref onto the fresh squash (bl-a3bb).
 ///
-/// `parent` is the tip read just before `commit` was minted onto it; passing it
-/// as `update-ref`'s optional old-value makes the ref move CONDITIONAL — git
-/// writes only while `integration` still points there. Two closes sharing one
-/// project checkout race the window between that read and this move: without the
-/// old-value `update-ref` writes UNCONDITIONALLY, so the loser overwrites the
-/// winner's already-landed squash off `integration` (reflog-only recovery,
-/// unreported). A rejected CAS is a LOUD pre-seal abort — nothing overwritten,
-/// the task stays claimed and the worktree stays up; the retried close re-folds
-/// the moved integration and re-squashes onto its new tip (§14 converge-on-retry),
-/// exactly as a gate failure or a merge conflict aborts. `parent` is always a
-/// real commit here (the `rev-parse integration` above errored otherwise), so the
-/// empty old-value / first-commit form never arises.
+/// `parent` is the PINNED fold base (bl-8b89) — the `integration` tip read
+/// before reintegration, i.e. the tip the gated tree was derived from — and
+/// `commit` was minted onto it; passing it as `update-ref`'s optional old-value
+/// makes the ref move CONDITIONAL — git writes only while `integration` still
+/// points there. Two closes sharing one project checkout race the whole window
+/// from that read through the gate to this move: without the old-value
+/// `update-ref` writes UNCONDITIONALLY, so the loser overwrites the winner's
+/// already-landed squash off `integration` (reflog-only recovery, unreported) —
+/// and with a post-gate re-read as the old-value, a mid-gate landing whose paths
+/// sat inside this branch's authored set passed the CAS and was silently
+/// reverted by the pre-move squash tree. A rejected CAS is a LOUD pre-seal abort
+/// — nothing overwritten, the task stays claimed and the worktree stays up; the
+/// retried close re-folds the moved integration and re-squashes onto its new tip
+/// (§14 converge-on-retry), exactly as a gate failure or a merge conflict
+/// aborts. `parent` is always a real commit here (the `rev-parse integration`
+/// pin errored otherwise), so the empty old-value / first-commit form never
+/// arises.
 ///
 /// `-m subject`: a plumbing `update-ref` writes a BLANK reflog message; pass the
 /// delivery subject so `git reflog {integration}` is auditable (carries the
