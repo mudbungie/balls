@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9](https://github.com/mudbungie/balls/compare/v0.5.8...v0.5.9) - 2026-07-27
+
+### Changes
+
+- promote the delivery plugin's bin boundary as a pub lib entrypoint (delivery_bin::run) [bl-3ecf]
+- rustdoc emits 68 intra-doc 'this item is private' warnings: real broken links are invisible in the noise [bl-3d09]
+- prime's debris report can name a LIVE op's change worktree: advice needs a liveness/age guard before it is safe under concurrency [bl-7f82]
+- Fold the pinned base SHA, not the ref name: sub-second pin-vs-fold disagreement window in deliver [bl-9522]
+- bl import of a foreign-rooted ball succeeds silently into invisibility: hint on stderr when root_commit is foreign to the checkout [bl-d3fa]
+- delivery squash hits E2BIG (Argument list too long) when the work branch carries extra history [bl-a500]
+- State the invariant: the change worktree opens at the store checkout HEAD that 'existing' was read from [bl-057a]
+- prime debris: a crashed founding's .git/index.lock blocks the re-run's git add [bl-3e89]
+- tests/import_roundtrip.rs flakes in-hook under load: failed 3x consecutively during a concurrent-fleet window, passes standalone [bl-36f1]
+- remote_ops sync ff-only still surfaces raw git: give the remote non-ff the bl-fa89 voice [bl-3129]
+- bl close is not atomic against a busy main: mid-gate advances abort on no-resurrection; store seal can fail after delivery landed [bl-cdec]
+- Atomicity audit leftovers: binding.toml read-modify-write, the founding crash window, and chore's nested create [bl-ffbf]
+- Store-seal contention speaks git's voice, not balls': 'Not possible to fast-forward' should say the store moved, re-run [bl-fa89]
+- A failed store seal leaves the change worktree committed, so the abort path cannot re-derive the ball id: 'found 0' + FAILED ROLLBACK [bl-a5f3]
+- bl create id-collision abort (create.pre reassignment) + parent field accepts non-id garbage [bl-1fc4]
+- Delivery CAS validates the wrong old value: a mid-gate main advance silently reverts the mover, or false-fires no-resurrection [bl-8b89]
+- prime debris advice suggests re-claiming a closed ball; should detect closure and recommend only deletion [bl-baa0]
+- Atomicity as a core guarantee: one CAS commit point per repo per op — audit every op, close the gaps [bl-ea55]
+- promote the typed read surface pub for library consumers [bl-9901]
+- Release-plz workflow header undercounts jobs: says Three, describes only 3 of 4 [bl-5cbb]
+- Prune superseded release-plz-* branches in CI [bl-b602]
+- Restore the ^balls: changelog skip [bl-f955]
+- Gate releases on green CI and attach binaries [bl-7954]
+- --subtask-of flips from claim-gate to close-gate [bl-e844]
+- bl list renders a ball's delivery target when it is not HEAD [bl-6915]
+- Per-task delivery target: core derives, one wire field, plugin consumes [bl-ad5d]
+- prime warns when founding under an existing ancestor store [bl-b915]
+- Nested delivery: a task's delivery target is its parent's ref, main is the parentless case [bl-7b71]
+- Global -C path override: address a store from anywhere (CLI + crate) [bl-c620]
+- Stale-read close guard: seen-token CAS on task content, homed by context [bl-9f1d]
+- Missing-task-file reads must refuse in balls voice, not raw errno [bl-3bf0]
+- Delivery update-ref needs compare-and-swap: concurrent closes silently drop a squash [bl-a3bb]
+- Update the docs [bl-fd29]
+- Gate wiring is a footgun: --blocks close yields vacuous gates, and the obvious fix silently deadlocks [bl-54fe]
+
 ## [0.5.8](https://github.com/mudbungie/balls/compare/v0.5.7...v0.5.8) - 2026-07-08
 
 ### Changes
