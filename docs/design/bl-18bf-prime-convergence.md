@@ -129,9 +129,11 @@ used for seed prune notes and install's dangling report. Each line names the
 fixing command. Prime **reports and refuses**; deletion stays a human/agent act.
 
 Core-side (one `readdir`, one `exists`):
-- **Orphan `changes/<uuid>/`** under the clone dir: crash debris from an op
-  whose teardown never ran. Report with `git worktree remove <path>` (may hold
-  uncommitted work; racy-safe because it is a report, not a delete).
+- **`changes/<uuid>/`** under the clone dir: an op's change worktree, still
+  present. Report the path and `git worktree remove <path>`, **conditioned on no
+  op running** (may hold uncommitted work; report, not a delete). *Originally
+  written as "orphan … its op's teardown never ran" with unconditional removal
+  advice — see the bl-7f82 amendment below.*
 - **`stealth.lock` present but stealth undeclared**: the retired file exists
   while the durable ladder resolves a remote. This is the one *silent-publish*
   hazard in the catalog, so it warns loudest: "stealth.lock is retired and
@@ -174,6 +176,39 @@ the claim set, and it reads it from the store checkout core already runs
 recovers its id from), so the wire is untouched. Cost stays off the clean path:
 the `exists()` rides the per-branch probe already there, and the `merge-tree`
 runs only for a closed ball's debris branch.
+
+**Amendment (bl-7f82, 2026-07-27): "orphan" was a claim, and it was false more
+often than it was true.** The `changes/<uuid>/` line asserted *"crash debris —
+its op's teardown never ran"* and handed over `git worktree remove` flat. But a
+change worktree is open from `Anvil::open` until teardown (§8), which for
+`close` spans the whole `close.pre` gate, so under fleet concurrency the
+ordinary occupant of `changes/` is a **live op**. Observed 2026-07-26: an agent's
+prime listed seven such paths, a sibling removed one, and the `close` that owned
+it passed its gate and then died at the seal on a vanished cwd — our own advice
+manufactured the failure (benign that time: the code had delivered and a plain
+retry sealed, bl-a5f3/bl-8b89 holding).
+
+The bl-baa0 move — *let the store decide which remedies exist* — was tried here
+and does not transfer, because **there is no owning op to ask about.** The
+worktree is detached at the store tip and stays there until the seal commits, so
+its HEAD carries the *previous* op's §5 trailers, never its own (verified live:
+an in-flight `close` of one ball sat on a HEAD trailered with a different ball's
+id and actor). A stale base means only that siblings sealed while it worked —
+the normal state of a long op, not a conclusion. Base staleness, HEAD
+reachability and tree dirtiness were each attacked and each misreads a live op in
+exactly the window that matters. Age-gating (a knob) and pid tracking (new
+state) were already out of scope, and staying silent was rejected outright: a
+real crash's debris must still be reported.
+
+So the arm that ships is **honest degradation into the voice bl-3e89 already
+established one function away** for the identical hazard: name the path, name
+the removal, and CONDITION it — *"crash debris unless an op is running here right
+now … with none running, remove with `git worktree remove <path>`"*. One voice
+for both live-hazard lines, no new mechanism, no new spawn, and the `readdir`
+clean path untouched. The general rule it settles: **prime's debris advice never
+asserts a liveness it cannot prove**, which also bounds any future widening of
+prime's deletion license (bl-58b8) — prime may not delete over `changes/`
+without a liveness signal that does not exist today.
 
 ### 3. The front door (docs)
 

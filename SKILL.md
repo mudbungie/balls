@@ -45,6 +45,9 @@ or you collide with another agent.
 - **Upgraded and things are weird?** `bl prime` converges a version-skewed
   checkout (retired plugin names rewritten, crash debris reported) — run it,
   then read `bl conf` for what it found. There is no separate doctor verb.
+  A debris line that says *"unless an op is running here right now"* means what
+  it says: another agent's live `bl` may own that path, and deleting it aborts
+  their op. Check first, or leave it — prime never deletes it for you.
 - **Always pass `--as ID`.** Every claim/close/prime is stamped with a worker
   identity. Do not let an LLM invent its own name — models collapse to the same
   few names and step on each other's claims. Have the harness pick one at session

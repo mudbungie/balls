@@ -1,7 +1,9 @@
-//! Tests for §12.2 debris report (bl-18bf piece 2, bl-3e5e): orphan
-//! `changes/<uuid>/` worktrees, the retired `stealth.lock` hazard, and the
-//! landing's own `.git/index.lock` (bl-3e89), all three REPORT ONLY — nothing
-//! under test here is ever deleted by `debris` itself.
+//! Tests for §12.2 debris report (bl-18bf piece 2, bl-3e5e): `changes/<uuid>/`
+//! worktrees, the retired `stealth.lock` hazard, and the landing's own
+//! `.git/index.lock` (bl-3e89), all three REPORT ONLY — nothing under test here
+//! is ever deleted by `debris` itself. Two of the three name something that may
+//! belong to a LIVE op, so their advice is CONDITIONED rather than instructing
+//! (bl-7f82 brought the change worktree into the `index_lock` voice).
 
 use crate::conf;
 use crate::converge;
@@ -43,7 +45,10 @@ fn an_absent_changes_dir_is_not_an_error() {
 }
 
 #[test]
-fn an_orphan_change_worktree_names_the_removal_command() {
+fn a_change_worktree_names_the_removal_command_conditioned_on_no_op_running() {
+    // bl-7f82: the removal is still named — a real crash's debris must be
+    // reported — but CONDITIONED, because prime cannot tell a crashed op's
+    // worktree from a running one's (an op holds it for its whole run).
     let tmp = TempDir::new().unwrap();
     let (clone, landing) = founded(&tmp);
     let orphan = clone.change("dead-uuid");
@@ -52,11 +57,29 @@ fn an_orphan_change_worktree_names_the_removal_command() {
     assert_eq!(
         notes,
         vec![format!(
-            "orphan change worktree {} (crash debris — its op's teardown never ran): remove with `git worktree remove {}`",
+            "change worktree {} (crash debris unless an op is running here right now — an op holds its change worktree for its whole run, a close for its whole gate): with none running, remove with `git worktree remove {}`",
             orphan.display(),
             orphan.display()
         )]
     );
+    assert!(orphan.exists(), "the report deletes nothing");
+}
+
+#[test]
+fn a_change_worktree_is_never_called_orphaned_or_told_to_remove_unconditionally() {
+    // The bug bl-7f82 fixed was the CONFIDENCE, not the reporting: an agent
+    // following the old unconditional advice deleted a LIVE op's worktree and
+    // its seal died on a vanished cwd. Nothing in the line may assert that the
+    // op is gone, and the removal may never stand un-hedged.
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    fs::create_dir_all(clone.change("maybe-live")).unwrap();
+    let note = converge::debris(&clone, &landing).unwrap().remove(0);
+    assert!(!note.contains("orphan"), "prime cannot prove orphanhood: {note}");
+    assert!(!note.contains("teardown never ran"), "prime cannot prove the op concluded: {note}");
+    let (hedge, advice) = note.split_once("): ").expect("the hedge precedes the advice");
+    assert!(hedge.contains("unless an op is running here right now"), "the hedge names liveness: {hedge}");
+    assert!(advice.starts_with("with none running, remove with "), "advice is conditioned: {advice}");
 }
 
 #[test]
