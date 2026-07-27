@@ -91,7 +91,7 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     // bl-5b09) are carried forward into the op log once it exists — founding
     // precedes the threshold read, so the seed cannot log them itself. The
     // rebind path prunes nothing and has none.
-    let mut seed_notes = if is_landing(&landing) {
+    let mut seed_notes = if substrate::is_landing(&landing) {
         seed::rebind(&landing, edge.exe_dir.as_deref())?;
         Vec::new()
     } else {
@@ -211,7 +211,7 @@ pub fn sync(edge: &Edge, args: &[String]) -> io::Result<()> {
     let opts = parse_sync(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
-    if !is_landing(&landing) {
+    if !substrate::is_landing(&landing) {
         return Err(io::Error::other("no balls checkout here — run `bl prime` first"));
     }
     let (binding, level) = bind(edge, &landing, &store, opts.remote, opts.branch)?;
@@ -260,12 +260,6 @@ fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, b
     Engine::new(&anvil, &plugins, &log)
         .diffless(op, store, &pre, &post)
         .map_err(|e| io::Error::other(e.to_string()))
-}
-
-/// Is the landing already founded? A founded checkout has a seeded `config/`
-/// folder (§12) in its working tree.
-fn is_landing(landing: &Path) -> bool {
-    landing.join("config").is_dir()
 }
 
 /// Build the §7 binding for an op over the two checkouts (§7). Shared with

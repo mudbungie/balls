@@ -80,13 +80,13 @@ An "anvil" is one repository whose ref an op moves. Verdicts are against §2.
 | --- | --- | --- | --- | --- |
 | `create` `claim` `unclaim` `update` `import` | store branch | `Git::seal` — commit in the change worktree, then `merge --ff-only` (`src/git.rs`) | yes — ff-only rejects a moved tip | **atomic**, gaps G2 (A3/A4), G3 (voice) |
 | `conf` `install` | landing branch | same seal, landing as anvil | yes | same; contention is rare (single-owner, §4) |
-| `conf set task-remote` / `clock-provider` | none — `binding.toml` | `fs::write` (`src/conf_write.rs:132`) | **no** | **G4** — read-modify-write, no CAS, not even an atomic replace |
+| `conf set task-remote` / `clock-provider` | none — `binding.toml` | write-temp + `rename` (`src/conf_write.rs`) | **no** | G4 CLOSED (bl-ffbf) — atomic replace now; the lost update is named and accepted (§1) |
 | `close` | ① project repo | `commit_swap` — `update-ref <int> <new> <old>` (`src/delivery_repo_acts.rs`) | old value read AFTER the gate | **G1 — violates A2** |
 | `close` | ② store branch | `Git::seal` | yes | atomic; ordered after ① so a retry converges (`Standing::Settled` skips the squash) |
 | `close.post` push | remote | tracker push | yes — non-ff reject | atomic; converges on `sync` + retry |
 | `sync` | store branch | `merge --ff-only FETCH_HEAD` / ff refspec | yes | atomic; "a partial sync leaves the branch at the old or the new tip, never wedged" |
-| `prime` founding | landing/store | create-if-absent steps, no ref CAS | n/a | convergent **except** G5 (the crash window) |
-| `bl-chore` `claim.post` | store branch | a NESTED `bl create` — its own commit point | yes (its own) | **G6** — outside the parent op's atom, rollback is a no-op |
+| `prime` founding | landing/store | the landing seal — the predicate is a COMMIT, not a directory | the commit is the only observable | G5 CLOSED (bl-ffbf) — a crashed founding is re-runnable debris, not a brick |
+| `bl-chore` `claim.post` | store branch | a NESTED `bl create` — its own commit point | yes (its own) | G6 CLOSED (bl-ffbf) — still outside the parent atom, but the rollback now deletes the orphan (§14 appendix) |
 | op log | `clones/<enc>/log` | `O_APPEND` under `PIPE_BUF` | n/a | atomic by construction (§1) |
 | `seen` tokens | XDG state | `fs::write` (`src/seen.rs:214`) | n/a | a cache; a torn write costs one spurious refusal |
 
@@ -220,9 +220,9 @@ path; no mechanism was added.
 | G1 delivery CAS validates the wrong old value (A2) | bl-8b89 | **high** — silent lost update |
 | G2 failed seal + re-derived identity (A3/A4) | bl-a5f3 | **high** — false alarm, unwind reports failure — FIXED |
 | G3 store-seal contention speaks git's voice | bl-fa89 | medium — legibility — FIXED |
-| G4 `binding.toml` read-modify-write | bl-ffbf | low |
-| G5 founding crash window (`is_landing` = a directory, not a commit) | bl-ffbf | low |
-| G6 `bl-chore`'s nested `create` is outside the parent atom | bl-ffbf | low — orphan child on an aborted claim |
+| G4 `binding.toml` read-modify-write | bl-ffbf | low — **FIXED**: temp + `rename`; the lost update stays, accepted in §1 |
+| G5 founding crash window (`is_landing` = a directory, not a commit) | bl-ffbf | low — **FIXED**: the predicate is a commit on the landing branch, and founding re-runs over the debris |
+| G6 `bl-chore`'s nested `create` is outside the parent atom | bl-ffbf | low — **FIXED**: `rollback claim.post` closes what that claim minted (§14 appendix); the nested op still seals outside the atom, which is the appendix's premise, not a defect to remove |
 
 ## 8. Test obligations
 

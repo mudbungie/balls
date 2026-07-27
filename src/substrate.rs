@@ -33,6 +33,23 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+/// Is the landing already founded? A founded landing has a COMMIT on the
+/// `balls/config` branch (§12) — founding's ONE commit point, not the `config/`
+/// folder [`found_landing`] creates on its way there (bl-ffbf).
+///
+/// The directory this once tested is created BEFORE that commit, so a crash in
+/// between left debris a directory test called "founded" forever: every later op
+/// then opened its change worktree on an unborn HEAD and failed, with no act
+/// that could ever converge it. Keyed on the commit, the same debris is simply
+/// "not founded yet" — and founding runs again straight over it (idempotent by
+/// construction: `git init`, the seed and the `.gitignore` all overwrite what a
+/// crashed founding left), so the general path IS the recovery and there is no
+/// bootstrap special case to write.
+pub fn is_landing(landing: &Path) -> bool {
+    let refname = format!("refs/heads/{LANDING_BRANCH}");
+    git::run(landing, &["rev-parse", "--verify", "--quiet", &refname], None).is_ok()
+}
+
 /// Found the landing half of the substrate (§2 bootstrap-on-miss): the
 /// `balls/config` branch at `landing`, its `config/` SEEDED from the app
 /// default-config (the `balls.toml` + the `plugins.toml` hook schedule, with each
@@ -40,8 +57,16 @@ use std::path::Path;
 /// pruned, §12). Returns the seed's rendered prune notes (a pruned name with a
 /// `[source]` hint, bl-5b09) for `prime` to emit through the op log once it has
 /// one — founding necessarily precedes the log's threshold read. The caller
-/// guarantees the landing does not already exist, so this never clobbers an
-/// established checkout. The STORE is NOT founded here — that is
+/// guarantees [`is_landing`] is false, so this never clobbers an established
+/// checkout.
+///
+/// Founding is a TRANSACTION whose one commit point is the seal at the end
+/// (bl-ffbf): every step before it OVERWRITES rather than creates — `git init`
+/// re-inits, the `.gitignore` and the seeded `config/` rewrite — so a re-run
+/// straight over the debris of a crashed founding converges. That is the
+/// ordinary path with the seed already on disk, not a bootstrap special case;
+/// there is nothing to detect and nothing to repair. The STORE is NOT founded
+/// here — that is
 /// [`materialize`]'s lazy job, run after the tracker's `prime/pre` has
 /// had its chance to clone an established remote branch in (bl-0a23).
 pub fn found_landing(landing: &Path, xdg: &Xdg, exe_dir: Option<&Path>, actor: &str) -> io::Result<Vec<String>> {

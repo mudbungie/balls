@@ -18,11 +18,18 @@
 //! The plugin OWNS the whole `bl create` command (data-not-shell, design bl-3df3):
 //! the config contributes only a title (± body/priority), and the gate edge +
 //! the recursion-break tag are always injected here — so a caller can never
-//! forget the tag, and getopt's `--` is always placed by us. There is NO rollback
-//! handler: each shelled `bl create` seals+pushes independently, so a minted gate
-//! correctly persists to gate whoever next holds the task, and epic-skip de-dups
-//! a reclaim. All policy lives here behind the [`Bl`] seam ([`crate::chore_cli`]
-//! is the real one); the binary edge only adapts the process boundary.
+//! forget the tag, and getopt's `--` is always placed by us. All policy lives
+//! here behind the [`Bl`] seam ([`crate::chore_cli`] is the real one); the binary
+//! edge only adapts the process boundary.
+//!
+//! **The mint is undone when the claim is (bl-ffbf).** Each shelled `bl create`
+//! is a nested op with its own commit point, sealed outside the claiming op's
+//! atom — so a gate minted for a claim that then ABORTS is §14's appendix case,
+//! an artifact keyed to an op that never sealed which nothing converges onto.
+//! The rollback therefore closes what this claim minted ([`scratch`] carries the
+//! ids across the process boundary), and a create that fails mid-list does the
+//! same inline before aborting. A gate minted for a claim that SUCCEEDS still
+//! persists to gate whoever next holds the task, and epic-skip de-dups a reclaim.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -50,7 +57,8 @@ struct Wire {
     /// claimed task's tags for tag-skip; `null` on create.
     #[serde(default)]
     previous_state: Option<WireTask>,
-    /// `Some("pre"|"post")` only on a rollback call — bl-chore no-ops it.
+    /// `Some("pre"|"post")` only on a rollback call — what routes this
+    /// invocation to the §14 unwind instead of the mint.
     #[serde(default)]
     rolling_back: Option<String>,
     /// The invoking identity (`--as`), passed through to the minted children.
@@ -119,15 +127,28 @@ pub trait Bl {
 
 /// Dispatch one bl-chore invocation. `op`/`phase` are argv; `plugin` is the
 /// schedule name (BALLS_PLUGIN_NAME — the recursion-break tag AND the config
-/// territory both derive from it); `stdin` is the §7 wire; `bl` is the seam.
+/// territory both derive from it); `territory` is this plugin's §1 state root
+/// (where the mint record lives, [`scratch`]); `stdin` is the §7 wire; `bl` is
+/// the seam.
 ///
-/// Only the `claim.post` forward pass mints; every other (op, phase) and any
-/// rollback is a no-op. A malformed payload or a failed `bl create` is an error
-/// (aborts the claim); a guard firing, or nothing to do, is a clean `Ok(())`.
-pub fn run(op: &str, phase: &str, plugin: &str, stdin: &str, bl: &dyn Bl) -> io::Result<()> {
+/// Only the `claim.post` forward pass mints; a `claim.post` ROLLBACK unwinds
+/// exactly what that pass minted (§14); every other (op, phase) is a no-op. A
+/// malformed payload or a failed `bl create` is an error (aborts the claim); a
+/// guard firing, or nothing to do, is a clean `Ok(())`.
+pub fn run(op: &str, phase: &str, plugin: &str, territory: &Path, stdin: &str, bl: &dyn Bl) -> io::Result<()> {
     let wire: Wire = serde_json::from_str(stdin).map_err(io::Error::other)?;
-    if op != "claim" || phase != "post" || wire.rolling_back.is_some() {
+    if op != "claim" || phase != "post" {
         return Ok(());
+    }
+    let cwd = Path::new(&wire.binding.invocation_path);
+    if wire.rolling_back.is_some() {
+        // §14: the claim never sealed, so its gates are orphans nothing
+        // converges onto — take down whatever this claim minted. A wire without
+        // the sealed `bl-id` names no claim, so there is nothing keyed to unwind.
+        let Ok(id) = claimed_id(&wire.metadata) else {
+            return Ok(());
+        };
+        return scratch::at(territory, &wire.binding.invocation_path, id).unwind(cwd, &wire.actor, bl);
     }
     // tag-skip (always, off the wire) — break chore-of-a-chore before any query.
     // A chore is a LEAF, so epic-skip's has-children check would not catch it.
@@ -139,13 +160,26 @@ pub fn run(op: &str, phase: &str, plugin: &str, stdin: &str, bl: &dyn Bl) -> io:
         return Ok(());
     }
     let id = claimed_id(&wire.metadata)?;
-    let cwd = Path::new(&wire.binding.invocation_path);
     // epic-skip (the one store query — children are emergent, not on the wire).
     if config.epic_skip && has_children(&bl.run(cwd, &["list".to_string(), "--json".to_string()])?, id)? {
         return Ok(());
     }
+    let minted = scratch::at(territory, &wire.binding.invocation_path, id);
+    let mut children = Vec::new();
     for spec in &config.chore {
-        bl.run(cwd, &render_create(spec, id, plugin, &wire.actor))?;
+        match bl.run(cwd, &render_create(spec, id, plugin, &wire.actor)) {
+            // Recorded after EACH mint (§14 scratch): the id is only knowable
+            // here, and the rollback runs in a later process.
+            Ok(created) => children.push(created.trim().to_string()),
+            // Core never calls a FAILING plugin's own rollback — it cleans up
+            // inline (§14). Best-effort, like every rollback: the abort is the
+            // error we return, not this.
+            Err(failed) => {
+                let _ = minted.unwind(cwd, &wire.actor, bl);
+                return Err(failed);
+            }
+        }
+        minted.record(&children)?;
     }
     Ok(())
 }
@@ -221,6 +255,15 @@ fn render_create(spec: &ChoreSpec, parent: &str, tag: &str, actor: &str) -> Vec<
     argv
 }
 
+// The §14 mint record — the ids one claim minted, carried across the process
+// boundary to the rollback that must take them back down (bl-ffbf).
+#[path = "chore_scratch.rs"]
+mod scratch;
+
 #[cfg(test)]
 #[path = "chore_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "chore_render_tests.rs"]
+mod render_tests;

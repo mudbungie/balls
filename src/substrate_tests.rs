@@ -54,6 +54,30 @@ fn found_landing_makes_the_config_branch_with_seeded_config_and_no_store() {
 }
 
 #[test]
+fn founding_runs_again_over_a_crashed_foundings_debris() {
+    // bl-ffbf: founding's one commit point is the seal at the end, so a crash
+    // after the repo + a half-written config/ exist leaves debris with NO commit
+    // on the landing branch. That debris is simply "not founded yet" — founding
+    // runs straight over it and seals, with the seed's own content winning over
+    // whatever the crashed run left, and the landing carrying exactly one commit
+    // (the general path, not a repair routine).
+    let tmp = TempDir::new().unwrap();
+    let (landing, _) = paths(&tmp);
+    fs::create_dir_all(landing.join("config")).unwrap();
+    git(&landing, &["init", "-q", "-b", LANDING_BRANCH], None).unwrap();
+    fs::write(landing.join("config").join("balls.toml"), "half = \"written\"\n").unwrap();
+    assert!(git(&landing, &["rev-parse", "--verify", "--quiet", "HEAD"], None).is_err(), "debris has no commit");
+
+    found_landing(&landing, &xdg(&tmp), None, "tester").unwrap();
+
+    let seeded = fs::read_to_string(landing.join("config").join("balls.toml")).unwrap();
+    assert!(!seeded.contains("half"), "the crashed run's half-written seed must not survive: {seeded}");
+    let log = git(&landing, &["log", "--oneline"], None).unwrap();
+    assert_eq!(log.lines().count(), 1);
+    assert!(log.contains("balls: found"));
+}
+
+#[test]
 fn materialize_founds_an_orphan_store_when_the_branch_is_absent() {
     let tmp = TempDir::new().unwrap();
     let (landing, store) = paths(&tmp);
