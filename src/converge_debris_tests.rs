@@ -1,6 +1,7 @@
 //! Tests for §12.2 debris report (bl-18bf piece 2, bl-3e5e): orphan
-//! `changes/<uuid>/` worktrees and the retired `stealth.lock` hazard, both
-//! REPORT ONLY — nothing under test here is ever deleted by `debris` itself.
+//! `changes/<uuid>/` worktrees, the retired `stealth.lock` hazard, and the
+//! landing's own `.git/index.lock` (bl-3e89), all three REPORT ONLY — nothing
+//! under test here is ever deleted by `debris` itself.
 
 use crate::conf;
 use crate::converge;
@@ -108,5 +109,33 @@ fn an_absent_stealth_lock_is_silent_even_when_stealth_is_undeclared() {
     let tmp = TempDir::new().unwrap();
     let (clone, landing) = founded(&tmp);
     assert!(!clone.root().join("stealth.lock").exists());
+    assert!(converge::debris(&clone, &landing).unwrap().is_empty());
+}
+
+#[test]
+fn an_index_lock_in_the_landing_names_the_lock_and_the_removal() {
+    // bl-3e89: git's own lock, left by an op killed mid-commit. Report only —
+    // it may be LIVE, so the line hedges and hands over `rm`, never deletes.
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    let lock = landing.join(".git").join("index.lock");
+    fs::write(&lock, "").unwrap();
+    let notes = converge::debris(&clone, &landing).unwrap();
+    assert_eq!(
+        notes,
+        vec![format!(
+            "git index lock {} blocks every commit in this landing, founding's `git add -A` included (crash debris unless an op is running here right now): with none running, remove with `rm {}`",
+            lock.display(),
+            lock.display()
+        )]
+    );
+    assert!(lock.exists(), "the report deletes nothing");
+}
+
+#[test]
+fn an_absent_index_lock_is_silent() {
+    let tmp = TempDir::new().unwrap();
+    let (clone, landing) = founded(&tmp);
+    assert!(!landing.join(".git").join("index.lock").exists());
     assert!(converge::debris(&clone, &landing).unwrap().is_empty());
 }

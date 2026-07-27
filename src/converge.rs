@@ -180,17 +180,18 @@ fn subject(map: &BTreeMap<String, &'static str>) -> String {
     format!("balls: converge {}", pairs.join(" "))
 }
 
-/// The core-side crash-debris report (§12.2, bl-18bf piece 2): [`orphan_changes`]
-/// then [`stealth_lock`], concatenated in that order. REPORT ONLY — nothing here
-/// deletes; each line names the fixing command and `prime` carries the returned
+/// The core-side crash-debris report (§12.2, bl-18bf piece 2): [`orphan_changes`],
+/// [`stealth_lock`], then [`index_lock`], concatenated in that order. REPORT ONLY
+/// — nothing here deletes; each line names the fixing command and `prime` carries the returned
 /// lines into the op log at `info` + stderr echo, exactly like [`seed::seed_landing`]'s
 /// prune notes. `landing` is the founded landing checkout (as passed to
 /// [`converge`]); `clone` is this invocation's bundle (§1 [`CloneDir`]), the
 /// scope `changes/` and `stealth.lock` both live under. A converged, debris-free
-/// checkout costs one `readdir` + one `exists()` and returns empty.
+/// checkout costs one `readdir` + two `exists()` and returns empty.
 pub fn debris(clone: &CloneDir, landing: &Path) -> io::Result<Vec<String>> {
     let mut notes = orphan_changes(clone)?;
     notes.extend(stealth_lock(clone, landing)?);
+    notes.extend(index_lock(landing));
     Ok(notes)
 }
 
@@ -239,6 +240,28 @@ fn stealth_lock(clone: &CloneDir, landing: &Path) -> io::Result<Option<String>> 
         "{} is retired and unread by the remote ladder — declare stealth with `bl conf set task-remote none`, then delete the file",
         lock.display()
     )))
+}
+
+/// The landing repo's `.git/index.lock` (bl-3e89): git's own index lock, left
+/// behind by any op killed mid-`git add`/mid-commit. It is the ONE piece of crash
+/// debris the bl-ffbf re-runnable founding cannot overwrite its way past — `git
+/// init` re-inits and the seed rewrites, but [`crate::substrate::found_landing`]'s
+/// `git add -A` fails on the lock with git's raw error and no act converges it.
+/// Deleting it here is forbidden by the same rule that makes this a report: a lock
+/// may be LIVE (another process mid-op) and dropping it corrupts that op's index,
+/// so prime names it and the removal and lets a human judge. Returned as an
+/// [`Option`] rather than an `io::Result` because one `exists()` cannot fail;
+/// [`crate::substrate::found_landing`] calls this too, so the ONE run that is
+/// about to trip over the lock refuses in these words instead of git's.
+pub(crate) fn index_lock(landing: &Path) -> Option<String> {
+    let lock = landing.join(".git").join("index.lock");
+    lock.exists().then(|| {
+        format!(
+            "git index lock {} blocks every commit in this landing, founding's `git add -A` included (crash debris unless an op is running here right now): with none running, remove with `rm {}`",
+            lock.display(),
+            lock.display()
+        )
+    })
 }
 
 #[cfg(test)]

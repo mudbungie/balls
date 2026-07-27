@@ -225,3 +225,22 @@ fn found_landing_with_the_shipped_binaries_keeps_and_binds_them() {
     assert!(tracked.contains("config/plugins.toml"));
     assert!(!tracked.contains("bin/tracker"), "bin/ must not be committed");
 }
+
+#[test]
+fn found_landing_refuses_a_crashed_foundings_index_lock_in_the_debris_voice() {
+    // bl-3e89: the one crash-debris shape re-runnable founding cannot overwrite.
+    // Founding refuses in the debris-report words (naming the lock and `rm`)
+    // instead of dying on git's raw "Unable to create index.lock" — and it
+    // refuses BEFORE doing any work, so the lock is still there for its owner.
+    let tmp = TempDir::new().unwrap();
+    let (landing, _store) = paths(&tmp);
+    let lock = landing.join(".git").join("index.lock");
+    fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    fs::write(&lock, "").unwrap();
+
+    let err = found_landing(&landing, &xdg(&tmp), None, "tester").unwrap_err().to_string();
+    assert!(err.contains("git index lock") && err.contains(&lock.display().to_string()), "names the lock: {err}");
+    assert!(err.contains("rm "), "names the removal: {err}");
+    assert!(lock.exists(), "founding never deletes a lock that may be live");
+    assert!(!is_landing(&landing), "and it founds nothing over it");
+}

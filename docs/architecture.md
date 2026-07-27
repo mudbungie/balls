@@ -1476,6 +1476,15 @@ founding path runs straight over it — the general path with the seed already o
 bootstrap special case, and nothing to detect or repair. (The bl-b915 ancestor advisory above keeps
 its cheaper `config/`-presence stat: a half-founded ancestor is still an ancestor worth naming.)
 
+**The one debris the overwrite rule cannot absorb is git's own `.git/index.lock`** (bl-3e89). `git
+init` re-inits and the seed rewrites, but founding's `git add -A` fails on a leftover lock with git's
+raw error, and no re-run converges it. Founding cannot delete the lock — it may be LIVE (another
+process mid-op), and *prime never deletes what may hold work* — so it **advises**: the lock is a
+third core-side debris line (`converge::index_lock`), naming the file and `rm <path>` in the
+debris-report voice, and `found_landing` refuses in **those same words** before doing any work. Two
+call sites, one sentence, because the report alone could never be heard: prime emits debris only
+*after* founding, which is precisely the op the lock kills.
+
 Core only (a) ensures the landing + store substrate and (b) runs the configured plugin chain, then
 commits — it has zero knowledge of tracker/remotes/stealth. **The local-miss branch SEEDS a fresh
 landing by copying the app-level `default-config/` folder (§1) into `balls/config`** (`git init` if no
@@ -1540,9 +1549,10 @@ read, so the same op that rewrites also dispatches the rewritten schedule and bi
   prime deletes nothing here** (an orphan worktree or unsettled branch may hold uncommitted work).
   Each line names the fixing command, riding the ordinary op-log path at `info` + stderr echo (the
   bl-b1be idiom already used for the seed's prune notes and install's dangling report) — never a
-  bare stderr line the log file never sees. Core-side, one `readdir` plus one `exists()`:
+  bare stderr line the log file never sees. Core-side, one `readdir` plus two `exists()`:
   **orphan `changes/<uuid>/` worktrees** (crash debris from an op whose teardown never ran; reported
-  with `git worktree remove <path>`), and **a `stealth.lock` file present while stealth is
+  with `git worktree remove <path>`), **the landing's own `.git/index.lock`** (bl-3e89 — see below),
+  and **a `stealth.lock` file present while stealth is
   undeclared** — the one *silent-publish* hazard in the catalog: an operator who declared stealth
   with the old, retired lock mechanism is silently un-stealthed by the modern remote ladder, since
   nothing reads the file and `origin` is rediscovered and published to. The warning names the fix
