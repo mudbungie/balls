@@ -817,6 +817,20 @@ The canonical task-op sequence (verb-agnostic):
    default-generated id; claim stages `claimant`). balls goes first; plugins extend/override.
    (For `prime`'s bootstrap-on-miss it makes the landing repo instead — the substrate-creation phase;
    `prime` is a normal op, not a dispatch exception.)
+
+   **INVARIANT — one HEAD per op (bl-057a): the change worktree is forked from the SAME commit the
+   base change read the live store from.** An op that reads the store twice — once off the checkout
+   to author, once off the worktree to finalize — is sound only while both reads name one commit.
+   `create` is the live case: it draws its id off the live id set read from the checkout, then
+   recovers the minted ball at finalize as the set difference against the worktree (which is how a
+   `create/pre` id reassignment is still found). The two agree by construction, because the SEAL's
+   `merge --ff-only` advances the CHECKOUT itself — the checkout is never behind its own branch, and
+   nothing advances the store branch by plumbing behind it. Any future op that does advance
+   `balls/tasks` without moving the checkout breaks this, and breaks it *silently*: the difference
+   then counts balls that were merely unseen, and `create` dies at finalize with "expected exactly
+   one new task file, found N" — a symptom with no route back to its cause. The invariant is stated,
+   not asserted: it spans an authoring read and a git fork in different modules, so neither end can
+   check it alone.
 2. **pre modifiers run in hook-list order** — the §7 wire (current state + intent). They edit the shared
    worktree (rename the ball file to reassign an id, edit frontmatter) or REJECT. They see each
    other's cumulative FILE state, never each other's commits (§7) — there are no intermediate commits.

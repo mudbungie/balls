@@ -23,6 +23,23 @@ pub trait Anvil {
     /// The anvil tip — captured before the seal so a post-abort can un-seal.
     fn head(&self) -> io::Result<String>;
     /// (§8.1) Make the change worktree at `dir`, detached at the anvil tip.
+    ///
+    /// **INVARIANT — ONE HEAD PER OP (bl-057a): the tip forked here is the same
+    /// commit the base change read the live store from.** `create` reads the live
+    /// id set off the anvil CHECKOUT before the lifecycle opens the worktree
+    /// ([`crate::change_create::Create::existing`]) and recovers the minted ball at
+    /// finalize as the set difference against the WORKTREE — two reads of one
+    /// store, sound only while both name the same commit. They agree by
+    /// construction today: the seal's `merge --ff-only` advances the checkout
+    /// itself, so the checkout is never behind its own branch, and nothing
+    /// advances the store branch by plumbing behind it. Break that — advance the
+    /// branch without moving the checkout — and the difference silently counts
+    /// balls that were merely unseen: `create` dies at finalize with "expected
+    /// exactly one new task file, found N", a symptom with no route back to its
+    /// cause. Deliberately NOT a `debug_assert` here: `open` sees only the
+    /// checkout, where HEAD equals HEAD vacuously; the invariant spans the read in
+    /// [`crate::mutate_author`] and this fork, which is exactly why it is written
+    /// down rather than checked.
     fn open(&self, dir: &Path) -> io::Result<()>;
     /// (§8.3) The paths the change worktree `dir` touched relative to the anvil
     /// tip — what the seal-validation read (bl-528c) parses before committing.

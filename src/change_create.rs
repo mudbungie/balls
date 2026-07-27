@@ -47,6 +47,10 @@ pub struct Create {
     /// CLI boundary and INJECTED like `now` so this authoring stays git-free.
     /// `None` off a checkout with no code repo — the ball is then unconstrained.
     pub root_commit: Option<String>,
+    /// The live id set, read off the store CHECKOUT before the lifecycle opens
+    /// the change worktree. Its soundness is the [`crate::git::Anvil::open`]
+    /// invariant (bl-057a): this read and that fork must name the same commit,
+    /// or [`BaseChange::finalize`]'s set difference counts unseen balls as new.
     pub existing: Vec<String>,
 }
 
