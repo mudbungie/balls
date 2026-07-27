@@ -1,7 +1,8 @@
 +++
 title = "Atomicity audit leftovers: binding.toml read-modify-write, the founding crash window, and chore's nested create"
 created = 1785027734
-updated = 1785027734
+updated = 1785124394
+claimant = "oakum"
 parent = "bl-ea55"
 priority = -1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
