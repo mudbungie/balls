@@ -34,16 +34,16 @@ use crate::verb::Verb;
 
 /// The op's delivery target id, read against the `store` checkout: `before` is
 /// the ball at op-start (`None` on `create` — no ball, no target) and `id` is the
-/// op's positional. `None` ⇒ the integration branch.
+/// op's ball ([`crate::wire::Command::id`]). `None` ⇒ the integration branch.
 ///
 /// A parent whose file is gone is a CLOSED (or never-was) parent — a dangling,
 /// display-only pointer (§10 absence-is-the-record), so it gates nothing and the
 /// ball delivers flat. Reading it is the one IO here; the decision itself is
 /// [`close_gated`].
-pub(crate) fn derive(store: &Path, id: Option<&String>, before: Option<&Task>) -> Option<String> {
+pub(crate) fn derive(store: &Path, id: &str, before: Option<&Task>) -> Option<String> {
     let parent = before?.parent.as_deref()?;
     let live = read_task(store, parent).ok()?;
-    close_gated(id?, &live).then(|| parent.to_string())
+    close_gated(id, &live).then(|| parent.to_string())
 }
 
 /// Does `id` close-gate `parent`? The nesting declaration: a `{id, on: close}`

@@ -18,8 +18,16 @@ use super::{build, edit, guards, other, Flags};
 
 /// A verb's authored change plus the ball's op-start state (the §7
 /// `current_state` a `pre` plugin sees — `None` on `create`, which has no prior
-/// ball).
-pub(super) type Authored = (Box<dyn BaseChange>, Option<Task>);
+/// ball), plus the BALL ID the op is about.
+pub(super) struct Authored {
+    pub base: Box<dyn BaseChange>,
+    pub before: Option<Task>,
+    /// The op's ball: the verb's positional, or `create`'s freshly minted id.
+    /// Authored HERE because this is where identity enters the op, and carried
+    /// onto the §7 wire ([`crate::wire::Command::id`]) so no plugin re-derives
+    /// it from the change worktree (§0 obligation 4; bl-a5f3).
+    pub id: String,
+}
 
 /// Author the verb's [`BaseChange`] from the parsed `flags` (see [`Authored`]).
 /// `now` and `roots` (this checkout's [`crate::delivery_repo::Project::root_commits`])
@@ -59,8 +67,9 @@ pub(super) fn base_change(
             // with no plugin in the chain. Only a plugin's explicit
             // reassignment still aborts there.
             let existing = task_ids(store)?;
+            let id = IdScheme::default().mint(&existing)?;
             let base = Create {
-                id: IdScheme::default().mint(&existing)?,
+                id: id.clone(),
                 actor,
                 now,
                 title,
@@ -74,16 +83,23 @@ pub(super) fn base_change(
                 root_commit: roots.into_iter().next(),
                 existing,
             };
-            Ok(Some((Box::new(base), None)))
+            Ok(Some(Authored { base: Box::new(base), before: None, id }))
         }
         Verb::Claim | Verb::Unclaim => {
             guards::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
-            let base =
-                Occupancy { verb, id, claimant, actor, now, message: flags.message.clone(), current_roots: roots };
-            Ok(Some((Box::new(base), Some(before))))
+            let base = Occupancy {
+                verb,
+                id: id.clone(),
+                claimant,
+                actor,
+                now,
+                message: flags.message.clone(),
+                current_roots: roots,
+            };
+            Ok(Some(Authored { base: Box::new(base), before: Some(before), id }))
         }
         Verb::Update => {
             guards::forbid_foreign_blocks(flags, verb)?;
@@ -114,15 +130,16 @@ pub(super) fn base_change(
                     _ => None,
                 }),
             )?;
-            let base = Update { id, actor, now, edits, message: flags.message.clone() };
-            Ok(Some((Box::new(base), Some(before))))
+            let base = Update { id: id.clone(), actor, now, edits, message: flags.message.clone() };
+            Ok(Some(Authored { base: Box::new(base), before: Some(before), id }))
         }
         Verb::Close => {
             guards::forbid_shaping(flags, verb)?;
             let id = one_positional(flags, verb.token())?;
             let before = read_task(store, &id)?;
-            let base = Retire { id, title: before.title.clone(), actor, message: flags.message.clone() };
-            Ok(Some((Box::new(base), Some(before))))
+            let base =
+                Retire { id: id.clone(), title: before.title.clone(), actor, message: flags.message.clone() };
+            Ok(Some(Authored { base: Box::new(base), before: Some(before), id }))
         }
         // The diffless verbs never reach run()'s mutating branch; reject defensively.
         _ => Err(other(format!("{}: not a mutating verb", verb.token()))),
@@ -137,10 +154,13 @@ pub(super) fn base_change(
 /// states, not a second diff description. Its presence (vs the diffless `None`)
 /// marks this a ball-mutating op (§7). `target` is the derived §11 delivery
 /// target ([`crate::target::derive`]) — the dispatch computes it, this only
-/// carries it onto the wire.
-pub(super) fn command(verb: Verb, flags: &Flags, target: Option<String>) -> Command {
+/// carries it onto the wire. `id` is the op's ball ([`Authored::id`]), riding
+/// EVERY payload so identity is an op input rather than something a plugin
+/// re-derives from the change worktree (§0 obligation 4; bl-a5f3).
+pub(super) fn command(verb: Verb, flags: &Flags, target: Option<String>, id: String) -> Command {
     Command {
         op: verb.token().to_string(),
+        id: Some(id),
         body_change: flags.body.clone(),
         message: flags.message.clone(),
         target,

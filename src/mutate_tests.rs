@@ -20,10 +20,16 @@ fn flags() -> Flags {
 }
 
 /// [`super::base_change`] with a detached editor seam — the flag-driven paths,
-/// which never no-op. Shadows the real fn so the per-verb tests stay
-/// signature-stable; the `--edit` interaction is exercised in
-/// [`crate::mutate::edit`]'s own tests.
-fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<super::author::Authored> {
+/// which never no-op — projected onto the (diff, before-state) pair the per-verb
+/// tests assert on. Shadows the real fn so those stay signature-stable; the
+/// authored id has its own test ([`authoring_names_the_ops_ball`]) and the
+/// `--edit` interaction is exercised in [`crate::mutate::edit`]'s own tests.
+fn base_change(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<(Box<dyn BaseChange>, Option<Task>)> {
+    authored(verb, store, flags, now).map(|a| (a.base, a.before))
+}
+
+/// [`super::base_change`] whole — the full [`Authored`], id included.
+fn authored(verb: Verb, store: &Path, flags: &Flags, now: i64) -> io::Result<Authored> {
     super::base_change(verb, store, flags, now, Vec::new(), &mut edit::Editor::detached())
         .map(|authored| authored.expect("flag-driven authoring never no-ops"))
 }
@@ -165,12 +171,33 @@ fn base_change_rejects_a_non_mutating_verb() {
 }
 
 #[test]
-fn command_marks_a_mutating_op_and_carries_the_body() {
+fn command_marks_a_mutating_op_and_carries_the_body_and_the_ball() {
     let mut f = flags();
     f.body = Some("para".into());
-    let c = command(Verb::Create, &f, None);
+    let c = command(Verb::Create, &f, None, "bl-1234".into());
     assert_eq!(c.op, "create");
     assert_eq!(c.body_change.as_deref(), Some("para"));
+    // §0 obligation 4: the ball rides EVERY payload, `pre` included — no plugin
+    // re-derives it from the change worktree (bl-a5f3).
+    assert_eq!(c.id.as_deref(), Some("bl-1234"));
+}
+
+#[test]
+fn authoring_names_the_ops_ball() {
+    // Identity enters the op HERE and is carried: a named verb takes its
+    // positional, `create` reports the id it just minted (bl-a5f3).
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1", TASK);
+    let mut named = flags();
+    named.positionals = vec!["bl-1".into()];
+    assert_eq!(authored(Verb::Close, dir, &named, 0).unwrap().id, "bl-1");
+
+    let mut fresh = flags();
+    fresh.positionals = vec!["A new ball".into()];
+    let minted = authored(Verb::Create, dir, &fresh, 0).unwrap();
+    minted.base.stage(dir).unwrap();
+    assert_eq!(minted.id, new_id(dir, &["bl-1"]), "create carries the id it minted");
 }
 
 #[test]

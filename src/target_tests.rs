@@ -42,7 +42,7 @@ fn close_gating_the_parent_is_what_declares_nesting() {
 fn a_ball_close_gating_its_live_parent_targets_that_parent() {
     let tmp = store(&[("bl-epic", ball(None, &["bl-kid"]))]);
     let kid = ball(Some("bl-epic"), &[]);
-    assert_eq!(derive(tmp.path(), Some(&"bl-kid".to_string()), Some(&kid)), Some("bl-epic".into()));
+    assert_eq!(derive(tmp.path(), "bl-kid", Some(&kid)), Some("bl-epic".into()));
 }
 
 #[test]
@@ -50,12 +50,12 @@ fn nesting_needs_both_coordinates_so_either_alone_delivers_flat() {
     // Containment without a gate: the parent pointer alone is display-only.
     let ungated = store(&[("bl-epic", ball(None, &[]))]);
     let kid = ball(Some("bl-epic"), &[]);
-    assert_eq!(derive(ungated.path(), Some(&"bl-kid".to_string()), Some(&kid)), None);
+    assert_eq!(derive(ungated.path(), "bl-kid", Some(&kid)), None);
     // A close-gate on a NON-parent is pure enforcement — two sibling features
     // ordered by a gate keep delivering independently to the integration branch.
     let gated = store(&[("bl-other", ball(None, &["bl-kid"]))]);
     let orphan = ball(None, &[]);
-    assert_eq!(derive(gated.path(), Some(&"bl-kid".to_string()), Some(&orphan)), None);
+    assert_eq!(derive(gated.path(), "bl-kid", Some(&orphan)), None);
 }
 
 #[test]
@@ -64,10 +64,7 @@ fn a_closed_parent_gates_nothing_and_create_has_no_ball_at_all() {
     // the ball delivers flat rather than at a ref nobody is accumulating onto.
     let empty = store(&[]);
     let kid = ball(Some("bl-gone"), &[]);
-    assert_eq!(derive(empty.path(), Some(&"bl-kid".to_string()), Some(&kid)), None);
+    assert_eq!(derive(empty.path(), "bl-kid", Some(&kid)), None);
     // `create` carries no op-start ball: nothing to derive from.
-    assert_eq!(derive(empty.path(), Some(&"bl-kid".to_string()), None), None);
-    // No positional id (defensive): nothing can be gated on.
-    let live = store(&[("bl-epic", ball(None, &["bl-kid"]))]);
-    assert_eq!(derive(live.path(), None, Some(&ball(Some("bl-epic"), &[]))), None);
+    assert_eq!(derive(empty.path(), "bl-kid", None), None);
 }

@@ -120,11 +120,11 @@ fn a_diverged_close_aborts_and_prime_preserves_the_surviving_branch() {
     assert!(work_branch_exists(&root), "prime pruned a diverged branch");
 }
 
-/// A close.pre wire carrying a `-m` note (§7 `command.message`), id read back
-/// from the change worktree's staged deletion (no `bl-id` on the pre wire).
+/// A close.pre wire carrying a `-m` note (§7 `command.message`); the ball rides
+/// `command.id` beside it, as on every payload (bl-a5f3).
 fn pre_m(invocation: &str, title: &str, note: &str) -> String {
     format!(
-        r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}},"command":{{"message":"{note}"}}}}"#
+        r#"{{"binding":{{"invocation_path":"{invocation}"}},"current_state":{{"title":"{title}"}},"command":{{"id":"bl-x","message":"{note}"}}}}"#
     )
 }
 

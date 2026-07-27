@@ -39,13 +39,17 @@ pub struct WireState {
     pub title: String,
 }
 
-/// The §7 command fields the plugin needs: the `-m` `message`, read as the
-/// FULL delivery message override (bl-b9a6) when a close carried one, and the
-/// derived delivery `target` (bl-7b71) — the id of the ball whose `work/<id>`
-/// ref this op forks from and folds back into. Absent target = the integration
-/// branch, which is every flat ball and every payload written before nesting.
+/// The §7 command fields the plugin needs: the ball `id` this op is about (§0
+/// obligation 4 — carried on every payload, so no hook re-derives it from the
+/// change worktree; bl-a5f3), the `-m` `message`, read as the FULL delivery
+/// message override (bl-b9a6) when a close carried one, and the derived
+/// delivery `target` (bl-7b71) — the id of the ball whose `work/<id>` ref this
+/// op forks from and folds back into. Absent target = the integration branch,
+/// which is every flat ball and every payload written before nesting.
 #[derive(Debug, Default, Deserialize)]
 pub struct WireCommand {
+    #[serde(default)]
+    pub id: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
     #[serde(default)]
