@@ -123,7 +123,12 @@ fn opening_the_same_change_worktree_twice_is_an_error() {
 }
 
 #[test]
-fn seal_fails_when_the_anvil_cannot_fast_forward() {
+fn a_rejected_seal_speaks_balls_voice_not_gits() {
+    // bl-fa89: the ff-only IS the §8 CAS and rejecting is it working — but raw
+    // git ("fatal: Not possible to fast-forward, aborting") reads as corruption
+    // rather than as the one-line instruction it is. The rejection names what
+    // happened, that nothing is damaged, and the converge-on-retry move; git's
+    // own spelling of the loss never reaches the operator.
     let (tmp, checkout, g) = repo();
     let change = tmp.path().join("change");
     g.open(&change).unwrap();
@@ -134,8 +139,13 @@ fn seal_fails_when_the_anvil_cannot_fast_forward() {
     run(&checkout, &["commit", "-q", "-m", "diverge"], None).unwrap();
 
     fs::write(change.join("tasks.md"), "y\n").unwrap();
-    let err = g.seal(&change, "wont ff\n").unwrap_err();
-    assert!(err.to_string().contains("git merge --ff-only"));
+    let err = g.seal(&change, "wont ff\n").unwrap_err().to_string();
+    assert!(err.contains("the store moved under this op"), "{err}");
+    assert!(err.contains("a concurrent `bl` won the seal"), "{err}");
+    assert!(err.contains("nothing was written"), "{err}");
+    assert!(err.contains("Re-run the command"), "{err}");
+    assert!(!err.contains("fast-forward"), "raw git leaked: {err}");
+    assert!(!err.contains("git merge"), "raw git leaked: {err}");
 }
 
 #[test]
@@ -151,8 +161,11 @@ fn a_lost_seal_resets_the_checkout_so_later_ops_succeed() {
     fs::write(checkout.join("seed.txt"), "claimant = \"phantom\"\n").unwrap();
     run(&checkout, &["add", "-A"], None).unwrap();
 
+    // Every spelling of the loss reads the same to the operator (bl-fa89): this
+    // one is git's "Your local changes ... would be overwritten", and it gets
+    // the identical store-moved sentence as a plain diverged tip.
     let err = g.seal(&change, "loses the race\n").unwrap_err();
-    assert!(err.to_string().contains("git merge --ff-only"));
+    assert!(err.to_string().contains("the store moved under this op"), "{err}");
 
     // The failed seal rolled the checkout back atomically: clean tree, no
     // staged phantom claimant left to wedge or mislead later reads.
