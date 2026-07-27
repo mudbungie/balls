@@ -1,10 +1,14 @@
 +++
 title = "Flake: remote_ladder override test hits a create.pre id collision"
 created = 1784699520
-updated = 1785124591
+updated = 1785124592
 claimant = "fathom"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-4a51"
+on = "close"
 +++
 Seen once during the bl-b602 close gate, in `tests/remote_ladder.rs`:
 
