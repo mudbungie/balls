@@ -133,8 +133,11 @@ impl Repo for Project {
         // invariant (its paths look like excess) or, when its paths were a
         // subset of this branch's authored set, pass every guard and be
         // SILENTLY REVERTED by a squash computed from the pre-move fold.
+        // It is also the ONLY read of `integration` the delivery makes (bl-9522):
+        // the fold consumes this SHA, not the ref name, so there is no second
+        // read to disagree with the pin.
         let base = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
-        Self::reintegrate(path, integration)?;
+        Self::reintegrate(path, integration, &base)?;
         if Self::ok(&self.root, &["diff", "--quiet", &base, branch])? {
             return Ok(()); // no tree change — empty, or reintegration dissolved the diff
         }
