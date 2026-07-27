@@ -12,6 +12,10 @@ on = "close"
 [[blockers]]
 id = "bl-a5f3"
 on = "close"
+
+[[blockers]]
+id = "bl-c748"
+on = "close"
 +++
 bl close is specified-atomic but observably is not, under parallel merge traffic. Evidence from the lernie 0.0.1 release drive (2026-07-24, ~15 concurrent agent closes, each close gate a 10-13 min tarpaulin run, load avg 25-30):
 
