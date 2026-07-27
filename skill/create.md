@@ -68,6 +68,13 @@ target id that is unknown or already closed, naming which — a never-minted id 
 a typo or hallucination (it would leave the task silently ungated), and a dead
 blocker can never block. The remedy is dropping the flag.
 
+**Every id-taking flag must be handed an id.** `--parent` takes no live-target
+check (containment dangles freely), but it — like every edge flag — refuses a
+value that is not a well-formed id (`^[A-Za-z0-9][A-Za-z0-9_-]*$`). This is the
+guard on a mis-quoted loop: `bl create "$T" --parent $P --needs $B` with an
+empty `$P` slides `--needs` into `--parent`, and the ball would otherwise be
+filed with `parent = "--needs"`.
+
 **No cycles through claim/close.** The same flags refuse an edge that would
 close a loop over the lifecycle ops, naming it (`bl-a -claim-> bl-b -close->
 bl-a`): a ball resolves by closing, so no claim→close order can resolve every

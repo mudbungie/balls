@@ -117,6 +117,37 @@ fn create_refuses_a_dead_blocks_target_naming_the_closure() {
 }
 
 #[test]
+fn create_refuses_a_parent_that_is_not_an_id() {
+    // bl-1fc4: `bl create T --parent --needs bl-x` feeds the flag TOKEN to
+    // --parent, and a parent takes no live-target check (containment dangles
+    // freely) — so shape is the check that catches it, before the store holds
+    // a `parent = "--needs"` no walk can resolve.
+    let mut f = flags();
+    f.positionals = vec!["t".into()];
+    f.parent = Some("--needs".into());
+    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("parent '--needs' is not a task id"), "{err}");
+    // --subtask-of is a parent spelling: same refusal, same reason.
+    let mut f = flags();
+    f.positionals = vec!["t".into()];
+    f.subtask_of = Some("../escape".into());
+    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("parent '../escape' is not a task id"), "{err}");
+}
+
+#[test]
+fn create_refuses_an_edge_target_that_is_not_an_id() {
+    // Shape before liveness: a flag token read as an edge target names the
+    // mistake outright instead of "not a known id" (and never stats a path
+    // outside tasks/).
+    let mut f = flags();
+    f.positionals = vec!["t".into()];
+    f.needs = vec!["--parent".into()];
+    let err = base_change(Verb::Create, tempdir().unwrap().path(), &f, 0).err().unwrap();
+    assert!(err.to_string().contains("edge target '--parent' is not a task id"), "{err}");
+}
+
+#[test]
 fn create_rejects_an_unknown_op_token() {
     let mut f = flags();
     f.positionals = vec!["t".into()];

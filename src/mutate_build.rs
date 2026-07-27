@@ -19,6 +19,7 @@ use std::path::Path;
 
 use super::{other, Flags};
 use crate::change::FieldEdit;
+use crate::id;
 use crate::reads::resolve_dead;
 use crate::task::{Blocker, On};
 use crate::taskfile::exists;
@@ -34,6 +35,7 @@ use crate::verb::Verb;
 /// dead-vs-unknown naming rides the §9 recency walk, on the refusal path only.
 pub(super) fn require_live<'a>(store: &Path, verb: Verb, targets: impl Iterator<Item = &'a str>) -> io::Result<()> {
     for id in targets {
+        require_id_shape(verb, "edge target", id)?;
         if exists(store, id) {
             continue;
         }
@@ -45,6 +47,24 @@ pub(super) fn require_live<'a>(store: &Path, verb: Verb, targets: impl Iterator<
         return Err(other(format!("{}: edge target '{id}' is {fate}; drop the flag", verb.token())));
     }
     Ok(())
+}
+
+/// §10 front-door id SHAPE — an id a flag names must be a well-formed id (§ id
+/// generation string-safety, [`id::is_valid`]) before it is stored (bl-1fc4).
+/// This is the check even `--parent` takes: containment is display-only and
+/// dangles freely, so it has no LIVE target to refuse ([`require_live`]) and a
+/// mis-quoted `--parent --needs bl-x` stored the literal flag TOKEN as a parent
+/// — an id no walk can ever resolve, and (with a `/` or `..` in it) a
+/// `tasks/<id>.md` path outside the store. Shape is the one question, asked of
+/// every id the front door writes; liveness stays [`require_live`]'s.
+fn require_id_shape(verb: Verb, what: &str, id: &str) -> io::Result<()> {
+    if id::is_valid(id) {
+        return Ok(());
+    }
+    Err(other(format!(
+        "{}: {what} '{id}' is not a task id — a flag token was read as one; check the flag order",
+        verb.token()
+    )))
 }
 
 /// `--needs B[:OP]` → the task's own blockers: it can't make op `OP` until `B`
@@ -69,7 +89,11 @@ pub(super) fn effective_parent(flags: &Flags) -> io::Result<Option<String>> {
     if flags.subtask_of.is_some() && flags.parent.is_some() {
         return Err(other("create: --subtask-of and --parent conflict — --subtask-of IS a parent spelling (parent + close-gate)"));
     }
-    Ok(flags.subtask_of.clone().or_else(|| flags.parent.clone()))
+    let parent = flags.subtask_of.clone().or_else(|| flags.parent.clone());
+    if let Some(p) = &parent {
+        require_id_shape(Verb::Create, "parent", p)?;
+    }
+    Ok(parent)
 }
 
 /// `--blocks OP` / `--blocks ID:OP` → reciprocal edges naming THIS new task on a
@@ -133,6 +157,7 @@ pub(super) fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags)
         edits.push(FieldEdit::Body(b.clone()));
     }
     if let Some(p) = &flags.parent {
+        require_id_shape(Verb::Update, "parent", p)?;
         edits.push(FieldEdit::Parent(Some(p.clone())));
     } else if flags.no_parent {
         edits.push(FieldEdit::Parent(None));

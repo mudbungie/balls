@@ -6,6 +6,13 @@
 //! filename basename of `tasks/<id>.md` (Model A — id IS the path, never a
 //! field), so the only constraint core puts on it is **string-safety**, not a
 //! fixed charset: it must be a safe path token on any filesystem.
+//!
+//! Collision is the § id-generation rule, split by WHO chose the id: core's own
+//! draw RE-ROLLS off the live set ([`IdScheme::mint`], bounded), a plugin's
+//! explicit reassignment ABORTS ([`crate::change::Create::finalize`]) — an
+//! explicit choice is authoritative, a draw is not.
+
+use std::io;
 
 /// How `create` mints a fresh id: a `prefix` followed by `length` characters
 /// drawn from `alphabet`. FIXED, not config — the default (`bl-` + four lower
@@ -60,12 +67,52 @@ impl IdScheme {
     /// Only if the system entropy source is unavailable, which does not occur
     /// on a supported platform.
     pub fn generate(&self) -> String {
-        self.generate_with(&mut || {
-            let mut byte = [0u8; 1];
-            getrandom::fill(&mut byte).expect("system entropy unavailable");
-            byte[0]
+        self.generate_with(&mut entropy)
+    }
+
+    /// [`IdScheme::generate`] re-rolled until the draw misses `taken` — the §
+    /// id-generation "auto-gen → retry (bounded)" half, `None` when [`DRAWS`]
+    /// consecutive draws all hit. The byte source is injected like
+    /// [`IdScheme::generate_with`]'s, so the re-roll is testable without luck.
+    pub fn mint_with(&self, taken: &[String], next: &mut dyn FnMut() -> u8) -> Option<String> {
+        (0..DRAWS).map(|_| self.generate_with(next)).find(|id| !taken.contains(id))
+    }
+
+    /// [`IdScheme::mint_with`] over system entropy: an id no LIVE ball holds
+    /// (`taken` is the live id set — a dead incarnation's id is legally reused,
+    /// § id generation). Exhausting [`DRAWS`] is reported, never papered over:
+    /// with the shipped scheme it means the 65536-id space is genuinely full of
+    /// open balls, which no re-roll can fix.
+    ///
+    /// # Panics
+    /// As [`IdScheme::generate`].
+    pub fn mint(&self, taken: &[String]) -> io::Result<String> {
+        self.mint_with(taken, &mut entropy).ok_or_else(|| {
+            io::Error::other(format!(
+                "no free id after {DRAWS} draws from the `{}` + {} space — every draw hit a live ball",
+                self.prefix, self.length
+            ))
         })
     }
+}
+
+/// How many times [`IdScheme::mint`] re-draws before calling the space full.
+/// Bounded because termination must be a property of the SPACE, not of luck: a
+/// store half-filling the shipped 65536 ids (32768 open balls — orders past any
+/// real one) still mints on the first draw 255 times in 256, so a bound a real
+/// store can trip does not exist, while an unbounded loop would hang silently
+/// on the one shape that is genuinely broken.
+const DRAWS: usize = 8;
+
+/// One byte of system entropy — the source both generators draw from.
+///
+/// # Panics
+/// Only if the system entropy source is unavailable, which does not occur on a
+/// supported platform.
+fn entropy() -> u8 {
+    let mut byte = [0u8; 1];
+    getrandom::fill(&mut byte).expect("system entropy unavailable");
+    byte[0]
 }
 
 /// Whether `id` is a safe path token: `^[A-Za-z0-9][A-Za-z0-9_-]*$`. No `/`,

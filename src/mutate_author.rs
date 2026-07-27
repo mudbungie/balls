@@ -52,8 +52,15 @@ pub(super) fn base_change(
                 verb,
                 blockers.iter().map(|b| b.id.as_str()).chain(blocks.iter().map(|(id, _)| id.as_str())),
             )?;
+            // The § id-generation collision rule, core's half: the draw is
+            // re-rolled off the LIVE set (bl-1fc4) rather than written blind —
+            // a blind draw landing on a live id staged over that ball and died
+            // at finalize as a phantom "a create.pre plugin reassigned…" abort,
+            // with no plugin in the chain. Only a plugin's explicit
+            // reassignment still aborts there.
+            let existing = task_ids(store)?;
             let base = Create {
-                id: IdScheme::default().generate(),
+                id: IdScheme::default().mint(&existing)?,
                 actor,
                 now,
                 title,
@@ -65,7 +72,7 @@ pub(super) fn base_change(
                 body: flags.body.clone(),
                 message: flags.message.clone(),
                 root_commit: roots.into_iter().next(),
-                existing: task_ids(store)?,
+                existing,
             };
             Ok(Some((Box::new(base), None)))
         }
