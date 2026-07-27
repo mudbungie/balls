@@ -5,6 +5,10 @@ updated = 1785130470
 claimant = "thence"
 priority = -1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-38e7"
+on = "close"
 +++
 Observed 2026-07-26: running bl-4d4b from cwd /home/mark/dev/balls printed 'could not create workflow dispatch event: HTTP 422: Workflow does not have workflow_dispatch trigger (api.github.com/repos/mudbungie/balls/actions/workflows/260389013/dispatches)'. The create sealed fine in the LERNIE store (the -C ladder held for the op itself), but some create-phase plugin appeared to resolve an origin/repo from the invocation cwd (balls) rather than from the addressed store's repo (lernie).
 
