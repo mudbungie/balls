@@ -11,6 +11,7 @@ use std::path::Path;
 
 use crate::delivery::Repo;
 use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection};
+use crate::delivery_message::subject_line;
 use crate::delivery_repo::Project;
 use crate::delivery_standing::Standing;
 
@@ -85,10 +86,13 @@ impl Repo for Project {
         Self::ok(&self.root, &["rev-parse", "--is-inside-work-tree"])
     }
 
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<()> {
+        // `message` is unbounded author text; `label` is its one-line handle —
+        // the only form that may ride argv or a reflog (bl-a500).
+        let label = subject_line(message);
         if path.exists() {
             ensure_no_merge_in_progress(path)?;
-            Self::capture(path, subject)?;
+            Self::capture(path, label)?;
         }
         if !self.branch_exists(branch)? {
             return Ok(()); // branch never made — nothing to deliver
@@ -140,10 +144,12 @@ impl Repo for Project {
         // is pure plumbing on it, never touching integration's checkout.
         let tree = format!("{branch}^{{tree}}");
         let tree = Self::run(&self.root, &["rev-parse", &tree])?.trim().to_string();
-        let commit = Self::run(&self.root, &["commit-tree", &tree, "-p", &base, "-m", subject])?
+        // `-F -`: the message goes down STDIN. As a `-m` argument it died at
+        // `MAX_ARG_STRLEN` — post-gate, pre-landing (bl-a500).
+        let commit = Self::feed(&self.root, &["commit-tree", &tree, "-p", &base, "-F", "-"], Some(message))?
             .trim()
             .to_string();
-        commit_swap(&self.root, integration, subject, &commit, &base)?;
+        commit_swap(&self.root, integration, label, &commit, &base)?;
         self.reconcile(integration)?;
         Ok(())
     }
@@ -171,7 +177,9 @@ impl Repo for Project {
 ///
 /// `-m subject`: a plumbing `update-ref` writes a BLANK reflog message; pass the
 /// delivery subject so `git reflog {integration}` is auditable (carries the
-/// `[bl-id]` tag). The ref move is the delivery's BINDING commit point (§14); the
+/// `[bl-id]` tag). The SUBJECT LINE, not the message — a reflog entry is one
+/// line by construction, and it keeps balls' last argv-borne text bounded
+/// (bl-a500). The ref move is the delivery's BINDING commit point (§14); the
 /// checkout sync that follows it is the idempotent reconcile.
 pub(crate) fn commit_swap(root: &Path, integration: &str, subject: &str, commit: &str, parent: &str) -> io::Result<()> {
     let refname = format!("refs/heads/{integration}");

@@ -41,6 +41,33 @@ fn deliver_with_no_pending_work_but_a_committed_branch_still_squashes() {
 }
 
 #[test]
+fn a_message_past_the_argv_limit_delivers_via_stdin_and_never_labels_the_capture() {
+    // `MAX_ARG_STRLEN` is 128 KiB on Linux: spelled as `commit-tree -m`, this
+    // message killed the delivery with a bare `Argument list too long (os error
+    // 7)` — after the 10-minute gate, with nothing landed (bl-a500). Every
+    // message channel is stdin now; argv carries only the subject LINE.
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap(); // dirty → capture runs too
+    let message = format!("Add feature [bl-x]\n\n{}", "context line\n".repeat(20_000)); // ~260 KB
+
+    p.deliver(&wt, "work/bl-x", "main", &message, "[bl-x]").unwrap();
+
+    // The whole message rode stdin into commit-tree and landed verbatim.
+    let landed = Project::run(&root, &["log", "-1", "--format=%B", "main"]).unwrap();
+    assert_eq!(landed.trim_end(), message.trim_end());
+    assert_eq!(tip(&root), "Add feature [bl-x]");
+    // The reflog (an inherently one-line record) got the subject line, not the message.
+    let reflog = Project::run(&root, &["reflog", "show", "--format=%gs", "-1", "main"]).unwrap();
+    assert_eq!(reflog.trim(), "Add feature [bl-x]");
+    // And so did the capture commit — labelling it with the composed message is
+    // what compounded it per aborted close until it blew the limit.
+    let capture = Project::run(&root, &["log", "--no-merges", "-1", "--format=%B", "work/bl-x"]).unwrap();
+    assert_eq!(capture.trim_end(), "Add feature [bl-x]");
+}
+
+#[test]
 fn deliver_is_a_no_op_for_an_empty_deliverable() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");

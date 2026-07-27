@@ -13,6 +13,25 @@ use std::io;
 
 use crate::delivery::{Repo, Spec};
 
+/// The body's byte budget (bl-a500). The transport is stdin, so this is NOT a
+/// platform limit — it is the ceiling past which a commit message stops being a
+/// message. It has to exist because no graph bound can shrink the set: the body
+/// is the commits on `work/<id>` since it forked, and `A..B` is ALREADY
+/// `merge-base(A,B)..B`, so when integration is force-push REWRITTEN under a
+/// live work branch the orphaned upstream history becomes indistinguishable
+/// from authored work (~120 commits, 142 KB, observed). Past the budget the
+/// body is cut on a whole-message boundary and SAYS how many it dropped — an
+/// honest short message beats an unreadable one, and beats a crash.
+const BODY_CAP: usize = 64 * 1024;
+
+/// A message's SUBJECT LINE — everything git shows as `%s`, and the only part
+/// of a delivery message that belongs on a command line or in a reflog (both
+/// are single-line by construction). The one spelling, so the argv/reflog
+/// bound is not re-derived at each use (bl-a500).
+pub(crate) fn subject_line(message: &str) -> &str {
+    message.lines().next().unwrap_or(message)
+}
+
 /// The §11 close.pre delivery (split from [`crate::delivery::dispatch`] so the
 /// message policy sits beside [`compose`]): resolve the delivery TARGET ref
 /// ([`crate::delivery::target_branch`] — the nesting parent's `work/<id>` when
@@ -45,14 +64,34 @@ pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
 /// ([`crate::delivery_repo::Project::marked`]) greps and the changelog reads
 /// therefore rides the subject unconditionally — `subject` already carries it,
 /// and the subject is never displaced by author text.
+///
+/// Two things are NOT body (bl-a500). A part that IS the subject adds nothing —
+/// that is balls' own capture commit
+/// ([`crate::delivery_repo::Project::capture`]) read back after an aborted
+/// close, so dropping it makes the composition idempotent across retries.
+/// And the body stops at [`BODY_CAP`], on a whole-message boundary, saying how
+/// many it dropped.
 #[must_use]
 pub fn compose(override_msg: Option<&str>, work: &[String], subject: &str) -> String {
-    let body: Vec<&str> = override_msg
+    let parts: Vec<&str> = override_msg
         .into_iter()
         .chain(work.iter().map(String::as_str))
         .map(str::trim)
-        .filter(|part| !part.is_empty())
+        .filter(|part| !part.is_empty() && *part != subject)
         .collect();
+    let mut body: Vec<&str> = Vec::new();
+    let mut used = 0;
+    for part in &parts {
+        used += part.len() + 2; // the "\n\n" join
+        if used > BODY_CAP {
+            break;
+        }
+        body.push(part);
+    }
+    let dropped = parts.len() - body.len();
+    let note = (dropped > 0)
+        .then(|| format!("and {dropped} more work commit message(s), over the {BODY_CAP}-byte body budget"));
+    let body: Vec<&str> = body.into_iter().chain(note.as_deref()).collect();
     if body.is_empty() {
         return subject.to_string(); // empty deliverable: bare tagged subject
     }

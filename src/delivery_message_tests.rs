@@ -47,6 +47,43 @@ fn compose_never_lets_narration_displace_or_duplicate_the_subject_tag() {
 }
 
 #[test]
+fn compose_drops_a_part_that_is_just_the_subject_so_retries_do_not_compound() {
+    // balls' own capture commit is labelled with the delivery SUBJECT LINE; an
+    // aborted close leaves it on work/<id>, so the next close reads it back.
+    // It says nothing the subject does not — drop it, and the composition is
+    // idempotent across retries (bl-a500).
+    let work = vec!["Title [bl-x]".to_string(), "real work".to_string(), "Title [bl-x]".to_string()];
+    assert_eq!(compose(None, &work, "Title [bl-x]"), "Title [bl-x]\n\nreal work");
+    // Nothing but capture echoes → the bare tagged subject, no stray blank body.
+    assert_eq!(compose(None, &work[..1], "Title [bl-x]"), "Title [bl-x]");
+}
+
+#[test]
+fn compose_caps_the_body_and_says_how_many_it_dropped() {
+    // A force-push rewrite under a live work branch makes orphaned upstream
+    // history read as authored (no graph bound can tell them apart), so the
+    // body must have an end. It is cut on a whole-message boundary.
+    let big = "x".repeat(BODY_CAP / 2 - 2); // two fit the budget exactly (joins counted), the third does not
+    let work = vec![big.clone(), big.clone(), big.clone()];
+    let out = compose(None, &work, "T [bl-x]");
+    assert_eq!(out, format!("T [bl-x]\n\n{big}\n\n{big}\n\nand 1 more work commit message(s), over the {BODY_CAP}-byte body budget"));
+    // A single part over budget keeps the subject and the honest count — never
+    // a truncated half-message.
+    let huge = vec!["y".repeat(BODY_CAP + 1)];
+    assert_eq!(
+        compose(None, &huge, "T [bl-x]"),
+        format!("T [bl-x]\n\nand 1 more work commit message(s), over the {BODY_CAP}-byte body budget")
+    );
+}
+
+#[test]
+fn subject_line_is_the_first_line_of_any_message() {
+    assert_eq!(subject_line("T [bl-x]\n\nbody\nmore"), "T [bl-x]");
+    assert_eq!(subject_line("T [bl-x]"), "T [bl-x]");
+    assert_eq!(subject_line(""), ""); // no lines at all → the message itself
+}
+
+#[test]
 fn work_messages_is_empty_for_a_branch_never_made() {
     let (_tmp, _root, p) = project();
     assert!(p.work_messages("work/bl-absent", "main").unwrap().is_empty());
@@ -100,6 +137,39 @@ fn deliver_close_carries_the_authors_rich_work_body_to_main() {
     let body = Project::run(&root, &["log", "-1", "--format=%B", "main"]).unwrap();
     assert_eq!(body.trim(), "ball title [bl-x]\n\nFix the squash message\n\nThe delivery commit used to be only the ball\ntitle; now it carries the body.");
     assert_eq!(tip(&root), "ball title [bl-x]");
+}
+
+#[test]
+fn deliver_close_builds_the_body_from_branch_own_commits_across_a_folded_merge() {
+    // The bl-a500 shape: the agent folded integration in BY HAND after an
+    // aborted close, so a merge commit rides `work/<id>`. Neither the fold
+    // itself nor anything it brought over from integration is authored work —
+    // only the branch's own commits reach the delivery body.
+    let (tmp, root, p) = project();
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    fs::write(wt.join("f.txt"), "x\n").unwrap();
+    Project::run(&wt, &["add", "-A"]).unwrap();
+    Project::run(&wt, &["commit", "-q", "-m", "authored one"]).unwrap();
+    fs::write(root.join("g.txt"), "y\n").unwrap();
+    Project::run(&root, &["add", "-A"]).unwrap();
+    Project::run(&root, &["commit", "-q", "-m", "upstream noise"]).unwrap();
+    Project::run(&wt, &["merge", "--no-edit", "main"]).unwrap();
+    fs::write(wt.join("f.txt"), "xx\n").unwrap();
+    Project::run(&wt, &["commit", "-qam", "authored two"]).unwrap();
+
+    let spec = Spec {
+        worktree: &wt,
+        branch: "work/bl-x",
+        subject: "ball title [bl-x]",
+        override_msg: None,
+        marker: "[bl-x]",
+        target: None,
+    };
+    deliver_close(&p, &spec).unwrap();
+
+    let body = Project::run(&root, &["log", "-1", "--format=%B", "main"]).unwrap();
+    assert_eq!(body.trim(), "ball title [bl-x]\n\nauthored one\n\nauthored two");
 }
 
 #[test]

@@ -14,6 +14,7 @@
 
 use std::fs;
 use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -42,7 +43,31 @@ impl Project {
     /// Run `git -C <cwd> <args>`, returning stdout; a non-zero exit becomes an
     /// [`io::Error`] carrying git's stderr (the one failure funnel).
     pub(crate) fn run(cwd: &Path, args: &[&str]) -> io::Result<String> {
-        let out = Self::git(cwd, args).stdout(Stdio::piped()).stderr(Stdio::piped()).output()?;
+        Self::feed(cwd, args, None)
+    }
+
+    /// [`Self::run`] with `stdin` piped to the child — the ARGV-FREE message
+    /// channel (bl-a500). A commit message is unbounded author text: the
+    /// composed delivery message concatenates every `work/<id>` commit body, and
+    /// spelling it as a `-m` argument dies at the kernel's per-argument ceiling
+    /// (`MAX_ARG_STRLEN`, 128 KiB on Linux) with a bare `Argument list too long
+    /// (os error 7)` — observed at 142 KB on a real close, with the delivery
+    /// already gated and nothing landed. Every git call that carries a MESSAGE
+    /// therefore takes `-F -` and passes it here; argv carries only refs, paths
+    /// and the single-line reflog label. Safe against the 64 KiB pipe buffer
+    /// because the commands fed this way (`commit`, `commit-tree`) drain stdin
+    /// before writing their own short output.
+    pub(crate) fn feed(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
+        let mut cmd = Self::git(cwd, args);
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() });
+        let mut child = cmd.spawn()?;
+        // TAKEN, not borrowed: the pipe must CLOSE at the end of this block, or
+        // the child waits forever for an EOF that never comes.
+        if let (Some(text), Some(mut pipe)) = (stdin, child.stdin.take()) {
+            pipe.write_all(text.as_bytes())?;
+        }
+        let out = child.wait_with_output()?;
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).into_owned())
         } else {
@@ -103,12 +128,21 @@ impl Project {
     /// ([`crate::delivery_fold::ensure_no_merge_in_progress`]) — over a
     /// half-merge, this `add -A` + commit would CONCLUDE the merge with a
     /// silent work-side resolution (bl-a04a).
+    ///
+    /// `subject` is the delivery message's SUBJECT LINE, never the whole
+    /// message (bl-a500). The capture commit is bookkeeping that the squash
+    /// erases, but it survives on `work/<id>` across an ABORTED close — and the
+    /// next attempt reads it back through [`Repo::work_messages`]. Labelling it
+    /// with the composed message therefore folded that message into the next
+    /// composition, which the next capture folded in again: the delivery
+    /// message DOUBLED per retry, reaching 142 KB after four (the reported
+    /// blow-up). One line is a label; it cannot compound.
     pub(crate) fn capture(path: &Path, subject: &str) -> io::Result<()> {
         Self::run(path, &["add", "-A"])?;
         if Self::ok(path, &["diff", "--cached", "--quiet"])? {
             return Ok(()); // nothing staged — the worktree is clean
         }
-        Self::run(path, &["commit", "--no-verify", "-m", subject])?;
+        Self::feed(path, &["commit", "--no-verify", "-F", "-"], Some(subject))?;
         Ok(())
     }
 

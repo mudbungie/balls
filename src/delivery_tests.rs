@@ -48,8 +48,8 @@ impl Repo for FakeRepo {
         self.log(format!("mint {branch} at {base}"));
         Ok(())
     }
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()> {
-        self.log(format!("deliver {} {branch} -> {integration} : {subject} : {marker}", path.display()));
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<()> {
+        self.log(format!("deliver {} {branch} -> {integration} : {message} : {marker}", path.display()));
         Ok(())
     }
     fn work_messages(&self, _branch: &str, _integration: &str) -> io::Result<Vec<String>> {
