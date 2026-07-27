@@ -1,7 +1,8 @@
 +++
 title = "Store-seal contention speaks git's voice, not balls': 'Not possible to fast-forward' should say the store moved, re-run"
 created = 1785027733
-updated = 1785027733
+updated = 1785124702
+claimant = "marrow"
 parent = "bl-ea55"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
