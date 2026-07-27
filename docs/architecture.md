@@ -1375,7 +1375,15 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   it into the CHANGELOG), all blank-line joined. Both go in the body TOGETHER — neither elects the
   other out, and there is NO `-m`-overrides-the-subject fork, so §5's "no subject override" holds
   literally everywhere a ball is committed (one code path, one rule). An empty deliverable (no `-m`,
-  never committed) is the bare tagged subject. The squash is guarded by the NO-RESURRECTION INVARIANT (bl-a04a): the squash's
+  never committed) is the bare tagged subject. A delivery message is UNBOUNDED author text, so it rides
+  STDIN — every git call carrying one takes `-F -` — and argv carries only the SUBJECT LINE (bl-a500: as a
+  `-m` argument the message died at the kernel's `MAX_ARG_STRLEN`, 128 KiB, AFTER the gate and before
+  anything landed). Two message rules follow from that. The pending-work CAPTURE commit is labelled with
+  the subject line alone: it survives an aborted close on `work/<id>`, so labelling it with the composed
+  message folded that message into the next composition and DOUBLED it per retry. And the body has a 64 KiB
+  budget, cut on a whole-message boundary and saying how many it dropped — no graph bound can shrink the
+  set (`A..B` is already `merge-base(A,B)..B`), so a force-push REWRITE of integration under a live work
+  branch makes orphaned upstream history indistinguishable from authored work. The squash is guarded by the NO-RESURRECTION INVARIANT (bl-a04a): the squash's
   changed paths (diff vs the integration tip) must be a subset of the paths authored on `work/<id>`
   since its fork — every non-merge commit's changed paths plus each fold merge commit's resolution
   paths (its combined `--cc` diff; a fold-conflict resolution IS a work commit, so it counts). An

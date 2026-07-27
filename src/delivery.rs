@@ -70,8 +70,10 @@ pub trait Repo {
     /// pre-commit gate on the result (bl-ee85 — the squash is plumbing, so
     /// without this the close would bypass the hook every porcelain commit
     /// runs; a failure aborts the close before the seal), then squash `branch`
-    /// → `integration` as ONE commit whose subject is `subject` (carrying the
-    /// `[bl-id]` delivery tag). A no-op when the worktree/branch is absent or
+    /// → `integration` as ONE commit carrying `message` — whose SUBJECT LINE is
+    /// the tagged ball title and whose body is the author's work context
+    /// ([`crate::delivery_message::compose`]), so it is unbounded text and
+    /// never rides argv (bl-a500). A no-op when the worktree/branch is absent or
     /// carries no changes (the empty deliverable, §11) — and CONVERGENT ON
     /// RETRY (§14): when a `marker` commit already sits on `integration` since
     /// `branch` forked, this incarnation's delivery landed (an earlier aborted
@@ -79,7 +81,7 @@ pub trait Repo {
     /// IFF the delivery commit CONTAINS the branch's content; a branch carrying
     /// content beyond it (the bl-65e0 handoff) ABORTS loudly instead of
     /// stranding the work (bl-c231).
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, subject: &str, marker: &str) -> io::Result<()>;
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<()>;
     /// The author's substantive `work/<id>` commit messages for the delivery
     /// message (bl-b9a6): every NON-MERGE commit on `branch` since it forked
     /// from `integration`, oldest-first. Empty when the branch is absent (never
