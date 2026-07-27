@@ -1,7 +1,8 @@
 +++
 title = "bl import of a foreign-rooted ball succeeds silently into invisibility: hint on stderr when root_commit is foreign to the checkout"
 created = 1785125449
-updated = 1785125449
+updated = 1785129563
+claimant = "caulker"
 priority = -1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
