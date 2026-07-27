@@ -180,6 +180,11 @@ state is unobservable — the rollback discards it either way.
 
 ## 6. OPEN — starvation is not solved by G1
 
+Tracked as **bl-9042** now that bl-cdec (the umbrella this document was filed
+from) is closed with every other mode fixed; the dialogue converges there, and
+the evidence to gather first is the observed loss rate under traffic *now that
+aborts are clean* — the 3x-per-agent count predates bl-8b89's pin.
+
 G1 converts a wasted gate into a *clean, immediate* rejection at the flip, but the
 gate is still re-run on every retry, and under sustained traffic an unlucky close
 can lose repeatedly. The report asks for a bounded re-fold loop or a delivery
