@@ -6,6 +6,10 @@ claimant = "acerbity-dede"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
+
+[[blockers]]
+id = "bl-f389"
+on = "close"
 +++
 Observed in yog (`/home/mark/dev/yog`), 2026-07-29, closing ball bl-9130.
 
