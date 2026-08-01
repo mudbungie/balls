@@ -100,11 +100,14 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let ctx = Op {
         actor: flags.actor.clone(),
         remote: flags.remote.clone(),
-        command: command(verb, &flags, target, id),
+        command: command(verb, &flags, target, id.clone()),
     };
     let sha = seal_op(edge, verb, &ctx, base.as_ref(), before, &instant)?;
     crate::seen::consume(&consumed); // spent only on a successful seal
-    report::emit(verb, &store, &sha)
+    // The op's OWN id goes to the report — it named this ball before it sealed,
+    // so there is nothing to re-derive (`create`, whose id a `create/pre` plugin
+    // may still have reassigned, is the one exception and re-reads there).
+    report::emit(verb, &store, &id, &sha)
 }
 
 /// What an op carries to the seal besides its [`BaseChange`]: the stamped
