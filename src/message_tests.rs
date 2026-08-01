@@ -104,6 +104,16 @@ fn parse_groups_a_repeated_key_into_a_value_list() {
 }
 
 #[test]
+fn a_git_that_exits_non_zero_is_an_error_not_an_empty_parse() {
+    // bl-dede: this spawn used to return `Ok(stdout)` whatever git did, so a
+    // failed child read downstream as "no trailers here" and the §9 report
+    // panicked on the missing `bl-id` — after the op was durable. The exit
+    // status is checked at the spawn, where the failure actually is.
+    let err = run_git(&["not-a-git-subcommand"], "Subject\n").unwrap_err();
+    assert!(err.to_string().starts_with("git not-a-git-subcommand:"), "{err}");
+}
+
+#[test]
 fn parse_of_a_trailerless_message_is_empty() {
     assert!(parse("Subject only\n\nA body with no trailer block.\n")
         .unwrap()

@@ -138,11 +138,19 @@ pub fn parse(message: &str) -> io::Result<Metadata> {
 /// site for both render and parse — built through [`crate::safegit`] like every
 /// other, so the `GIT_*` redirection vars are stripped here too, and pinned to
 /// [`TRAILER_ROOT`] so no invocation directory can be pulled out from under it.
+///
+/// HONEST about failure, like [`crate::git::run`]: a non-zero exit is an
+/// [`io::Error`] carrying git's stderr. Returning `Ok(stdout)` regardless made
+/// every way this git can fail indistinguishable from "the message has no
+/// trailers" — the empty parse that fired bl-dede's panic three frames later.
+/// [`TRAILER_ROOT`] removes the failure that was actually reached; this removes
+/// the class, so the next one arrives as an error at its own locus.
 fn run_git(args: &[&str], stdin: &str) -> io::Result<String> {
     let mut child = crate::safegit::at(Path::new(TRAILER_ROOT))
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()?;
     child
         .stdin
@@ -150,6 +158,13 @@ fn run_git(args: &[&str], stdin: &str) -> io::Result<String> {
         .expect("stdin was configured as a pipe")
         .write_all(stdin.as_bytes())?;
     let out = child.wait_with_output()?;
+    if !out.status.success() {
+        return Err(io::Error::other(format!(
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
+    }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
