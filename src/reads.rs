@@ -42,6 +42,7 @@ pub(crate) mod scope;
 mod show;
 mod style;
 mod target;
+mod tree;
 
 // The typed read surface a LINKED consumer imports (yog, DESIGN §16.7): the
 // catalog + its row, and the bedrock `--json` projection — the in-process

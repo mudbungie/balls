@@ -256,6 +256,11 @@ fn a_claimed_row_without_a_claim_commit_renders_the_bare_claimant() {
 #[path = "list_scope_tests.rs"]
 mod scope;
 
+// The containment-tree render tests (bl-61e0) are a nested sibling module for
+// the same reason — same fixtures through `super::*`.
+#[path = "list_tree_tests.rs"]
+mod tree;
+
 #[test]
 fn nested_rows_render_their_delivery_target_live_and_dead() {
     // bl-6915: the rendered column. `bl-kid` close-gates its live parent, so it
@@ -273,9 +278,11 @@ fn nested_rows_render_their_delivery_target_live_and_dead() {
     gone.parent = Some("bl-epic".into());
     let dead_set = [Dead { id: "bl-gone".into(), task: gone, retired_at: 4 }];
     let out = render(&cat, &dead_set, &flags_reach(Reach::All), &plain());
+    // All three sit UNDER the epic in the tree (containment); the marker is the
+    // orthogonal fact — only the two that also close-gate it carry `->bl-epic`.
     assert_eq!(
         out,
-        "ready    bl-epic  Epic\nready    bl-kid  Kid  ->bl-epic\nready    bl-flat  Flat\nclosed   bl-gone  Gone  ->bl-epic\n"
+        "ready    bl-epic  Epic\n  ready    bl-kid  Kid  ->bl-epic\n  ready    bl-flat  Flat\n  closed   bl-gone  Gone  ->bl-epic\n"
     );
     // The bedrock record never grows a target — the projection alone does (§9).
     let json = render(&cat, &dead_set, &Flags { json: true, reach: Reach::All, ..Default::default() }, &plain());

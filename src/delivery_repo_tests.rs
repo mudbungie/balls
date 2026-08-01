@@ -19,6 +19,12 @@ pub fn project() -> (TempDir, PathBuf, Project) {
     g(&["init", "-q", "-b", "main"]);
     g(&["config", "user.name", "test"]);
     g(&["config", "user.email", "test@example.com"]);
+    // Pin the hook dir to THIS repo's own: a host `core.hooksPath` in the
+    // developer's global gitconfig otherwise wins `--git-path hooks/pre-commit`
+    // for every throwaway repo, so the gate tests would silently exercise the
+    // HOST's hook (always present, always executable) instead of the one they
+    // install — the delivery gate's own absent/non-executable arms never run.
+    g(&["config", "core.hooksPath", root.join(".git/hooks").to_str().unwrap()]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     g(&["add", "-A"]);
     g(&["commit", "-q", "-m", "seed"]);
