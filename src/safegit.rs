@@ -1,5 +1,6 @@
-//! Hardened `git` invocation — the one safety primitive both git spawn sites
-//! ([`crate::git`] and `tracker::git`) share (bl-2d6d security review).
+//! Hardened `git` invocation — the one safety primitive every core git spawn
+//! site ([`crate::git`], `tracker::git`, [`crate::message`]) shares (bl-2d6d
+//! security review; bl-4787 brought the trailer spawn in).
 //!
 //! balls always targets an explicit checkout via `-C <cwd>`, so the `GIT_*`
 //! variables that REDIRECT which repository / object-store / index git operates
