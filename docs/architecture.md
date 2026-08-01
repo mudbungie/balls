@@ -944,6 +944,18 @@ ordering was never special. Filters COMPOSE (AND):
   landed on the integration branch" and its absence means landed. "Is it on main" needs no
   `merge-base` probe — it is a graph read up the chain of targets to the parentless ball, whose target
   IS the integration branch. `--json` grows no `target` key: the projection grows, the schema does not.
+- The HUMAN render is a CONTAINMENT TREE (bl-61e0): a row indents two spaces per rendered ancestor,
+  under the `parent` it already stores (the same fact `show` rolls up as its children section). It is
+  a FOREST OVER THE RENDERED SET, and that one invariant covers every case with no branch of its own:
+  a row nests only when its parent is also in this listing, so a closed, filtered-out or foreign
+  parent simply leaves the child a ROOT. The §10 order is untouched — it applies per sibling level
+  instead of globally, which is free because ordering is display-only and never enters `ready()`. The
+  accepted trade: a low-priority parent pulls its high-priority children down the page, correct
+  because a child is meaningless out of its parent's context (the store's chore-minted gates are five
+  identically-titled rows until containment disambiguates them). Derived, human-only, and NOT a mode:
+  no stored field, no `--tree`/`--flat` flag, and `--json` returns before the render — it stays the
+  FLAT bedrock array carrying `parent`, for a machine to shape itself. Containment (the indent) and
+  delivery routing (the `->` marker) are distinct facts and both render.
 
 **`show <id>`** resolves by RECENCY (the unifying discipline, § id generation): live `tasks/<id>.md`
 first; on a miss it walks `balls/tasks` history newest→oldest and reconstructs from the most recent

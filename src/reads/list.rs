@@ -8,6 +8,11 @@
 //! way: `priority` ascending (absent LAST), then `created` ascending, with id as
 //! a stable final tiebreak. Ordering is uniform — ready's order was never
 //! special — and display-only: it never enters the `ready()` predicate (§3/§10).
+//!
+//! The HUMAN render then shapes that ordered set into the containment forest
+//! ([`super::tree`], bl-61e0), so the §10 order applies per sibling level; a row
+//! whose parent is not in the rendered set stays a root. `--json` is untouched:
+//! it returns first and stays the flat stored-frontmatter mirror.
 
 use std::fmt::Write;
 use std::io;
@@ -16,7 +21,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use super::history::Dead;
-use super::{claim_age, filter, json_line, scope, target, task_json, Catalog, Entry, Flags, Style};
+use super::{claim_age, filter, json_line, scope, target, task_json, tree, Catalog, Entry, Flags, Style};
 use crate::layout::Xdg;
 use crate::task::Task;
 
@@ -104,8 +109,15 @@ fn order_key<'a>(r: &'a Row) -> (bool, i64, i64, &'a str) {
 
 /// Render `rows` either as the `--json` array or as badge lines. `--json`
 /// returns before any store walk AND before any label — it stays the bedrock
-/// stored-frontmatter mirror (§3), byte-identical to today (bl-0161), so both the
-/// derived age and the fleet-view label are human-render columns alone (bl-46ef).
+/// stored-frontmatter mirror (§3), FLAT and byte-identical to today (bl-0161),
+/// so the derived age, the fleet-view label and the containment tree are
+/// human-render projections alone (bl-46ef, bl-61e0).
+///
+/// The human path renders the §10-ordered rows as the containment FOREST over
+/// exactly this set ([`super::tree`]): a row indents two spaces per rendered
+/// ancestor, and a row whose parent is not in the set is a root. Everything
+/// per-row below is unchanged — the tree reorders and indents, it decorates
+/// nothing.
 fn render(cat: &Catalog, rows: &[Row], flags: &Flags, style: &Style, ctx: &Ctx, this_roots: &[String]) -> io::Result<String> {
     if flags.json {
         let arr: Vec<Value> = rows.iter().map(|r| task_json(r.id(), r.task())).collect();
@@ -116,15 +128,20 @@ fn render(cat: &Catalog, rows: &[Row], flags: &Flags, style: &Style, ctx: &Ctx, 
     let has_foreign = flags.everywhere
         && rows.iter().any(|r| scope::is_foreign(r.task().root_commit.as_deref(), this_roots));
     let labels = has_foreign.then(|| scope::enrolled_labels(ctx.xdg));
+    let nodes: Vec<(&str, Option<&str>)> =
+        rows.iter().map(|r| (r.id(), r.task().parent.as_deref())).collect();
     let mut out = String::new();
-    for r in rows {
+    for (i, depth) in tree::forest(&nodes) {
+        let r = &rows[i];
         let age = age_hint(r, flags, ctx.store, ctx.now)?;
         let label = scope::row_label(labels.as_ref(), r.task().root_commit.as_deref(), this_roots);
         // The delivery-target marker (bl-6915): catalog-derived, so it costs no
         // IO and no git — uniform over live and dead rows, which is the point
-        // (a CLOSED child's marker is the "delivered, not landed" signal).
+        // (a CLOSED child's marker is the "delivered, not landed" signal). It
+        // stays alongside the tree: the tree is CONTAINMENT, the marker is
+        // delivery ROUTING (parent AND close-gate) — distinct facts.
         let into = target::row_marker(cat, r.id(), r.task());
-        out.push_str(&line(&badge(cat, r, style), r.id(), r.task(), &age, &label, &into));
+        out.push_str(&line(&badge(cat, r, style), r.id(), r.task(), &age, &label, &into, depth));
     }
     Ok(out)
 }
@@ -161,8 +178,10 @@ fn badge(cat: &Catalog, r: &Row, style: &Style) -> String {
 /// otherwise (bl-0161) — it already carries its own leading spacing. `into` is
 /// the trailing `  ->bl-xxxx` delivery-target marker when the ball nests, `""`
 /// for the flat integration-branch default (bl-6915); it too brings its spacing.
-fn line(badge: &str, id: &str, task: &Task, age: &str, label: &str, into: &str) -> String {
-    let mut row = format!("{badge} {id}  {}", task.title);
+/// `depth` is the row's containment depth in the rendered forest (bl-61e0) — two
+/// leading spaces per rendered ancestor, `0` (unindented) for a root.
+fn line(badge: &str, id: &str, task: &Task, age: &str, label: &str, into: &str, depth: usize) -> String {
+    let mut row = format!("{}{badge} {id}  {}", "  ".repeat(depth), task.title);
     if let Some(p) = task.priority {
         let _ = write!(row, "  p{p}");
     }

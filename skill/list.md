@@ -5,7 +5,8 @@
              [--json] [--plain] [--legacy]
 
 The single listing verb. Default = live (non-closed) tasks, highest priority
-first, SCOPED to this checkout's project. Filters COMPOSE (AND).
+first, SCOPED to this checkout's project, rendered as a CONTAINMENT TREE (see
+below). Filters COMPOSE (AND).
 
 ## Flags
 
@@ -39,6 +40,32 @@ first, SCOPED to this checkout's project. Filters COMPOSE (AND).
     bl list --everywhere -s ready        # every project on the store — fleet dispatch
     bl list -s closed --claimant alice   # what alice delivered
 
+## The human view is a containment tree
+
+Rows nest under their `--parent`, two spaces per level:
+
+    ready    bl-epic  Ship the delivery gate  p2
+      claimed  bl-9a1c  Wire the hook  p1  @alice (3h)  ->bl-epic
+        ready    bl-77b2  Update the docs
+    ready    bl-4d10  Unrelated ball  p1
+
+The tree is a FOREST OVER WHAT IS RENDERED, and that is the whole rule: a row
+indents under its parent only when that parent is in the same listing. A parent
+that is closed, filtered out (`-s ready` drops a claimed epic), or foreign to
+this checkout leaves its child rendering flush left, in its own place — no
+special case, no dangling-parent error.
+
+Ordering is unchanged, it just applies PER LEVEL: priority ascending (absent
+last), then `created`, among siblings. So a low-priority parent does pull its
+high-priority children down the page with it — deliberate, since a child is
+unreadable out of its parent's context (that is the point: five identically
+titled `Update the docs` gates are only distinguishable by who owns them).
+
+Derived and human-only, like claim-age, the fleet label and the `->` marker:
+there is no `--tree`/`--flat` flag and no stored field. `--json` is untouched —
+a FLAT array in the global order, carrying `parent` for a machine to shape
+itself.
+
 ## Claim-age is a derived, human-only column
 
 A claimed row hangs its holder's claim-age off the `@claimant` (`@alice (3h)`,
@@ -65,6 +92,11 @@ target, up to the parentless ball whose target is the integration branch.
 Derived and human-only, like claim-age and the fleet label: `--json` carries
 stored frontmatter alone. There is no `target` field to filter on and none to
 store — it is `parent` plus a `close` blocker, both already in the record.
+
+The marker is NOT the tree, and both showing on one row is not redundancy: the
+indent says where the ball LIVES (containment, `--parent` alone), the marker
+says where its work GOES (routing, `--parent` AND a close-gate). A contained
+child with no gate indents and carries no marker.
 
 ## Status is derived, never stored
 
