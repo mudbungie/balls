@@ -24,12 +24,29 @@
 
 use std::collections::BTreeMap;
 use std::io::{self, Write};
-use std::process::{Command, Stdio};
+use std::path::Path;
+use std::process::Stdio;
 
 use crate::verb::Verb;
 
 /// The §5 protocol version every balls commit declares as `bl-protocol`.
 pub const PROTOCOL: u32 = 1;
+
+/// Where the trailer git runs (bl-4787). `interpret-trailers` is a pure text
+/// transform over stdin — it reads no repository — so it is rooted at a
+/// directory that cannot be removed instead of inheriting balls' invocation
+/// directory. Inheriting it was a real defect, because balls DELETES that
+/// directory mid-op: `close` tears down the `work/<id>` worktree at
+/// `close.post`, and the worktree is the natural place to have run the close
+/// from (`claim` prints its path; every edit happens there). git then dies on
+/// `getcwd` before reading a byte of stdin — `fatal: Unable to read current
+/// working directory` — landing in the one output a caller reads to decide
+/// whether the close succeeded. Worse silently: the failure exits through
+/// stdout-empty rather than an error, so the §9 report's trailer read came back
+/// EMPTY and fired its "always seals a `bl-id` trailer" panic on a close that
+/// had already delivered, sealed and retired (bl-dede). One un-removable
+/// directory dissolves both.
+const TRAILER_ROOT: &str = "/";
 
 /// Trailers parsed from a commit's block: each key mapped to its value list, so
 /// a repeated key (`bl-tag: a` / `bl-tag: b`) is a two-element `Vec` (§5). This
@@ -118,9 +135,11 @@ pub fn parse(message: &str) -> io::Result<Metadata> {
 }
 
 /// Feed `stdin` to `git <args>` and return its stdout. The single git-invocation
-/// site for both render and parse.
+/// site for both render and parse — built through [`crate::safegit`] like every
+/// other, so the `GIT_*` redirection vars are stripped here too, and pinned to
+/// [`TRAILER_ROOT`] so no invocation directory can be pulled out from under it.
 fn run_git(args: &[&str], stdin: &str) -> io::Result<String> {
-    let mut child = Command::new("git")
+    let mut child = crate::safegit::at(Path::new(TRAILER_ROOT))
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

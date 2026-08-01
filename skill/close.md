@@ -82,6 +82,15 @@ close then passes first try. Your own edits never trigger this.
 Close does **not** push the code remote; pushing `main` is your own deliberate
 `git push`.
 
+## The worktree is gone when close returns
+
+A successful close removes the `work/<id>` worktree — the directory `claim`
+printed and you did the work in. `bl` itself is immune to running from inside
+it, but **your shell is not**: if you closed from within the worktree, your `cd`
+is now a deleted directory and the next command you type reports it (`getcwd:
+cannot access parent directories`). `cd` back to the repo root and carry on —
+nothing is wrong and nothing is lost.
+
 ## Closing IS the only retirement
 
 A closed task has **no file** (absence = resolved); its history is the record.
