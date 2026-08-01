@@ -1,7 +1,8 @@
 +++
 title = "bl close exits 1 on a fully successful close: mutate_report.rs:73 panics after the delivery, seal and retire have all landed"
 created = 1785373923
-updated = 1785373923
+updated = 1785546293
+claimant = "acerbity-dede"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
