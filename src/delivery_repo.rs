@@ -31,12 +31,14 @@ impl Project {
     }
 
     /// `git -C <cwd> <args>` as an unspawned [`Command`] — the one place the
-    /// binary name and the `-C` cwd flag are spelled. Callers set only their own
-    /// stdio + exit policy ([`Self::run`] captures, [`Self::ok`] discards,
-    /// `standing` pipes for stdout).
+    /// delivery environment, binary name and cwd are constructed. Ambient Git
+    /// controls cannot cross [`crate::safegit::delivery_at`]; repo-local config
+    /// and author/committer identity still do. Callers set only their own stdio
+    /// and exit policy ([`Self::run`] captures, [`Self::ok`] discards, `standing`
+    /// pipes for stdout).
     pub(crate) fn git(cwd: &Path, args: &[&str]) -> Command {
-        let mut cmd = Command::new("git");
-        cmd.arg("-C").arg(cwd).args(args);
+        let mut cmd = crate::safegit::delivery_at(cwd);
+        cmd.args(args);
         cmd
     }
 
@@ -181,8 +183,10 @@ impl Project {
     /// commit runs; this restores that gate at the one moment it is
     /// representative: after capture + reintegration. A failure aborts the
     /// close BEFORE the seal, so the task stays claimed and the worktree stays
-    /// up for the fix. The hook's stdout joins stderr — diagnostics, never the
-    /// product channel (§6).
+    /// up for the fix. The hook receives the same rebuilt environment as the
+    /// Git children, so its own nested Git cannot recover caller-supplied
+    /// config/redirect controls. The hook's stdout joins stderr — diagnostics,
+    /// never the product channel (§6).
     pub(crate) fn gate(path: &Path) -> io::Result<()> {
         let printed = Self::run(path, &["rev-parse", "--git-path", "hooks/pre-commit"])?;
         let hook = path.join(printed.trim());
@@ -192,7 +196,12 @@ impl Project {
         if !is_executable(&meta) {
             return Ok(()); // git's rule: a non-executable hook is ignored
         }
-        let status = Command::new(&hook).current_dir(path).stdout(Stdio::from(io::stderr())).status()?;
+        let mut cmd = Command::new(&hook);
+        crate::safegit::delivery_env(&mut cmd);
+        let status = cmd
+            .current_dir(path)
+            .stdout(Stdio::from(io::stderr()))
+            .status()?;
         if status.success() {
             Ok(())
         } else {
