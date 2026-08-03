@@ -1,7 +1,7 @@
 +++
 title = "Make delivery Git environment unable to bypass the repository hook"
 created = 1785727317
-updated = 1785727679
+updated = 1785727682
 claimant = "codex-balls-hook-hardening"
 priority = 4
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
