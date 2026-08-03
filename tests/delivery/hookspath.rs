@@ -100,8 +100,75 @@ fn a_passing_custom_hookspath_hook_delivers_ignoring_the_failing_decoy() {
     install_exec(&custom.join("pre-commit"), "#!/bin/sh\ntest -f feature.txt\n");
 
     let change = change_dir(tmp.path(), "change");
-    delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
+    let mut close = delivery(&change, &home, "close", "pre", &pre(inv, "Add feature"));
+    for var in [
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_AUTHOR_DATE",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+        "GIT_COMMITTER_DATE",
+    ] {
+        close.env_remove(var);
+    }
+    close.assert().success();
 
     assert_eq!(main_subject(&root), "Add feature [bl-x]", "the passing custom hook must let delivery land");
     assert!(!sentinel.exists(), "the failing .git/hooks decoy must NOT run under core.hooksPath");
+    let identity = Command::new("git")
+        .current_dir(&root)
+        .args(["log", "-1", "--format=%an%n%ae%n%cn%n%ce", "main"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(identity.stdout).unwrap(),
+        "test\ntest@example.com\ntest\ntest@example.com\n",
+        "delivery must retain repository-local author and committer config"
+    );
+}
+
+#[test]
+fn hostile_indexed_config_cannot_suppress_the_repository_gate() {
+    // bl-1ec6's incident reproducer: command-scope config outranks local
+    // `core.hooksPath`, so an inherited `/dev/null` used to make the configured
+    // hook disappear. The real binary must strip the whole indexed family both
+    // from its Git children and from the selected hook (whose nested Git must
+    // also see the repository-local value).
+    let (tmp, home, root, wt, custom, decoy) = claimed_with_redirect();
+    let inv = root.to_str().unwrap();
+    fs::write(wt.join("feature.txt"), "must not land\n").unwrap();
+    let ran = tmp.path().join("configured-hook-ran");
+    install_exec(
+        &custom.join("pre-commit"),
+        &format!(
+            "#!/bin/sh\n\
+             test \"$(git config --get core.hooksPath)\" = \"{}\" || exit 90\n\
+             if env | grep -E '^(GIT_CONFIG_COUNT|GIT_CONFIG_KEY_0|GIT_CONFIG_VALUE_0)=' >/dev/null; then exit 91; fi\n\
+             touch \"{}\"\n\
+             exit 1\n",
+            custom.display(),
+            ran.display()
+        ),
+    );
+
+    let change = change_dir(tmp.path(), "change");
+    delivery(&change, &home, "close", "pre", &pre(inv, "Add feature"))
+        .env("GIT_CONFIG_COUNT", "1")
+        .env("GIT_CONFIG_KEY_0", "core.hooksPath")
+        .env("GIT_CONFIG_VALUE_0", "/dev/null")
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(contains("delivery gate"));
+
+    assert!(ran.exists(), "the repository-configured hook did not run");
+    assert_eq!(
+        main_subject(&root),
+        "seed",
+        "a suppressed gate would have moved main"
+    );
+    assert!(
+        !decoy.exists(),
+        "the default hook decoy ran instead of the configured hook"
+    );
 }

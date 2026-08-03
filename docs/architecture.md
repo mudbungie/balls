@@ -1390,7 +1390,21 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   (bl-ee85: the squash is plumbing, so without this a close bypasses the hook every porcelain
   commit runs; resolved as git resolves it — `core.hooksPath` honored — and skipped as git skips
   it — absent or non-executable hook = ungated project, delivers as before; a failure aborts the
-  close BEFORE the seal, leaving claim and worktree up for the fix); then SQUASH `work/<id>` →
+  close BEFORE the seal, leaving claim and worktree up for the fix). Every Git child in these acts,
+  plus the manually launched gate hook, crosses one delivery-only environment boundary (bl-1ec6):
+  delivery clears and rebuilds the child environment, retains ordinary non-`GIT_*` execution
+  variables (the `PATH`, runtime and toolchain context Git and project hooks need), admits from the
+  ambient `GIT_*` namespace ONLY `GIT_AUTHOR_{NAME,EMAIL,DATE}` and
+  `GIT_COMMITTER_{NAME,EMAIL,DATE}`, and then sets `GIT_CONFIG_NOSYSTEM=1`,
+  `GIT_CONFIG_GLOBAL=/dev/null` (`NUL` on Windows), and `GIT_ATTR_NOSYSTEM=1`. Thus every other
+  Git control is structurally absent — the unbounded `GIT_CONFIG_KEY_N`/`GIT_CONFIG_VALUE_N`
+  family and `GIT_CONFIG_COUNT`/`GIT_CONFIG_PARAMETERS`, repository/worktree/index/object redirects,
+  config/discovery/search paths, exec/template paths, and future `GIT_*` additions — while the
+  repository's local and worktree config remains loaded and authoritative for `core.hooksPath`,
+  `user.*`, and deliberate project behavior. The same boundary on the hook prevents its nested Git
+  from recovering the caller's controls. This is NOT a process sandbox: non-Git execution variables,
+  the selected Git executable, repo-local config, and repo hooks remain operator/project trust; the
+  boundary removes ambient Git's second control plane, not the project's first one. Then SQUASH `work/<id>` →
   integration as one commit
   whose subject carries the `[bl-id]` delivery tag (the plugin's analog of the §5 trailer; this tag
   is delivery ground truth). The delivery **MESSAGE** obeys §5's one rule verbatim (bl-9961): the
