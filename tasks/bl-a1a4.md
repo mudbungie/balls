@@ -1,7 +1,8 @@
 +++
 title = "close rejects an unincorporated target: the source owner integrates before delivery"
 created = 1785730516
-updated = 1785730516
+updated = 1785824022
+claimant = "Abductees"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["delivery", "concurrency"]
