@@ -10,9 +10,10 @@
 //!    plugin seam in `tests/delivery/gates.rs`; here it is the whole binary —
 //!    core's seal/rollback wiring included.)
 //! 2. The SKILL.md flagship footgun: an unrelated edit committed DIRECTLY on the
-//!    project's `main` (root checkout, not the `work/<id>` worktree) closes clean
-//!    and stays behind — it survives on `main`'s history but is never folded into
-//!    the task's delivery squash, nor corrupted/lost.
+//!    project's `main` (root checkout, not the `work/<id>` worktree) makes the
+//!    close REFUSE as a stale source (bl-a1a4) until the closer merges `main` in;
+//!    the delivery then still carries only the task's own diff, and the stray edit
+//!    survives verbatim as the squash's ancestor — never corrupted or lost.
 //! 3. Closing a parent with open, non-gating children prints the informational
 //!    notice, still lands the parent's squash, and leaves the children alive with
 //!    dangling (display-only) parent pointers.
@@ -136,10 +137,11 @@ fn a_failing_pre_commit_gate_aborts_the_close_then_a_fix_delivers_one_squash() {
 }
 
 #[test]
-fn an_edit_committed_straight_on_main_stays_behind_and_is_never_folded_in() {
-    // The SKILL.md flagship footgun. `close` folds `main` into the work branch
-    // before squashing, so a stray commit on `main` becomes the squash's PARENT —
-    // its content is reachable from `main` but its diff never rides the delivery.
+fn an_edit_committed_straight_on_main_refuses_the_close_then_stays_behind() {
+    // The SKILL.md flagship footgun, under the bl-a1a4 law. A stray commit on
+    // `main` moves the delivery TARGET, so the close refuses until the closer
+    // incorporates it themselves; once they do, the stray commit is the squash's
+    // ANCESTOR — reachable from `main`, but its diff never rides the delivery.
     let tmp = TempDir::new().unwrap();
     let (root, home, state) = project(tmp.path());
     let id = stdout(bl(&root, &home, &state).args(["create", "Add feature", "--as", "me"]).assert().success());
@@ -152,9 +154,21 @@ fn an_edit_committed_straight_on_main_stays_behind_and_is_never_folded_in() {
     git(&root, &["add", "-A"]);
     git(&root, &["commit", "-qm", "unrelated stray edit on main"]);
 
+    // The close REFUSES: main is no longer in work/<id>, and delivery never
+    // reconciles on the closer's behalf. Nothing sealed, nothing landed.
+    bl(&root, &home, &state)
+        .args(["close", &id, "--as", "me"])
+        .assert()
+        .failure()
+        .stderr(contains("stale source").and(contains(format!("work/{id}").as_str())));
+    assert_eq!(git_out(&root, &["log", "-1", "--format=%s", "main"]), "unrelated stray edit on main");
+    bl(&root, &home, &state).args(["show", &id]).assert().success(); // still open
+
+    // The closer merges main into their own worktree and closes again.
+    git(&wt, &["merge", "-q", "--no-edit", "main"]);
     bl(&root, &home, &state).args(["close", &id, "--as", "me"]).assert().success();
 
-    // Closes clean: the tagged squash lands and delivers ONLY the feature.
+    // The tagged squash lands and delivers ONLY the feature.
     assert_eq!(git_out(&root, &["log", "-1", "--format=%s", "main"]), format!("Add feature [{id}]"));
     assert_eq!(git_out(&root, &["show", "--name-only", "--format=", "main"]), "feature.txt", "the squash is feature-only");
     assert_eq!(git_out(&root, &["show", "main:feature.txt"]), "feature", "the work landed");

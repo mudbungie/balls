@@ -37,9 +37,9 @@ pub(crate) fn subject_line(message: &str) -> &str {
 /// ([`crate::delivery::target_branch`] — the nesting parent's `work/<id>` when
 /// the ball nests, else the integration branch, bl-7b71),
 /// read the author's substantive `work/<id>` messages off it — BEFORE
-/// [`Repo::deliver`] captures pending work or folds integration in, so neither
-/// the ball-titled capture nor the reintegration merge commit pollutes them —
-/// compose the delivery message, then squash.
+/// [`Repo::deliver`] captures pending work, so the ball-titled capture commit
+/// does not pollute them (the closer's own reconciling merges are already
+/// dropped by `--no-merges`) — compose the delivery message, then squash.
 pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
     let integration = crate::delivery::target_branch(repo, spec.target)?;
     let work = repo.work_messages(spec.branch, &integration)?;
@@ -55,7 +55,7 @@ pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
 /// under that one subject — the close's `-m` narration first (when given), then
 /// the author's substantive `work/<id>` messages (every NON-MERGE commit since
 /// the branch forked, oldest-first; the `--no-merges` caller already drops the
-/// reintegration fold), all blank-line joined. Both go in the body TOGETHER —
+/// closer's reconciling merges), all blank-line joined. Both go in the body TOGETHER —
 /// neither elects the other out, so bl-b9a6's rich work context survives even
 /// when `-m` is given. An empty deliverable (no `-m`, never committed) is the
 /// bare tagged subject.

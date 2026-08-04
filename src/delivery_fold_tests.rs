@@ -1,6 +1,8 @@
-//! Fold-rigor tests (bl-a04a): the strict fold (modify/delete conflicts abort;
-//! delivery never concludes a half-merge) and the no-resurrection invariant at
-//! squash — each on a throwaway project repo shaped like the bl-33db incident.
+//! Reconciliation-rigor tests: the ancestry precondition (bl-a1a4 — a source
+//! that has not incorporated the pinned target is refused before anything
+//! merges), the half-merge guard and the no-resurrection invariant at squash
+//! (bl-a04a) — each on a throwaway project repo shaped like the bl-33db
+//! incident.
 
 use crate::delivery::Repo;
 use crate::delivery_repo::tests::{project, tip};
@@ -29,21 +31,28 @@ fn modify_delete_race() -> (tempfile::TempDir, std::path::PathBuf, Project, std:
 }
 
 #[test]
-fn a_modify_delete_fold_conflict_aborts_the_close() {
+fn the_modify_delete_race_refuses_as_a_stale_source_and_never_starts_the_merge() {
+    // bl-a1a4: the bl-33db shape used to reach delivery's own fold and abort on
+    // the modify/delete conflict. Now the advance of `main` alone refuses it —
+    // one step earlier, with no merge started and nothing to abort.
     let (_tmp, root, p, wt) = modify_delete_race();
     let err = p.deliver(&wt, "work/bl-x", "main", "clash [bl-x]", "[bl-x]").unwrap_err();
-    assert!(err.to_string().contains("delivery conflict"), "{err}");
+    assert!(err.to_string().contains("stale source"), "{err}");
+    assert!(err.to_string().contains("is not yet in work/bl-x"), "{err}");
     assert_eq!(tip(&root), "main deletes doomed"); // integration untouched
-    // The half-merge was aborted: the worktree is clean for a hand resolve.
+    // Delivery started no merge, so there is none to be half-done.
     assert!(!Project::ok(&wt, &["rev-parse", "--verify", "--quiet", "MERGE_HEAD"]).unwrap());
 }
 
 #[test]
 fn deliver_never_concludes_a_half_merge_left_in_the_worktree() {
     let (_tmp, root, p, wt) = modify_delete_race();
-    // The agent merged by hand, hit the modify/delete conflict, and retried the
-    // close without resolving. Capture's add -A + commit would conclude the
-    // merge work-side — resurrecting doomed.txt (the bl-33db path).
+    // The agent did what the stale-source refusal told them to — merged the
+    // target in — hit the modify/delete conflict, and retried the close without
+    // resolving. Capture's `add -A` + commit would conclude the merge work-side,
+    // resurrecting doomed.txt (the bl-33db path), so the half-merge guard runs
+    // FIRST of all: before the ancestry precondition, which this half-finished
+    // reconciliation would otherwise fail second.
     assert!(Project::run(&wt, &["merge", "main"]).is_err());
     assert!(Project::ok(&wt, &["rev-parse", "--verify", "--quiet", "MERGE_HEAD"]).unwrap());
 
@@ -98,7 +107,7 @@ fn a_hand_resolved_fold_counts_as_authored_and_delivers() {
     g(&wt, &["commit", "-qam", "work edit"]);
     fs::write(root.join("conflict.txt"), "main\n").unwrap();
     g(&root, &["commit", "-qam", "main edit"]);
-    assert!(p.deliver(&wt, "work/bl-x", "main", "r [bl-x]", "[bl-x]").is_err()); // strict fold
+    assert!(p.deliver(&wt, "work/bl-x", "main", "r [bl-x]", "[bl-x]").is_err()); // stale source
 
     assert!(Project::run(&wt, &["merge", "main"]).is_err()); // the hand resolve
     fs::write(wt.join("conflict.txt"), "merged\n").unwrap();

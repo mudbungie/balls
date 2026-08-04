@@ -9,6 +9,17 @@ IMPLEMENTED too (bl-e844): the sugar mints `--parent E --blocks close`, so the
 everyday subtask spelling IS the nesting declaration. The rendered target column
 (bl-6915) is IMPLEMENTED. Nothing here is open.**
 
+**AMENDED 2026-08-02 (bl-a1a4).** Where this doc says a close *folds the target
+in*, it no longer does. Delivery is a validation and atomic-advance boundary,
+never a merge queue: for every edge `S -> T` it pins `P = tip(T)` once and
+REQUIRES `P` to be an ancestor of `tip(S)` already, refusing a stale source
+before any merge, gate, squash or ref move. Reconciling is the source owner's
+job, in the source worktree, tested there. This makes the design's own claim
+sharper rather than weaker — the rule was always meant to be one operation at
+every depth, and it now is one operation with no hidden merge inside it. The
+recursion carries the refusal too: a sibling closing into an epic makes the next
+sibling's source stale exactly as a landing on main does.
+
 ## What is actually hardcoded today
 
 Not the name `main`. Delivery resolves its destination per op with
@@ -30,8 +41,9 @@ Every task delivers to a **target ref**, derived at op time, never stored:
 > the blocker `{this, on: close}` — the target is `work/<X>`.
 > Otherwise the target is the integration branch (main).
 
-`claim` forks the target ref. `close` folds the target in, runs the repo's
-pre-commit hook on the folded tree, and plumbing-merges back to the target.
+`claim` forks the target ref. `close` requires the target to be incorporated
+already (bl-a1a4), runs the repo's pre-commit hook on that exact tree, and
+plumbing-advances the target to the tagged squash by CAS.
 Today's flat behavior is the degenerate case: no nesting parent → main. Depth
 recurses naturally (a gate under a subtask under an epic targets the subtask's
 ref, and so on up to main at the root).
@@ -190,8 +202,8 @@ conservative existing test is already the correct nested test.
 ## Consequences the doc must own
 
 ### The hook runs at every close, children included (was open Q1 — resolved: uniform)
-One rule — fold target, run the repo's pre-commit hook on the folded tree,
-merge back — at every depth, root included. The argument is **attribution**,
+One rule — require the target incorporated, run the repo's pre-commit hook on
+that tree, advance the target — at every depth, root included. The argument is **attribution**,
 not symmetry: a child that breaks clippy or coverage fails in its own
 worktree, at its own close, in front of the agent that caused it. Root-only
 defers every breakage to a tree assembled from many agents' work, surfacing at
@@ -245,6 +257,18 @@ half-done tree. That is dispatch signaling (bl-6c84), and it is a strictly
 softer failure than today's fork-clean-main vacuity.
 
 ## Accepted costs (raised 2026-07-21, judged worth it)
+
+### Siblings reconcile against each other, one at a time (bl-a1a4)
+Under the ancestry precondition, N children of one epic closing concurrently
+serialize: whoever lands first makes every other source stale, and each of the
+rest merges the epic's new tip in and re-tests before closing. That cost is
+real and it is the point. The alternative is delivery merging on their behalf
+and gating a tree none of them built — which is how a clean automatic fold ships
+a semantic conflict, and how a resolvable one silently picks a side. The work
+does not disappear either way; the precondition puts it in front of the agent
+who owns the branch, in the worktree where it can be run, instead of inside a
+close where it cannot. No lease, no merge queue, no refold loop, no new verb —
+one `merge-base --is-ancestor` and a refusal that says what to do.
 
 ### A long-lived target stretches "closed" past comfort — render it, don't store it
 The "delivered, not landed" gap above is benign at epic scale (hours) and

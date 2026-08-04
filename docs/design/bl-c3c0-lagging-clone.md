@@ -22,8 +22,8 @@ them into two unrelated root causes with much smaller fixes:
   Merge-landed + task-still-open is the **correct** failure direction (the agent
   stays engaged; nothing is left dangling). Do **not** pre-reconcile (a common,
   well-worn path beats a rare edge case) and do **not** auto-sync (the
-  `close → reject → sync → close` loop is already a path agents walk for
-  main-fold conflicts). The work is messaging.
+  `close → reject → sync → close` loop is already a path agents walk when the
+  target moved under them). The work is messaging.
 
 ## Two reported failures, two different bugs
 

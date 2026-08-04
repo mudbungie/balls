@@ -66,8 +66,11 @@ pub trait Repo {
     /// naming, not a new code path.
     fn mint(&self, branch: &str, base: &str) -> io::Result<()>;
     /// `close.pre` deliver (direct): capture any pending worktree work onto
-    /// `branch`, fold `integration` into it, run the project repo's own
-    /// pre-commit gate on the result (bl-ee85 — the squash is plumbing, so
+    /// `branch`, REQUIRE the pinned `integration` tip to be an ancestor of it
+    /// already (bl-a1a4 — reconciliation is the source owner's job; a stale
+    /// source refuses before anything merges, gates, squashes or moves),
+    /// run the project repo's own
+    /// pre-commit gate on that exact tree (bl-ee85 — the squash is plumbing, so
     /// without this the close would bypass the hook every porcelain commit
     /// runs; a failure aborts the close before the seal), then squash `branch`
     /// → `integration` as ONE commit carrying `message` — whose SUBJECT LINE is

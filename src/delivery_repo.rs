@@ -7,8 +7,10 @@
 //! filesystem/refs first, so a re-run is a no-op rather than an error (§11). The
 //! squash itself is plumbing (`commit-tree` + `update-ref`) so it never disturbs
 //! a checked-out integration working tree — the work happens in the code
-//! worktree, where delivery folds integration in and runs the repo's own
-//! pre-commit gate before anything lands (bl-ee85). The squash is the BINDING
+//! worktree, whose tree delivery runs the repo's own pre-commit gate against
+//! before anything lands (bl-ee85). That tree must ALREADY carry the target
+//! (bl-a1a4): delivery validates and advances, it never reconciles. The squash
+//! is the BINDING
 //! commit point (§14): an abort never resets it — a retried close detects it
 //! by its delivery tag and converges ([`crate::delivery_standing`]).
 
@@ -129,7 +131,12 @@ impl Project {
     /// already run the strict-fold guard
     /// ([`crate::delivery_fold::ensure_no_merge_in_progress`]) — over a
     /// half-merge, this `add -A` + commit would CONCLUDE the merge with a
-    /// silent work-side resolution (bl-a04a).
+    /// silent work-side resolution (bl-a04a). Capture runs BEFORE the ancestry
+    /// precondition ([`crate::delivery_fold::ensure_target_incorporated`]) and
+    /// survives its refusal on purpose: the remedy the refusal prescribes is
+    /// `git merge <target>` in this very worktree, and git refuses that over
+    /// local modifications. Committing the closer's own pending work onto their
+    /// own branch is not reconciliation — it moves no target and merges nothing.
     ///
     /// `subject` is the delivery message's SUBJECT LINE, never the whole
     /// message (bl-a500). The capture commit is bookkeeping that the squash
@@ -148,40 +155,14 @@ impl Project {
         Ok(())
     }
 
-    /// Fold the PINNED integration tip `base` into the work branch IN the
-    /// worktree, so the tree the gate checks IS the tree the squash delivers
-    /// even when integration moved since claim. STRICT (bl-a04a): git's default
-    /// merge, no `-X`/strategy side-picking ever — anything git marks
-    /// conflicted (modify/delete and rename/delete included) aborts.
-    /// Already-up-to-date is a commitless no-op; a conflict aborts the
-    /// half-merge (the worktree stays clean for the agent to merge by hand) and
-    /// surfaces as the delivery-conflict error.
-    ///
-    /// The SHA, not the ref name (bl-9522). bl-8b89 made the pinned tip the
-    /// squash parent, the CAS old-value and the no-resurrection comparison
-    /// point, but the fold still re-read `integration` — so the pin and the
-    /// fold were two reads of one ref and could disagree for a sub-second
-    /// window. Folding the pin closes it structurally: ONE read is now the
-    /// whole delivery's notion of "where integration was". `integration` stays
-    /// on for the VOICE — a conflict names the branch the operator thinks in,
-    /// with the pinned tip beside it.
-    pub(crate) fn reintegrate(path: &Path, integration: &str, base: &str) -> io::Result<()> {
-        if let Err(e) = Self::run(path, &["merge", "--no-verify", "--no-edit", base]) {
-            let _ = Self::run(path, &["merge", "--abort"]); // best-effort: a never-started merge has nothing to abort
-            return Err(io::Error::other(format!(
-                "delivery conflict merging {integration} (pinned at {base}) into the work branch: {e}"
-            )));
-        }
-        Ok(())
-    }
-
     /// The delivery gate (bl-ee85): run the project repo's own `pre-commit`
     /// hook — resolved exactly as git resolves it (`--git-path` honors
     /// `core.hooksPath`), skipped exactly as git skips it (absent or
     /// non-executable) — against the worktree holding the to-be-delivered tree.
     /// The squash is plumbing and would silently bypass the hook every porcelain
     /// commit runs; this restores that gate at the one moment it is
-    /// representative: after capture + reintegration. A failure aborts the
+    /// representative: after capture, on a source tree the ancestry precondition
+    /// has already proved carries the target (bl-a1a4). A failure aborts the
     /// close BEFORE the seal, so the task stays claimed and the worktree stays
     /// up for the fix. The hook receives the same rebuilt environment as the
     /// Git children, so its own nested Git cannot recover caller-supplied

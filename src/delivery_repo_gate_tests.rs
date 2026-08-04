@@ -1,6 +1,7 @@
 //! Delivery-gate tests (bl-ee85): `deliver` runs the project repo's own
-//! pre-commit hook — once, on the reintegrated tree it is about to land — and
-//! a failure aborts the close before anything reaches integration.
+//! pre-commit hook — once, on the EXACT source tree it is about to land, which
+//! the ancestry precondition has already proved carries the target (bl-a1a4) —
+//! and a failure aborts the close before anything reaches integration.
 
 #![cfg(unix)]
 
@@ -67,16 +68,20 @@ fn a_non_executable_hook_is_ignored_gits_rule() {
 }
 
 #[test]
-fn the_gate_checks_the_reintegrated_tree_when_integration_moved() {
+fn the_gate_checks_the_tree_that_lands_target_and_all() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
-    // Integration moves AFTER the claim — the gate must see BOTH sides, i.e.
-    // the merged tree that will actually land, not the stale branch tip.
+    Project::run(&wt, &["add", "-A"]).unwrap();
+    Project::run(&wt, &["commit", "-qm", "work"]).unwrap();
+    // Integration moves AFTER the claim, so the closer must incorporate it —
+    // the gate then sees BOTH sides, i.e. the tree that will actually land, and
+    // it is the tree the closer tested rather than one close assembled.
     fs::write(root.join("late.txt"), "landed meanwhile\n").unwrap();
     Project::run(&root, &["add", "-A"]).unwrap();
     Project::run(&root, &["commit", "-qm", "late main edit"]).unwrap();
+    Project::run(&wt, &["merge", "-q", "--no-edit", "main"]).unwrap();
     install_hook(&root, "#!/bin/sh\ntest -f feature.txt && test -f late.txt\n", 0o755);
 
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
@@ -87,7 +92,7 @@ fn the_gate_checks_the_reintegrated_tree_when_integration_moved() {
 }
 
 #[test]
-fn a_reintegration_that_dissolves_the_diff_skips_gate_and_squash() {
+fn an_incorporation_that_dissolves_the_diff_skips_gate_and_squash() {
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
@@ -95,12 +100,14 @@ fn a_reintegration_that_dissolves_the_diff_skips_gate_and_squash() {
     Project::run(&wt, &["add", "-A"]).unwrap();
     Project::run(&wt, &["commit", "-qm", "work copy"]).unwrap();
     // The identical change already landed on integration (e.g. via a sibling)
-    // ALONGSIDE more — so the trees differ before the fold (no early empty-
-    // deliverable exit) and converge to integration's after it.
+    // ALONGSIDE more — so the trees differ before the closer incorporates the
+    // target and converge to integration's after it: NO INCOMING DIFF, the work
+    // product `T..S` is empty, and nothing is minted or gated.
     fs::write(root.join("feature.txt"), "same\n").unwrap();
     fs::write(root.join("late.txt"), "more\n").unwrap();
     Project::run(&root, &["add", "-A"]).unwrap();
     Project::run(&root, &["commit", "-qm", "already landed"]).unwrap();
+    Project::run(&wt, &["merge", "-q", "--no-edit", "main"]).unwrap();
     install_hook(&root, "#!/bin/sh\nexit 1\n", 0o755); // must never run
 
     p.deliver(&wt, "work/bl-x", "main", "dup [bl-x]", "[bl-x]").unwrap();
@@ -154,15 +161,21 @@ fn a_mid_gate_advance_is_one_clean_cas_rejection_not_a_resurrection_abort() {
     let err = p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("moved under the delivery"), "{msg}");
-    assert!(msg.contains("Re-run `bl close`"), "{msg}");
+    assert!(msg.contains("re-run `bl close`"), "{msg}");
     assert!(!msg.contains("no-resurrection"), "{msg}");
     // Nothing overwritten: the sibling's landing IS main's tip, the work never landed.
     assert_eq!(tip(&root), "sibling landed");
     assert_eq!(Project::run(&root, &["show", "main:sibling.txt"]).unwrap(), "sibling\n");
     assert!(!Project::ok(&root, &["cat-file", "-e", "main:feature.txt"]).unwrap());
 
-    // The retried close re-folds the moved tip and delivers onto it (§14
-    // converge-on-retry) — BOTH landings survive; the guard keeps the hook quiet.
+    // Acceptance 4: the retry REFUSES until the closer incorporates the new tip
+    // — a CAS loss is not a licence for delivery to reconcile on the way back.
+    let retry = p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap_err();
+    assert!(retry.to_string().contains("stale source"), "{retry}");
+    assert_eq!(tip(&root), "sibling landed");
+
+    // Incorporated and retried, BOTH landings survive; the guard keeps the hook quiet.
+    Project::run(&wt, &["merge", "-q", "--no-edit", "main"]).unwrap();
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
     assert_eq!(tip(&root), "Add feature [bl-x]");
     assert_eq!(Project::run(&root, &["show", "main:sibling.txt"]).unwrap(), "sibling\n");
@@ -191,9 +204,11 @@ fn a_mid_gate_subset_advance_is_rejected_never_silently_reverted() {
     assert_eq!(Project::run(&root, &["show", "main:seed.txt"]).unwrap(), "sibling edit\n");
     assert_eq!(tip(&root), "sibling landed");
 
-    // The retry surfaces the overlap as an ORDINARY delivery conflict for the
-    // agent to resolve by hand — never a silent winner.
+    // The retry hands the overlap back to the agent as a stale source: the
+    // conflicting reconciliation is theirs to do, in their own worktree, and
+    // delivery never picks a winner on their behalf.
     let retry = p.deliver(&wt, "work/bl-x", "main", "Edit seed [bl-x]", "[bl-x]").unwrap_err();
-    assert!(retry.to_string().contains("delivery conflict"), "{retry}");
+    assert!(retry.to_string().contains("stale source"), "{retry}");
+    assert!(retry.to_string().contains("Merge or rebase main into the work/bl-x worktree"), "{retry}");
     assert_eq!(Project::run(&root, &["show", "main:seed.txt"]).unwrap(), "sibling edit\n");
 }

@@ -4,7 +4,8 @@
 //! A ball that close-gates its live parent (`--parent E --blocks close`) has
 //! that parent as its delivery TARGET: `claim` forks `work/<E>` (minted at the
 //! integration head on the first child, no worktree, nothing to orphan), `close`
-//! folds `work/<E>` in and squashes back onto it. `main` does not move until the
+//! requires `work/<E>` to be incorporated already (bl-a1a4) and squashes back
+//! onto it. `main` does not move until the
 //! epic itself closes — parentless, so ITS target is the integration branch —
 //! and then the accumulated children land as ONE commit.
 //!
@@ -22,6 +23,7 @@ use std::path::{Path, PathBuf};
 
 use assert_cmd::assert::Assert;
 use assert_cmd::Command;
+use predicates::str::contains;
 use tempfile::TempDir;
 
 /// `bl` rooted in `project`, HOME/`XDG_STATE_HOME` pinned under the tempdir. The
@@ -120,6 +122,52 @@ fn children_accumulate_on_the_epics_ref_and_the_epic_lands_them_all_at_once() {
     assert_eq!(git_out(&root, &["show", "main:sib.txt"]), "done");
     let subjects = git_out(&root, &["log", "--format=%s", "main"]);
     assert_eq!(subjects.lines().count(), 2, "one squash on top of the seed: {subjects}");
+}
+
+#[test]
+fn a_sibling_that_forked_first_refuses_until_it_incorporates_the_epic() {
+    // bl-a1a4 at depth. AA and AB both fork `work/<epic>` BEFORE either closes.
+    // AA closes first, so AB's TARGET has moved — on a file AB never touched,
+    // which git would fold in without a murmur. The rule is fractal: `child ->
+    // work/<parent>` is the same delivery edge as `root -> integration`, and a
+    // stale source refuses at both. Reconciliation is AB's, in AB's worktree.
+    let tmp = TempDir::new().unwrap();
+    let (root, home, state) = project(tmp.path());
+    let create = |args: &[&str]| stdout(bl(&root, &home, &state).args(args).assert().success());
+    let epic = create(&["create", "The epic", "--as", "me"]);
+    let aa = create(&["create", "AA", "--parent", &epic, "--blocks", "close", "--as", "me"]);
+    let ab = create(&["create", "AB", "--parent", &epic, "--blocks", "close", "--as", "me"]);
+
+    let claim = |id: &str| PathBuf::from(stdout(bl(&root, &home, &state).args(["claim", id, "--as", "me"]).assert().success()));
+    let (first, second) = (claim(&aa), claim(&ab)); // both fork the epic's ref first
+    for (wt, file, id) in [(&first, "aa.txt", &aa), (&second, "ab.txt", &ab)] {
+        fs::write(wt.join(file), "done\n").unwrap();
+        git(wt, &["add", "-A"]);
+        git(wt, &["commit", "-qm", &format!("work [{id}]")]);
+    }
+    bl(&root, &home, &state).args(["close", &aa, "--as", "me"]).assert().success();
+
+    let epic_branch = format!("work/{epic}");
+    bl(&root, &home, &state)
+        .args(["close", &ab, "--as", "me"])
+        .assert()
+        .failure()
+        .stderr(contains("stale source"))
+        .stderr(contains(format!("Merge or rebase {epic_branch} into the work/{ab} worktree")));
+    assert_eq!(git_out(&root, &["log", "-1", "--format=%s", &epic_branch]), format!("AA [{aa}]"), "the refusal moved nothing");
+
+    // AB incorporates its target and closes; the epic accumulates both.
+    git(&second, &["merge", "-q", "--no-edit", &epic_branch]);
+    bl(&root, &home, &state).args(["close", &ab, "--as", "me"]).assert().success();
+    assert_eq!(git_out(&root, &["log", "-1", "--format=%s", &epic_branch]), format!("AB [{ab}]"));
+    assert_eq!(git_out(&root, &["log", "-1", "--format=%s", "main"]), "seed");
+
+    // And the epic closes normally: main never moved under it, so it has nothing
+    // to reconcile and lands both children as ONE commit.
+    bl(&root, &home, &state).args(["close", &epic, "--as", "me"]).assert().success();
+    assert_eq!(git_out(&root, &["log", "-1", "--format=%s", "main"]), format!("The epic [{epic}]"));
+    assert_eq!(git_out(&root, &["show", "main:aa.txt"]), "done");
+    assert_eq!(git_out(&root, &["show", "main:ab.txt"]), "done");
 }
 
 #[test]

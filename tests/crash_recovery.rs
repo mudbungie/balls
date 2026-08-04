@@ -112,7 +112,7 @@ fn claim_with_work(project: &Path, home: &Path, state: &Path) -> (String, PathBu
 }
 
 /// Install `project`'s shared `pre-commit` hook (delivery's close.pre gate runs
-/// it on the reintegrated tree).
+/// it on the exact source tree it is about to land).
 fn install_hook(project: &Path, body: &str) {
     let hook = project.join(".git/hooks/pre-commit");
     fs::write(&hook, format!("#!/bin/sh\n{body}")).unwrap();

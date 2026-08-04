@@ -2,9 +2,9 @@
 
     usage: bl close <id> [-m MSG] [--as ID] [--remote URL]
 
-Delivers your work and retires the task in one move: **fold `main` in → run the
-repo's pre-commit hook → squash `work/<id>` to `main`**, then archive the task
-and tear down the worktree.
+Delivers your work and retires the task in one move: **require `main` to be in
+your work branch already → run the repo's pre-commit hook → squash `work/<id>`
+to `main`**, then archive the task and tear down the worktree.
 
 ## Flags
 
@@ -18,20 +18,37 @@ and tear down the worktree.
 
     bl close bl-1a2b -m "shipped"
 
+## You reconcile; close validates and lands
+
+**Close never merges `main` for you.** If `main` moved since you forked and you
+have not brought it into `work/<id>`, the close refuses — before it merges,
+gates, squashes or moves anything:
+
+    stale source: main (pinned at <sha>) is not yet in work/bl-1a2b, and delivery
+    never reconciles — it validates the tree you tested and advances main to it.
+    Merge or rebase main into the work/bl-1a2b worktree, resolve and test there,
+    then re-run `bl close`
+
+The remedy is the sentence: `cd` to your worktree, `git merge main` (or rebase),
+resolve, **run the tests there**, then close again. That is the whole point —
+the tree that lands is a tree you actually built and ran. A close that folded
+`main` in for you would gate a tree nobody had ever seen, and would silently
+pick a side on every conflict it happened to be able to resolve.
+
+It holds whether the advance conflicts or not: a clean, disjoint advance refuses
+exactly like a colliding one. "Git could have merged it" is not the test.
+
 ## Delivery is gated
 
-Delivery first folds `main` into your work branch — so what gets checked is what
-actually **lands**, even if `main` moved while you worked — then runs the repo's
-`pre-commit` hook on the result and **aborts the close if it fails**: the task
-stays claimed and the worktree stays up for the fix. A repo with no executable
-`pre-commit` hook is ungated (close delivers unchecked). A merge conflict with
-`main` also aborts the close cleanly (no half-merge is left behind); merge
-`main` into the worktree by hand, resolve, and close again.
+On the exact tree you tested, close runs the repo's `pre-commit` hook and
+**aborts the close if it fails**: the task stays claimed and the worktree stays
+up for the fix. A repo with no executable `pre-commit` hook is ungated (close
+delivers unchecked).
 
 Concurrent closes in one checkout are safe: the delivery ref move is a
 compare-and-swap, so if a sibling close lands on `main` mid-delivery the loser
-aborts loudly (nothing overwritten) — just re-run `bl close` to deliver onto the
-new tip.
+aborts loudly (nothing overwritten). Losing that race leaves you with a stale
+source like any other — merge the new tip in, test, and close again.
 
 The delivery commit lands on `main` tagged `[bl-xxxx]` — that tag is how a merge
 is recognized as the task's delivery.
@@ -49,9 +66,15 @@ ref it targets, derived per op and never stored:
 
 So an epic accumulates its children on `work/<epic>` and lands them as ONE
 commit when the epic itself closes — main is simply what a parentless ball
-targets. Everything above holds unchanged at every depth: the fold, the
-pre-commit gate and the tagged squash all run against *that ball's* target, so
-a child that breaks the gate fails at its own close, in its own worktree.
+targets. Everything above holds unchanged at every depth: the incorporation
+requirement, the pre-commit gate and the tagged squash all run against *that
+ball's* target, so a child that breaks the gate fails at its own close, in its
+own worktree.
+
+That includes the refusal. If a sibling closed into your epic after you forked,
+your target moved: merge `work/<epic>` into your worktree, resolve, test, close.
+Siblings under one epic reconcile against each other exactly the way balls under
+`main` do — one rule, every depth.
 
 Two consequences worth knowing:
 
