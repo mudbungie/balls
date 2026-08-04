@@ -849,6 +849,20 @@ The canonical task-op sequence (verb-agnostic):
    corruption instead of as the one-line instruction they are (bl-fa89, the bl-a3bb precedent one
    layer down). Core does NOT retry internally: converge-on-retry (§14) is the rule, the retry is one
    command, and a loop would hide contention and double the wall-clock of a genuine conflict.
+   **"Nothing was written" is scoped to the STORE, and on a `close` that is not the whole truth**
+   (bl-739b). A close's two acts are not atomic against a concurrent `bl`: the §11 delivery squash
+   lands in `close.pre` — the BINDING commit point, whose §14 rollback declines — and the seal
+   follows. Lose the seal CAS after that and the code IS on the target ref while the ball still
+   reads claimed and its worktree is still up: the state reads exactly like a close that never
+   landed, and the operator redoes delivered work or unclaims a ball whose code shipped. The refusal
+   above is verb-agnostic and must stay so ("your code is already on main" would be a lie for a
+   `create` that lost), so the correction is close-specific and DERIVED, never assumed: the close
+   dispatch asks the project repo where the ball's `[bl-id]` delivery commit actually stands — the
+   same fork-scoped tag scan the retry converges on — and only if one stands appends
+   "delivered, not sealed: this close ALREADY landed its code — the `[bl-id]` delivery commit
+   `<sha>` is on `<ref>`… Re-run `bl close`". A close that aborted BEFORE its squash (failed gate,
+   stale source, rejected delivery CAS) gets no such note, and neither does any other verb. This is
+   the whole answer: still no retry loop, no lease, no new verb, no stored state.
 4. **post reactors run in hook-list order** — the §7 wire with the sealed `bl-id`/state. They act on the
    landed record (tracker pushes the store; the delivery plugin acts on the project repo) but DO NOT edit
    the ball — anything that had to live on the ball was written in pre; post-only values are DERIVED,

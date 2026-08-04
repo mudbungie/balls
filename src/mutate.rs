@@ -43,6 +43,8 @@ mod edit;
 mod guards;
 #[path = "mutate_report.rs"]
 mod report;
+#[path = "mutate_unsealed.rs"]
+pub(crate) mod unsealed;
 
 use author::{base_change, command, Authored};
 
@@ -100,9 +102,15 @@ fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor)
     let ctx = Op {
         actor: flags.actor.clone(),
         remote: flags.remote.clone(),
-        command: command(verb, &flags, target, id.clone()),
+        command: command(verb, &flags, target.clone(), id.clone()),
     };
-    let sha = seal_op(edge, verb, &ctx, base.as_ref(), before, &instant)?;
+    // A close's two acts are not atomic against a concurrent `bl`: the delivery
+    // squash lands in `close.pre`, the seal onto the store follows. An abort
+    // between them says "nothing was written" — of the STORE. `unsealed::amend`
+    // asks the project repo whether the code in fact landed and, only then,
+    // says so (bl-739b). Not a retry: §14 converge-on-retry stands.
+    let sha = seal_op(edge, verb, &ctx, base.as_ref(), before, &instant)
+        .map_err(|e| unsealed::amend(e, &edge.invocation_path, verb, &id, target.as_deref()))?;
     crate::seen::consume(&consumed); // spent only on a successful seal
     // The op's OWN id goes to the report — it named this ball before it sealed,
     // so there is nothing to re-derive (`create`, whose id a `create/pre` plugin

@@ -53,6 +53,33 @@ source like any other — merge the new tip in, test, and close again.
 The delivery commit lands on `main` tagged `[bl-xxxx]` — that tag is how a merge
 is recognized as the task's delivery.
 
+## "Nothing was written" never means "your code did not land"
+
+Close is two acts, and they are not atomic against a **concurrent `bl`**. The
+delivery squash lands on the target ref first; the task file is sealed onto the
+task store second. If a sibling `bl` wins the store's compare-and-swap in
+between, the close aborts with
+
+    the store moved under this op — a concurrent `bl` won the seal;
+    nothing was written
+
+That sentence is about the **store**. Your code is already on `main`. The ball
+still reads claimed and the worktree is still up, which looks exactly like a
+close that never landed — so when the delivery did land, the abort says so,
+naming the commit:
+
+    delivered, not sealed: this close ALREADY landed its code — the [bl-1a2b]
+    delivery commit 4f9c… is on main. What the abort above did not write is the
+    TASK FILE … Re-run `bl close`
+
+**Do not redo the work and do not `bl unclaim`.** A bare re-run of the same
+`bl close` finishes it: delivery detects the standing `[bl-xxxx]` commit and
+skips the squash, and the seal lands the task file on the store's new tip.
+
+No such note means the close aborted **before** its squash — a failed gate, a
+stale source, a rejected delivery CAS — and nothing landed. The note is derived
+from the project repo at abort time, not guessed, so its absence is an answer.
+
 ## Where "main" actually is: the delivery target
 
 `main` above is the **default** target, not a constant. A task delivers to the
