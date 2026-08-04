@@ -1,7 +1,7 @@
 +++
 title = "expose recursive project-delivery attempts without manufacturing balls tasks"
 created = 1785730533
-updated = 1785730533
+updated = 1785823815
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["design", "delivery"]
