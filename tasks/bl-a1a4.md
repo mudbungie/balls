@@ -6,6 +6,10 @@ claimant = "Abductees"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["delivery", "concurrency"]
+
+[[blockers]]
+id = "bl-a04c"
+on = "close"
 +++
 Source: operator ruling during the yog project-support audit, 2026-08-02.
 
