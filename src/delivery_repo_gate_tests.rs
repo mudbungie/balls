@@ -15,6 +15,13 @@ fn install_hook(root: &Path, script: &str, mode: u32) {
     let hook = root.join(".git/hooks/pre-commit");
     fs::write(&hook, script).unwrap();
     fs::set_permissions(&hook, fs::Permissions::from_mode(mode)).unwrap();
+    // Hermeticity asserted, not assumed: the fixture pins `core.hooksPath` to
+    // this dir so a host global one cannot win, and the gate resolves the hook
+    // by that same `--git-path`. Were the pin to lapse, every test here would
+    // silently gate on the HOST's hook instead of the one it just wrote — and
+    // the non-executable case would assert nothing at all. Fail loudly here.
+    let printed = Project::run(root, &["rev-parse", "--git-path", "hooks/pre-commit"]).unwrap();
+    assert_eq!(root.join(printed.trim()), hook, "the gate would run a hook this test never wrote");
 }
 
 #[test]
