@@ -45,16 +45,29 @@ impl Project {
         if Self::ok(&self.root, &["merge-base", "--is-ancestor", branch, integration])? {
             return Ok(Standing::Settled);
         }
-        let base = Self::run(&self.root, &["merge-base", integration, branch])?.trim().to_string();
-        let since_fork = self.marked(&format!("{base}..{integration}"), marker)?;
-        let Some(delivery) = since_fork.first() else {
+        let Some(delivery) = self.delivered_since_fork(branch, integration, marker)? else {
             return Ok(Standing::Undelivered);
         };
-        if self.contained(branch, delivery)? {
+        if self.contained(branch, &delivery)? {
             Ok(Standing::Settled)
         } else {
             Ok(Standing::Diverged)
         }
+    }
+
+    /// The newest `marker`-tagged delivery commit standing on `integration`
+    /// SINCE `branch` forked from it — `None` when this incarnation has not
+    /// delivered. The fork scope is what keeps a REUSED id's prior delivery,
+    /// always an ancestor of the fork point, from false-positiving (bl-430e).
+    ///
+    /// Two readers, one query (§11 derive-don't-store): [`Self::standing`]
+    /// classifies the retry off it, and the delivered-but-unsealed close voice
+    /// ([`crate::mutate::unsealed`]) NAMES it — the abort tells the operator
+    /// where their code already is by asking the same question the retry will
+    /// converge on, so the diagnosis cannot drift from the behaviour.
+    pub(crate) fn delivered_since_fork(&self, branch: &str, integration: &str, marker: &str) -> io::Result<Option<String>> {
+        let base = Self::run(&self.root, &["merge-base", integration, branch])?.trim().to_string();
+        Ok(self.marked(&format!("{base}..{integration}"), marker)?.into_iter().next())
     }
 
     /// Is `branch`'s content CONTAINED in the `delivery` commit — is a
