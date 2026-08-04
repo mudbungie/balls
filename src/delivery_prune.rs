@@ -6,7 +6,7 @@
 //! Close/unclaim teardown removes only the worktree DIRECTORY; the branch must
 //! survive the op (§11: "re-creatable from the branch, so it is rollback-safe").
 //! The reason is converge-on-retry (§14): until the squash lands — a close can
-//! abort before it (gate failure, fold conflict) — the `work/<id>` branch is
+//! abort before it (gate failure, stale-source refusal) — the `work/<id>` branch is
 //! the ONLY copy of the diff, and the retry's deliver recomputes from it.
 //! Deleting it inside the op would make a retried abort silently no-op on the
 //! absent branch. So branch deletion is DEFERRED, non-transactional cleanup

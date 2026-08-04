@@ -86,56 +86,109 @@ fn deliver_is_a_no_op_when_the_branch_was_never_made() {
 }
 
 #[test]
-fn the_fold_consumes_the_pinned_sha_not_the_integration_ref() {
-    // bl-9522: bl-8b89 made the pinned tip the squash parent, the CAS old-value
-    // and the no-resurrection comparison point, but the fold still re-read
-    // `integration` — two reads of one ref, disagreeable for a sub-second
-    // window (unsafe only if something RESET the ref inside it). The fold now
-    // consumes the pin, so ONE read is the whole delivery's notion of where
-    // integration was. The merge commit git writes is the receipt: it names the
-    // commit it was given, and it was given the pin.
+fn a_clean_disjoint_target_advance_refuses_and_the_retry_lands_once_incorporated() {
+    // Acceptance 1 (bl-a1a4). `main` advanced on a file the work branch never
+    // touched, so git could fold it in without a murmur — and that is exactly
+    // what delivery must NOT do. The tree that lands is the tree the closer
+    // tested; a tree assembled inside `close` was tested by nobody.
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
     Project::run(&wt, &["add", "-A"]).unwrap();
     Project::run(&wt, &["commit", "-qm", "work"]).unwrap();
-    // Integration moves after the claim, so the fold is a REAL merge commit.
     fs::write(root.join("late.txt"), "landed meanwhile\n").unwrap();
     Project::run(&root, &["add", "-A"]).unwrap();
     Project::run(&root, &["commit", "-qm", "late main edit"]).unwrap();
     let pinned = Project::run(&root, &["rev-parse", "main"]).unwrap().trim().to_string();
+    let before = Project::run(&root, &["rev-parse", "work/bl-x"]).unwrap().trim().to_string();
 
+    let err = p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap_err();
+
+    // S, T and P by name, and the remedy: reconcile in the source worktree.
+    let msg = err.to_string();
+    assert!(msg.contains("stale source"), "{msg}");
+    assert!(msg.contains(&format!("main (pinned at {pinned}) is not yet in work/bl-x")), "{msg}");
+    assert!(msg.contains("Merge or rebase main into the work/bl-x worktree"), "{msg}");
+    // Nothing happened: no merge commit on the branch, no ref moved.
+    assert_eq!(Project::run(&root, &["rev-parse", "work/bl-x"]).unwrap().trim(), before);
+    assert_eq!(tip(&root), "late main edit");
+
+    // The closer incorporates the target in their own worktree and retries.
+    Project::run(&wt, &["merge", "-q", "--no-edit", "main"]).unwrap();
     p.deliver(&wt, "work/bl-x", "main", "Add feature [bl-x]", "[bl-x]").unwrap();
-
-    // `git merge <sha>` records "Merge commit '<sha>'"; `git merge main` would
-    // have recorded "Merge branch 'main'".
-    let fold = Project::run(&root, &["log", "-1", "--format=%s", "work/bl-x"]).unwrap();
-    assert_eq!(fold.trim(), format!("Merge commit '{pinned}' into work/bl-x"));
     assert_eq!(tip(&root), "Add feature [bl-x]");
+    assert_eq!(Project::run(&root, &["show", "main:feature.txt"]).unwrap(), "shipped\n");
+    assert_eq!(Project::run(&root, &["show", "main:late.txt"]).unwrap(), "landed meanwhile\n");
 }
 
 #[test]
-fn deliver_surfaces_a_conflict_as_an_error() {
+fn a_conflicting_target_advance_gives_the_same_refusal_and_never_attempts_a_merge() {
+    // Acceptance 2: the conflicting advance is not a distinct outcome any more.
+    // Delivery never runs a merge, so there is no conflict for it to surface,
+    // no MERGE_HEAD to abort, and no `merge --abort` to get wrong — the same
+    // stale-source refusal fires one step earlier than the old fold ever ran.
     let (tmp, root, p) = project();
     let wt = tmp.path().join("wt");
     p.materialize(&wt, "work/bl-x").unwrap();
     fs::write(wt.join("seed.txt"), "from work\n").unwrap();
     Project::run(&wt, &["commit", "-qam", "work edit"]).unwrap();
-    // Integration moves the same line — the squash can't merge cleanly.
+    // Integration moves the SAME line — a fold here would have conflicted.
     fs::write(root.join("seed.txt"), "from main\n").unwrap();
     Project::run(&root, &["commit", "-qam", "main edit"]).unwrap();
 
     let pinned = Project::run(&root, &["rev-parse", "main"]).unwrap().trim().to_string();
     let err = p.deliver(&wt, "work/bl-x", "main", "clash [bl-x]", "[bl-x]").unwrap_err();
-    // The fold consumes a SHA now (bl-9522), so the voice names BOTH: the branch
-    // the operator thinks in, and the pinned tip that actually conflicted.
     let msg = err.to_string();
-    assert!(msg.starts_with(&format!("delivery conflict merging main (pinned at {pinned}) into the work branch: ")), "{msg}");
-    // The half-merge was aborted: no MERGE_HEAD pending, the worktree is clean
-    // for the agent to reintegrate by hand.
+    assert!(msg.contains(&format!("main (pinned at {pinned}) is not yet in work/bl-x")), "{msg}");
+    assert!(!msg.contains("delivery conflict"), "delivery attempted no merge: {msg}");
+    // No half-merge left behind, worktree untouched, integration unmoved.
     assert!(!Project::ok(&wt, &["rev-parse", "--verify", "--quiet", "MERGE_HEAD"]).unwrap());
     assert!(Project::ok(&wt, &["diff", "--quiet", "HEAD"]).unwrap());
+    assert_eq!(tip(&root), "main edit");
+}
+
+#[test]
+fn the_recursive_edge_refuses_a_stale_source_at_every_depth() {
+    // Acceptance 3: A has close-gating children AA and AB, both forked from
+    // work/bl-a. AA closes into work/bl-a first — so AB's TARGET has moved, on
+    // a file AB never touched. Git could merge it cleanly; delivery refuses all
+    // the same, because `child -> work/<parent>` is the same edge as
+    // `root -> integration` and obeys the same law. Once AB incorporates its
+    // target it closes, A accumulates both, and A's own close lands on main.
+    let (tmp, root, p) = project();
+    let (aa, ab) = (tmp.path().join("aa"), tmp.path().join("ab"));
+    p.mint("work/bl-a", "main").unwrap(); // the lazy mint the first child's claim does
+    for (wt, branch) in [(&aa, "work/bl-aa"), (&ab, "work/bl-ab")] {
+        p.mint(branch, "work/bl-a").unwrap(); // the nested fork: off the TARGET, not main
+        p.materialize(wt, branch).unwrap();
+    }
+    fs::write(aa.join("aa.txt"), "first child\n").unwrap();
+    fs::write(ab.join("ab.txt"), "second child\n").unwrap();
+
+    p.deliver(&aa, "work/bl-aa", "work/bl-a", "AA [bl-aa]", "[bl-aa]").unwrap();
+    assert_eq!(Project::run(&root, &["log", "-1", "--format=%s", "work/bl-a"]).unwrap().trim(), "AA [bl-aa]");
+    assert_eq!(tip(&root), "seed"); // delivered, not landed
+
+    let err = p.deliver(&ab, "work/bl-ab", "work/bl-a", "AB [bl-ab]", "[bl-ab]").unwrap_err();
+    assert!(err.to_string().contains("is not yet in work/bl-ab"), "{err}");
+    assert!(err.to_string().contains("Merge or rebase work/bl-a"), "{err}");
+    assert_eq!(Project::run(&root, &["log", "-1", "--format=%s", "work/bl-a"]).unwrap().trim(), "AA [bl-aa]");
+
+    // AB incorporates its target and closes; the epic accumulates both.
+    Project::run(&ab, &["merge", "-q", "--no-edit", "work/bl-a"]).unwrap();
+    p.deliver(&ab, "work/bl-ab", "work/bl-a", "AB [bl-ab]", "[bl-ab]").unwrap();
+    assert_eq!(Project::run(&root, &["log", "-1", "--format=%s", "work/bl-a"]).unwrap().trim(), "AB [bl-ab]");
+
+    // A itself is parentless: main never moved under it, so its close lands the
+    // accumulated children as ONE commit with no reconciliation of its own.
+    let a = tmp.path().join("a");
+    p.materialize(&a, "work/bl-a").unwrap();
+    p.deliver(&a, "work/bl-a", "main", "The epic [bl-a]", "[bl-a]").unwrap();
+    assert_eq!(tip(&root), "The epic [bl-a]");
+    assert_eq!(Project::run(&root, &["show", "main:aa.txt"]).unwrap(), "first child\n");
+    assert_eq!(Project::run(&root, &["show", "main:ab.txt"]).unwrap(), "second child\n");
+    assert_eq!(Project::run(&root, &["rev-list", "--count", "main"]).unwrap().trim(), "2");
 }
 
 #[test]

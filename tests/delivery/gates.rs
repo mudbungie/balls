@@ -10,9 +10,10 @@
 //! - A `MERGE_HEAD` half-merge in the work worktree (bl-33db): delivery refuses
 //!   to conclude it (capture would silently resolve every conflict work-side —
 //!   the resurrection door) and names the risk.
-//! - A reintegration conflict when integration advanced after claim
-//!   (modify/delete included, bl-a04a): the strict fold aborts loudly, `merge
-//!   --abort` leaves the worktree clean, and no squash reaches `main`.
+//! - A target that advanced after claim, clean or conflicting (bl-a1a4): the
+//!   source is STALE, and delivery refuses before it merges, gates, squashes or
+//!   moves a ref. Reconciliation is the source owner's; delivery only validates
+//!   the tree they tested and advances the target to it.
 
 #![cfg(unix)]
 
@@ -79,7 +80,7 @@ fn claimed() -> (TempDir, std::path::PathBuf, std::path::PathBuf, std::path::Pat
 #[test]
 fn a_failing_pre_commit_hook_aborts_before_the_seal_with_the_worktree_up() {
     // bl-ee85: the squash is plumbing and would bypass the porcelain pre-commit
-    // gate; delivery restores it on the reintegrated tree. A failing hook aborts
+    // gate; delivery restores it on the tree it is about to land. A failing hook aborts
     // the close BEFORE the seal — main never moves and the worktree stays up for
     // the fix, so core (which seals only on a clean close.pre) leaves the task
     // claimed.
@@ -116,8 +117,8 @@ fn a_passing_pre_commit_hook_delivers() {
 
 #[test]
 fn a_merge_head_in_the_work_worktree_refuses_naming_the_bl_33db_resurrection() {
-    // The agent left a half-merge (started a reintegration by hand, never
-    // finished). capture's `add -A` + commit over a MERGE_HEAD would CONCLUDE it,
+    // The agent left a half-merge (started reconciling the target by hand,
+    // never finished). capture's `add -A` + commit over a MERGE_HEAD would CONCLUDE it,
     // silently resolving every modify/delete work-side — the bl-33db
     // resurrection. Delivery refuses and names the risk; main never moves.
     let (tmp, home, root, wt) = claimed();
@@ -151,41 +152,53 @@ fn a_merge_head_in_the_work_worktree_refuses_naming_the_bl_33db_resurrection() {
 }
 
 #[test]
-fn a_content_reintegration_conflict_aborts_loudly_and_leaves_the_worktree_clean() {
-    // Integration advanced with a change that collides with the work branch after
-    // claim. The strict fold (git's default merge, no side-picking) hits a
-    // content conflict; delivery `merge --abort`s and surfaces it — the worktree
-    // is restored clean and no squash reaches main.
+fn a_clean_target_advance_refuses_then_delivers_once_the_closer_incorporates_it() {
+    // Acceptance 1 (bl-a1a4). `main` advanced on a file the work branch never
+    // touched — git would have folded it in silently, and the gate would then
+    // have run on a tree nobody had ever built. Delivery refuses instead, and
+    // the retry lands only after the closer merged and tested it themselves.
     let (tmp, home, root, wt) = claimed();
     let inv = root.to_str().unwrap();
-    fs::write(wt.join("seed.txt"), "work version\n").unwrap();
+    fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
     git(&wt, &["add", "-A"]);
-    git(&wt, &["commit", "-qm", "work edits seed"]);
+    git(&wt, &["commit", "-qm", "work adds feature"]);
 
-    fs::write(root.join("seed.txt"), "main version\n").unwrap();
+    fs::write(root.join("disjoint.txt"), "landed meanwhile\n").unwrap();
     git(&root, &["add", "-A"]);
-    git(&root, &["commit", "-qm", "main edits seed"]);
+    git(&root, &["commit", "-qm", "main gains a disjoint file"]);
     let before = out(&root, &["rev-list", "--count", "main"]);
+    let branch_before = out(&root, &["rev-parse", "work/bl-x"]);
 
     let change = change_dir(tmp.path(), "change");
     delivery(&change, &home, "close", "pre", &pre(inv, "Add feature"))
         .assert()
         .failure()
         .code(1)
-        .stderr(contains("delivery conflict merging main"));
+        .stderr(contains("stale source"))
+        .stderr(contains("is not yet in work/bl-x"))
+        .stderr(contains("Merge or rebase main into the work/bl-x worktree"));
 
-    assert_eq!(main_subject(&root), "main edits seed", "no squash on a conflicting fold");
+    assert_eq!(main_subject(&root), "main gains a disjoint file", "the target ref never moved");
     assert_eq!(out(&root, &["rev-list", "--count", "main"]), before, "main gained no commit");
-    assert!(!has_merge_head(&wt), "the aborted fold left no half-merge");
-    assert_eq!(out(&wt, &["status", "--porcelain"]), "", "the worktree is left clean");
+    assert_eq!(out(&root, &["rev-parse", "work/bl-x"]), branch_before, "no merge commit was created");
+    assert!(!has_merge_head(&wt), "delivery started no merge");
+
+    // The closer reconciles in their own worktree, then closes.
+    git(&wt, &["merge", "-q", "--no-edit", "main"]);
+    let change = change_dir(tmp.path(), "change-retry");
+    delivery(&change, &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
+    assert_eq!(main_subject(&root), "Add feature [bl-x]");
+    assert_eq!(out(&root, &["show", "main:disjoint.txt"]), "landed meanwhile");
+    assert_eq!(out(&root, &["show", "main:feature.txt"]), "shipped");
 }
 
 #[test]
-fn a_modify_delete_reintegration_conflict_aborts_without_a_squash() {
-    // The bl-33db shape: work DELETES a file integration then MODIFIES. git's
-    // default merge marks a modify/delete conflict (no strategy side-picks it
-    // away); the strict fold aborts rather than resolving it work-side, so the
-    // deletion is never silently overturned onto main.
+fn a_conflicting_target_advance_refuses_identically_and_leaves_no_half_merge() {
+    // Acceptance 2, in the bl-33db shape: work DELETES a file the target then
+    // MODIFIES. That used to reach delivery's own fold and abort on the
+    // modify/delete conflict. Now the advance alone refuses it — same voice as
+    // the clean advance, because delivery never attempted reconciliation in
+    // either case and so has no conflict of its own to report.
     let (tmp, home, root, wt) = claimed();
     let inv = root.to_str().unwrap();
     git(&wt, &["rm", "-q", "seed.txt"]);
@@ -203,11 +216,12 @@ fn a_modify_delete_reintegration_conflict_aborts_without_a_squash() {
         .assert()
         .failure()
         .code(1)
-        .stderr(contains("delivery conflict merging main"));
+        .stderr(contains("stale source"))
+        .stderr(contains("is not yet in work/bl-x"));
 
-    assert_eq!(main_subject(&root), "main modifies seed", "no squash on a modify/delete fold");
+    assert_eq!(main_subject(&root), "main modifies seed", "no squash on a stale source");
     assert_eq!(out(&root, &["rev-list", "--count", "main"]), before, "main gained no commit");
-    assert!(!has_merge_head(&wt), "the aborted fold left no half-merge");
-    assert_eq!(out(&wt, &["status", "--porcelain"]), "", "the worktree is left clean");
-    assert!(!wt.join("seed.txt").exists(), "the abort restores the work-side deletion");
+    assert!(!has_merge_head(&wt), "delivery started no merge, so none is half-done");
+    assert_eq!(out(&wt, &["status", "--porcelain"]), "", "the worktree is untouched");
+    assert!(!wt.join("seed.txt").exists(), "the work-side deletion stands");
 }

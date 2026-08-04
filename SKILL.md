@@ -69,9 +69,13 @@ or you collide with another agent.
 - **Status is derived, never stored.** A task has no `status` field; `ready` /
   `blocked` / `claimed` are computed on read (see `bl list --skill`). A closed
   task has no file — absence is the record.
-- **Close is gated by the repo's own `pre-commit` hook.** Delivery folds `main`
-  in first, then runs the hook; a failure aborts the close and leaves the task
-  claimed for the fix.
+- **You reconcile, close validates.** Delivery never merges the target for you:
+  if `main` moved and is not yet in `work/<id>`, close refuses (naming the ref
+  and its pinned sha) before merging, gating or squashing anything — merge or
+  rebase it into your worktree, resolve, test there, close again. Clean advances
+  refuse too; "git could have merged it" is not the test.
+- **Close is gated by the repo's own `pre-commit` hook**, run on that exact tree;
+  a failure aborts the close and leaves the task claimed for the fix.
 - **Close refuses a task file you haven't seen.** If someone edited the task
   since your own last touch, `bl close` refuses once and prints the unseen
   diff; a bare re-run then seals exactly that content (`bl close --skill`).

@@ -8,17 +8,18 @@
 //! as `update-ref`'s COMPARE-AND-SWAP old-value (`commit_swap`), so the write
 //! lands only while `integration` still points there; if a sibling close moved it
 //! in between, git rejects the write (exit != 0) and delivery aborts LOUDLY
-//! pre-seal — nothing overwritten, the task stays claimed, the retried close
-//! re-folds the moved tip and re-squashes onto it (§14 converge-on-retry).
+//! pre-seal — nothing overwritten, the task stays claimed. The retried close then
+//! REFUSES as a stale source (bl-a1a4) until the loser incorporates the winner's
+//! tip in their own worktree and tests it there; that retry converges (§14).
 //!
 //! This test makes the interleave DETERMINISTIC, not timing-based: a `git` shim on
 //! PATH freezes actor A precisely at its delivery `update-ref refs/heads/main`,
 //! AFTER A has computed its stale parent and its squash. While A is frozen, actor
 //! B closes to completion and lands on main. Releasing A now runs its CAS with the
 //! stale old-value — git REJECTS it, A's close exits non-zero and stays claimed,
-//! and B's squash is untouched. A retried close of A (no shim) then re-folds B's
-//! tip and delivers onto it, so BOTH squashes end as ancestors of final main —
-//! nothing dropped.
+//! and B's squash is untouched. A's next close (no shim) REFUSES the stale source;
+//! once A merges B's tip into its own worktree it delivers onto it, so BOTH
+//! squashes end as ancestors of final main — nothing dropped.
 
 #![cfg(unix)]
 
@@ -164,8 +165,9 @@ fn claim_and_work(root: &Path, home: &Path, xdg: &Xdg, inv: &str, id: &str, titl
     wt
 }
 
-/// Run a close.pre foreground to completion (actor B — no block), asserting success.
-fn close_now(change: &Path, home: &Path, inv: &str, id: &str, title: &str) {
+/// Run a close.pre foreground to completion (no block), returning
+/// `(succeeded, stderr)` — the refusal path reads the voice, not just the code.
+fn close_pre(change: &Path, home: &Path, inv: &str, id: &str, title: &str) -> (bool, String) {
     let bin = assert_cmd::cargo::cargo_bin("bl-delivery");
     let mut c = Command::new(&bin)
         .current_dir(change)
@@ -175,11 +177,20 @@ fn close_now(change: &Path, home: &Path, inv: &str, id: &str, title: &str) {
         .args(["close", "pre"])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::piped())
         .spawn()
         .unwrap();
     c.stdin.take().unwrap().write_all(pre(inv, id, title).as_bytes()).unwrap();
-    assert!(reap(&mut c, 60).expect("actor B close.pre hung").success(), "actor B close.pre failed");
+    let mut err = String::new();
+    let mut pipe = c.stderr.take().unwrap();
+    std::io::Read::read_to_string(&mut pipe, &mut err).unwrap();
+    (reap(&mut c, 60).expect("close.pre hung").success(), err)
+}
+
+/// [`close_pre`] asserting success — the ordinary delivering close.
+fn close_now(change: &Path, home: &Path, inv: &str, id: &str, title: &str) {
+    let (ok, err) = close_pre(change, home, inv, id, title);
+    assert!(ok, "close.pre {id} failed: {err}");
 }
 
 #[test]
@@ -251,8 +262,16 @@ fn concurrent_closes_in_one_clone_abort_the_loser_and_keep_both_deliveries() {
     assert_eq!(out(&root, &["rev-parse", "main"]), b_tip, "the rejected CAS left B's squash on main");
     assert!(!git_ok(&root, &["cat-file", "-e", "main:feat_a.txt"]), "A's stale squash never landed");
 
-    // A's task is still claimed (the abort never sealed), so a retried close — no
-    // shim now — re-folds B's tip into work/bl-a and delivers onto it.
+    // A's task is still claimed (the abort never sealed). Its retry — no shim
+    // now — REFUSES: a lost CAS does not license delivery to reconcile on A's
+    // behalf, and B's tip is not in work/bl-a (bl-a1a4).
+    let (ok, err) = close_pre(&change_a, &home, &inv, "bl-a", "Feature A");
+    assert!(!ok, "the retry must refuse a stale source");
+    assert!(err.contains("stale source") && err.contains("work/bl-a"), "{err}");
+    assert_eq!(out(&root, &["rev-parse", "main"]), b_tip, "the refusal moved nothing");
+
+    // A incorporates B's tip in its OWN worktree, tests there, and closes.
+    git(&worktree_path(&xdg, "delivery", &inv, "bl-a"), &["merge", "-q", "--no-edit", "main"]);
     close_now(&change_a, &home, &inv, "bl-a", "Feature A");
 
     // BOTH deliveries survive: final main carries [bl-a] on top of B's [bl-b],

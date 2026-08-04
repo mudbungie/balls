@@ -1068,17 +1068,20 @@ self-merge default DELIVER and RETIRE are one act:
   the current work-worktree gitdir. Cleanup is structural: worktree tokens die with the §11
   teardown, a successful close deletes what it consumed, `bl prime` sweeps store tokens naming
   absent task files (absence is the closed-record — a dead token is self-identifying debris).
-- `close.pre`: the delivery plugin DELIVERS — folds integration into `work/<id>`, runs the
-  project repo's pre-commit hook on the merged tree (the delivery gate, §11 — a failing gate aborts the
-  close here, pre-seal), then squashes `work/<id>` → integration (conflicts
-  surface HERE). The ref move is a COMPARE-AND-SWAP on the PINNED FOLD BASE — the integration tip
-  read ONCE before the fold, the single value that is also what the fold merges, the squash's parent
+- `close.pre`: the delivery plugin DELIVERS — REQUIRES integration to be incorporated in
+  `work/<id>` already (the ANCESTRY PRECONDITION, bl-a1a4: reconciliation is the source owner's job;
+  a stale source is refused before anything merges, gates, squashes or moves a ref), runs the
+  project repo's pre-commit hook on that exact tree (the delivery gate, §11 — a failing gate aborts the
+  close here, pre-seal), then squashes `work/<id>` → integration. The ref move is a
+  COMPARE-AND-SWAP on the PINNED TARGET TIP — the integration tip
+  read ONCE, the single value that is also the precondition's comparison point, the squash's parent
   and the no-resurrection comparison point (bl-a3bb, bl-8b89, bl-9522) — so two closes sharing one
   checkout never
-  clobber each other, even across the whole gate run: a lost race aborts loudly pre-seal and the
-  retry re-folds. The delivery reads `integration` exactly once and acts on that COMMIT thereafter;
-  the branch NAME survives only in the voice (*delivery conflict merging `main` (pinned at `<sha>`)
-  into the work branch*), because the operator thinks in branches and the delivery acts on a commit. The squash is the delivery's BINDING commit point (§14): it stands through any
+  clobber each other, even across the whole gate run: a lost race aborts loudly pre-seal, and the
+  retry meets the precondition and refuses until the loser incorporates the winner's tip and tests
+  it. The delivery reads `integration` exactly once and acts on that COMMIT thereafter;
+  the branch NAME survives only in the voice (*stale source: `main` (pinned at `<sha>`) is not yet
+  in `work/<id>`*), because the operator thinks in branches and the delivery acts on a commit. The squash is the delivery's BINDING commit point (§14): it stands through any
   later abort, and the retried close converges onto it. One path, no forge variant: a
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
   already-delivered check (§11) — delivery converges on retry whoever performed the merge.
@@ -1380,13 +1383,17 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   worktree (re-materialized if absent): CAPTURE any pending work onto `work/<id>` (`--no-verify` —
   the gate runs once, below, not per-capture; capture REFUSES a worktree with a merge in progress,
   bl-a04a — its `add -A` + commit would CONCLUDE the half-merge, silently resolving every
-  modify/delete work-side: the bl-33db resurrection path); FOLD integration into the branch — a
-  real merge, so the tree gated next IS the tree that lands even when integration moved since
-  claim, and STRICT (bl-a04a): git's DEFAULT merge, no `-X`/strategy side-picking ever rides it,
-  and anything git marks conflicted — modify/delete and rename/delete included — aborts the
-  half-merge and the close. Delivery never resolves a fold conflict; resolving is the AGENT's job,
-  and their resolution merge commit is ordinary work on `work/<id>`; GATE — run the project repo's
-  own **pre-commit hook**
+  modify/delete work-side: the bl-33db resurrection path); REQUIRE the pinned target tip to be an
+  ANCESTOR of the branch already — the ancestry precondition (bl-a1a4). Delivery is a validation and
+  atomic-advance boundary, NEVER a merge queue: it does not fold integration in, because a fold it
+  can resolve gates a tree no human ever built and a fold it cannot is the only advance that would
+  have stopped the close — both are the same mistake, and only the source owner can decide what
+  incorporating the target MEANS. A stale source is refused BEFORE any merge, gate, squash or
+  target-ref move, naming S, T and the pinned P and prescribing the remedy: merge or rebase the
+  target into the source worktree, resolve and test THERE, then retry. A clean, disjoint advance
+  refuses exactly like a colliding one — "git could have merged it" is not the test. The closer's
+  reconciling merge commit is then ordinary work on `work/<id>`; GATE — run the project repo's
+  own **pre-commit hook** on the exact source tree
   (bl-ee85: the squash is plumbing, so without this a close bypasses the hook every porcelain
   commit runs; resolved as git resolves it — `core.hooksPath` honored — and skipped as git skips
   it — absent or non-executable hook = ungated project, delivers as before; a failure aborts the
@@ -1424,9 +1431,9 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   budget, cut on a whole-message boundary and saying how many it dropped — no graph bound can shrink the
   set (`A..B` is already `merge-base(A,B)..B`), so a force-push REWRITE of integration under a live work
   branch makes orphaned upstream history indistinguishable from authored work. The squash is guarded by the NO-RESURRECTION INVARIANT (bl-a04a): the squash's
-  changed paths (diff vs the integration tip) must be a subset of the paths authored on `work/<id>`
-  since its fork — every non-merge commit's changed paths plus each fold merge commit's resolution
-  paths (its combined `--cc` diff; a fold-conflict resolution IS a work commit, so it counts). An
+  changed paths (diff vs the pinned target tip) must be a subset of the paths authored on `work/<id>`
+  since its fork — every non-merge commit's changed paths plus each reconciling merge commit's
+  resolution paths (its combined `--cc` diff; a conflict resolution IS a work commit, so it counts). An
   excess path means the squash carries something the task never wrote — a resurrection or a leak —
   and aborts the close NAMING the path. Pure plumbing: two `--name-only` path-set compares over
   existing refs, zero new state (derive-don't-store, §0). The delivery destination is the task's TARGET REF, derived per op and never stored (bl-7b71,
@@ -1434,7 +1441,10 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   a `{this, on: close}` edge on X) targets `work/<X>`; every other task targets the integration
   branch (the plugin's own `HEAD@project-repo` default — never hardcoded to `main`). `claim` forks
   the target (minting `work/<X>` at the integration head if it does not exist yet — a bare ref, no
-  worktree, nothing to orphan), `close` folds it in, gates, and squashes back onto it. Flat delivery
+  worktree, nothing to orphan), `close` requires it incorporated, gates, and squashes back onto it.
+  The ancestry precondition is FRACTAL: `child -> work/<parent>` and `root -> integration` are one
+  operation, so a sibling that closed into an epic makes the next sibling's source stale exactly as
+  a landing on main does. Flat delivery
   is the degenerate case — main is what a PARENTLESS ball targets — and depth recurses for free.
   The derivation is a GRAPH fact and lives in core: the gating edge sits on the PARENT's task file,
   which the kind-blind plugin never sees (§7 carries the ball's own state), so a plugin re-deriving
@@ -2240,6 +2250,27 @@ OPEN:
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **delivery stopped reconciling: the automatic fold is REMOVED, replaced by an ancestry precondition
+  (2026-08-02, bl-a1a4 — post-freeze).** Close centralized reconciliation: `deliver` ran
+  `git merge <pinned-target>` inside the delivery, so a clean target advance was merged
+  automatically and only a conflicting one stopped the close. That is a merge queue, and it is not
+  the scalable law. A fold delivery CAN resolve gates a tree no human ever built; a fold it CANNOT
+  is the only advance the close ever refused — same mistake, two faces, and in both the party that
+  knows what incorporating the target MEANS is the source owner, not the close. Delivery is now a
+  validation and atomic-advance boundary only: pin `P = tip(T)` once, REQUIRE `P` to be an ancestor
+  of `tip(S)` already, refuse a stale source before any merge/gate/squash/ref-move naming S, T and P
+  and prescribing the remedy (merge or rebase the target into the source worktree, resolve and test
+  THERE, then retry), gate the exact source tree, mint the tagged squash on `P`, CAS `T` from `P`.
+  A clean disjoint advance refuses exactly like a colliding one — "git could have merged it" is not
+  the test. Fractal by construction: `child -> work/<parent>` and `root -> integration` are one
+  operation, so a sibling closing into an epic makes the next sibling's source stale exactly as a
+  landing on main does, and the mid-gate CAS loser is simply stale on its retry. NOTE this SUPERSEDES
+  the fold-shaped wording of the bl-ea55 entry above and of bl-8b89/bl-9522: the single pinned read
+  survives and does more work than before (precondition point, squash parent, no-resurrection base,
+  CAS old-value), but nothing folds it in. Everything else stands — half-merge refusal, pending-work
+  capture, the gate, the tagged one-commit squash, the no-resurrection check, settled/forge/retry
+  convergence, teardown. No lease, no merge queue, no internal refold loop, no new verb. Touched §8
+  (close.pre), §11 (the delivery path), §15 (this entry).
 - **the auto-gen collision retry was SPECIFIED but never built; front-door ids now take a shape check
   (2026-07-26, bl-1fc4 — post-freeze; dissolves the bl-a2bc flake).** § id generation has always split
   collision by WHO chose the id — "auto-gen → retry (bounded); plugin-assigned → abort (an explicit

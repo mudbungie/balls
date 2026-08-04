@@ -216,6 +216,10 @@ fn a_ball_survives_grafting_a_second_root_into_the_projects_history() {
     bl(&project, &home, &state).args(["show", &id]).assert().success().stdout(contains("Multi-root"));
 
     let wt = stdout(bl(&project, &home, &state).args(["claim", &id, "--as", "me"]).assert().success());
+    // The re-claim reattaches the branch the FIRST claim made, which forked
+    // pre-graft — so its target has moved and delivery would refuse it as a
+    // stale source (bl-a1a4). Incorporating the graft is the closer's job.
+    git(Path::new(&wt), &["merge", "-q", "--no-edit", "main"]);
     fs::write(Path::new(&wt).join("done.txt"), "x\n").unwrap();
     git(Path::new(&wt), &["add", "-A"]);
     git(Path::new(&wt), &["commit", "-qm", &format!("work [{id}]")]);

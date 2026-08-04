@@ -10,7 +10,7 @@ use std::io;
 use std::path::Path;
 
 use crate::delivery::Repo;
-use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection};
+use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection, ensure_target_incorporated};
 use crate::delivery_message::subject_line;
 use crate::delivery_repo::Project;
 use crate::delivery_standing::Standing;
@@ -68,8 +68,8 @@ impl Repo for Project {
             return Ok(Vec::new()); // never worked → the caller falls back to the title
         }
         // `integration..branch` is the commits the work branch ADDED since it
-        // forked; `--no-merges` drops the reintegration fold (and any author
-        // hand-merge). `%B%x00` NUL-terminates each raw message so a multi-line
+        // forked; `--no-merges` drops the closer's own reconciling merges.
+        // `%B%x00` NUL-terminates each raw message so a multi-line
         // body never collides with the record boundary; the caller trims/filters.
         let range = format!("{integration}..{branch}");
         let out = Self::run(&self.root, &["log", "--no-merges", "--reverse", "--format=%B%x00", &range])?;
@@ -90,6 +90,15 @@ impl Repo for Project {
         // `message` is unbounded author text; `label` is its one-line handle —
         // the only form that may ride argv or a reflog (bl-a500).
         let label = subject_line(message);
+        // Capture first, and BEFORE the ancestry precondition below — not an
+        // exception to it but its precondition in turn. Standing is read off
+        // refs, so uncommitted work must be on the branch before it is
+        // classified or a dirty worktree over an unmoved target reads Settled
+        // and its work is never delivered. And the remedy the precondition
+        // prescribes is `git merge <target>` in this very worktree, which git
+        // refuses over local modifications. Committing the closer's own pending
+        // work onto the closer's own branch merges nothing and moves no target
+        // ref, so it is outside what the precondition forbids ahead of itself.
         if path.exists() {
             ensure_no_merge_in_progress(path)?;
             Self::capture(path, label)?;
@@ -121,30 +130,38 @@ impl Repo for Project {
             }
             Standing::Undelivered => {}
         }
-        // Reintegration and the gate both act in the worktree; a close on a box
-        // that never materialized it recreates it (create-if-absent).
-        self.materialize(path, branch)?;
-        // Pin the fold BASE before reintegration (bl-8b89): the tree the gate
-        // checks and the squash delivers is derived from THIS tip, so this one
-        // value must serve as the squash parent, the CAS old-value, and the
-        // no-resurrection comparison point. Re-reading the ref after the gate
-        // validated only "integration has not moved since a moment ago" —
-        // letting a mid-gate sibling landing either false-fire the resurrection
-        // invariant (its paths look like excess) or, when its paths were a
-        // subset of this branch's authored set, pass every guard and be
-        // SILENTLY REVERTED by a squash computed from the pre-move fold.
-        // It is also the ONLY read of `integration` the delivery makes (bl-9522):
-        // the fold consumes this SHA, not the ref name, so there is no second
-        // read to disagree with the pin.
+        // Pin the target tip ONCE (bl-8b89): this single value is the ancestry
+        // precondition's comparison point, the squash parent, the CAS
+        // old-value, and the no-resurrection comparison point. Re-reading the
+        // ref after the gate validated only "integration has not moved since a
+        // moment ago" — letting a mid-gate sibling landing either false-fire
+        // the resurrection invariant (its paths look like excess) or, when its
+        // paths were a subset of this branch's authored set, pass every guard
+        // and be SILENTLY REVERTED by a squash computed from the pre-move tree.
+        // It is the ONLY read of `integration` the delivery makes (bl-9522), so
+        // there is no second read to disagree with the pin; the branch NAME
+        // survives in the voice alone.
         let base = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
-        Self::reintegrate(path, integration, &base)?;
+        // THE PRECONDITION (bl-a1a4). Delivery is a validation and atomic-advance
+        // boundary, never a merge queue: the source must ALREADY carry the
+        // pinned target. Refused here, nothing has merged, gated, squashed or
+        // moved a ref — the closer reconciles in their own worktree, tests
+        // there, and retries. This is where the automatic fold used to be.
+        ensure_target_incorporated(&self.root, branch, integration, &base)?;
+        // The gate acts in the worktree; a close on a box that never
+        // materialized it recreates it (create-if-absent).
+        self.materialize(path, branch)?;
         if Self::ok(&self.root, &["diff", "--quiet", &base, branch])? {
-            return Ok(()); // no tree change — empty, or reintegration dissolved the diff
+            // NO INCOMING DIFF: incorporating the source into the target would
+            // be a no-op — an empty deliverable, or a source whose whole content
+            // reached the target another way. `T..S` is the work product, and
+            // here it is empty.
+            return Ok(());
         }
         Self::gate(path)?;
         ensure_no_resurrection(&self.root, branch, &base)?;
-        // After reintegration the branch tree IS the merged tree — the squash
-        // is pure plumbing on it, never touching integration's checkout.
+        // The branch tree already contains the target, so the squash is pure
+        // plumbing on it, never touching integration's checkout.
         let tree = format!("{branch}^{{tree}}");
         let tree = Self::run(&self.root, &["rev-parse", &tree])?.trim().to_string();
         // `-F -`: the message goes down STDIN. As a `-m` argument it died at
@@ -160,8 +177,8 @@ impl Repo for Project {
 
 /// COMPARE-AND-SWAP the integration ref onto the fresh squash (bl-a3bb).
 ///
-/// `parent` is the PINNED fold base (bl-8b89) — the `integration` tip read
-/// before reintegration, i.e. the tip the gated tree was derived from — and
+/// `parent` is the PINNED target tip (bl-8b89) — the `integration` tip read
+/// once, before the ancestry precondition, i.e. the tip the gated tree carries — and
 /// `commit` was minted onto it; passing it as `update-ref`'s optional old-value
 /// makes the ref move CONDITIONAL — git writes only while `integration` still
 /// points there. Two closes sharing one project checkout race the whole window
@@ -172,9 +189,11 @@ impl Repo for Project {
 /// sat inside this branch's authored set passed the CAS and was silently
 /// reverted by the pre-move squash tree. A rejected CAS is a LOUD pre-seal abort
 /// — nothing overwritten, the task stays claimed and the worktree stays up; the
-/// retried close re-folds the moved integration and re-squashes onto its new tip
-/// (§14 converge-on-retry), exactly as a gate failure or a merge conflict
-/// aborts. `parent` is always a real commit here (the `rev-parse integration`
+/// retried close then meets the ancestry precondition (bl-a1a4) and REFUSES
+/// until the closer incorporates the new tip and tests it, exactly as it would
+/// had the sibling landed before the delivery began. Convergence on retry is
+/// preserved (§14); what is not preserved is delivery re-folding on the
+/// closer's behalf. `parent` is always a real commit here (the `rev-parse integration`
 /// pin errored otherwise), so the empty old-value / first-commit form never
 /// arises.
 ///
@@ -191,7 +210,7 @@ pub(crate) fn commit_swap(root: &Path, integration: &str, subject: &str, commit:
     }
     Err(io::Error::other(format!(
         "{integration} moved under the delivery — a concurrent close landed between the squash \
-         and the ref move; nothing was overwritten. Re-run `bl close` to re-fold {integration} \
-         and deliver onto the new tip"
+         and the ref move; nothing was overwritten. Merge the new {integration} tip into your \
+         work worktree, resolve and test there, then re-run `bl close`"
     )))
 }
