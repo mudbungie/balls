@@ -5,6 +5,10 @@ updated = 1785997249
 claimant = "Foregoes"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-c2e6"
+on = "close"
 +++
 A fresh agent primes and learns nothing about THIS repo. `bl prime --skill`: "It prints no listing of its own." The repo's hard-won rules exist and are correct, but balls never hands them over — today AGENTS.md fills the hole only because the harness happens to load it. Point balls at a repo whose harness does not, and the tracker says nothing.
 
