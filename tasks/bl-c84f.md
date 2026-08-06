@@ -1,7 +1,8 @@
 +++
 title = "PRIME.md: prime dumps the landing's repo brief (agent context bootstrap)"
 created = 1785997125
-updated = 1785997125
+updated = 1785997249
+claimant = "Foregoes"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
