@@ -922,6 +922,14 @@ ordering was never special. Filters COMPOSE (AND):
 - `--all` — reach BOTH sets (live + dead). Closed balls are not gone, they are older content (§2):
   reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down. `-s closed` = dead
   only; `--all` = live + dead. (`-s closed` and `--all` both pick the dead set, so they don't combine.)
+  The dead reach is BATCHED and costs TWO git invocations at any store size (bl-4c08): one
+  `log --diff-filter=D --name-only` — which already names each deletion's sha and date — then one
+  `cat-file --batch` over every `<sha>^:tasks/<id>.md`. It shares `show`'s recency DISCIPLINE, not its
+  per-id walk: a per-id `git log` costs more the OLDER the ball is, and history grows with ball count,
+  so N of them is quadratic (measured on this repo's store, 395 dead over 1193 commits: 7.2s → 0.07s,
+  byte-identical output). This is the §0 rule in force, not an exception to it — the quadratic cost was
+  re-derivation of what one walk already knew, so it was DELETED. Nothing is stored, cached, or
+  indexed, and there is no second representation to drift.
 - `--everywhere` — LIFT the default ROOT scope. One store can serve many projects (bl-0161,
   `docs/design/bl-0161-cross-repo-work.md` Q2 "list shows what claim admits"): `list`'s default set is
   the claim-admitted set — balls stamped with THIS checkout's git root (create-time `root_commit`) plus
@@ -2282,6 +2290,25 @@ OPEN:
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **the dead-set read is BATCHED: two git invocations at any store size (2026-08-05, bl-4c08 —
+  post-freeze).** Raised as a scaling gap against a SQL-over-Dolt tracker: "a linear file walk plus
+  substring match gets slow in a way that is structural, not tunable." Half of that was wrong and half
+  was worse than claimed, and separating them is the point. The LIVE path was never the problem — 5000
+  balls is ~0.1s of open-and-parse, where an index buys nothing. The DEAD path was genuinely
+  quadratic, but not because of files: `dead_balls` ran one `log --diff-filter=D --name-only` to
+  enumerate every deletion, DISCARDED the sha it had just been handed, and then re-derived that same
+  sha per id with `git log -1 -- tasks/<id>.md` plus a `git show` — 791 subprocesses for 395 dead
+  balls. A per-id walk costs more the OLDER the ball is (measured: 0.002s newest, 0.030s oldest across
+  1193 commits) and history length grows with ball count, so the product is O(N²). Fixed by keeping
+  what the enumeration already knew (`--format=%H\x1f%ct` alongside `--name-only`) and resolving every
+  pre-deletion blob in ONE `cat-file --batch`: O(history + dead), 7.2s → 0.07s on this store,
+  byte-identical `--json` and human output. THE PRINCIPLE: a performance complaint is not automatically
+  an argument for a database or an index. §0's "never add an index unless indexing is the app" survived
+  intact here because the cost was redundant DERIVATION, and the fix was to delete it — no field, no
+  cache, no schema, nothing new to drift. `show`'s single-id `resolve_dead` is untouched: one walk for
+  one id is already right, and the two paths still share the reconstruction discipline (newest deletion
+  wins, content from the deletion's parent, date from the deletion commit) — what they stopped sharing
+  is plumbing. Touched §9 (the `--all` reach bullet), §15 (this entry).
 - **delivery stopped reconciling: the automatic fold is REMOVED, replaced by an ancestry precondition
   (2026-08-02, bl-a1a4 — post-freeze).** Close centralized reconciliation: `deliver` ran
   `git merge <pinned-target>` inside the delivery, so a clean target advance was merged

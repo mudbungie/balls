@@ -199,8 +199,17 @@ impl GitStore {
     /// Delete `tasks/<id>.md` as `op` (`close`, or a legacy `drop`) at unix `at` — the
     /// retirement commit the recency walk reads `bl-op:` and `retired_at` from.
     pub(crate) fn retire(&self, id: &str, op: &str, at: i64) -> &Self {
-        std::fs::remove_file(crate::taskfile::task_path(&self.dir, id)).unwrap();
-        self.commit(id, op, at);
+        self.retire_all(&[id], op, at)
+    }
+
+    /// Retire SEVERAL balls in ONE commit — the epic landing its children (§10).
+    /// The `bl-op` trailer names the first; the recency walk reads the DIFF, not
+    /// the trailer, so every deleted path belongs to this commit's date.
+    pub(crate) fn retire_all(&self, ids: &[&str], op: &str, at: i64) -> &Self {
+        for id in ids {
+            std::fs::remove_file(crate::taskfile::task_path(&self.dir, id)).unwrap();
+        }
+        self.commit(ids[0], op, at);
         self
     }
 
