@@ -18,6 +18,10 @@ use crate::usage;
 /// `no_tags`/`no_needs` drop a member, a `key=` empty extra removes it). Only
 /// `blocks` (a reciprocal edge on ANOTHER task) stays create-only.
 #[derive(Debug, Default, PartialEq, Eq)]
+// A boundary adapter: this MIRRORS argv, so each bool is one valueless flag the
+// operator typed. The lint's remedy — collapsing them into a state enum — would
+// invent a vocabulary the command line does not have.
+#[allow(clippy::struct_excessive_bools)]
 pub(super) struct Flags {
     pub actor: String,
     pub message: Option<String>,
@@ -44,6 +48,12 @@ pub(super) struct Flags {
     /// `update --edit` (§9): source the change from $EDITOR instead of the field
     /// flags — mutually exclusive with them (they would race over the payload).
     pub edit: bool,
+    /// `reopen --clean` (§9): restore the ball FRESH — drop the `claimant` the
+    /// close left behind. Opt-in, because a verbatim restore is the honest
+    /// default and stripping a field nobody asked to strip is unforced friction;
+    /// `claimant` is simply the one field a close can falsify (it named a
+    /// worktree close then destroyed). Reopen-only.
+    pub clean: bool,
     /// The per-op `--remote` store-remote override — the top tier of the ONE §12
     /// ladder, accepted by every mutating verb exactly as by `prime`/`sync`
     /// (bl-c2de). Ephemeral: it shapes this invocation's binding and persists
@@ -118,6 +128,7 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
             "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
             "--edit" => f.edit = true,
+            "--clean" => f.clean = true,
             // The per-op store-remote override, shared verbatim with prime/sync/import.
             "--remote" => f.remote = Some(value(args, &mut i, "--remote")?),
             flag if flag.starts_with('-') => return Err(usage(format!("unexpected flag '{flag}'"))),

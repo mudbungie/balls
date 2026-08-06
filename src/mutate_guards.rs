@@ -85,6 +85,20 @@ pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
     Ok(())
 }
 
+/// `--clean` names reopen's restore mode (drop the stale `claimant`), so it is
+/// meaningless on a verb that is not restoring anything. Checked ONCE, before the
+/// verb dispatch, rather than per-arm: it is one flag against one verb, and the
+/// other six would each need the same line.
+pub(super) fn forbid_clean_outside_reopen(flags: &Flags, verb: Verb) -> io::Result<()> {
+    if flags.clean && verb != Verb::Reopen {
+        return Err(crate::usage(format!(
+            "{}: --clean is reopen-only — it drops the stale claimant a close left on a restored ball",
+            verb.token()
+        )));
+    }
+    Ok(())
+}
+
 /// `update --edit` and the field-setting flags would race over the same payload
 /// (the buffer vs the flag values), so they are a clean either/or (§9): set
 /// fields OR hand-edit, never both.

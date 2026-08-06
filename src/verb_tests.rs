@@ -43,6 +43,7 @@ fn only_deliverable_verbs_are_mutating() {
         Verb::Update,
         Verb::Close,
         Verb::Import,
+        Verb::Reopen,
     ];
     for v in Verb::ALL {
         let expected = if mutating.contains(&v) {
