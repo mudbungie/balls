@@ -32,6 +32,7 @@ pub fn command(verb: Verb) -> &'static str {
         Verb::Update => include_str!("../skill/update.md"),
         Verb::Close => include_str!("../skill/close.md"),
         Verb::Import => include_str!("../skill/import.md"),
+        Verb::Reopen => include_str!("../skill/reopen.md"),
         Verb::Show => include_str!("../skill/show.md"),
         Verb::List => include_str!("../skill/list.md"),
         Verb::Prime => include_str!("../skill/prime.md"),

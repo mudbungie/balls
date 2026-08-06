@@ -895,7 +895,8 @@ deliberately NOT tied to `T`: local diagnostics stay honest even when the commit
 
 Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`** — plus
 **`import`**, the one mutating verb outside the lifecycle: it reproduces already-identified balls
-(the write inverse of the bedrock read; see below and §16).
+(the write inverse of the bedrock read; see below and §16), and **`reopen`**, the retirement's
+inverse: it restores a dead ball from history (the write half of the recency read; see below).
 There is **no `review` verb** — see "close" below.
 
 Read verbs (no seal, no change worktree — their hook keys run against the checkouts directly, §13):
@@ -1137,6 +1138,44 @@ in the same [source]-hint voice that decorates a capability refusal — **the hi
 no flag, no scope change, no refusal, and nothing an operator must know to configure. The root walk
 is lazy on §12's rule (skipped when no record carries a root) and runs only after the seal, so a
 refused stream pays nothing for a line it will never print.
+
+**`reopen`** (op `reopen`; bl-3628): restore a retired ball — write `tasks/<id>.md` back with the
+content it held the instant before its newest deletion. This is the **write half of a read that
+already exists**. §2 states the deletion is not a tombstone but older CONTENT, and every dead-ball
+read — `bl show <closed-id>`, `bl list -s closed/--all` — already reconstructs a ball through the ONE
+recency walk (`reads::resolve_dead`: newest `--diff-filter=D` commit for the path, content from its
+parent tree). Core could READ the dead set and not move one back across the line; that asymmetry is
+what this closes. It is **not a new state model**: § id generation already says an id is a sequence
+of incarnations with "at most one live at a time" (`mint` re-rolls off the LIVE set alone, so a dead
+id is legally reused), and that invariant needs no enforcement here — there is one path per ball, so
+a restore cannot produce two. The read side needed no change either: `dead_balls` already drops ids
+that are "live again".
+
+- **Content is INJECTED, not read at stage.** A [`BaseChange`] is git-free by construction, and the
+  ball exists only in history — so the reconstruction happens at AUTHORING, beside the clock and the
+  minted id, and hands the finished task to the change. That is also where both refusals live, which
+  is where they belong: a refusal there costs no change worktree and no plugin chain.
+- **Two refusals, and no third.** A LIVE id (a dead id may since have been re-minted to an unrelated
+  ball, so restoring over it would clobber a stranger — checked first, which is also what keeps the
+  second message honest), and an id that names nothing at all (no live ball, no deletion in history).
+- **Verbatim by default; `--clean` is the one opt-in.** `created`, `priority`, `tags`, `parent` and
+  the ball's `blockers` all come back untouched — they are still the operator's declarations, and an
+  unforced strip is friction. `updated` is restamped like every op (the restore IS a transition).
+  `--clean` drops exactly `claimant`: the ONE field a close can falsify, since it named a `work/<id>`
+  worktree the close then tore down. Not implicit, because "restore the record faithfully" and
+  "put it back on the ready list" are both legitimate and the operator says which. `bl unclaim` is
+  the same fix after the fact, so `--clean` buys ergonomics, not capability.
+- **`before` is `None`** on the §7 wire — the ball is dead at op start, so a `reopen.pre` plugin's
+  `current_state` is absent exactly as on `create`.
+- **Gated like any op** (§10): a blocker with `on = "reopen"` refuses it. No carve-out — `on` is ANY
+  op, so the verb's existence is what makes the edge expressible.
+
+Reopen restores the BALL and says nothing about the CODE. `close` squashed `work/<id>` onto the
+delivery target before it archived the task; that commit stands, and reverting it is an ordinary
+`git revert` — a separate, deliberate act. Conflating the two would be core holding an opinion about
+what reopening means, which is the operator's to hold. Nothing counts closes per ball: a reclaim
+reattaches a surviving `work/<id>` (§11) or forks fresh from the integration tip once `prime` has
+pruned it, and the second close is ordinary.
 
 **There is no `drop` verb** (deleted 2026-06-09, bl-65e0 — §15). Closing is the ONLY retirement, so
 a `--blocks close` gate guards every way a ball can die. Abandonment is the composite spelled out:
