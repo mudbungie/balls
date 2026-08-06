@@ -147,6 +147,16 @@ A closed task has **no file** (absence = resolved); its history is the record.
 To abandon a held task, `bl unclaim` then `bl close` — an empty worktree
 delivers no code, so a `close`-gate guards every way a task can die.
 
+**A close is not final.** Absence is older CONTENT, not a tombstone: `bl show
+<id>` still resolves a closed ball out of history, and piping that record back
+in reopens it —
+
+    bl show bl-1a2b --json | bl import
+
+There is no `reopen` verb because that round trip is one (`bl import --skill`,
+"Reopening a closed ball"). Note it restores the TASK only: the delivery squash
+this close landed stands, and undoing that is an ordinary `git revert`.
+
 Closing an **epic** is therefore gated by its subtasks: `--subtask-of E` mints a
 close-blocker on E, so `bl close E` is refused while any subtask is open, naming
 it. Children wired with bare `--parent` gate nothing — a close that leaves only

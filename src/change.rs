@@ -12,9 +12,7 @@
 //! [`Occupancy`] fixes `claimant` (claim carries two guards — the already-claimed
 //! refusal here, plus the §10 claim-blocker guard via [`crate::enforce`]),
 //! [`Retire`] stages the file DELETION, [`Update`] applies a generic
-//! [`FieldEdit`] list, and [`Reopen`] writes a retired ball's file back (its
-//! content reconstructed from history at authoring — see that module).
-//! Each mutating op runs the SAME op-keyed guard
+//! [`FieldEdit`] list. Each mutating op runs the SAME op-keyed guard
 //! ([`crate::enforce::gate`], §10/§15) for its own verb — `claim`/`close` via
 //! their named [`crate::enforce::claim`]/[`crate::enforce::close`] spellings, the
 //! rest (`unclaim`/`update`) directly — so a blocker on ANY op is honored.
@@ -40,12 +38,6 @@ use crate::verb::Verb;
 #[path = "change_create.rs"]
 mod create;
 pub use create::Create;
-
-// `reopen` (§9) — the retirement's inverse, whose content is reconstructed from
-// history at authoring and injected (this file's impls stay git-free).
-#[path = "change_reopen.rs"]
-mod reopen;
-pub use reopen::Reopen;
 
 /// `claim`/`unclaim` (§9): set or clear the one occupancy field. `claim` carries
 /// the one hardcoded guard; `unclaim` is its symmetric clear. "Claimed" is the

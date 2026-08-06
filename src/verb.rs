@@ -28,13 +28,6 @@ pub enum Verb {
     /// (migration, restore, federation join) is a distinct primitive from
     /// "mint a new one", which is exactly why `create` refuses foreign ids.
     Import,
-    /// §9 `bl reopen` — restore a dead ball's `tasks/<id>.md` from the newest
-    /// deletion's parent tree. The WRITE half of the recency read every dead-ball
-    /// lookup already shares ([`crate::reads::resolve_dead`]): a deletion is older
-    /// CONTENT, not a tombstone (§2), and an id is a SEQUENCE of incarnations with
-    /// one live at a time (§ id generation) — so moving one back across the line
-    /// needs no new state model, only the write that was missing.
-    Reopen,
     // Reads (§9): author no diff; their hook keys run against the checkouts.
     Show,
     List,
@@ -59,14 +52,13 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 13] = [
+    pub const ALL: [Verb; 12] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
         Verb::Update,
         Verb::Close,
         Verb::Import,
-        Verb::Reopen,
         Verb::Show,
         Verb::List,
         Verb::Prime,
@@ -84,7 +76,6 @@ impl Verb {
             Verb::Update => "update",
             Verb::Close => "close",
             Verb::Import => "import",
-            Verb::Reopen => "reopen",
             Verb::Show => "show",
             Verb::List => "list",
             Verb::Prime => "prime",
@@ -111,7 +102,6 @@ impl Verb {
             Verb::Update => "overwrite any field of a task",
             Verb::Close => "deliver the work and archive the task",
             Verb::Import => "bulk-create tasks from JSON on stdin (won't overwrite existing ids — use update to modify)",
-            Verb::Reopen => "restore a closed task from history",
             Verb::Show => "show one task in full",
             Verb::List => "list tasks (status, tag, and date filters)",
             Verb::Prime => "ready this checkout (run at session start)",
@@ -129,8 +119,7 @@ impl Verb {
             | Verb::Unclaim
             | Verb::Update
             | Verb::Close
-            | Verb::Import
-            | Verb::Reopen => OpClass::Mutating,
+            | Verb::Import => OpClass::Mutating,
             Verb::Show
             | Verb::List
             | Verb::Prime

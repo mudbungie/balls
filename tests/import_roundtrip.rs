@@ -210,3 +210,37 @@ fn minted_ids_match_the_scheme_and_never_duplicate() {
     }
     assert_eq!(ids.len(), want, "collected {want} distinct minted ids (took {attempts} attempts)");
 }
+
+#[test]
+fn the_round_trip_reopens_a_closed_ball_in_its_own_store() {
+    // The documented substitute for a `reopen` verb (bl-40f5): this store's OWN
+    // history is a source like any other, so `show --json | import` restores a
+    // retired ball. Nothing is undone — the close commit and the deletion both
+    // stand; a ball simply exists again carrying the id and content it had.
+    let tmp = TempDir::new().unwrap();
+    let s = Store::found(tmp.path(), "reopen");
+
+    let id = created_id(s.cmd().args(["create", "a ball to retire", "-p", "3", "-t", "bug"]).assert().success());
+    s.cmd().args(["claim", &id, "--as", "ghost"]).assert().success();
+    s.cmd().args(["close", &id, "--as", "ghost"]).assert().success();
+    s.cmd().arg("list").assert().success().stdout(contains(&id).not());
+
+    // `show` still resolves the dead id out of history, and that record imports.
+    let dead = s.show_json(&id);
+    s.cmd().arg("import").write_stdin(dead.clone()).assert().success().stderr(contains("import 1 ball"));
+
+    // Live again, byte-for-byte: verbatim means verbatim, timestamps included.
+    s.cmd().arg("list").assert().success().stdout(contains(&id).and(contains("a ball to retire")));
+    assert_eq!(s.show_json(&id), dead, "the reopened ball is the record that was read");
+    // …and gone from the dead set: one incarnation, and it is live.
+    s.cmd().args(["list", "--status", "closed"]).assert().success().stdout(contains(&id).not());
+
+    // The two guards a restore needs, both already ordinary rules. A second
+    // import now collides, because the id is live.
+    s.cmd().arg("import").write_stdin(dead).assert().failure().stderr(contains("already held"));
+    // And the restored claimant is the closer's stale one — `bl unclaim` is the
+    // fix, where a `--clean` flag would have been.
+    s.cmd().args(["claim", &id, "--as", "alice"]).assert().failure().stderr(contains("already claimed by ghost"));
+    s.cmd().args(["unclaim", &id, "--as", "alice"]).assert().success();
+    s.cmd().args(["list", "--status", "ready"]).assert().success().stdout(contains(&id));
+}

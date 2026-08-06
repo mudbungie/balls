@@ -69,8 +69,9 @@ or you collide with another agent.
 - **Status is derived, never stored.** A task has no `status` field; `ready` /
   `blocked` / `claimed` are computed on read (see `bl list --skill`). A closed
   task has no file — absence is the record. That absence is older CONTENT, not a
-  tombstone: `bl show`/`bl list -s closed` read a dead ball back out of history,
-  and `bl reopen <id>` writes it back live.
+  tombstone: `bl show` still resolves a closed id out of history, so `bl show
+  <id> --json | bl import` reopens the ball (there is no `reopen` verb — that
+  round trip is one; `bl import --skill`).
 - **You reconcile, close validates.** Delivery never merges the target for you:
   if `main` moved and is not yet in `work/<id>`, close refuses (naming the ref
   and its pinned sha) before merging, gating or squashing anything — merge or
@@ -93,7 +94,7 @@ Run `bl help` for the terse one-line directory. Full usage for any command is
 `bl <command> --skill` (`--help` is an alias). Grouped by lifecycle:
 
 - **Deliverable** — author a `tasks/<id>.md` change:
-  `create` · `claim` · `unclaim` · `update` · `close` · `import` · `reopen`
+  `create` · `claim` · `unclaim` · `update` · `close` · `import`
 - **Reads** — project the store, author nothing:
   `show` · `list`
 - **Checkout lifecycle** — act on this checkout, not a ball:
