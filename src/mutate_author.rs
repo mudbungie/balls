@@ -6,11 +6,11 @@
 use std::io;
 use std::path::Path;
 
-use crate::change::{Create, FieldEdit, Occupancy, Reopen, Retire, Update};
+use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
 use crate::id::IdScheme;
 use crate::lifecycle::BaseChange;
 use crate::task::Task;
-use crate::taskfile::{exists, read_task, task_ids};
+use crate::taskfile::{read_task, task_ids};
 use crate::verb::Verb;
 use crate::wire::Command;
 
@@ -46,7 +46,6 @@ pub(super) fn base_change(
     editor: &mut edit::Editor,
 ) -> io::Result<Option<Authored>> {
     let actor = flags.actor.clone();
-    guards::forbid_clean_outside_reopen(flags, verb)?;
     match verb {
         Verb::Create => {
             guards::forbid_removals_on_create(flags)?;
@@ -142,16 +141,6 @@ pub(super) fn base_change(
                 Retire { id: id.clone(), title: before.title.clone(), actor, message: flags.message.clone() };
             Ok(Some(Authored { base: Box::new(base), before: Some(before), id }))
         }
-        Verb::Reopen => {
-            guards::forbid_shaping(flags, verb)?;
-            let id = one_positional(flags, verb.token())?;
-            let task = restored(store, &id, flags.clean)?;
-            let base = Reopen { id: id.clone(), task, actor, now, message: flags.message.clone() };
-            // `before` is None — the ball is DEAD at op start, so a `reopen.pre`
-            // plugin's §7 `current_state` is absent exactly as it is on `create`.
-            // The op-start state is "there is no ball", and that is the truth.
-            Ok(Some(Authored { base: Box::new(base), before: None, id }))
-        }
         // The diffless verbs never reach run()'s mutating branch; reject defensively.
         _ => Err(other(format!("{}: not a mutating verb", verb.token()))),
     }
@@ -176,45 +165,6 @@ pub(super) fn command(verb: Verb, flags: &Flags, target: Option<String>, id: Str
         message: flags.message.clone(),
         target,
     }
-}
-
-/// Reconstruct the ball `reopen` restores — and carry its TWO refusals, which
-/// live here rather than at [`crate::change::Reopen::stage`] because only this
-/// side can see history at all (a base change is git-free by construction) and
-/// because a refusal here costs no change worktree and no plugin chain.
-///
-/// LIVE FIRST. `mint` re-rolls off the LIVE id set alone (§ id generation) —
-/// "a dead incarnation's id is legally reused" — so a dead id may since have been
-/// minted to an unrelated ball, and restoring over it would clobber a stranger.
-/// Checking liveness before the walk is also what keeps the second message
-/// honest: a live id that never died would otherwise be reported as naming
-/// nothing.
-///
-/// Then the recency walk itself ([`crate::reads::resolve_dead`], the ONE
-/// reconstruction path, §2/§9): the newest deletion's PARENT tree, which is
-/// exactly the content `bl show <id>` already renders for a dead ball. `None`
-/// means the id names nothing in this store, live or dead.
-///
-/// `clean` drops `claimant` — see [`crate::change::Reopen`] for why that is the
-/// only field a close can falsify, and why it is opt-in.
-fn restored(store: &Path, id: &str, clean: bool) -> io::Result<Task> {
-    if exists(store, id) {
-        return Err(other(format!(
-            "reopen: {id} is live — it names a ball that is open right now, not a retired one. \
-             A closed id is legally re-minted, so this may be a different ball entirely; \
-             read it with `bl show {id}`"
-        )));
-    }
-    let Some(dead) = crate::reads::resolve_dead(store, id)? else {
-        return Err(other(format!(
-            "reopen: {id} names nothing — no live ball, and no tasks/{id}.md deletion in this store's history"
-        )));
-    };
-    let mut task = dead.task;
-    if clean {
-        task.claimant = None;
-    }
-    Ok(task)
 }
 
 /// The single positional `verb` expects (a `create` title, else a task id).
