@@ -143,7 +143,11 @@ pub fn prime(edge: &Edge, args: &[String]) -> io::Result<()> {
     // closed-record, so a dead token is self-identifying debris (the
     // prime-prunes-settled-state precedent, bl-292d). After sync: the sweep
     // judges against the freshest store.
-    crate::seen::sweep(&store)
+    crate::seen::sweep(&store)?;
+    // The landing's own brief to the agent (bl-c84f), verbatim and LAST — after
+    // any `--center` adopt, so enrolling into a center shows that center's brief
+    // on the same op. Absent ⇒ silent.
+    crate::brief::emit(&landing)
 }
 
 /// Run `prime`'s §12 chain — ONE pass (bl-698d): the `prime/pre` chain (the

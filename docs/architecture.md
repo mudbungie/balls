@@ -1647,6 +1647,17 @@ reset away; lazy materialize means it is never created. The prune of settled `wo
 whose delivery already landed rides the same chain (the delivery plugin's `prime.post`, idempotent
 delete-if-settled, §11/§13); worktrees materialize at `claim` only (bl-c2bf), never on prime.
 
+**The landing's brief (bl-c84f).** Prime's last act is to print the landing's `config/PRIME.md`
+verbatim, if it has one — the project's own briefing to whoever just primed, closing the context
+bootstrap gap (prime readies the checkout and otherwise says nothing about the repo it readied). Core
+holds only "print it if present": the brief is CONFIG, so there is no verb, field, store or flag, and
+removing the capability deletes a file rather than a line of code (§0 severability). It rides the
+landing precisely because `install` is a pure path-copy (§6) — a center's brief travels with the
+`config/` it distributes, and `--center` shows it on the enrolling op itself. Nothing seeds a
+default (absence is silence) and nothing suppresses it. The doc's own discipline: a brief POINTS at
+the authority, it never restates one — a restated fact drifts from its source, and a stale brief is
+worse than none. Emission is `src/brief.rs`; rationale in §15 (bl-c84f).
+
 **prime converges version skew, not just steady-state drift (2026-07-08, bl-18bf —
 design record `docs/design/bl-18bf-prime-convergence.md`).** `bl doctor` was built and burned
 (bl-77a7): every fix is an existing idempotent verb, and steady-state drift fails loud at point of
@@ -2290,6 +2301,31 @@ OPEN:
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **the landing briefs the agent: `config/PRIME.md`, printed verbatim by every prime (2026-08-05,
+  bl-c84f).** The gap was context bootstrap, not memory: prime founds, converges and settles, then
+  says nothing about the project it just readied, so a fresh agent learns this repo's rules only if
+  its harness happens to load an AGENTS.md. Raised while evaluating beads' "memory upgrade" pitch
+  (`bd remember` + injection at prime, plus compaction). **Compaction is explicitly REJECTED and
+  needs no mechanism** — closing DELETES `tasks/<id>.md` (§2/§9), so the live tree already IS the
+  compaction: closed work costs zero context until asked for and is recovered losslessly from
+  history, where a summarizer would be a lossy cache over a store we never chose to keep resident.
+  **`remember` is rejected on the drift rule (§0):** an insight stored beside the code it describes
+  is corrected by the diff that invalidates it, while one in a sidecar store is never in anyone's
+  diff and rots silently — and rot is worse than absence, because agents trust what they are handed.
+  What survived is only the injection half, as the smallest thing that could work: if the landing has
+  `config/PRIME.md`, prime prints it verbatim, last (after any `--center` adopt, so enrolling shows
+  the center's brief on the same op). NO verb, field, store or flag — the brief is CONFIG and core
+  holds only "print it if present," so the §0 severability test passes: removing the capability
+  deletes a file, never a line of code. It lives on the LANDING rather than in the project tree
+  because `install` is a pure path-copy (§6, folder = mirror), so one center briefs a whole fleet
+  through the config it already distributes; inert markdown is also the safest possible payload for a
+  channel that is otherwise potential RCE (§0). Two subtractions are load-bearing: **no seed**
+  (`default-config/` ships no PRIME.md — absence is silence, and a template would print boilerplate
+  forever and train agents to skip it) and **no flag** (unconditional; a `--quiet` is the §0 smell,
+  and "too long to read every session" is fixed in the file). The discipline the doc carries: a brief
+  POINTS ("read §9 before touching close"), it never restates — a copy drifts from its original and
+  nothing corrects it, and pointing is what stops PRIME.md becoming a second home for AGENTS.md.
+  Code: `src/brief.rs`, called at the tail of `checkout::prime`.
 - **the dead-set read is BATCHED: two git invocations at any store size (2026-08-05, bl-4c08 —
   post-freeze).** Raised as a scaling gap against a SQL-over-Dolt tracker: "a linear file walk plus
   substring match gets slow in a way that is structural, not tunable." Half of that was wrong and half

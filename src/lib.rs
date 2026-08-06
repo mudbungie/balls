@@ -106,6 +106,7 @@
 #![allow(rustdoc::private_intra_doc_links)]
 
 pub mod adopt;
+pub mod brief;
 pub mod change;
 pub mod checkout;
 pub mod chore;

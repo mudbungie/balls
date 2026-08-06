@@ -76,6 +76,29 @@ remote (`bl conf set task-remote <url>` clears it). It contradicts
 Re-running plain `bl prime` converges to a no-op. `bl conf` shows the remote and
 branch a checkout actually resolves — see `bl conf --skill`.
 
+## The landing's brief — `config/PRIME.md`
+
+If the landing has a `config/PRIME.md`, prime prints it **verbatim** as the last
+thing it does. That is the whole feature: no verb, no flag, no store. It is how a
+project hands a fresh agent its own rules — otherwise prime readies the checkout
+and says nothing about the repo it just readied.
+
+Create one with a plain editor and commit it to the landing (`bl conf` shows
+where the landing is). Because `install` is a pure path-copy, a brief on the
+landing travels: `bl prime --center <hub>` adopts that center's `config/`, brief
+included, so one authority briefs the whole fleet — and the brief shows up on the
+same op that enrolls you.
+
+**Write pointers, not copies.** A good brief is *"read `docs/architecture.md` §9
+before touching close"*, never a restatement of §9. A copied fact drifts from the
+thing it copies, because the change that invalidates it never touches the copy —
+and a stale brief is worse than none, since agents trust what they are handed. It
+is also what keeps PRIME.md from becoming a second home for your AGENTS.md.
+
+There is no default: a landing without the file prints nothing, and nothing seeds
+one for you. There is also no flag to suppress it — if it is too long to read
+every session, shorten the file.
+
 ## Plugins and priming
 
 A plugin whose binary is not installed beside `bl` is pruned at prime, so a
