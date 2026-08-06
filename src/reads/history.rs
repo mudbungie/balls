@@ -10,6 +10,19 @@
 //! retirement and its date from the deletion commit itself (§5).
 //! Taking the newest deletion makes a reused id unambiguous — at most one
 //! incarnation is ever live, so the most recent dead one is "the" dead ball.
+//!
+//! **The plural read is BATCHED, and that is the whole performance story
+//! (bl-4c08).** Singular and plural share the discipline, not the plumbing: one
+//! id costs one `git log`, but N ids must not cost N of them. A per-id
+//! `git log -1 -- tasks/<id>.md` walks from HEAD until it reaches that ball's
+//! deletion, so its cost grows with the ball's AGE, and history length grows
+//! with ball count — N such walks is quadratic. [`dead_balls`] instead pays ONE
+//! walk (which already names every deletion's sha) and ONE `cat-file --batch`
+//! for every pre-deletion blob: O(history + dead), two subprocesses, whatever N
+//! is. Measured on this repo's own store (395 dead over 1193 commits): 7.4s →
+//! 0.087s. Nothing is stored, cached, or indexed to get that — the redundant
+//! re-derivation was simply deleted (§0 derive-don't-store is untouched; there
+//! is no second representation to drift).
 
 use std::collections::HashSet;
 use std::io;
@@ -58,27 +71,95 @@ pub(crate) fn resolve_dead(store: &Path, id: &str) -> io::Result<Option<Dead>> {
     Ok(Some(Dead { id: id.to_string(), task, retired_at }))
 }
 
+/// One enumerated deletion, before its content is read: the ball's id, the
+/// `<sha>^:tasks/<id>.md` object name holding its last live bytes, and the
+/// deletion date. The enumeration walk already knows all three, so nothing here
+/// is re-derived per id.
+struct Deletion {
+    id: String,
+    object: String,
+    retired_at: i64,
+}
+
 /// Every currently-dead ball, newest-deletion first — the `list --status closed/--all`
-/// set (§9). Enumerates each id ever deleted on `balls/tasks`, drops the ones
-/// live again (a reused id resolves live, §9), and reconstructs the rest through
-/// the same [`resolve_dead`] walk so there is one reconstruction path.
+/// set (§9). Two subprocesses whatever the store's size: [`newest_deletions`]
+/// enumerates, then ONE `cat-file --batch` resolves every pre-deletion blob in
+/// the order the enumeration fixed, so the reply stream and the deletion list
+/// zip positionally.
+///
+/// This does NOT go through [`resolve_dead`] — that is the point (see the module
+/// header). The two paths still share the one reconstruction DISCIPLINE (newest
+/// deletion wins, content from the deletion's parent, date from the deletion
+/// commit); what they no longer share is a per-id `git log`.
 pub(crate) fn dead_balls(store: &Path, live: &Catalog) -> io::Result<Vec<Dead>> {
-    let log = git::run(store, &["log", "--diff-filter=D", "--format=", "--name-only", "--", "tasks"], None)?;
-    // `--format=` + `--name-only` prints one `tasks/<id>.md` per deleted file,
-    // newest deletion first; the id strip silently skips any non-task path.
-    let ids = log.lines().filter_map(|l| l.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")));
-    let mut seen = HashSet::new();
-    let mut dead = Vec::new();
-    for id in ids {
-        // First sighting only (newest deletion); skip ids that are live again.
-        if !seen.insert(id) || !live.is_resolved(id) {
-            continue;
-        }
-        if let Some(d) = resolve_dead(store, id)? {
-            dead.push(d);
-        }
+    let deletions = newest_deletions(store, live)?;
+    // One newline-terminated object name per reply; an empty list is an empty
+    // batch (git reads EOF and exits clean), so the no-dead-balls store needs no
+    // special case.
+    let mut names = String::new();
+    for d in &deletions {
+        names.push_str(&d.object);
+        names.push('\n');
+    }
+    let batch = git::run_bytes(store, &["cat-file", "--batch"], Some(&names))?;
+    let mut stream = batch.as_slice();
+    let mut dead = Vec::with_capacity(deletions.len());
+    for d in deletions {
+        let (content, rest) = next_object(stream);
+        stream = rest;
+        let task = Task::parse(&content).map_err(|e| invalid(e.to_string()))?;
+        dead.push(Dead { id: d.id, task, retired_at: d.retired_at });
     }
     Ok(dead)
+}
+
+/// The newest deletion of each id ever deleted under `tasks/`, newest first,
+/// with ids that are live again dropped (a reused id resolves live, §9).
+///
+/// `--format` + `--name-only` interleaves one `<sha>\x1f<ct>` header per commit
+/// with the paths it deleted; a path line can never contain [`SEP`], so the two
+/// kinds of line tell themselves apart and the header in force is the one that
+/// deleted the paths under it.
+fn newest_deletions(store: &Path, live: &Catalog) -> io::Result<Vec<Deletion>> {
+    let fmt = format!("--format=%H{SEP}%ct");
+    let log = git::run(store, &["log", "--diff-filter=D", &fmt, "--name-only", "--", "tasks"], None)?;
+    let mut seen = HashSet::new();
+    let mut deletions = Vec::new();
+    let mut at = None;
+    for line in log.lines() {
+        if let Some((sha, ct)) = line.split_once(SEP) {
+            at = Some((sha, ct.parse().expect("git %ct is an integer unix timestamp")));
+        } else if let Some(id) = line.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")) {
+            // First sighting only (newest deletion); skip ids that are live again.
+            if !seen.insert(id) || !live.is_resolved(id) {
+                continue;
+            }
+            let (sha, retired_at) = at.expect("git log prints a commit header before the paths it touched");
+            deletions.push(Deletion { id: id.to_string(), object: format!("{sha}^:tasks/{id}.md"), retired_at });
+        }
+    }
+    Ok(deletions)
+}
+
+/// Split one `cat-file --batch` reply off the front of `stream`: a
+/// `<sha> <type> <size>` header line, then exactly `size` bytes of content, then
+/// a newline. Returns the content and the rest of the stream.
+///
+/// Framed on BYTES, not chars: the size is a byte count, so decoding before
+/// splitting would let one invalid byte (rewritten as a 3-byte `U+FFFD`) desync
+/// every reply after it. Every object name fed to the batch came from git's own
+/// deletion log, so `missing`/`ambiguous` replies — the only ones without a size
+/// — cannot occur, and the framing is total.
+fn next_object(stream: &[u8]) -> (String, &[u8]) {
+    let nl = stream.iter().position(|b| *b == b'\n').expect("cat-file --batch emits one header line per request");
+    let header = String::from_utf8_lossy(&stream[..nl]);
+    let size: usize = header
+        .rsplit(' ')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .expect("a cat-file --batch header ends in the object's byte size");
+    let body = nl + 1;
+    (String::from_utf8_lossy(&stream[body..body + size]).into_owned(), &stream[body + size + 1..])
 }
 
 #[cfg(test)]

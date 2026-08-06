@@ -88,6 +88,66 @@ fn dead_balls_excludes_an_id_that_is_live_again() {
 }
 
 #[test]
+fn dead_balls_attributes_every_path_in_one_commit_to_that_commit() {
+    // An epic landing its children deletes several task files in ONE commit, so
+    // the enumeration sees one `<sha>\x1f<ct>` header followed by several paths.
+    // Every one of them must take that header's sha (for its content) and date.
+    let s = git_store();
+    let mut a = task("Child A", 1);
+    a.body = "first".into();
+    let mut b = task("Child B", 2);
+    b.body = "second".into();
+    s.create("bl-a", &a, 1).create("bl-b", &b, 2).retire_all(&["bl-a", "bl-b"], "close", 77);
+
+    let live = Catalog::load(s.dir()).unwrap();
+    let dead = dead_balls(s.dir(), &live).unwrap();
+    let got: Vec<(&str, &str, i64)> =
+        dead.iter().map(|d| (d.id.as_str(), d.task.body.as_str(), d.retired_at)).collect();
+    // Bodies stay paired with their own ids: the batch replies zip positionally
+    // with the enumeration, so a mis-paired stream would swap them.
+    assert_eq!(got, [("bl-a", "first", 77), ("bl-b", "second", 77)]);
+}
+
+#[test]
+fn dead_balls_frames_the_batch_on_bytes_not_characters() {
+    // `cat-file --batch` delimits each reply by a BYTE count. A multi-byte body
+    // makes byte length differ from character length, so a char-framed reader
+    // would slide off the first reply and corrupt every one after it.
+    let s = git_store();
+    let mut wide = task("Accented", 1);
+    wide.body = "café — naïve 日本語 🜂".into();
+    let mut plain = task("Plain", 2);
+    plain.body = "ascii".into();
+    s.create("bl-wide", &wide, 1).retire("bl-wide", "close", 10);
+    s.create("bl-plain", &plain, 2).retire("bl-plain", "close", 20);
+
+    let live = Catalog::load(s.dir()).unwrap();
+    let dead = dead_balls(s.dir(), &live).unwrap();
+    assert_eq!(dead[0].task.body, "ascii"); // newest first
+    assert_eq!(dead[1].task.body, "café — naïve 日本語 🜂");
+    assert_eq!(dead[1].task.title, "Accented"); // frontmatter survived the split too
+}
+
+#[test]
+fn dead_balls_surfaces_a_corrupt_historical_file_as_an_error() {
+    // The batched path parses each reply itself, so it owns this refusal — the
+    // whole listing fails rather than silently dropping the unreadable ball.
+    let s = git_store();
+    s.create_raw("bl-bad", "not valid frontmatter", 1).retire("bl-bad", "close", 2);
+    let live = Catalog::load(s.dir()).unwrap();
+    assert!(dead_balls(s.dir(), &live).is_err());
+}
+
+#[test]
+fn dead_balls_is_empty_when_nothing_was_ever_deleted() {
+    // The empty batch: no object names to feed, so git reads EOF and exits clean.
+    let s = git_store();
+    s.create("bl-live", &task("Alive", 1), 1);
+    let live = Catalog::load(s.dir()).unwrap();
+    assert!(dead_balls(s.dir(), &live).unwrap().is_empty());
+}
+
+#[test]
 fn dead_balls_dedupes_a_twice_deleted_id_to_its_newest() {
     let s = git_store();
     s.create("bl-d", &task("D1", 1), 1).retire("bl-d", "close", 2);

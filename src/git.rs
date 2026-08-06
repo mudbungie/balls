@@ -91,13 +91,22 @@ impl Git {
 /// READS a center's config to copy in (§0 — "config crosses into a landing only
 /// by the explicit copy `install` performs"), never a push, never the store.
 pub(crate) fn run(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<String> {
+    Ok(String::from_utf8_lossy(&run_env(cwd, args, stdin, &[])?).into_owned())
+}
+
+/// [`run`] returning git's stdout RAW. The one caller that needs bytes is the
+/// batched dead-ball reconstruction ([`crate::reads`]), whose `cat-file --batch`
+/// stream is delimited by byte COUNTS: lossy UTF-8 decoding rewrites an invalid
+/// byte as a 3-byte `U+FFFD` and would desync every object after it, so the
+/// framing must be read before the decoding.
+pub(crate) fn run_bytes(cwd: &Path, args: &[&str], stdin: Option<&str>) -> io::Result<Vec<u8>> {
     run_env(cwd, args, stdin, &[])
 }
 
 /// [`run`] plus extra environment on the child git — the seam the §8 seal uses to
 /// stamp its commit with the op instant (`GIT_*_DATE`, [`crate::clock`]). `env`
 /// is empty for every non-commit git act, so those stay byte-identical.
-fn run_env(cwd: &Path, args: &[&str], stdin: Option<&str>, env: &[(&'static str, String)]) -> io::Result<String> {
+fn run_env(cwd: &Path, args: &[&str], stdin: Option<&str>, env: &[(&'static str, String)]) -> io::Result<Vec<u8>> {
     let mut cmd = crate::safegit::at(cwd);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
     for (k, v) in env {
@@ -113,7 +122,7 @@ fn run_env(cwd: &Path, args: &[&str], stdin: Option<&str>, env: &[(&'static str,
     }
     let out = child.wait_with_output()?;
     if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        Ok(out.stdout)
     } else {
         Err(io::Error::other(format!(
             "git {}: {}",
@@ -174,7 +183,7 @@ impl Anvil for Git {
         // squash by construction. Un-dated ⇒ git's own clock, as before.
         match self.date {
             Some(t) => run_env(dir, &["commit", "-F", "-"], Some(message), &crate::clock::git_date_env(t))?,
-            None => run(dir, &["commit", "-F", "-"], Some(message))?,
+            None => run_bytes(dir, &["commit", "-F", "-"], Some(message))?,
         };
         let sha = run(dir, &["rev-parse", "HEAD"], None)?.trim().to_string();
         if run(&self.checkout, &["merge", "--ff-only", &sha], None).is_err() {
