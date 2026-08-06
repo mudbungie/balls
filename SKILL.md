@@ -72,6 +72,13 @@ or you collide with another agent.
   tombstone: `bl show` still resolves a closed id out of history, so `bl show
   <id> --json | bl import` reopens the ball (there is no `reopen` verb — that
   round trip is one; `bl import --skill`).
+- **Closed work stays searchable — look before you re-solve.** Every `bl list`
+  filter reaches the dead set: `--all` for live + dead, `-s closed` for dead
+  only. `bl list <needle> --all` is a substring search over the title AND body
+  of every task this project has ever had, so *"has this been tried?"* is one
+  command, and `bl show <id>` reads back any closed ball in full — its body and
+  its journal, not a summary. Search before filing a duplicate or re-litigating
+  a decision; the reasoning behind a past call is usually still in the ball.
 - **You reconcile, close validates.** Delivery never merges the target for you:
   if `main` moved and is not yet in `work/<id>`, close refuses (naming the ref
   and its pinned sha) before merging, gating or squashing anything — merge or

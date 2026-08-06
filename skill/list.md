@@ -39,6 +39,8 @@ below). Filters COMPOSE (AND).
     bl list delivery       # NEEDLE: title/body substring
     bl list --everywhere -s ready        # every project on the store — fleet dispatch
     bl list -s closed --claimant alice   # what alice delivered
+    bl list retry --all                  # RECALL: needle over title+body, live AND closed
+                                         #   — "has this been tried before?"
 
 ## The human view is a containment tree
 
