@@ -1,7 +1,8 @@
 +++
 title = "close.post should delete the delivered branch: deferring it to prime leaks one branch per nested ball, forever"
 created = 1786071656
-updated = 1786071656
+updated = 1786075084
+claimant = "Blackjack"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
