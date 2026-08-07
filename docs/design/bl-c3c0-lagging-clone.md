@@ -134,10 +134,26 @@ Work:
    leads with the crisp two-step recovery —
 
    > push rejected: the remote store moved ahead, so this change did not publish
-   > — run `bl sync`, then re-run the command (…)
+   > — run `bl sync` (it converges the contention, or refuses and names what this
+   > store holds that the remote never took), then re-run the command (…)
 
    op-generic (the half-close's "re-run the command" *is* `bl close`) so it reads
    as a recoverable convergence, not a broken close.
+
+   **AMENDED (bl-4945, 2026-08-06): the two-step was a promise the message could
+   not keep.** As first landed it read "run `bl sync`, then re-run the command"
+   flat. That converges only because the rejected push UN-SEALS — the store falls
+   back behind the remote and sync's ff-only runs. The half-close's *other* shape,
+   a crash BETWEEN seal and push, leaves a sealed-but-UNPUBLISHED commit that
+   survives the un-seal: sync then refuses forever (correctly) and the advertised
+   recovery loops. So E5 now forwards to sync's verdict instead of predicting it,
+   and sync's own refusal (`import_refused`, bl-3129) carries the exit — list
+   `FETCH_HEAD..<branch>`, then republish or discard; balls never merges the two
+   histories. One sentence owns the state and the way out, and
+   `the_recovery_e5_advertises_exits_a_sealed_but_unpublished_store`
+   (`src/tracker/remote_ops_tests.rs`) drives the whole recipe end to end.
+   Open: which side OWNS that reconciliation is bl-1266's question for the mirror
+   state; whatever it converges on moves both sentences.
 3. **Lock the direction with a test** (rejected push ⇒ delivered + open, never
    done + leftover) so a future `close.post` reorder can't silently flip it.
    DONE (bl-547f): the end-to-end

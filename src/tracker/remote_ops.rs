@@ -2,7 +2,9 @@
 //! the explicit `bl sync` (and inside prime); `push` publishes after every
 //! mutating op. Currency is OPTIMISTIC (mutate → push, bl-336a): there is no
 //! pre-pull — a stale store surfaces atomically as the push's non-ff reject
-//! (E5), and recovery is `bl sync` + retry. Both are no-ops in a stealth
+//! (E5), and recovery is `bl sync` + retry — a forward to sync's verdict, not a
+//! promise: the store may hold commits the remote never took, and then the
+//! import refusal owns the exit ([`import_refused`], bl-4945). Both are no-ops in a stealth
 //! (no-remote) repo: with no remote there is nothing to talk to, which is the
 //! structural opt-out (§12).
 
@@ -40,7 +42,7 @@ pub fn sync(b: &Binding) -> io::Result<()> {
     if git(store, &["symbolic-ref", "--short", "HEAD"]).ok().as_deref() == Some(branch) {
         git(store, &["fetch", remote, branch])?;
         if git(store, &["merge", "--ff-only", "FETCH_HEAD"]).is_err() {
-            let refused = || import_refused(remote, branch);
+            let refused = || import_refused(&b.store, remote, branch);
             return not_yet_cut_over(store, remote, branch).then_some(()).ok_or_else(refused);
         }
     } else {
@@ -71,12 +73,27 @@ pub fn sync(b: &Binding) -> io::Result<()> {
 /// commit (a crash between seal and push, a hand-edited checkout) keeps refusing,
 /// and the operator must reconcile it; naming both is the difference between an
 /// instruction and a loop. No retry in core — the retry is one command (§14).
-fn import_refused(remote: &str, branch: &str) -> io::Error {
+///
+/// This is the ONE place that spells the EXIT (bl-4945), because it is the one
+/// that detects the state: naming it without naming a way out still loops — push's
+/// E5 sends the operator here, so its own sentence forwards to this verdict rather
+/// than promising a convergence sync cannot always deliver. The exit is the
+/// operator's, and it is stated as a choice, not a fix balls will apply: republish
+/// the unpublished commits or discard them. balls never merges the two histories —
+/// the ff-only contract IS the store's one-line-of-history invariant (§13), so an
+/// automatic merge/rebase here would be core deciding an outcome only the operator
+/// can weigh (whose ops those commits are, whether they still apply). The handles
+/// are the ones the failed fetch just left in the store: `FETCH_HEAD` is the moved
+/// remote tip, so `FETCH_HEAD..<branch>` is exactly the unpublished set.
+fn import_refused(store: &str, remote: &str, branch: &str) -> io::Error {
     io::Error::other(format!(
         "`{remote}`'s `{branch}` moved and this store could not take the fast-forward — nothing was \
          imported and nothing local was changed. Re-run `bl sync`: it converges once a concurrent \
          `bl` settles its in-flight seal, and keeps refusing while this store carries commits the \
-         remote never took"
+         remote never took. Reconciling those is yours — balls never merges the two histories: \
+         `git -C {store} log FETCH_HEAD..{branch}` lists them (FETCH_HEAD is the moved remote tip), \
+         then either rebase them onto FETCH_HEAD and push, or `git -C {store} reset --hard \
+         FETCH_HEAD` to discard them"
     ))
 }
 
@@ -151,12 +168,19 @@ pub fn push(b: &Binding) -> io::Result<()> {
                 Ok(())
             }
             // E5 proper: the store is ESTABLISHED, so the reject is contention
-            // (or revoked perms). Lead with the crisp two-step recovery — `bl
-            // sync` then re-run the command — so the worn half-close path
-            // (bl-547f) reads as a recoverable convergence, not a raw non-ff
-            // dump the user mistakes for a broken close.
+            // (or revoked perms). Lead with the recovery — `bl sync` then
+            // re-run the command — so the worn half-close path (bl-547f) reads
+            // as a recoverable convergence, not a raw non-ff dump the user
+            // mistakes for a broken close. But that two-step is not a PROMISE
+            // (bl-4945): it converges because a rejected push un-seals, leaving
+            // the store behind the remote and sync's ff-only free to run — and
+            // a store that ALREADY carried an unpublished commit (a crash
+            // between seal and push, the bl-547f shape) stays diverged past the
+            // un-seal, so sync refuses and the promised loop never exits. So
+            // the sentence forwards to sync's VERDICT instead of predicting it;
+            // [`import_refused`] owns the state and the way out, in one place.
             Some(true) => Err(io::Error::other(format!(
-                "push rejected: the remote store moved ahead, so this change did not publish — run `bl sync`, then re-run the command ({e})"
+                "push rejected: the remote store moved ahead, so this change did not publish — run `bl sync` (it converges the contention, or refuses and names what this store holds that the remote never took), then re-run the command ({e})"
             ))),
             // Unreadable tip (unreachable remote, absent branch): the push's
             // own error stands — never a silent skip, never a misnamed E5.

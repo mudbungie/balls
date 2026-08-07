@@ -186,7 +186,7 @@ fn concurrent_creates_from_two_clones_both_land_after_the_lagging_side_syncs() {
         .args(["create", "Ship B", "--as", "bob"])
         .assert()
         .failure()
-        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`, then re-run")));
+        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`")).and(contains("then re-run the command")));
 
     // The rejected create rolled back cleanly: B carries no phantom ball, so the
     // recovery sync fast-forwards instead of hitting a self-inflicted divergence.

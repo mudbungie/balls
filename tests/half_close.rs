@@ -94,12 +94,13 @@ fn a_rejected_close_post_push_leaves_delivered_plus_open_never_done_plus_leftove
     git(&scratch, &["push", "-q", "origin", "balls/tasks"]);
 
     // THE HALF-CLOSE: the squash lands locally, then the store push is rejected
-    // — and the sharpened message (Fix 3 (2)) names the `bl sync` + retry recovery.
+    // — and the sharpened message (Fix 3 (2)) names the `bl sync` + retry
+    // recovery, forwarding to sync's verdict rather than promising it (bl-4945).
     bl(&project, &home, &state)
         .args(["close", &tid, "--as", "alice"])
         .assert()
         .failure()
-        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`, then re-run the command")));
+        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`")).and(contains("then re-run the command")));
 
     // DELIVERED: the irreversible squash stands on local main, carrying the tag.
     assert!(git_out(&project, &["log", "-1", "--format=%s", "main"]).contains(&format!("[{tid}]")));

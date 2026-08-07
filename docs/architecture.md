@@ -1882,6 +1882,13 @@ adopt-vs-found:
   never swallowed. `prime/post`'s OWN established publish (fetch-ff + push,
   bl-0a23) takes this same E5 path — it is exactly every op's `*/post` publish (the tracker's
   `remote_ops::push`); only the founding push, where nothing existed to land on, degrades silently.
+  **"re-run after `bl sync`" is a forward, not a promise** (bl-4945). It converges because the abort
+  UN-SEALS: the store drops back behind the remote and sync's ff-only runs. A store that ALREADY
+  carried an unpublished commit — a crash between seal and push, the bl-547f half-close shape — stays
+  diverged past the un-seal, so sync refuses (correctly) and an unconditional two-step would loop.
+  E5 therefore hands the operator to sync's VERDICT ("run `bl sync` (it converges the contention, or
+  refuses and names what this store holds that the remote never took), then re-run the command"), and
+  §13's refusal owns the state and the way out — one sentence, one place, so the two cannot drift.
 
 **Federation = many landings, ONE store branch.** There is no trail, no terminus, no transitive
 discovery, no `operating/` symlink (all retired with config-shadowing — §4). A center is not a special
@@ -2023,7 +2030,8 @@ Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store re
 (stealth/no-tracker is fine — this fires only when a remote was named but unresolvable); E4 [tracker]
 remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an ESTABLISHED remote store
 (non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts — the push is
-the contention check, re-run after `bl sync` (bl-336a) — NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
+the contention check, re-run after `bl sync`, whose verdict E5 forwards to rather than promises
+(bl-336a, bl-4945) — NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
 prime, rolled back K prior; W2 [tracker]
 prime ran on an ephemeral explicit remote the durable ladder (binding > XDG > origin) does not reproduce —
 plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
@@ -2108,6 +2116,17 @@ not a consent breach, because consent governs config + executable plugins, never
   push, so the ordinary cause is a concurrent `bl` whose seal was in flight across the fetch and a
   re-run converges, while a store that really holds an unpublished commit keeps refusing until the
   operator reconciles it. Still no retry in core (§14) and still no union: the ff-only stands.
+  **This refusal is also the one place that spells the EXIT** (bl-4945) — naming the second reading
+  without naming a way out is still a loop, and it is the sentence the operator lands on (§12's E5
+  sends them here). It states the exit as the operator's CHOICE, never a fix balls applies:
+  `git -C <store> log FETCH_HEAD..<branch>` lists the unpublished commits (the failed fetch left
+  `FETCH_HEAD` at the moved remote tip), then either rebase them onto `FETCH_HEAD` and push, or
+  `git -C <store> reset --hard FETCH_HEAD` to discard them. **balls never merges the two histories**:
+  the ff-only contract IS the store's one-line-of-history invariant, so an automatic merge or rebase
+  would be core deciding an outcome only the operator can weigh (whose ops those commits are, whether
+  they still apply). Which side owns that reconciliation is the open question bl-1266 carries for the
+  mirror state (local rolled back what the remote already took); today both answers are the
+  operator's, and these two sentences must move together with whatever it converges on.
 - **Where the integration sits.** With no core commit, sync's pre/post boundary IS the tracker's
   fetch+ff: the tracker is wired into **`sync/pre`** so it imports remote store state first;
   **`sync/post`** plugins (e.g. cache rebuild) react to the now-current store. A

@@ -95,6 +95,10 @@ fn sync_refusing_a_non_fast_forward_speaks_balls_voice_not_gits() {
     assert!(err.contains("nothing was imported and nothing local was changed"), "{err}");
     assert!(err.contains("Re-run `bl sync`"), "{err}");
     assert!(err.contains("carries commits the remote never took"), "{err}");
+    // …and, since bl-4945, the EXIT for that second reading: naming the state
+    // without naming a way out still loops.
+    assert!(err.contains("Reconciling those is yours"), "{err}");
+    assert!(err.contains("balls never merges the two histories"), "{err}");
     assert!(!err.contains("Not possible to fast-forward"), "raw git leaked: {err}");
     assert!(!err.contains("git merge"), "raw git leaked: {err}");
     // And the claim holds: the refusal imported nothing, so the store still
@@ -219,11 +223,51 @@ fn push_fails_when_the_remote_rejects_a_non_fast_forward() {
     commit(&store, "local.txt", "local");
 
     // E5 (bl-3ddb): a reject by an ESTABLISHED store names the catalog remedy,
-    // never a raw non-ff dump alone. The remedy is the crisp two-step recovery
-    // (bl-547f) — `bl sync`, then re-run — so the half-close reads recoverable.
+    // never a raw non-ff dump alone. The remedy is the two-step recovery
+    // (bl-547f) — `bl sync`, then re-run — so the half-close reads recoverable,
+    // but it FORWARDS to sync's verdict rather than promising it (bl-4945).
     let err = push(&binding(Some(&remote), &store)).unwrap_err().to_string();
     assert!(err.contains("push rejected: the remote store moved ahead"), "{err}");
-    assert!(err.contains("run `bl sync`, then re-run the command"), "{err}");
+    assert!(err.contains("run `bl sync`"), "{err}");
+    assert!(err.contains("or refuses and names what this store holds"), "{err}");
+    assert!(err.contains("then re-run the command"), "{err}");
+}
+
+#[test]
+fn the_recovery_e5_advertises_exits_a_sealed_but_unpublished_store() {
+    // bl-4945: E5's two-step converges only because a rejected push UN-SEALS,
+    // leaving the store behind the remote and sync's ff-only free to run. A
+    // store that ALREADY carries an unpublished commit — a crash between seal
+    // and push, the bl-547f half-close shape — stays diverged past the un-seal,
+    // so sync refuses (correctly) and an unconditional "sync, then re-run"
+    // would loop forever. E5 forwards to sync's verdict, sync's refusal names
+    // the exit, and this drives that advertised recipe end to end.
+    let tmp = TempDir::new().unwrap();
+    let remote = remote_with_branch(tmp.path());
+    let store = store_clone(tmp.path(), &remote);
+    let stranded = commit(&store, "sealed.txt", "sealed, never published");
+    let other = checkout(tmp.path(), &remote, "other");
+    commit(&other, "remote.txt", "remote");
+    git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
+
+    // E5 promises no convergence — it hands the operator to sync…
+    let e5 = push(&binding(Some(&remote), &store)).unwrap_err().to_string();
+    assert!(e5.contains("or refuses and names what this store holds"), "{e5}");
+    // …which refuses, and names the unpublished set plus both ways out.
+    let refusal = sync(&binding(Some(&remote), &store)).unwrap_err().to_string();
+    let listing = format!("git -C {} log FETCH_HEAD..{BRANCH}", store.display());
+    assert!(refusal.contains(&listing), "{refusal}");
+    assert!(refusal.contains("rebase them onto FETCH_HEAD and push"), "{refusal}");
+    assert!(refusal.contains("reset --hard"), "{refusal}");
+
+    // Follow it: the listed set is exactly the stranded commit, and republishing
+    // it converges — the advertised recovery has an exit, and reaching it needs
+    // no balls verb balls does not have.
+    let unpublished = git(&store, &["log", "--format=%H", &format!("FETCH_HEAD..{BRANCH}")]).unwrap();
+    assert_eq!(unpublished, stranded);
+    git(&store, &["rebase", "FETCH_HEAD"]).unwrap();
+    push(&binding(Some(&remote), &store)).unwrap();
+    sync(&binding(Some(&remote), &store)).unwrap(); // converged: a clean no-op
 }
 
 #[test]

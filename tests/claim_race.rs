@@ -133,7 +133,7 @@ fn a_stale_claim_push_is_rejected_non_ff_and_leaves_b_clean() {
     bob.bl(&["claim", &xid, "--as", "bob"])
         .assert()
         .failure()
-        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`, then re-run the command")));
+        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`")).and(contains("then re-run the command")));
 
     // FINDING (behaves-as-designed): the rejected `claim.post` push UN-SEALS Bob.
     // He is left with NO local claim, NO worktree, NO `work/<id>` branch — the
