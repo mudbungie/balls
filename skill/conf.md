@@ -70,5 +70,9 @@ retry, but surprising).
 
 `bl-chore` (opt-in) mints one close-gate child per configured chore at
 `claim.post` — a forcing-function checklist, not CI. Opt in with `bl conf prepend
-claim.post bl-chore`, then write `config/plugins/bl-chore/chores.toml`. Binding a
-plugin's binary between branches is `bl install --skill`.
+claim.post bl-chore` AND `bl conf prepend close.post bl-chore`, then write
+`config/plugins/bl-chore/chores.toml`. The second wiring mints nothing: it is
+where bl-chore deletes the rollback record the claim wrote, since closing the
+ball ends every claim of it (§14). Wire only the first and that record outlives
+its op forever — one dead directory per claim. Binding a plugin's binary between
+branches is `bl install --skill`.
