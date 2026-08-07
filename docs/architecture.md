@@ -314,8 +314,24 @@ comments).
   while `id` is unresolved (`.pre` is implicit — blocking is always a pre-op rejection). NOT an enum —
   `claim` (dependency) and `close` (gate) are merely the two cases with create-time sugar (§10); the
   primitive itself gates any op. Subsumes the old `deps`/`gates` link types — they were one edge
-  parameterized by `on`. Pure-metadata links (`relates_to`, `supersedes`, `duplicates`, `replies_to`)
-  remain core metadata with no enforcement.
+  parameterized by `on`. **Pure-metadata link types are REJECTED, not unimplemented** (bl-3067,
+  correcting a line that promised `relates_to`/`supersedes`/`duplicates`/`replies_to` as core
+  metadata — no such field ever existed, and a schema the spec lies about is worse than a missing
+  one). Each names a fact that already has an authoritative home:
+  - `duplicates`/`supersedes` — both relations become true exactly when the OTHER ball closes, and
+    close deletes the file (§9). The live-target rule (§10, bl-6b8c) already refuses an edge to a
+    dead id as "an edge born resolved," so the link would be born meaningless. The fact rides
+    `bl close -m`, read back where it is asked: `show` resolves a dead id out of history and folds
+    the journal (§9).
+  - `replies_to` — threaded comments. There is no comment node (§3 has ONE node type): the body is
+    edited in place and the store branch's history IS the thread, rendered oldest-first by `show`'s
+    journal. Storing it would store what git computes (§0).
+  - `relates_to` — relatedness is an equivalence CLASS, not a pairwise edge, and `tags` names the
+    class: `list --tag` returns the whole cluster in one query where a pairwise graph needs an edge
+    per pair and a traversal for the same answer.
+  The residue is stated, not hidden: a genuinely pairwise live-to-live annotation is prose-only and
+  not machine-reachable. No verb would consume one, so it buys no query; a team wanting it anyway
+  has the `extra` seam below — an unknown key round-tripped untouched, severable, zero core.
 - **`created`/`updated` are unix-time (i64 seconds)** — storage and transit are ALWAYS unix-time; only
   display renders ISO-8601 (§9). A timestamp is just an int, so the storage layer needs no date library,
   the value is timezone-unambiguous and numerically sortable, and the TOML→JSON export stays lossless.
