@@ -1,7 +1,8 @@
 +++
 title = "bl-chore's claim scratch is never swept on the success path: one dead directory per claim, forever"
 created = 1785824191
-updated = 1785824191
+updated = 1786075161
+claimant = "Odometers"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
