@@ -6,6 +6,10 @@ claimant = "Blackjack"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
+
+[[blockers]]
+id = "bl-5812"
+on = "close"
 +++
 `bl close` tears down the work worktree at `close.post` but KEEPS `work/<id>`,
 deferring the branch delete to `prime`. For a ball that delivers to the
