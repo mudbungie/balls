@@ -177,6 +177,10 @@ impl GitStore {
         git(&["init", "-q"]);
         git(&["config", "user.name", "test"]);
         git(&["config", "user.email", "t@x"]);
+        // Rename detection pinned ON — git's own default since 2.9, but pinned so
+        // an ambient `diff.renames = false` cannot make [`retire_and_create`]'s
+        // fixture (and the walks that must survive it, bl-ae74) pass vacuously.
+        git(&["config", "diff.renames", "true"]);
     }
 
     /// Commit `tasks/<id>.md` into being as a `create` (born at unix `at`).
@@ -210,6 +214,18 @@ impl GitStore {
             std::fs::remove_file(crate::taskfile::task_path(&self.dir, id)).unwrap();
         }
         self.commit(ids[0], op, at);
+        self
+    }
+
+    /// Retire `dead` and create `born` in ONE commit — the rename-shaped seal (a
+    /// hand-edited store commit, an `import` batched with a close). The two task
+    /// files are self-similar enough that git's default rename detection reports
+    /// the pair as a single `R`, so `dead`'s deletion is invisible to a
+    /// `--diff-filter=D` walk that does not pass `--no-renames` (bl-ae74).
+    pub(crate) fn retire_and_create(&self, dead: &str, born: &str, task: &Task, at: i64) -> &Self {
+        std::fs::remove_file(crate::taskfile::task_path(&self.dir, dead)).unwrap();
+        crate::taskfile::write_task(&self.dir, born, task).unwrap();
+        self.commit(born, "close", at);
         self
     }
 

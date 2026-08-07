@@ -52,6 +52,26 @@ fn resolve_dead_takes_the_newest_incarnation_of_a_reused_id() {
 }
 
 #[test]
+fn resolve_dead_sees_a_deletion_that_shares_its_commit_with_a_similar_add() {
+    // `show`'s half of bl-ae74: ONE commit retires bl-gone while adding a
+    // near-identical bl-new, which git's default rename detection reports as a
+    // single `R`. The singular walk survives it even unflagged (its pathspec is
+    // the one file, so the sibling add is filtered out before git can pair a
+    // rename) — this locks the OUTCOME, so the day that stops being true the id
+    // does not silently start naming nothing, live or dead.
+    let s = git_store();
+    let mut gone = task("Retired", 1);
+    gone.body = "the plan\nstep one\nstep two\nstep three\n".into();
+    let mut born = task("Successor", 2);
+    born.body = gone.body.clone(); // self-similar enough to cross git's threshold
+    s.create("bl-gone", &gone, 1).retire_and_create("bl-gone", "bl-new", &born, 50);
+
+    let dead = resolve_dead(s.dir(), "bl-gone").unwrap().unwrap();
+    assert_eq!(dead.task.title, "Retired"); // reconstructed from the deletion's parent
+    assert_eq!(dead.retired_at, 50);
+}
+
+#[test]
 fn resolve_dead_surfaces_a_corrupt_historical_file_as_an_error() {
     let s = git_store();
     s.create_raw("bl-bad", "not valid frontmatter", 1).retire("bl-bad", "close", 2);
@@ -145,6 +165,25 @@ fn dead_balls_is_empty_when_nothing_was_ever_deleted() {
     s.create("bl-live", &task("Alive", 1), 1);
     let live = Catalog::load(s.dir()).unwrap();
     assert!(dead_balls(s.dir(), &live).unwrap().is_empty());
+}
+
+#[test]
+fn dead_balls_keeps_a_deletion_that_shares_its_commit_with_a_similar_add() {
+    // The enumeration's half of the same hole: the rename-shaped commit would
+    // drop bl-gone out of the dead set entirely, so `list -s closed` omits the
+    // row (bl-ae74). The added ball is live, so only the retired one lists.
+    let s = git_store();
+    let mut gone = task("Retired", 1);
+    gone.body = "the plan\nstep one\nstep two\nstep three\n".into();
+    let mut born = task("Successor", 2);
+    born.body = gone.body.clone();
+    s.create("bl-gone", &gone, 1).retire_and_create("bl-gone", "bl-new", &born, 50);
+
+    let live = Catalog::load(s.dir()).unwrap();
+    let dead = dead_balls(s.dir(), &live).unwrap();
+    let ids: Vec<&str> = dead.iter().map(|d| d.id.as_str()).collect();
+    assert_eq!(ids, ["bl-gone"]);
+    assert_eq!(dead[0].task.title, "Retired");
 }
 
 #[test]

@@ -940,8 +940,12 @@ ordering was never special. Filters COMPOSE (AND):
   reconstructed from history (deleted `tasks/*.md`), recovered most-recent-down. `-s closed` = dead
   only; `--all` = live + dead. (`-s closed` and `--all` both pick the dead set, so they don't combine.)
   The dead reach is BATCHED and costs TWO git invocations at any store size (bl-4c08): one
-  `log --diff-filter=D --name-only` — which already names each deletion's sha and date — then one
-  `cat-file --batch` over every `<sha>^:tasks/<id>.md`. It shares `show`'s recency DISCIPLINE, not its
+  `log --diff-filter=D --no-renames --name-only` — which already names each deletion's sha and date —
+  then one `cat-file --batch` over every `<sha>^:tasks/<id>.md`. `--no-renames` because git pairs
+  renames by default and task files are near-identical by construction: one commit deleting
+  `tasks/<a>.md` beside a similar-enough added `tasks/<b>.md` would report a single `R`, and `<a>`
+  would drop out of the dead set entirely — naming nothing, live or dead, which is indistinguishable
+  from a ball that never existed (bl-ae74). It shares `show`'s recency DISCIPLINE, not its
   per-id walk: a per-id `git log` costs more the OLDER the ball is, and history grows with ball count,
   so N of them is quadratic (measured on this repo's store, 395 dead over 1193 commits: 7.2s → 0.07s,
   byte-identical output). This is the §0 rule in force, not an exception to it — the quadratic cost was
