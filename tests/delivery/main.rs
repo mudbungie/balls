@@ -162,21 +162,18 @@ fn a_full_claim_work_close_lifecycle_delivers_then_tears_down() {
         "Add feature [bl-x]"
     );
 
-    // close.post — teardown removes the worktree but KEEPS the branch (§11:
-    // rollback-safe — re-creatable; deletion is prime's deferred cleanup, §14).
+    // close.post — teardown removes the worktree AND deletes the branch
+    // (bl-ce3b): the squash above already put the content on main, so the
+    // branch is a stale second copy and the op that made it says so itself.
     delivery(&root, &home, "close", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     assert!(!wt.exists());
     let branch_exists = || {
         Command::new("git").current_dir(&root).args(["rev-parse", "--verify", "--quiet", "refs/heads/work/bl-x"]).output().unwrap().status.success()
     };
-    assert!(branch_exists());
-
-    // prime.post is the deferred cleanup site (§11): the delivered branch is
-    // settled, so the prune deletes it — the bl-292d leak, closed.
-    let store = tmp.path().join("store");
-    fs::create_dir_all(store.join("tasks")).unwrap();
-    delivery(&store, &home, "prime", "post", &prime("me", inv)).assert().success();
     assert!(!branch_exists());
+    // Nothing is deferred to prime.post any more, so this lifecycle ends here;
+    // the prune that used to finish it is now a crash backstop, exercised where
+    // a crash can be staged (`prime.rs`, `tests/two_clone.rs`).
 }
 
 #[test]

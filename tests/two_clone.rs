@@ -10,10 +10,12 @@
 //! shipped binary. Two stories:
 //!
 //!   * A creates → claims → closes a ball; B `bl sync`s and SEES each step land
-//!     (the create appears, the close removes it). Then `bl prime` on A PRUNES the
-//!     settled `work/<id>` branch the close left behind — a `skill/prime.md`
-//!     promise ("prune settled work/<id> branches") only ever tested at the plugin
-//!     level (`tests/delivery/prime.rs`), now proven through the real CLI.
+//!     (the create appears, the close removes it). The close deletes its own
+//!     settled `work/<id>` branch (bl-ce3b); re-create that branch — the state a
+//!     close killed between the seal and its teardown leaves — and `bl prime` on
+//!     A PRUNES it, a `skill/prime.md` promise ("prune settled work/<id>
+//!     branches") only ever tested at the plugin level (`tests/delivery/prime.rs`),
+//!     now proven through the real CLI.
 //!   * Both clones create CONCURRENTLY off one synced base: A publishes first, so
 //!     B's optimistic `create.post` push is rejected non-ff (the §13 contention
 //!     signal); B `bl sync`s and re-creates, and after a mutual sync BOTH balls
@@ -82,6 +84,13 @@ fn git(cwd: &Path, args: &[&str]) {
     assert!(ok, "git {args:?} failed in {}", cwd.display());
 }
 
+/// `git -C <cwd> <args>` capturing trimmed stdout (a sha, a commit subject).
+fn git_out(cwd: &Path, args: &[&str]) -> String {
+    let out = std::process::Command::new("git").arg("-C").arg(cwd).args(args).output().unwrap();
+    assert!(out.status.success(), "git {args:?} failed in {}", cwd.display());
+    String::from_utf8(out.stdout).unwrap().trim().to_string()
+}
+
 /// A verb's single stdout product (create's id, claim's worktree path), trimmed.
 fn stdout(a: Assert) -> String {
     String::from_utf8(a.get_output().stdout.clone()).unwrap().trim().to_string()
@@ -126,8 +135,9 @@ fn two_devs(tmp: &Path) -> (Dev, Dev) {
 fn two_clones_sharing_one_origin_converge_a_full_lifecycle_and_prime_prunes_the_settled_branch() {
     // A drives a whole create→claim→close lifecycle; B, a separate developer on a
     // separate XDG root, `bl sync`s at each step and observes it land through the
-    // shared origin store. Finally A's `bl prime` prunes the settled `work/<id>`
-    // branch the close deferred (the skill/prime.md promise, via the real CLI).
+    // shared origin store. Finally A's close is shown to delete its own
+    // `work/<id>` branch, and `bl prime` is shown to reap one that a crashed
+    // close left behind (the skill/prime.md promise, via the real CLI).
     let tmp = TempDir::new().unwrap();
     let (a, b) = two_devs(tmp.path());
 
@@ -145,6 +155,9 @@ fn two_clones_sharing_one_origin_converge_a_full_lifecycle_and_prime_prunes_the_
     std::fs::write(Path::new(&worktree).join("road.txt"), "paved\n").unwrap();
     git(Path::new(&worktree), &["add", "-A"]);
     git(Path::new(&worktree), &["commit", "-qm", &format!("pave [{id}]")]);
+    // Remember where the work branch stands — the close deletes it, and the
+    // backstop story below re-creates exactly this tip.
+    let work_tip = git_out(Path::new(&worktree), &["rev-parse", "HEAD"]);
 
     // A CLOSES: close.pre squashes the delivery onto A's local main, the seal
     // archives the ball, close.post tears the worktree down and pushes the store.
@@ -160,10 +173,17 @@ fn two_clones_sharing_one_origin_converge_a_full_lifecycle_and_prime_prunes_the_
     assert!(!b.live_ids().contains(&id), "B sees the close: ball archived out of the live list");
     assert!(a.live_ids().is_empty(), "A's own live list is empty too");
 
-    // PRIME PRUNES THE SETTLED BRANCH: close deferred the `work/<id>` cleanup, so
-    // the branch still stands right after the close — then `bl prime` (prime.post =
-    // [bl-delivery, bl-tracker]) prunes it. The skill/prime.md promise, end to end.
-    assert!(a.has_work_branch(&id), "close leaves the settled work/<id> branch for prime to reap");
+    // THE CLOSE CLEANS UP AFTER ITSELF (bl-ce3b): the branch is gone with the
+    // worktree, because the op that squashed it knows it delivered.
+    assert!(!a.has_work_branch(&id), "close deleted the delivered work/<id> branch");
+
+    // PRIME IS THE BACKSTOP, for the one state close.post cannot reach: a crash
+    // or kill between the seal and the teardown. Reconstruct it exactly — put
+    // the branch back at the tip the close deleted, with the delivery already
+    // standing on main — and `bl prime` (prime.post = [bl-delivery, bl-tracker])
+    // reaps it. The skill/prime.md promise, end to end through the real CLI.
+    git(&a.project, &["branch", &format!("work/{id}"), &work_tip]);
+    assert!(a.has_work_branch(&id));
     a.bl().arg("prime").assert().success();
     assert!(!a.has_work_branch(&id), "bl prime pruned the settled work/<id> branch");
 }
@@ -212,8 +232,5 @@ fn concurrent_creates_from_two_clones_both_land_after_the_lagging_side_syncs() {
 
 /// `git -C <repo> log -1 --format=%s <rev>` — a delivery/seed commit subject.
 fn git_subject(repo: &Path, rev: &str) -> String {
-    let out =
-        std::process::Command::new("git").arg("-C").arg(repo).args(["log", "-1", "--format=%s", rev]).output().unwrap();
-    assert!(out.status.success(), "git log failed in {}", repo.display());
-    String::from_utf8(out.stdout).unwrap().trim().to_string()
+    git_out(repo, &["log", "-1", "--format=%s", rev])
 }

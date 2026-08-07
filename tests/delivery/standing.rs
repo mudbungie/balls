@@ -71,8 +71,9 @@ fn arena(tmp: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
 
 #[test]
 fn a_diverged_close_aborts_and_prime_preserves_the_surviving_branch() {
-    // bl-c231/bl-65e0: A delivers, the branch survives (close.post keeps it),
-    // then it grows a commit BEYOND the delivery. A re-close must ABORT loudly
+    // bl-c231/bl-65e0: A delivers, the close then ABORTS before close.post so
+    // the branch survives, and it grows a commit BEYOND the delivery. A
+    // re-close must ABORT loudly
     // ("already delivered … file a new task"), never silently skip and strand
     // the extra work — and prime's prune must PRESERVE the diverged branch.
     let tmp = TempDir::new().unwrap();
@@ -81,23 +82,24 @@ fn a_diverged_close_aborts_and_prime_preserves_the_surviving_branch() {
     let xdg = Xdg::with(&home, None, Some(home.join("state").to_str().unwrap()));
     let wt = worktree_path(&xdg, "delivery", inv, "bl-x");
 
-    // Deliver once, then tear the worktree down (branch survives). Commit the
-    // work under a message DISTINCT from the delivery subject so the branch
-    // commit's SHA differs from the squash's — otherwise same tree+parent+
-    // message+time collide the two and the branch reads as an ancestor of main
-    // (no divergence, the git-SHA-coincidence trap).
+    // Deliver, and stop THERE: the close aborted after its squash (bl-430e —
+    // a lost seal, a failing sibling plugin), so `close.post` never ran and the
+    // branch stands with a delivery on main. That abort IS the only way this
+    // state arises now that a completed close deletes its own branch (bl-ce3b).
+    // Commit the work under a message DISTINCT from the delivery subject so the
+    // branch commit's SHA differs from the squash's — otherwise same tree+
+    // parent+message+time collide the two and the branch reads as an ancestor
+    // of main (no divergence, the git-SHA-coincidence trap).
     delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     fs::write(wt.join("feature.txt"), "shipped\n").unwrap();
     git(&wt, &["add", "-A"]);
     git(&wt, &["commit", "-qm", "wip"]);
     delivery(&change_dir(tmp.path(), "c1"), &home, "close", "pre", &pre(inv, "Add feature")).assert().success();
-    delivery(&root, &home, "close", "post", &post(inv, "bl-x", "Add feature")).assert().success();
     assert_eq!(subject(&root), "Add feature [bl-x]");
-    assert!(work_branch_exists(&root));
+    assert!(work_branch_exists(&root), "an aborted close leaves the branch — the retry recomputes from it");
 
-    // Re-materialize the surviving branch and commit MORE beyond the delivery
-    // (the bl-65e0 handoff) — again a distinct message, clean tree at close.
-    delivery(&root, &home, "claim", "post", &post(inv, "bl-x", "Add feature")).assert().success();
+    // The next holder commits MORE beyond the delivery (the bl-65e0 handoff) —
+    // again a distinct message, clean tree at close.
     fs::write(wt.join("more.txt"), "beyond\n").unwrap();
     git(&wt, &["add", "-A"]);
     git(&wt, &["commit", "-qm", "more work"]);

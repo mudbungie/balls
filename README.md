@@ -122,7 +122,7 @@ The human-facing output of `list`/`show` paints derived columns — the status l
 | `bl unclaim <id> [--as ID]` | Release a claim, remove the worktree. |
 | `bl update <id> [--title T] [--body B] [--parent ID\|--no-parent] [-p N\|--no-priority] [-t TAG] [--no-tag TAG] [--needs ID[:OP]] [--no-needs ID] [key=value] [-m MSG]` | Overwrite **any** field: `--title`/`--body`; set or clear the `--parent`/`-p` scalar; add (`-t`) or drop (`--no-tag`) a tag; set (`key=value`) or remove (`key=`) a preserved extra; add (`--needs`) or unlink (`--no-needs`) one of this task's own blockers. Only reciprocal `--blocks` (an edge on ANOTHER task) stays **create-only**. `-m` is the commit note. |
 | `bl comment <id> "TEXT" [--as ID]` | Append TEXT to the task's markdown body under a horizontal rule — sugar over `update --body`, and the one note that renders in **both** `bl show` and `bl show --json` (the body is stored; the `-m` journal is derived). No `-m`, no field flags; empty TEXT is refused. |
-| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree. Refuses if `main` moved and is not yet in `work/<id>` — merge it in, resolve and test there, then close again. If the task file changed since your own last touch, close refuses once with the unseen diff; a bare re-run seals exactly that content. |
+| `bl close <id> [-m MSG] [--as ID]` | Deliver (squash `work/<id>` → `main`) + archive the task + tear down the worktree **and the `work/<id>` branch**. Refuses if `main` moved and is not yet in `work/<id>` — merge it in, resolve and test there, then close again. If the task file changed since your own last touch, close refuses once with the unseen diff; a bare re-run seals exactly that content. |
 | `bl install [PATH] [--from REF] [--to REF] [--bin NAME=PATH] [--as ID]` | Copy a committed path between branches (adopt/publish plugin config). `PATH` defaults to `config/`, `--from` to the configured upstream, `--to` to the landing; `--bin NAME=PATH` names a referenced plugin's local binary explicitly (else beside `bl`, then `$PATH`). A folder source mirrors (deletions propagate), a file/glob source unions. |
 | `bl conf [KEY]` | Read or write this checkout's **local** config (never synced), with provenance. No arg dumps every resolved value with its layer and source file; one `KEY` reads that value. Write with `bl conf <set\|append\|prepend\|remove> KEY VALUE…`; `KEY` ∈ `task-remote`, `task-branch`, `log-level`, `clock-provider`, `<op>.<pre\|post>`, `show`, `list`. |
 | `bl --skill` | Print the operating guide (`SKILL.md`) — architecture, the footgun invariants, and the command map. `bl skill` is the deprecated spelling (kept, with a migration note). |
@@ -228,7 +228,7 @@ The shipped seed (`default-config/plugins.toml`):
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
 "import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
@@ -237,7 +237,7 @@ The shipped seed (`default-config/plugins.toml`):
 Two plugins ship by default and are wired by the seed config:
 
 - **bl-tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
-- **bl-delivery** — owns the `work/<id>` code worktree: materialize on claim, squash-deliver + tear down on close. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
+- **bl-delivery** — owns the `work/<id>` code worktree and branch: materialize on claim, squash-deliver on close then delete both (the squash and the seal have already landed, so the delete is provably lossless); `unclaim` releases the worktree but keeps the branch, since a handoff delivered nothing. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
 
 A third, **bl-chore**, ships but is **opt-in** (not in the seed schedule): wire it with `bl conf prepend claim.post bl-chore` and it mints one tagged close-gate child per configured chore at claim, so the claiming agent must discharge them before `bl close` — a forcing-function checklist, not enforcement.
 

@@ -58,6 +58,18 @@ fn stdout(a: Assert) -> String {
     String::from_utf8(a.get_output().stdout.clone()).unwrap().trim().to_string()
 }
 
+/// Does `refs/heads/work/<id>` exist in `root`? (`rev-parse --verify --quiet`
+/// is the exit-code form — no output to parse, no `fatal` on stderr.)
+fn work_branch_exists(root: &Path, id: &str) -> bool {
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/work/{id}")])
+        .status()
+        .unwrap()
+        .success()
+}
+
 /// A project repo seeded on `main` plus a primed stealth store, both under `tmp`.
 fn project(tmp: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let (home, state, root) = (tmp.join("h"), tmp.join("s"), tmp.join("proj"));
@@ -184,14 +196,41 @@ fn a_bare_parent_gates_nothing_and_keeps_delivering_flat_to_main() {
     work_and_close(&root, &home, &state, &kid, "kid.txt");
 
     assert_eq!(git_out(&root, &["log", "-1", "--format=%s", "main"]), format!("Kid [{kid}]"));
-    let minted = std::process::Command::new("git")
-        .arg("-C")
-        .arg(&root)
-        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/work/{epic}")])
-        .status()
-        .unwrap()
-        .success();
-    assert!(!minted, "no nesting ⇒ no target ref is ever minted");
+    assert!(!work_branch_exists(&root, &epic), "no nesting ⇒ no target ref is ever minted");
+}
+
+#[test]
+fn a_closed_balls_own_branch_dies_with_its_close_at_every_depth() {
+    // bl-ce3b. Branch deletion used to be DEFERRED to `prime`, which decides by
+    // scanning the INTEGRATION branch for a `[bl-<id>]` delivery commit. A
+    // NESTED child never puts one there — it delivers into `work/<parent>` —
+    // so prime read it as "undelivered" and correctly refused to delete it,
+    // forever: one permanently leaked branch per closed child. The close itself
+    // KNOWS it just delivered, so it deletes its own branch and the nested case
+    // stops needing the reconstruction at all.
+    let tmp = TempDir::new().unwrap();
+    let (root, home, state) = project(tmp.path());
+    let create = |args: &[&str]| stdout(bl(&root, &home, &state).args(args).assert().success());
+    let epic = create(&["create", "The epic", "--as", "me"]);
+    let kid = create(&["create", "Kid", "--parent", &epic, "--blocks", "close", "--as", "me"]);
+
+    // THE LEAK CASE: the child's work is on `work/<epic>`, and NOTHING on main
+    // carries the child's id — the exact state prime cannot classify.
+    work_and_close(&root, &home, &state, &kid, "kid.txt");
+    assert_eq!(git_out(&root, &["log", "-1", "--format=%s", "main"]), "seed", "the child delivered, it did not land");
+    assert!(work_branch_exists(&root, &epic), "the epic's ref is live — it holds the child's delivered work");
+    assert!(!work_branch_exists(&root, &kid), "the child's close deleted its own branch");
+
+    // And prime — the old cleanup site — has nothing left to report about it.
+    let primed = bl(&root, &home, &state).arg("prime").assert().success();
+    let noise = String::from_utf8(primed.get_output().stderr.clone()).unwrap();
+    assert!(!noise.contains(&kid), "no debris line survives for the closed child:\n{noise}");
+
+    // Same act at the root: the epic's own close lands on main and takes
+    // `work/<epic>` with it, so the ref that held the children is gone too.
+    bl(&root, &home, &state).args(["close", &epic, "--as", "me"]).assert().success();
+    assert_eq!(git_out(&root, &["show", "main:kid.txt"]), "done");
+    assert!(!work_branch_exists(&root, &epic), "the epic's close deleted its own branch");
 }
 
 #[test]

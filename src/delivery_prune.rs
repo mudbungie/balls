@@ -3,17 +3,24 @@
 //! docs/design/bl-18bf-prime-convergence.md), REPORTS the debris an unsettled
 //! one leaves when its worktree directory is gone.
 //!
-//! Close/unclaim teardown removes only the worktree DIRECTORY; the branch must
-//! survive the op (§11: "re-creatable from the branch, so it is rollback-safe").
-//! The reason is converge-on-retry (§14): until the squash lands — a close can
-//! abort before it (gate failure, stale-source refusal) — the `work/<id>` branch is
-//! the ONLY copy of the diff, and the retry's deliver recomputes from it.
-//! Deleting it inside the op would make a retried abort silently no-op on the
-//! absent branch. So branch deletion is DEFERRED, non-transactional cleanup
-//! ("deleting `work/<id>` is deferred, non-transactional cleanup (`prime`)",
-//! §11/§14), and `prime` — which runs outside any op, after re-materializing
-//! the still-claimed set — is the cleanup site. Without it the branch namespace
-//! grew monotonically with every delivered task (bl-292d: 52 had accumulated).
+//! **This is now a BACKSTOP, not the routine path (bl-ce3b).** A close deletes
+//! its own `work/<id>` at `close.post` — the op that just squashed and sealed
+//! knows it delivered, so nothing has to reconstruct that later. Deferring the
+//! delete to prime made prime re-derive delivery from a `[bl-<id>]` marker on
+//! the INTEGRATION branch, which a NESTED ball (delivering into
+//! `work/<parent>`) structurally never puts there: every closed child leaked a
+//! branch permanently, and [`Project::standing`] was not failing — it was
+//! handed "undelivered" and correctly refused to delete.
+//!
+//! What reaches this prune is therefore what `close.post` never ran on: a crash
+//! or kill between the seal and the teardown, and pre-bl-ce3b branches already
+//! on disk. Unclaim still leaves its branch deliberately (bl-65e0 — the next
+//! claimant re-materializes onto it), and that branch is Undelivered, so this
+//! prune never touches it either; it is reported as debris only once its
+//! worktree is also gone. Before close.post owned the delete, the branch
+//! namespace grew monotonically with every delivered task (bl-292d: 52 had
+//! accumulated) — that growth is what this prune ended and what close.post now
+//! prevents at the source.
 //!
 //! An unsettled branch (committed-but-undelivered, or diverged past a delivery)
 //! is correctly never pruned — but when its worktree directory is ALSO absent
