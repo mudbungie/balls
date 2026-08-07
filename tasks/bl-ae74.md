@@ -1,7 +1,8 @@
 +++
 title = "rename detection can swallow a deletion: a closed ball vanishes from show and list -s closed entirely"
 created = 1785997273
-updated = 1785997273
+updated = 1786075114
+claimant = "Jinns"
 priority = 3
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
