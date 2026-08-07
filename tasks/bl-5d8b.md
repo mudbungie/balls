@@ -5,6 +5,10 @@ updated = 1786064576
 claimant = "Pale"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-6549"
+on = "close"
 +++
 Cold start is the real integration gap. balls ships good agent docs (SKILL.md via `bl --skill`, per-verb `bl <cmd> --skill`) and a landing brief (`config/PRIME.md`, bl-c84f), but the README never says how an operator wires a repo so a fresh agent finds any of it. Today the setup is scattered: the brief is under prime, identity is a prose paragraph ending in a `shuf` recipe, and the AGENTS.md hop — the only thing that tells an agent balls exists at all — is nowhere.
 
