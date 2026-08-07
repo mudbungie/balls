@@ -59,9 +59,11 @@ fn render_at(cat: &Catalog, dead: &[Dead], flags: &Flags, style: &Style, store: 
     render_list(cat, dead, flags, style, &ctx(store, &xdg)).unwrap()
 }
 
-/// A reconstructed dead ball, for the reach/render tests.
+/// A reconstructed dead ball, for the reach/render tests. Its `rev` is empty:
+/// no listing reads it — only `show`'s body render blames that revision (§9
+/// comment bylines, bl-236c).
 fn dead(id: &str, title: &str, created: i64) -> Dead {
-    Dead { id: id.into(), task: task(title, created), retired_at: created + 1 }
+    Dead { id: id.into(), task: task(title, created), retired_at: created + 1, rev: String::new() }
 }
 
 /// A ball with an explicit priority.
@@ -276,7 +278,7 @@ fn nested_rows_render_their_delivery_target_live_and_dead() {
     let cat = catalog(&[("bl-epic", epic), ("bl-kid", kid), ("bl-flat", flat)]);
     let mut gone = task("Gone", 3);
     gone.parent = Some("bl-epic".into());
-    let dead_set = [Dead { id: "bl-gone".into(), task: gone, retired_at: 4 }];
+    let dead_set = [Dead { id: "bl-gone".into(), task: gone, retired_at: 4, rev: String::new() }];
     let out = render(&cat, &dead_set, &flags_reach(Reach::All), &plain());
     // All three sit UNDER the epic in the tree (containment); the marker is the
     // orthogonal fact — only the two that also close-gate it carry `->bl-epic`.

@@ -14,6 +14,7 @@ nothing more: read the stored body, append, seal.
     ---
 
     single-clone runs pass; needs a second clone
+      2026-08-06T16:00:53Z  alice
 
 Each comment brings its own rule, so the seams are visible in the render. The
 rule is **decoration for the reader and nothing more** — balls writes it once and
@@ -53,19 +54,38 @@ Three ways to write, one distinction:
 - `bl update <id> -m MSG` — write a journal entry (history, human view only).
 - `bl comment <id> "TEXT"` — append to the living document (both views).
 
-## No stamp, no attribution, no marker
+## No stamp in the body — a byline in the render
 
 Under the rule the append is the literal text. Nothing else: no timestamp, no
 `@who`, no id. The commit records who and when authoritatively — a stamp in the
 body would be a second copy of a fact git already owns, and a copy that can drift
 (hand-edited through `bl update --edit`, re-imported through `bl import`).
 
+You still see whose is whose, because `bl show` **derives** it. Each comment is
+one commit, so the commit boundary IS the comment boundary: `bl show` blames
+`tasks/<id>.md` and hangs a `<ISO>  <actor>` **byline** under every run of body
+lines whose commit ran the `comment` op, the same way it renders the journal. The
+line above is that byline, not stored text.
+
+It is DERIVED, therefore **human-only**: `bl show --json` carries the `body`
+verbatim with no attribution anywhere, and never pays the blame. That is the same
+boundary the journal sits on — bedrock mirrors stored state, and who-wrote-this
+is history. To read attribution from a machine, read git: `git log -p` the store
+branch, or `git blame tasks/<id>.md`.
+
+Lines that are NOT a comment get no byline: the body as filed at `create`, a
+`--body` rewrite, an `--edit`. Those are the living document, not a note. And the
+render never repairs what blame says — an imported ball collapses onto its import
+commit and shows no bylines at all, because that genuinely is who wrote that
+file; a squashed or rewritten store collapses the same way.
+
 Consequences, all intended:
 
 - The body stays **opaque markdown**. balls parses none of it — the rule included
   — so `--edit` cannot corrupt a structure and `--body` still overwrites
   wholesale: a comment IS body, and rewriting the body rewrites every comment and
-  every rule with it.
+  every rule with it. The byline above changes nothing here: it groups lines by
+  their blame commit and inspects no body byte, so the rule stays write-only.
 - Two concurrent comments conflict textually like any two writes to one file; the
   ordinary seal handles it exactly as it handles any concurrent body write.
 

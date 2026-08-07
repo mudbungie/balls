@@ -234,6 +234,19 @@ impl GitStore {
         self
     }
 
+    /// Write `tasks/<id>.md` with `body` as its whole markdown body and seal it
+    /// under `op` — the one shape every BODY write shares: `comment`'s append,
+    /// `update --body`'s rewrite, `import`'s reproduction. The caller composes
+    /// the resulting body, so a fixture owns exactly which lines the commit
+    /// takes the blame for (§9 comment bylines, bl-236c). Restamps `updated` so
+    /// a same-content body still stages a diff.
+    pub(crate) fn edit(&self, id: &str, task: &Task, op: &str, body: &str, at: i64) -> &Self {
+        let t = Task { updated: at, body: body.to_string(), ..task.clone() };
+        crate::taskfile::write_task(&self.dir, id, &t).unwrap();
+        self.commit(id, op, at);
+        self
+    }
+
     fn commit(&self, id: &str, op: &str, at: i64) {
         self.seal(id, op, None, at);
     }

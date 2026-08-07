@@ -14,7 +14,7 @@ use std::io;
 use std::path::Path;
 
 use super::history::{resolve_dead, Dead};
-use super::{claim_age, journal, json_line, target, task_json, Catalog, Entry, Flags, Style};
+use super::{attribution, claim_age, journal, json_line, target, task_json, Catalog, Entry, Flags, Style};
 use crate::civil::iso8601;
 use crate::task::Task;
 
@@ -38,7 +38,7 @@ pub(crate) fn dispatch(store: &Path, cat: &Catalog, flags: &Flags, style: &Style
         // history — the legacy set is the whole world the flag names (§16).
         None if flags.legacy.is_some() => Err(io::Error::other(format!("no such legacy ball: {id}"))),
         None => match resolve_dead(store, id)? {
-            Some(dead) => journaled(render_dead(cat, &dead, flags, style, folded), store, id, flags),
+            Some(dead) => journaled(render_dead(cat, &dead, flags, style, folded, store)?, store, id, flags),
             None => Err(io::Error::other(format!("no such ball: {id}"))),
         },
     }
@@ -77,11 +77,27 @@ fn render_live(cat: &Catalog, e: &Entry, flags: &Flags, style: &Style, folded: &
     let mut out = header(&badge, &e.id, &e.task);
     field(&mut out, "status", cat.status(e).word());
     let claimed = claimed_line(e, flags, store, now)?;
-    body_block(&mut out, &e.task, &claimed, target::of(cat, &e.id, &e.task), |out| {
+    // A live ball's rendered body is its file as last sealed, so its bylines
+    // derive from `HEAD` — the store checkout is only ever written inside a
+    // sealed op, never edited underneath a read.
+    let body = attributed(store, "HEAD", &e.id, &e.task.body, flags, style)?;
+    body_block(&mut out, &e.task, &claimed, target::of(cat, &e.id, &e.task), &body, |out| {
         kids(out, cat, &child_ids(cat, &e.id), style);
         out.push_str(folded);
     });
     Ok(out)
+}
+
+/// The body with its §9 comment bylines folded in (bl-236c) — an ADDED render
+/// line per `comment`-op region of the markdown, derived from `git blame` at
+/// `rev` and stored nowhere ([`attribution`]). Human-only, like the journal and
+/// the claim-age line: `--json` returns before this, and a `--legacy` read (its
+/// history lives on the legacy ref, not this store, §16) renders the body bare.
+fn attributed(store: &Path, rev: &str, id: &str, body: &str, flags: &Flags, style: &Style) -> io::Result<String> {
+    if flags.legacy.is_some() {
+        return Ok(body.to_string());
+    }
+    attribution::annotate(store, rev, id, body, style)
 }
 
 /// The derived `claimed <ISO> (<age> ago)` line a LIVE, currently-claimed ball
@@ -103,19 +119,23 @@ fn claimed_line(e: &Entry, flags: &Flags, store: &Path, now: i64) -> io::Result<
 /// Render a dead (history-served) ball: the same bedrock `--json` record (its
 /// reconstructed frontmatter round-trips), else the human block with the
 /// retirement badge and an extra `retired` date line in place of the live status.
-fn render_dead(cat: &Catalog, d: &Dead, flags: &Flags, style: &Style, folded: &str) -> String {
+fn render_dead(cat: &Catalog, d: &Dead, flags: &Flags, style: &Style, folded: &str, store: &Path) -> io::Result<String> {
     if flags.json {
-        return json_line(&task_json(&d.id, &d.task));
+        return Ok(json_line(&task_json(&d.id, &d.task)));
     }
     let badge = style.retired_badge();
     let mut out = header(&badge, &d.id, &d.task);
     field(&mut out, "status", "closed");
     field(&mut out, "retired", &iso8601(d.retired_at));
+    // The reconstructed body is the file as it stood the instant before
+    // deletion, so its bylines derive at that same revision (bl-236c) — one
+    // rule, live and dead alike, each blamed where its content came from.
+    let body = attributed(store, &d.rev, &d.id, &d.task.body, flags, style)?;
     // Dead balls render no children rollup and no claim-age (retirement, not
     // occupancy, §9); a read-dispatch line still folds (in practice none — a
     // retired ball's worktree is torn down, §11).
-    body_block(&mut out, &d.task, "", target::of(cat, &d.id, &d.task), |out| out.push_str(folded));
-    out
+    body_block(&mut out, &d.task, "", target::of(cat, &d.id, &d.task), &body, |out| out.push_str(folded));
+    Ok(out)
 }
 
 /// The shared `<badge> <id>  <title>` heading both kinds open with.
@@ -131,7 +151,9 @@ fn header(badge: &str, id: &str, task: &Task) -> String {
 /// containment into nesting — and absent for the flat integration-branch case.
 /// On a CLOSED ball it reads as "delivered here, not landed on the integration
 /// branch"; its absence reads as landed. Human-only, like every derived line.
-fn body_block(out: &mut String, task: &Task, claimed: &str, into: Option<&str>, extra: impl FnOnce(&mut String)) {
+/// `body` is the ball's markdown as the render projects it — the stored bytes
+/// verbatim, plus the derived comment bylines ([`attributed`], bl-236c).
+fn body_block(out: &mut String, task: &Task, claimed: &str, into: Option<&str>, body: &str, extra: impl FnOnce(&mut String)) {
     field(out, "created", &iso8601(task.created));
     field(out, "updated", &iso8601(task.updated));
     if let Some(c) = &task.claimant {
@@ -152,9 +174,9 @@ fn body_block(out: &mut String, task: &Task, claimed: &str, into: Option<&str>, 
     }
     blockers(out, task);
     extra(out);
-    if !task.body.is_empty() {
+    if !body.is_empty() {
         out.push('\n');
-        out.push_str(&task.body);
+        out.push_str(body);
     }
 }
 

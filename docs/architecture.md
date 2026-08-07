@@ -1008,6 +1008,28 @@ twin of the §5 no-hand-rolled-parser rule). Live and dead ids render it alike (
 per human show), so a handoff reads the prior agent's notes in place; like the §11 worktree line, the
 journal is DERIVED (it is history), so bedrock `--json` never carries it and never pays the walk.
 
+The human render also hangs a **comment byline** under each comment in the BODY (bl-236c) — a
+`<ISO>  <actor>` line in the journal's own vocabulary, dim in rich mode and bare under `--plain`.
+`comment` stamps nothing into the body (below), which leaves co-location as the gap: six comments and
+no way to tell whose is whose. It is closed by DERIVING, storing nothing: **an append is one commit,
+so the commit boundary IS the comment boundary.** `git blame --porcelain` on `tasks/<id>.md` gives the
+per-line commit map, the §5 `bl-op` trailer selects the `comment` ones, and each such run of lines
+gets ONE added render line. The `---` rule is still **never read** — balls does not search for a rule,
+count rules, split on one, or suppress one, and inspects no body byte at all: only the body's LINE
+COUNT is read off it, to align git's per-line answer with the tail of the file. Body bytes pass
+through unaltered. The byline hangs at the END of its comment's lines because the append is
+`\n\n---\n\n{text}\n`: a comment commit's first lines are always the blank/rule/blank decoration, so a
+byline there would read as the PREVIOUS comment's, while its last line is always the comment's own
+text (`docs/design/bl-236c-comment-attribution.md`). Lines under any other op — the `create` body, a
+`--body` rewrite, an `--edit`, an import — render bare: they are the living document, not a note.
+Degradation is honest and never an error, because the render states what blame says and repairs
+nothing: an imported or squashed ball collapses onto one commit and shows no byline (that IS who
+wrote the file), a dead ball is blamed at the deletion's parent (the revision its reconstructed body
+came from), and an empty body makes no blame call at all. One blame plus one `git log` over the
+blamed set per human show, the journal's cost shape; bedrock `--json` carries the `body` verbatim with
+no attribution and pays neither — blame is history, and history cannot survive
+`show --json | bl import` (import writes new commits under the importer).
+
 Checkout-lifecycle verbs (the checkout itself, not a ball): **`prime`, `sync`, `install`, `conf`**
 (§13, §6, §4).
 **There is no `init` verb** — it retired into idempotent `prime` (§12): founding is just `prime`'s
@@ -1091,7 +1113,8 @@ same base change carrying one body edit, under its own verb so the §5 trailer, 
 reason: the body is STORED and the journal is DERIVED, so a body-append is the only note that renders
 in `bl show` AND in bedrock `bl show --json` (§3 — the record is total, `body` included). The append
 is the LITERAL text and nothing else — no timestamp, no attribution, no id — because the commit
-records who and when authoritatively and a second copy in the body would drift (`--edit`, `import`);
+records who and when authoritatively and a second copy in the body would drift (`--edit`, `import`) —
+human `show` DERIVES that fact back as a byline instead (bl-236c, `show` above);
 the rule is decoration balls writes once and NEVER reads back, so the body stays opaque markdown and
 `--body` overwrites it wholesale, comments and rules alike. An empty body takes the text with no
 leading rule. Refused: empty or whitespace-only TEXT (an append that seals nothing is bl-cf93's
@@ -2333,6 +2356,34 @@ OPEN:
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **the comment byline is a QUERY over `git blame`, not a field (2026-08-06, bl-236c — design record
+  `docs/design/bl-236c-comment-attribution.md`).** bl-d136 (below) is right that `comment` must stamp
+  nothing into the body — a copy of who/when drifts the first time someone runs `--edit` or re-imports
+  — but it left CO-LOCATION open: a body of six comments reads as one document, and "whose is this?"
+  cost a `git log -p` in another window. The obvious fix (write the stamp after all) trades a live
+  fact for a stale copy, so the answer is the §0 rule verbatim — *don't store what you can compute*.
+  **An append is one commit, so the commit boundary IS the comment boundary**: blame `tasks/<id>.md`,
+  select the runs whose §5 `bl-op` trailer is `comment`, and hang ONE added render line off each. That
+  observation is what makes marker parsing unnecessary, so bl-d136's never-read-the-rule rule is not
+  weakened by a byte — nothing searches for a rule, counts rules, splits on one or suppresses one, and
+  no body byte is inspected at all: the body's LINE COUNT alone is read, to align git's per-line answer
+  with the tail of the file. One DEVIATION from the ball, recorded rather than taken silently: the
+  byline hangs at the TAIL of each comment's lines, not the head. The append is `\n\n---\n\n{text}\n`,
+  so a comment commit's first lines are always the blank/rule/blank decoration — a head byline lands
+  under the PREVIOUS comment's text and above its own rule, reading as the wrong comment's — while its
+  last line is always the comment's own text. Not a taste call: head placement is wrong output, and
+  balls may not look at the decoration to skip it. Human-only on the boundary the journal already
+  holds: `--json` is byte-identical to before and never pays the blame, because blame cannot survive
+  `show --json | bl import` (import writes new commits under the importer), so a bedrock attribution
+  field would be a lie one pipe later. Degradation states what blame says and repairs nothing — an
+  imported or squashed ball collapses onto one commit and shows no byline (that IS who wrote the
+  file), a dead ball is blamed at the deletion's parent, an empty body makes no blame call at all, and
+  a body git cannot blame renders bare rather than erroring. Cost: one blame plus one `git log` over
+  the blamed set per human show, the journal's shape. Touched §9 (the `show` render, the `comment`
+  pointer), §15 (this entry). Code: `src/reads/attribution.rs` (new, sibling of `journal.rs`),
+  `src/reads/show.rs` (the body the block renders is the projected one), `src/reads/style.rs`
+  (`byline`), `src/reads/history.rs` (`Dead::rev` — the revision the reconstruction already read,
+  carried instead of re-derived), `skill/comment.md`, `skill/show.md`. Tracked under bl-236c.
 - **`bl comment <id> "TEXT"` — the body-append verb, REVERSING bl-cf93's "no `comment` verb"
   (2026-08-06, bl-d136).** bl-cf93 (below) ruled a comment verb out on one-fact-one-home: the body is
   the living document, the journal is store-branch git history, so `-m` is the note path. That
