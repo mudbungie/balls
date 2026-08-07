@@ -616,12 +616,12 @@ a list property, not an `NN-` filename convention faking one.
 "sync.pre"     = ["bl-tracker"]                  # import remote state first
 "prime.pre"    = ["bl-tracker"]
 "install.pre"  = ["bl-tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "bl-tracker"]   # prune settled work/<id> branches (worktrees materialize at claim only), then settle store content (fetch-ff + push)
+"prime.post"   = ["bl-delivery", "bl-tracker"]   # BACKSTOP prune of settled work/<id> branches (close.post deletes its own; worktrees materialize at claim only), then settle store content (fetch-ff + push)
 "claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
 "show"         = ["bl-delivery"]                 # read-op (single phase): fold the worktree path into the human render (§11)
 "close.pre"    = ["bl-delivery"]                 # deliver (squash) before the seal
-"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown, then push
+"close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
 # bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.post bl-chore`
@@ -1167,7 +1167,8 @@ self-merge default DELIVER and RETIRE are one act:
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
   already-delivered check (§11) — delivery converges on retry whoever performed the merge.
 - balls seals the `tasks/<id>.md` DELETION (`bl-op: close`).
-- `close.post`: the delivery plugin tears down the code worktree (§11); the tracker pushes the
+- `close.post`: the delivery plugin tears down the code worktree AND deletes `work/<id>` (§11 — the
+  squash and the seal have both landed, so the branch is a stale second copy); the tracker pushes the
   balls-state deletion commit (NEVER the project code branch).
 
 Core close ships no code, pushes no project remote, runs no source-state check. Forge review is **not
@@ -1496,8 +1497,11 @@ there is no field that can drift out of sync with whether the worktree exists.
 
 **Hooks:** `claim.post` materialize (create-if-absent) + print the path — the ONLY moment a worktree
 materializes (bl-c2bf; re-priming a lost one is `unclaim` + `claim`); `prime.post` prunes settled
-`work/<id>` branches (it makes no worktree); `unclaim.post` releases (remove-if-present);
-**`close.pre` deliver** (sorts last); **`close.post` teardown**; **`show` (read-op)** print the path for
+`work/<id>` branches (it makes no worktree) — the BACKSTOP path since bl-ce3b, not the routine one;
+`unclaim.post` releases the worktree and KEEPS the branch (a handoff — the next claimant
+re-materializes onto the committed work, bl-65e0);
+**`close.pre` deliver** (sorts last); **`close.post` teardown** — worktree AND branch (bl-ce3b);
+**`show` (read-op)** print the path for
 the named ball (§6 read dispatch). balls does not guard against tearing a
 worktree down from inside it — the agent SHOULD `cd` out of the worktree before closing so its shell
 cwd is not deleted underneath it (a recommendation in the skill guide, not an enforced precondition).
@@ -1577,9 +1581,15 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   one optional wire field in, one hardcoded assumption out. It is an ID, not a branch name — `work/<id>`
   is the plugin's formula above, and core spelling it would be a second home for the naming. NEVER a
   stored field: a frontmatter override would drift from the edges that define it.
-  `prime` pruning needs no target awareness — a child delivered into an epic is simply UNSETTLED
-  (not yet contained in the integration branch) until the epic lands, then settles and prunes with
-  zero new logic. And the pre-commit GATE runs at every close, children included: attribution —
+  `prime` pruning needs no target awareness — though NOT for the reason first written here, which
+  bl-ce3b corrected. The claim was that a child delivered into an epic is merely UNSETTLED until the
+  epic lands, whereupon it settles and prunes with zero new logic. It never settled: `Standing` decides
+  delivered-ness by finding a `[bl-<id>]` commit on the INTEGRATION branch, and a nested child by
+  definition never puts one there, so its branch read `Undelivered` forever and leaked permanently —
+  one per closed child, observed as five in three days in this repo. The fix is not better forensics
+  in prune but `close.post` deleting the branch itself (above), where delivery is a KNOWN fact rather
+  than one reconstructed from a marker. Prune stays target-blind because nested children are gone
+  before it ever enumerates. And the pre-commit GATE runs at every close, children included: attribution —
   breakage fails in the worktree that caused it, at its own close, rather than surfacing at whoever
   closes last. The root run stays non-redundant (two children can each pass alone and fail merged).
 - FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. Forge is a COMPOSITION over
@@ -1633,8 +1643,18 @@ un-squash): the reset raced concurrent integration movement in a shared hub — 
 landing between squash and reset gets eaten by it — and a standing squash without a sealed close
 is exactly the bl-430e state the retried close completes; the squash is always GATED code (the
 gate runs before it), so a standing delivery is never unreviewed work. `close.post` teardown
-removes the worktree DIRECTORY (re-creatable from the branch, so it is rollback-safe); deleting
-`work/<id>` is deferred, non-transactional cleanup (`prime`).
+removes the worktree AND deletes `work/<id>` (bl-ce3b), and its rollback is a no-op for the same
+reason the delete is safe: ORDERING. By the time any `post` hook runs, `close.pre` has squashed onto
+the target and the seal has archived the ball, so the branch is no longer the only copy of anything —
+an abort BEFORE the squash never reaches this hook. A retried close therefore meets an ABSENT branch
+and converges: `deliver` no-ops on it and reads the standing delivery instead (bl-430e above).
+The delete was previously deferred to `prime` as blanket insurance against destroying an undelivered
+diff. That insurance was real but had already expired here, and the deferral cost more than it bought:
+it made prime RECONSTRUCT delivered-ness from a `[bl-<id>]` marker on the integration branch, which a
+nested child never writes — see §11's nested-delivery note. The op that delivered knows it delivered;
+acting on the fact where it is known dissolves the nested case instead of teaching the archaeology to
+see it. prime's prune STAYS as the backstop for a crash between the seal and this hook — the rare path
+now, not the routine one.
 The only irreversible action in a close is therefore the tracker's final push, which sorts LAST.
 Deliver itself CONVERGES ON RETRY (bl-430e): a squash that survived an aborted close — `work/<id>`
 fully merged into the integration branch, or a `[bl-id]` commit on it since the branch forked
@@ -1793,7 +1813,10 @@ read, so the same op that rewrites also dispatches the rewritten schedule and bi
   not a live hazard. Delivery-side, beside the existing bl-292d settled-branch prune (§11/§13, same
   `for-each-ref` enumeration and `Standing` computation, zero new spawns): an **unsettled `work/<id>`
   whose worktree directory is absent** — committed-but-undelivered content with nothing checked out
-  on it — is reported, never pruned. The remedies it names are the ones that actually exist, which
+  on it — is reported, never pruned. Since bl-ce3b this is genuinely rare: a closed ball's branch is
+  deleted by its own `close.post`, so reaching this report means a crash between the seal and that
+  hook, an `unclaim` that left committed work behind, or a hand-made branch — not the routine
+  aftermath of every close. The remedies it names are the ones that actually exist, which
   the STORE decides (bl-baa0): a branch outlives its ball, so debris usually belongs to a CLOSED one.
   **Open ball** (`tasks/<id>.md` present) — both remedies: `bl claim <id>` (re-materializes onto the
   branch; the bl-65e0 contract that a later claim-and-close still delivers it) or explicit discard
@@ -2138,8 +2161,10 @@ not a consent breach, because consent governs config + executable plugins, never
 then `bl sync` it. "Ready to start the engine" = substrate exists + store synced + settled
 `work/<id>` branches pruned (delivery's `prime.post`, §11 — worktrees materialize at claim only,
 so prime makes none; the prune deletes a branch whose delivery already landed on integration and KEEPS one carrying
-committed undelivered work, so a later claim + close still delivers it; this is the §11 "deferred,
-non-transactional cleanup" made concrete). Idempotent: on an established checkout every
+committed undelivered work, so a later claim + close still delivers it). Since bl-ce3b this prune is
+the BACKSTOP, not the routine cleanup: a close deletes its own `work/<id>` at `close.post`, and what
+reaches prime is what a crash between the seal and that teardown left behind, or an `unclaim` that
+left committed work. Idempotent: on an established checkout every
 step is create-if-absent/already-current, so re-running converges to a no-op. The whole verb is the §12
 converging predicate.
 
@@ -2320,8 +2345,10 @@ reactor ever needs a return channel. This is why two hooks suffice and post stay
 is placed LAST in its phase's hook list, so nothing runs after it — making its rollback the RARE
 path (rollback fires only when a LATER plugin fails). A CONTRACT RECOMMENDATION, not enforced (core
 reads no plugin semantics, §0). In a close the only irreversible action is the tracker's final push,
-so it sorts last; delivery `close.post` teardown removes the worktree DIRECTORY (re-creatable from the
-branch, hence rollback-safe) while `work/<id>` deletion is deferred, non-transactional cleanup.
+so it sorts last; delivery `close.post` teardown removes the worktree DIRECTORY *and* deletes
+`work/<id>` (bl-ce3b), and both are rollback-safe for the same reason — the squash landed at
+`close.pre` and the seal preceded every `post` hook, so neither holds a copy of anything the target
+lacks, and the retried close converges on an absent branch.
 
 **THE APPENDIX — rollback for external effects** (the non-derivable counterpart to §11's derived
 example, and the one place rollback is load-bearing): a plugin mirroring the ball to an external
@@ -2404,6 +2431,35 @@ OPEN:
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **`close.post` deletes `work/<id>`; the deferral to prime was written broader than its own argument
+  (2026-08-06, bl-ce3b).** §11/§14 said branch deletion is "deferred, non-transactional cleanup
+  (`prime`)". The reason was real — until the squash lands, a close can abort (gate failure,
+  stale-source refusal) and the branch is the ONLY copy of the diff, so an in-op delete would make the
+  retry silently no-op on an absent branch — but it EXPIRES AT THE SQUASH, and the deferral ran all
+  the way out to prime anyway. Prime then has to RECONSTRUCT delivery it did not witness, and its
+  reconstruction (`Project::standing`) scans the INTEGRATION branch for a `[bl-<id>]` commit. A
+  NESTED ball never puts one there — it delivers into `work/<parent>`, which is the whole point of
+  nesting — so the classifier returned `Undelivered` forever and the prune correctly refused: one
+  permanently leaked branch per closed child, and in a repo wiring bl-chore at `claim.post`, one per
+  CLAIMED BALL (five accumulated in three days, all five content-incorporated). bl-292d had already
+  fixed this monotonic growth once, for balls that deliver to integration; nesting reopened it for
+  balls that do not. RESOLVED by acting on the fact where it is KNOWN: the `close.post` arm calls the
+  existing `Repo::discard` (already wired for `rollback claim.post`) instead of `release`. No new
+  primitive, no new config, no new verb — the nested case DISSOLVES rather than being patched,
+  because nothing has to recover later what the closing op had in hand. `unclaim.post` keeps
+  `release` (bl-65e0: nothing was delivered, the branch is the next claimant's start). Rollback stays
+  a no-op — what was deleted is already on the target — and the retried close meets an absent branch,
+  no-ops its `deliver` and converges on the standing delivery; that convergence was the deferral's
+  insurance and is now PINNED end-to-end by `tests/half_close.rs` (the tracker fails after the seal;
+  the retry lands the code exactly once with the branch gone). Prime's prune STAYS as the backstop
+  for a crash between the seal and `close.post`, and for pre-bl-ce3b branches already on disk. This
+  SUPERSEDES bl-58b8 ("let prime prune closed+contained work/ branches"), which proposed teaching the
+  forensics instead of removing the need for them; it does NOT resolve bl-4d38, whose remaining claim
+  — that `standing()` and the prune's debris arm measure a nested branch against the wrong reference
+  — still holds for whatever reaches the backstop, on a far rarer path. Touched §9 (the `close.post`
+  bullet), §11 (hooks), §14 (twice — the rollback matrix and the sorts-last note). Code:
+  `src/delivery.rs` (the dispatch arm + the `release`/`discard` contracts),
+  `src/delivery_prune.rs` (reframed as the backstop), `src/delivery_tests.rs`, `tests/half_close.rs`.
 - **the comment byline is a QUERY over `git blame`, not a field (2026-08-06, bl-236c — design record
   `docs/design/bl-236c-comment-attribution.md`).** bl-d136 (below) is right that `comment` must stamp
   nothing into the body — a copy of who/when drifts the first time someone runs `--edit` or re-imports
@@ -3083,7 +3139,8 @@ RESOLVED (folded into the body, no longer open):
   identically to `unclaim.post`/`close.post` (release/teardown), so the distinct name bought no
   distinct dispatch. RESOLVED by SUBTRACTION: the verb is gone; abandonment is the composite spelled
   out — `unclaim` then `close`, the empty deliverable making the delivery a no-op. Deliberate delta:
-  work COMMITTED on `work/<id>` survives unclaim (branch deletion is deferred to prime, §14) and a
+  work COMMITTED on `work/<id>` survives unclaim (unclaim keeps the branch — §14; only a CLOSE, which
+  has delivered it, deletes it) and a
   later close DELIVERS it where drop discarded it — that is close honoring its contract; discard is
   an explicit `git branch -D work/<id>`. Legacy `bl-op: drop` deletions stay valid bedrock (read as
   closed; the deleting op was never reconstructed, §5). The forge contract's abandon-teardown moves

@@ -4,7 +4,8 @@
 
 Delivers your work and retires the task in one move: **require `main` to be in
 your work branch already → run the repo's pre-commit hook → squash `work/<id>`
-to `main`**, then archive the task and tear down the worktree.
+to `main`**, then archive the task and tear down the worktree — the directory
+*and* the `work/<id>` branch.
 
 ## Flags
 
@@ -114,8 +115,9 @@ Two consequences worth knowing:
   Refresh before working there.
 
 Deleting a live epic ref (`git branch -D work/<epic>`) discards the delivered
-work of every child that closed into it. `bl` never does that — prune deletes
-only settled branches — but you can.
+work of every child that closed into it. `bl` never does that — it deletes
+`work/<id>` only at that ball's OWN close, after the squash onto its target has
+landed — but you can.
 
 ## Close refuses a task file you haven't seen
 
@@ -132,14 +134,25 @@ close then passes first try. Your own edits never trigger this.
 Close does **not** push the code remote; pushing `main` is your own deliberate
 `git push`.
 
-## The worktree is gone when close returns
+## The worktree and the branch are gone when close returns
 
 A successful close removes the `work/<id>` worktree — the directory `claim`
-printed and you did the work in. `bl` itself is immune to running from inside
-it, but **your shell is not**: if you closed from within the worktree, your `cd`
-is now a deleted directory and the next command you type reports it (`getcwd:
-cannot access parent directories`). `cd` back to the repo root and carry on —
-nothing is wrong and nothing is lost.
+printed and you did the work in — **and deletes the `work/<id>` branch with
+it**. Nothing is lost: by then the squash is on the delivery target and the ball
+is archived, so the branch held no copy of anything the target does not already
+have. (`bl unclaim` is the opposite: it removes the worktree and KEEPS the
+branch, because a handoff has delivered nothing — see `bl unclaim --skill`.)
+
+`bl` itself is immune to running from inside the worktree, but **your shell is
+not**: if you closed from within it, your `cd` is now a deleted directory and
+the next command you type reports it (`getcwd: cannot access parent
+directories`). `cd` back to the repo root and carry on — nothing is wrong and
+nothing is lost.
+
+If a close aborts, the branch survives — the delete is the last thing the
+delivery plugin does, after the squash and the seal. Retrying `bl close` is
+still the whole recovery: it converges on an absent branch just as it does on a
+standing squash.
 
 ## Closing IS the only retirement
 

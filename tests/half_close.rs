@@ -9,6 +9,13 @@
 //! never DONE + LEFTOVER. A future `close.post` reorder (push before teardown)
 //! would silently flip this; this test, driving the real `bl` + both shipped
 //! plugins against a shared remote, catches it.
+//!
+//! It is ALSO the safety proof bl-ce3b owes. Teardown now deletes the `work/<id>`
+//! BRANCH as well, and the blanket deferral it replaced existed precisely to
+//! keep the branch alive for a retried close. This is the one shipped path where
+//! a plugin fails AFTER the seal, so the retry here runs against an ABSENT
+//! branch — and must still converge, landing the code on the target exactly once
+//! rather than silently delivering nothing.
 
 use assert_cmd::assert::Assert;
 use assert_cmd::Command;
@@ -111,12 +118,28 @@ fn a_rejected_close_post_push_leaves_delivered_plus_open_never_done_plus_leftove
     let t = reopened.as_array().unwrap().iter().find(|t| t["id"] == tid.as_str()).expect("T re-opened, not archived");
     assert_eq!(t["claimant"], "alice");
     // NEVER LEFTOVER: teardown ran (close.post bl-delivery) BEFORE the rejected
-    // push (close.post bl-tracker) — the worktree is gone, not dangling.
+    // push (close.post bl-tracker) — the worktree is gone, not dangling. And
+    // since bl-ce3b the BRANCH goes with it: teardown deletes `work/<id>`
+    // rather than deferring it to prime. That deletion is what the rest of this
+    // test now has to survive — it is the insurance the deferral used to buy.
     assert!(!Path::new(&worktree).exists(), "teardown-before-push: no done+leftover");
+    let branch = format!("refs/heads/work/{tid}");
+    let alive = std::process::Command::new("git")
+        .arg("-C")
+        .arg(&project)
+        .args(["rev-parse", "--verify", "--quiet", &branch])
+        .status()
+        .unwrap()
+        .success();
+    assert!(!alive, "close.post deleted the delivered branch (bl-ce3b)");
 
     // PAVED: `bl sync` + retry close converges — the squash already stands, so
-    // deliver-from-missing-worktree (Fix 3 (1)) is a clean no-op and the retry
-    // archives the task without minting a duplicate delivery.
+    // deliver-from-missing-worktree AND missing-BRANCH (Fix 3 (1); bl-ce3b) is a
+    // clean no-op and the retry archives the task without minting a duplicate
+    // delivery. "Absent branch ⇒ empty deliverable ⇒ proceed" is correct ONLY
+    // because the squash already landed — one step earlier the same code path
+    // would deliver NOTHING, silently. This is the assertion that stands in for
+    // the blanket deferral bl-ce3b cancelled.
     bl(&project, &home, &state).arg("sync").assert().success();
     bl(&project, &home, &state).args(["close", &tid, "--as", "alice"]).assert().success();
     let json = stdout(bl(&project, &home, &state).args(["list", "--json"]).assert().success());

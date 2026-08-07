@@ -103,7 +103,10 @@ fn prime_post_does_not_materialize() {
 }
 
 #[test]
-fn unclaim_post_releases() {
+fn unclaim_post_releases_and_keeps_the_branch() {
+    // The counterpart to `close_post_discards_worktree_and_branch`: unclaim
+    // delivered nothing, so the branch is the next claimant's starting point
+    // (bl-65e0) and must survive.
     assert_eq!(drive("unclaim", "post", false), ["release /wt"]);
 }
 
@@ -118,8 +121,11 @@ fn close_pre_resolves_integration_then_delivers() {
 }
 
 #[test]
-fn close_post_releases() {
-    assert_eq!(drive("close", "post", false), ["release /wt"]);
+fn close_post_discards_worktree_and_branch() {
+    // bl-ce3b: the close that just delivered deletes the branch too. Deferring
+    // it to prime leaked one branch forever per NESTED ball, whose delivery
+    // never tags the integration branch prime scans.
+    assert_eq!(drive("close", "post", false), ["discard /wt work/bl-f813"]);
 }
 
 #[test]

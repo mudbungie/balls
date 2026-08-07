@@ -22,6 +22,10 @@ Work you **committed** on the `work/<id>` branch **survives on this machine**: a
 later `bl claim` + `bl close` here delivers it. To discard that committed work
 too, delete the branch explicitly: `git branch -D work/<id>`.
 
+Unclaim is the one teardown that keeps the branch, and that is the point — the
+ball is going back on the board and nothing was delivered. `bl close` deletes it,
+because by then the work is squashed onto the target.
+
 The `work/<id>` branch is machine-local — the store syncs through the remote,
 the work branch never does. A takeover from **another clone** materializes a
 fresh, empty branch; the original WIP stays stranded where it was committed

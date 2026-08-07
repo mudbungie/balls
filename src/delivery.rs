@@ -47,12 +47,17 @@ pub trait Repo {
     /// (create-if-absent). A non-deliverable that was claimed gets a harmless
     /// empty worktree.
     fn materialize(&self, path: &Path, branch: &str) -> io::Result<()>;
-    /// `unclaim.post` + `close.post`: remove the worktree DIRECTORY if
-    /// present; KEEP `branch` (re-creatable; deleting it is deferred to
-    /// prime, §14).
+    /// `unclaim.post`: remove the worktree DIRECTORY if present; KEEP `branch`
+    /// — unclaim is a HANDOFF, and committed work on the branch is what the
+    /// next claimant re-materializes onto and a later close still delivers
+    /// (the bl-65e0 contract). Discarding it is the holder's explicit
+    /// `git branch -D`.
     fn release(&self, path: &Path) -> io::Result<()>;
-    /// `rollback claim.post` (§14): remove the worktree AND delete `branch` —
-    /// the transactional undo of a just-made claim.
+    /// `close.post` + `rollback claim.post` (§14): remove the worktree AND
+    /// delete `branch`. On a claim rollback it is the transactional undo of a
+    /// just-made claim; on `close.post` it is the deletion the op can prove is
+    /// lossless, because the squash and the seal have both already landed
+    /// (bl-ce3b — see [`dispatch`]).
     fn discard(&self, path: &Path, branch: &str) -> io::Result<()>;
     /// The integration branch a delivery squashes onto — the DEFAULT target
     /// (the project repo's own HEAD branch, §11), used by every ball that does
@@ -142,17 +147,39 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
             repo.materialize(spec.worktree, spec.branch)
         }
         ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec),
-        // Every worktree-deleting teardown is the same act — release the
-        // worktree directory — whichever deleting op (close.post, unclaim)
-        // triggers it.
-        ("close" | "unclaim", "post", false) => repo.release(spec.worktree),
-        ("claim", "post", true) => repo.discard(spec.worktree, spec.branch),
+        // UNCLAIM releases the worktree and KEEPS the branch: the ball goes back
+        // on the board, nothing was delivered, and committed work on the branch
+        // is what the next claim re-materializes onto (bl-65e0).
+        ("unclaim", "post", false) => repo.release(spec.worktree),
+        // DISCARD — worktree AND branch — at the two moments the branch is
+        // provably dead. `rollback claim.post` undoes a claim that never
+        // happened. `close.post` (bl-ce3b) deletes what its own `close.pre`
+        // already squashed onto the target: the op that delivered KNOWS it
+        // delivered. Deferring that delete to `prime` made prime reconstruct
+        // the fact from a `[bl-<id>]` marker on the INTEGRATION branch, which a
+        // NESTED ball (delivering into `work/<parent>`) structurally never puts
+        // there — so its branch leaked forever, one per closed child. Acting on
+        // the fact where it is known dissolves the nested case instead of
+        // teaching the archaeology to see it.
+        //
+        // Ordering is the whole safety argument for the close arm. The blanket
+        // deferral bought insurance against deleting the ONLY copy of an
+        // undelivered diff — real, and EXPIRED by the time this hook runs:
+        // close.pre squashed and the seal landed before any `post` fires, and
+        // an abort BEFORE the squash never reaches here. `prime`'s prune stays
+        // as the backstop for a crash between the seal and this line.
+        ("close", "post", false) | ("claim", "post", true) => repo.discard(spec.worktree, spec.branch),
         // close.pre rollback DECLINES (§14): the squash is the delivery's
         // BINDING commit point — a standing squash without a sealed close is
         // the bl-430e state and the retried close converges onto it, while the
         // old un-squash reset raced concurrent integration movement (bl-c231).
-        // close.post teardown + unclaim release are re-creatable from the
-        // branch, so their rollback is a no-op too (§14); any unwired hook too.
+        // unclaim's release is re-creatable from the branch, so its rollback is
+        // a no-op too — and so is close.post's discard, for the same reason the
+        // discard is safe in the first place: what it deleted was already
+        // squashed onto the target, so nothing a rollback could restore is
+        // gone. The retried close meets an ABSENT branch and converges, since
+        // `deliver` no-ops on it and reads the standing delivery instead (§14;
+        // pinned end-to-end by `tests/half_close.rs`). Any unwired hook too.
         _ => Ok(()),
     }
 }

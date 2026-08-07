@@ -199,6 +199,16 @@ child closed into an epic is simply *unsettled* until the epic lands on main,
 whereupon it settles and prunes on the next prime with zero new logic. The
 conservative existing test is already the correct nested test.
 
+> **FALSIFIED by bl-ce3b (2026-08-07).** The conclusion held; the reasoning did
+> not. A nested child never *becomes* settled: `Standing` proves delivery by
+> finding a `[bl-<id>]` commit on the INTEGRATION branch, and a child that
+> delivers into `work/<parent>` never writes one there — so its branch read
+> `Undelivered` forever and leaked, one per closed child. The fix was not
+> target-aware forensics in prune but `close.post` deleting the branch itself,
+> where delivery is a known fact rather than a reconstructed one. Prune is still
+> target-blind, now because nested children are gone before it enumerates.
+> See `docs/architecture.md` §11 (nested delivery) and §14.
+
 ## Consequences the doc must own
 
 ### The hook runs at every close, children included (was open Q1 — resolved: uniform)
