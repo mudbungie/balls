@@ -10,6 +10,10 @@ tags = ["design", "delivery"]
 [[blockers]]
 id = "bl-a1a4"
 on = "claim"
+
+[[blockers]]
+id = "bl-14e7"
+on = "close"
 +++
 Source: yog bl-2b8c and the 2026-08-02 ruling that an alternative candidate is an ordinary delivery attempt, not a balls task kind.
 
