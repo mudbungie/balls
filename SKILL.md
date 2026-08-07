@@ -89,11 +89,15 @@ or you collide with another agent.
 - **Close refuses a task file you haven't seen.** If someone edited the task
   since your own last touch, `bl close` refuses once and prints the unseen
   diff; a bare re-run then seals exactly that content (`bl close --skill`).
-- **stdout carries one product; parse with `--json`.** `create` prints the new
-  id, `claim` prints the worktree path — nothing else. Every other mutating verb
-  is silent on stdout; confirmations and the op log go to stderr. For `list` /
-  `show`, always parse `--json` (the lossless bedrock record), never the tty
-  view.
+- **stdout carries one product.** `create` prints the new id, `claim` prints the
+  worktree path — nothing else. Every other mutating verb is silent on stdout;
+  confirmations and the op log go to stderr.
+- **Read `list` / `show` in their default render** — it is the read surface for
+  agents as much as humans. Everything derived is human-only by design (the
+  journal of `-m` notes, claim-age, the `worktree` line, the `delivers <id>` /
+  `->` target), and that derived content IS the handoff context. `--json` is the
+  lossless bedrock export — round-tripping through `bl import`, diffing stored
+  fields, feeding an outside integrator — and it carries none of it.
 
 ## Commands
 

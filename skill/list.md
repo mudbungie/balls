@@ -27,7 +27,9 @@ below). Filters COMPOSE (AND).
 - `--since YYYY-MM-DD` — tasks updated on or after the date.
 - `--until YYYY-MM-DD` — tasks updated on or before the date.
 - `--json` — lossless machine records (stored frontmatter only; **no** derived
-  claim-age). Parse these, not the tty view.
+  claim-age, tree, fleet label or `->` marker). The export path, for round-trips
+  and outside integrators — the default render is the everyday read, and it is
+  where the derived columns live.
 - `--plain` — no color or status glyphs.
 - `--legacy[=REF]` — preview a legacy store's live set.
 
