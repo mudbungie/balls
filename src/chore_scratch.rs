@@ -17,8 +17,15 @@
 //! always names exactly this claim's mints: a stale record from an earlier claim
 //! of the same ball is overwritten by the first one, never inherited — a
 //! rollback is scoped to ONE op invocation and must not reach back into a claim
-//! that already succeeded. A successful claim's record is inert bytes the next
-//! claim of that ball overwrites; only the rollback consumes it.
+//! that already succeeded.
+//!
+//! Two things end a record, and until bl-f88b only the first was built: the
+//! rollback CONSUMES it ([`Minted::unwind`]), and the ball's own `close.post`
+//! DISCARDS it ([`Minted::discard`]) — §14 bounds scratch lifetime by the
+//! resource, and close is that terminal op. The old reading, "a successful
+//! claim's record is inert bytes the next claim of that ball overwrites," holds
+//! only for a RE-claim; a ball is normally claimed once, so what it described in
+//! practice was a directory nothing would ever overwrite, read, or delete.
 
 use std::fs;
 use std::io;
@@ -68,6 +75,17 @@ impl Minted {
         for child in recorded.lines() {
             bl.run(cwd, &["close".to_string(), child.to_string(), "--as".to_string(), actor.to_string()])?;
         }
-        fs::remove_dir_all(&self.dir)
+        self.discard()
+    }
+
+    /// Drop the record WITHOUT acting on what it names — the success-path end of
+    /// life, and the tail of [`Minted::unwind`] so deletion has one home. Absent
+    /// is the ordinary case (a ball claimed before bl-chore was wired, one whose
+    /// guards minted nothing, a re-close), so `NotFound` is `Ok`.
+    pub(super) fn discard(&self) -> io::Result<()> {
+        match fs::remove_dir_all(&self.dir) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            done => done,
+        }
     }
 }

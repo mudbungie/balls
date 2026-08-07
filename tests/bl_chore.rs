@@ -15,7 +15,10 @@ fn protocol_self_describes_to_stdout() {
         .assert()
         .success()
         .stdout(contains("\"protocol\":[1]"))
-        .stdout(contains("\"ops\":[\"claim\"]"));
+        // Two ops: `claim` mints the gates, `close` retires the mint record
+        // (§14 scratch lifetime, bl-f88b). `bl install` refuses a bind for an op
+        // the plugin does not name, so both hooks depend on this line.
+        .stdout(contains("\"ops\":[\"claim\",\"close\"]"));
 }
 
 #[test]

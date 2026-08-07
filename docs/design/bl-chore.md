@@ -7,7 +7,10 @@ free-form lean (A over B), the rollback deviation from §11 (no-op), and the
 optional `body`/`priority` fields. **AMENDED 2026-07-26 (bl-ffbf): the no-op
 rollback is REVERSED** — an aborted claim's gates are §14 appendix orphans and
 the rollback closes them; see "Rollback" below for what the original argument
-missed. Everything else here stands. This file is the authoritative reasoning
+missed. **AMENDED 2026-08-06 (bl-f88b): the mint record now dies on
+`close.post`** — bl-ffbf built only the rollback half of §14's scratch-lifetime
+rule, so every SUCCESSFUL claim leaked a directory; see "The record's end of
+life" below. Everything else here stands. This file is the authoritative reasoning
 record; the spec text the bl-759f doc-update lands (§6/§10/§11) is the
 authoritative *behaviour*.
 
@@ -218,16 +221,61 @@ exit is ignored, and at the recursion cap it cannot spawn and so no-ops. §11's
 forge parenthetical is therefore INHERITED after all — the pushed-vs-unpushed
 distinction changes what deleting costs, not whether an orphan should stand.
 
+## The record's end of life (bl-f88b, 2026-08-06)
+
+bl-ffbf built the scratch and taught the ROLLBACK to consume it, and stopped
+there — so the success path never cleaned up. Observed in this repo: 18 dead
+directories on 2026-08-03, 41 on 2026-08-07 under mass execution, each holding a
+~7-byte `children` file. §14 already states the rule bl-chore was half of: *"the
+plugin deletes `<name>/<id>/` when the resource is gone (successful terminal op,
+or after a rollback consumes it)"*, with the jira worked example doing exactly
+`close.post` → delete the scratch dir. So this is conformance, not a new idea.
+
+Three arms were weighed:
+
+1. **Delete at the end of the `claim.post` forward pass** — the subtractive
+   answer (the state never outlives its op), and **REFUTED**. `post` runs after
+   the seal but NOT after the last point an abort is possible: §14 runs every
+   prior plugin's rollback in reverse and only THEN un-seals. bl-chore is
+   *prepended* to `claim.post` on purpose (below), so bl-delivery and bl-tracker
+   run after it and either can abort the op — deleting the record at the end of
+   the forward pass would blind the rollback exactly when it is load-bearing.
+   "Un-undoable side-effects sort LAST" (§14) would make this safe, but it is an
+   unenforced *recommendation* and a plugin cannot see its own list position; a
+   correctness argument may not rest on it.
+2. **A sweeper with a liveness predicate**, `delivery_prune`-shaped — rejected
+   as unneeded mechanism. The asymmetry with §11 is not an accident: delivery's
+   worktree/branch is DERIVED state (§14 "DERIVE first"), which is why it is
+   *converged* on `prime`; the mint record is non-derivable SCRATCH, whose
+   lifetime §14 binds to its resource. A ball's close ends every claim of it, so
+   the record is provably dead with no query at all.
+3. **Do nothing, and fix the module doc** (which claimed the bytes were "inert
+   bytes the next claim of that ball overwrites" — true only for a re-claim, and
+   a ball is normally claimed once). Rejected on the measured rate: ~8 dirs/day
+   here, not the 8 KB/year the ball estimated. The doc was wrong AND the state
+   was litter.
+
+So `close.post` deletes `<territory>/<pct-enc invocation>/<bl-id>/`. It is a
+`remove_dir_all`, absent-is-`Ok`, and it runs on a close rollback too — the
+record died when its claim op completed, so un-deleting it would restore nothing.
+31 of the 41 observed directories name an already-closed ball, i.e. this sweeps
+what has accumulated and leaves a residue equal to the claimed-but-open working
+set: bounded, not growth. Wiring `claim.post` alone stays valid and simply
+restores the old behavior (severable).
+
 ## Wiring & order
 
 Opt-in: **NOT** in the default `[hooks]` schedule (default-wiring would mint
 chores for every claim, system-wide). Enable with
-`bl conf prepend claim.post bl-chore` — **prepend** puts it at the list head,
+`bl conf prepend claim.post bl-chore` **and `bl conf prepend close.post
+bl-chore`** (the second mints nothing — it retires the first's record) —
+**prepend** puts it at the list head,
 *before* bl-tracker, so tracker's push stays the single outermost irreversible
 act and a bl-chore abort is fully local-reversible. Appending *after* tracker is
 the non-ff footgun (tracker has already published the claim seal; an un-seal
-then diverges from the remote). Depth is safe: bl-chore is wired only on
-`claim.post` and shells op=`create`, so it never re-triggers its own op; the N
+then diverges from the remote). Depth is safe: bl-chore shells op=`create` from
+`claim.post` and shells nothing at all from `close.post`, so it never
+re-triggers its own op; the N
 chores are siblings at depth-1, not nested (the spec's worked bounded case,
 §6:581).
 

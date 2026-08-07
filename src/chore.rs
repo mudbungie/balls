@@ -30,6 +30,16 @@
 //! ids across the process boundary), and a create that fails mid-list does the
 //! same inline before aborting. A gate minted for a claim that SUCCEEDS still
 //! persists to gate whoever next holds the task, and epic-skip de-dups a reclaim.
+//!
+//! **The record dies with the ball (bl-f88b).** §14 binds scratch lifetime to
+//! the resource — "the plugin deletes `<name>/<id>/` when the resource is gone
+//! (successful terminal op, or after a rollback consumes it)" — and only the
+//! rollback half was ever built, so every SUCCESSFUL claim left a directory
+//! nothing would read, write, or delete again. `close.post` is the other half:
+//! closing the ball ends every claim of it, so the record is provably dead and
+//! this is where it goes. It is a `remove_dir_all`, not a store query — no
+//! sweeper, no liveness predicate (contrast §11's delivery prune, which converges
+//! DERIVED state and so belongs on `prime`).
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -38,10 +48,11 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-/// The §6 self-description, emitted on `bl-chore protocol`. Declares the one op
-/// it handles; the `claim.post` WIRING is config (`bl conf prepend claim.post
-/// bl-chore`), never the binary (§6) — balls reads this only to validate a bind.
-pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim"]}"#;
+/// The §6 self-description, emitted on `bl-chore protocol`. Declares the two ops
+/// it handles — `claim` mints, `close` retires the mint record; the WIRING of
+/// both (`bl conf prepend claim.post bl-chore`, likewise `close.post`) is config,
+/// never the binary (§6) — balls reads this only to validate a bind.
+pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","close"]}"#;
 
 /// The slice of the §7 wire bl-chore reads. Output-only [`crate::wire`] is the
 /// core's side; this is the receiving end, so it owns its own input type and
@@ -132,12 +143,26 @@ pub trait Bl {
 /// the seam.
 ///
 /// Only the `claim.post` forward pass mints; a `claim.post` ROLLBACK unwinds
-/// exactly what that pass minted (§14); every other (op, phase) is a no-op. A
-/// malformed payload or a failed `bl create` is an error (aborts the claim); a
-/// guard firing, or nothing to do, is a clean `Ok(())`.
+/// exactly what that pass minted (§14); `close.post` retires the record that
+/// claim left; every other (op, phase) is a no-op. A malformed payload or a
+/// failed `bl create` is an error (aborts the claim); a guard firing, or nothing
+/// to do, is a clean `Ok(())`.
 pub fn run(op: &str, phase: &str, plugin: &str, territory: &Path, stdin: &str, bl: &dyn Bl) -> io::Result<()> {
     let wire: Wire = serde_json::from_str(stdin).map_err(io::Error::other)?;
-    if op != "claim" || phase != "post" {
+    if phase != "post" {
+        return Ok(());
+    }
+    // The ball is gone, so every claim of it is too and its record is dead
+    // (bl-f88b). Rollback or not: an aborted close leaves the record just as
+    // dead — the claim it belonged to completed long ago — so un-deleting it
+    // would restore nothing. A wire without the sealed `bl-id` names no ball.
+    if op == "close" {
+        let Ok(id) = claimed_id(&wire.metadata) else {
+            return Ok(());
+        };
+        return scratch::at(territory, &wire.binding.invocation_path, id).discard();
+    }
+    if op != "claim" {
         return Ok(());
     }
     let cwd = Path::new(&wire.binding.invocation_path);

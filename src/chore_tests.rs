@@ -237,6 +237,42 @@ fn a_rolled_back_claim_closes_exactly_the_gates_it_minted() {
 }
 
 #[test]
+fn a_close_retires_the_record_the_successful_claim_left() {
+    // bl-f88b: §14 bounds scratch lifetime by the RESOURCE — "the plugin deletes
+    // `<name>/<id>/` when the resource is gone (successful terminal op, or after
+    // a rollback consumes it)". Only the rollback half was ever built, so every
+    // claim that SUCCEEDED left a directory nothing would read, write, or delete
+    // again. Closing the ball ends every claim of it, so that is where the
+    // record dies — a delete, with no store query and no liveness predicate.
+    let bl = FakeBl::new("[]");
+    let tmp = landing_with(TWO_CHORES);
+    let land = tmp.path().to_str().unwrap();
+    run("claim", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
+    let record = tmp.path().join(crate::encoding::percent_encode("/proj")).join("bl-9");
+    assert!(record.is_dir(), "the successful claim recorded its mints");
+
+    run("close", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
+    assert!(!record.exists());
+    // Idempotent, and scoped: a re-close, and a close of a ball bl-chore never
+    // minted for, are both clean — the record is simply already absent.
+    run("close", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
+    run("close", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-never")), &bl).unwrap();
+    // A close only FORGETS: it never mints, and never closes what it forgets.
+    assert!(bl.closed().is_empty() && bl.creates().len() == 2);
+}
+
+#[test]
+fn a_close_wire_without_a_bl_id_names_no_record() {
+    // On `claim.post` an absent `bl-id` is a contract violation (the mint has
+    // nowhere to be keyed); here there is merely nothing to forget, so it is a
+    // clean no-op — the same guarded bail the rollback takes.
+    let bl = FakeBl::new("[]");
+    let tmp = landing_with(TWO_CHORES);
+    run("close", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], None), &bl).unwrap();
+    assert!(bl.calls.borrow().is_empty());
+}
+
+#[test]
 fn malformed_stdin_is_an_error() {
     let bl = FakeBl::new("[]");
     assert!(run("claim", "post", "bl-chore", nowhere(), "not json", &bl).is_err());

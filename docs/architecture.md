@@ -625,6 +625,7 @@ a list property, not an `NN-` filename convention faking one.
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
 # bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.post bl-chore`
+# AND `bl conf prepend close.post bl-chore` (the second retires the mint record the first leaves; §14)
 # (shipped ≠ scheduled: default-wiring would mint chore gates for every claim, system-wide).
 ```
 
@@ -1430,7 +1431,9 @@ bail if the task already has children, which also buys idempotency on reclaim). 
 edges (the auto-mint rejection below holds — a PLUGIN mints the explicit `--blocks close`, core only
 ENFORCES the close-blocker). **Resolution is a separate, orthogonal plugin** — closing a chore on a
 mechanism (e.g. close-the-gate-on-`make test`) is NOT bl-chore's job; bl-chore is create-side only, so
-"just have bl-chore also run the tests" is out of scope by construction.
+"just have bl-chore also run the tests" is out of scope by construction. It takes a SECOND hook,
+`close.post`, for one non-create reason: to delete the §14 scratch record its `claim.post` wrote (see
+the §14 appendix, bl-f88b) — the ball is gone, so the record of what a claim of it minted is dead.
 
 (The old "late-added subtask doesn't gate a claimed epic's close" gap is DISSOLVED, not patched: it
 existed only because `--parent` auto-minted a *claim* edge. With containment and blocking separated,
@@ -2457,8 +2460,18 @@ details make it exact:
   as each child lands. The record is REWRITTEN, never appended, so it names exactly THIS claim's
   mints — a rollback is scoped to one op invocation and must never reach back into a claim that
   already succeeded. A `create` that fails mid-list unwinds the landed ones INLINE, since core never
-  calls a failing plugin's own rollback. The record a successful claim leaves is inert bytes the next
-  claim of that ball overwrites; only a rollback consumes it.
+  calls a failing plugin's own rollback.
+- **The record dies with the ball, on `close.post` (bl-f88b).** The lifetime rule above — the plugin
+  deletes `<name>/<id>/` when the resource is gone — needs BOTH halves, and bl-chore shipped only the
+  rollback's. A successful claim's record was called "inert bytes the next claim of that ball
+  overwrites", which holds only for a RE-claim; a ball is normally claimed once, so what it described
+  was a directory nothing would ever overwrite, read, or delete (41 of them in this repo inside two
+  months). Closing the ball ends every claim of it, so its record is provably dead and `close.post`
+  deletes it — a `remove_dir_all`, no store query and no liveness predicate. This is why SCRATCH gets
+  no converger while §11's DERIVED delivery state gets `prime`'s prune: derived state is recomputed
+  and reconciled, scratch is bounded by its resource. The residue is exactly the claimed-but-not-yet-
+  closed working set, which is not growth. Wiring `claim.post` without `close.post` is severable —
+  it restores the old behavior, litter and all, and breaks nothing.
 - **What actually survives is the PUBLISHED copy.** Core's tier-1 un-seal resets the store branch to
   the pre-op tip, which already discards the nested commit locally; the orphan that persists is the
   one the nested op pushed. The nested close is what takes it off the shared record. This is the
