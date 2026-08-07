@@ -23,6 +23,23 @@
 //! 0.087s. Nothing is stored, cached, or indexed to get that — the redundant
 //! re-derivation was simply deleted (§0 derive-don't-store is untouched; there
 //! is no second representation to drift).
+//!
+//! **A deletion is a deletion, never half a rename (bl-ae74).** Git detects
+//! renames by default, so ONE commit that deletes `tasks/<a>.md` and adds a
+//! similar-enough `tasks/<b>.md` reports the pair as a single `R` — and
+//! `--diff-filter=D` never sees `<a>` die. Task files are near-identical by
+//! construction (same frontmatter keys, kindred bodies), so the similarity
+//! threshold is trivially crossed, and the cost of missing one is the worst
+//! failure this module has: the id would then name NOTHING, live or dead, and
+//! absence is exactly how balls spells "resolved" — a swallowed deletion is
+//! indistinguishable from a ball that never existed. Both walks therefore pass
+//! `--no-renames`, though only [`newest_deletions`] can actually be bitten:
+//! [`resolve_dead`]'s pathspec is the single file, and git pairs renames only
+//! among paths that survived pathspec filtering, so the sibling add is not
+//! there to pair with. That immunity is incidental — it depends on git's
+//! filter-then-pair order, not on anything this module states — so the flag is
+//! pinned on both, and the two reads agree on the dead set by construction
+//! rather than by coincidence.
 
 use std::collections::HashSet;
 use std::fmt::Write;
@@ -63,7 +80,9 @@ pub(crate) fn resolve_dead(store: &Path, id: &str) -> io::Result<Option<Dead>> {
     let path = format!("tasks/{id}.md");
     let fmt = format!("--format=%H{SEP}%ct");
     // The newest commit that DELETED the file — its parent still held it.
-    let log = git::run(store, &["log", "-1", "--diff-filter=D", &fmt, "--", &path], None)?;
+    // `--no-renames` pins what the pathspec already gives us (module header).
+    let args = ["log", "-1", "--diff-filter=D", "--no-renames", &fmt, "--", &path];
+    let log = git::run(store, &args, None)?;
     let log = log.trim_end_matches('\n');
     if log.is_empty() {
         return Ok(None); // no deletion in history ⇒ no dead incarnation
@@ -129,7 +148,10 @@ pub(crate) fn dead_balls(store: &Path, live: &Catalog) -> io::Result<Vec<Dead>> 
 /// deleted the paths under it.
 fn newest_deletions(store: &Path, live: &Catalog) -> io::Result<Vec<Deletion>> {
     let fmt = format!("--format=%H{SEP}%ct");
-    let log = git::run(store, &["log", "--diff-filter=D", &fmt, "--name-only", "--", "tasks"], None)?;
+    // `--no-renames` or a same-commit add beside a delete collapses to one `R`
+    // and the deleted ball drops out of the dead set entirely (module header).
+    let args = ["log", "--diff-filter=D", "--no-renames", &fmt, "--name-only", "--", "tasks"];
+    let log = git::run(store, &args, None)?;
     let mut seen = HashSet::new();
     let mut deletions = Vec::new();
     let mut at = None;
