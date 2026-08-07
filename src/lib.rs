@@ -77,6 +77,18 @@
 //! It lives in-repo as a default capability + reference impl, dispatched
 //! subprocess-uniform like any third party (§6).
 //!
+//! # §11.1 — attempts: the same delivery, a source that is not a ball
+//!
+//! [`attempt`] reaches that one delivery law without manufacturing a ball
+//! (bl-4eac): a private `attempt/<handle>` source ref, index and worktree forked
+//! from an exact target commit, delivered through the SAME
+//! [`delivery_message::deliver_to`] the ball path uses and returning the
+//! identities that delivery already computed ([`delivery::Delivered`]). It is
+//! policy-blind — balls owns refs, worktrees, delivery and safe cleanup, and
+//! holds no notion of candidate, winner or outcome. There is no `bl` verb for
+//! it; `bl close` is the N = 1 ball attempt, and a linking host reaches the N > 1
+//! alternatives through the crate. See docs/design/bl-4eac-attempt-capability.md.
+//!
 //! # §4 — config values, read from the landing
 //!
 //! [`config`] is the §4 `EffectiveConfig`: the landing's `config/balls.toml`
@@ -106,6 +118,7 @@
 #![allow(rustdoc::private_intra_doc_links)]
 
 pub mod adopt;
+pub mod attempt;
 pub mod brief;
 pub mod change;
 pub mod checkout;

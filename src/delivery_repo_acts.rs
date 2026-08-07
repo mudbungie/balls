@@ -9,7 +9,7 @@
 use std::io;
 use std::path::Path;
 
-use crate::delivery::Repo;
+use crate::delivery::{Delivered, Repo};
 use crate::delivery_fold::{ensure_no_merge_in_progress, ensure_no_resurrection, ensure_target_incorporated};
 use crate::delivery_message::subject_line;
 use crate::delivery_repo::Project;
@@ -86,7 +86,7 @@ impl Repo for Project {
         Self::ok(&self.root, &["rev-parse", "--is-inside-work-tree"])
     }
 
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<()> {
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<Delivered> {
         // `message` is unbounded author text; `label` is its one-line handle —
         // the only form that may ride argv or a reflog (bl-a500).
         let label = subject_line(message);
@@ -103,20 +103,36 @@ impl Repo for Project {
             ensure_no_merge_in_progress(path)?;
             Self::capture(path, label)?;
         }
+        // Pin the target tip ONCE (bl-8b89) — see the long note at the squash
+        // below for why one read serves as precondition comparison point, squash
+        // parent, no-resurrection base and CAS old-value. It is read HERE, ahead
+        // of the no-op arms, only so those arms can report the same `base` a
+        // landing one would (bl-4eac): the pin is a `rev-parse`, it moves
+        // nothing, and no arm between here and the precondition re-reads it.
+        let base = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
+        let identities = |source, commit| Delivered {
+            target: integration.to_string(),
+            base: base.clone(),
+            source,
+            commit,
+        };
         if !self.branch_exists(branch)? {
-            return Ok(()); // branch never made — nothing to deliver
+            return Ok(identities(None, None)); // branch never made — nothing to deliver
         }
+        let source = Self::run(&self.root, &["rev-parse", branch])?.trim().to_string();
         match self.standing(branch, integration, marker)? {
             // SETTLED (fully merged, or this incarnation's delivery survived an
             // aborted close and CONTAINS the branch — the bl-430e retry, and the
             // forge squash-merge): converge by skipping the squash.
-            Standing::Settled => {
+            Standing::Settled(standing) => {
                 // A delivery for this branch already stands (retry / forge
                 // squash-merge / a crash between the ref-flip and the sync) —
                 // the owning checkout may still carry the bl-22dd phantom; heal
                 // it. Idempotent: an already-synced checkout fails the gate.
                 self.reconcile(integration)?;
-                return Ok(());
+                // The converged retry reports the STANDING commit as its own:
+                // that is where this source's content actually is (bl-4eac).
+                return Ok(identities(Some(source), standing));
             }
             // A delivery stands since the fork but the branch carries content
             // beyond it — the bl-65e0 handoff onto a delivered-but-unsealed
@@ -130,7 +146,7 @@ impl Repo for Project {
             }
             Standing::Undelivered => {}
         }
-        // Pin the target tip ONCE (bl-8b89): this single value is the ancestry
+        // The pin above (bl-8b89) is this single value: the ancestry
         // precondition's comparison point, the squash parent, the CAS
         // old-value, and the no-resurrection comparison point. Re-reading the
         // ref after the gate validated only "integration has not moved since a
@@ -141,7 +157,7 @@ impl Repo for Project {
         // It is the ONLY read of `integration` the delivery makes (bl-9522), so
         // there is no second read to disagree with the pin; the branch NAME
         // survives in the voice alone.
-        let base = Self::run(&self.root, &["rev-parse", integration])?.trim().to_string();
+        //
         // THE PRECONDITION (bl-a1a4). Delivery is a validation and atomic-advance
         // boundary, never a merge queue: the source must ALREADY carry the
         // pinned target. Refused here, nothing has merged, gated, squashed or
@@ -156,7 +172,7 @@ impl Repo for Project {
             // be a no-op — an empty deliverable, or a source whose whole content
             // reached the target another way. `T..S` is the work product, and
             // here it is empty.
-            return Ok(());
+            return Ok(identities(Some(source), None));
         }
         Self::gate(path)?;
         ensure_no_resurrection(&self.root, branch, &base)?;
@@ -171,7 +187,7 @@ impl Repo for Project {
             .to_string();
         commit_swap(&self.root, integration, label, &commit, &base)?;
         self.reconcile(integration)?;
-        Ok(())
+        Ok(identities(Some(source), Some(commit)))
     }
 }
 

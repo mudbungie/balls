@@ -1612,6 +1612,11 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   task (unclaim, then close — bl-65e0) requires the same: close or `--no-needs`-unlink the open gate
   first.
 
+**This whole delivery is reachable without a ball** — see §11.1, the ATTEMPT (bl-4eac): a private
+`attempt/<handle>` source ref, index and worktree forked from an exact target commit, delivered
+through the SAME funnel by the same law. The ball path above is that capability with the id already
+chosen; nothing below the funnel branches on which caller arrived.
+
 **`delivered_in` is a derived query, not a field** — "delivery IS the tag, not a field." The plugin
 answers "where was `<id>` delivered?" by tag-scanning (`git log --grep [bl-id]`) the integration
 branch; no stored hint, no write/null asymmetry, no staleness. **Id-reuse stays unambiguous by
@@ -1671,6 +1676,81 @@ seal; a later claim re-materialized the surviving branch and committed more) ABO
 loudly — "already delivered; `work/<id>` carries undelivered changes — file a new task or deliver
 manually" — instead of silently stranding the work, and the prime prune likewise preserves such a
 diverged branch.
+
+## §11.1 Attempts — the same delivery, from a source that is not a ball
+
+The §11 delivery is already policy-blind; what it lacked was a way to REACH it without
+manufacturing a ball, and a return value. An **attempt** (bl-4eac, `docs/design/bl-4eac-attempt-capability.md`;
+upstream ruling: yog `docs/VISION.md` §4.10) is that reach — a library capability
+(`balls::attempt`), no new verb, no task status, no blocker kind, no fan/judge policy, no merge
+queue, no duplicate project bytes.
+
+The motivating case is N alternatives for ONE obligation. Manufacturing a ball per alternative turns
+an OR choice into balls' close-gate AND semantics, and leaves a rejected ball with no honest
+retirement. So the alternative is not a task kind — it is an ordinary **delivery attempt**, and the
+N = 1 ordinary ball path is the same attempt with the mint already done.
+
+```
+Target                          # opaque; the field is PRIVATE — a caller cannot construct one
+  Project::target(None)         #   the integration branch (the repo's own HEAD branch)
+  Project::target(Some(id))     #   work/<id> — exactly what `bl close` derives (bl-7b71)
+  Project::target_ref(branch)   #   an explicit, VALIDATED branch (the bare/path start)
+  Attempt::target()             #   a parent attempt's source ref — the fractal law one depth down
+Attempt::open(root, xdg, &target)            -> fresh handle, ref, index, worktree
+Attempt::resume(root, xdg, &target, handle)  -> re-materialize after a crash
+  .handle() .worktree() .base() .tip() .target()
+  .deliver(summary, note) -> Delivered { target, base, source, commit }
+  .release()   # worktree goes, source ref STAYS addressable
+  .discard()   # both go
+source ref   = attempt/<handle>                                          # NOT work/*, which is ball identity
+worktree     = $XDG_STATE_HOME/balls/attempts/<invocation_path>/<handle>/ # mirrored, not encoded (bl-f3e4, §1)
+handle       = at- + 8 hex, re-rolled off the live attempt/* refs
+```
+
+**One delivery, two callers.** `deliver_close` (ball) and `Attempt::deliver` (non-task) funnel into
+`delivery_message::deliver_to` and differ in NOTHING downstream: same half-merge guard, same capture,
+same retry standing, same bl-a1a4 ancestry precondition, same `pre-commit` gate on the exact source
+tree, same no-resurrection invariant, same tagged squash, same CAS, same reconcile. They differ only
+in what they arrive knowing — `work/<id>` + a graph-derived target + `[<id>]`, versus
+`attempt/<handle>` + an opaque target + `[<handle>]`. That identity IS the deliverable, not a nice
+property of it: an attempt landing by any other route would be a second delivery law, and two
+representations of one law drift.
+
+**The recursion is free.** A parent attempt's source ref is a child attempt's target, so a
+write-capable child inherits the TARGET, never the parent's mutable checkout. After one sibling
+lands, every other is stale BY CONSTRUCTION and bl-a1a4 refuses it until its own owner incorporates
+the new target in its own worktree and tests there — sequential synthesis falls out of the delivery
+law rather than needing a primitive.
+
+**The lease is git's own.** No lockfile, no liveness probe (bl-1e98 stands): a handle is minted fresh
+and re-rolled off the live set, so two attempts never name one ref; `git worktree add` refuses a ref
+already checked out elsewhere, so two worktrees never share one index; the worktree path is a pure
+function of the handle, so an attempt has exactly one place to be. One CALLER handing one handle to
+two agents is undetectable without the probe balls refuses to build — balls never returns a handle
+twice, and who holds a returned handle is the caller's fact, at the same altitude as the claim lease.
+
+**Retention is separated from release, and belongs to the caller.** `release` drops the worktree and
+keeps the source ref, so a rejected attempt changes no target and stays fully addressable
+(`base..tip` still reads); `discard` is the explicit cleanup of both. balls never sweeps attempts —
+and needed no flag to stay out: `prime`'s settled-branch prune globs `work/`, so the distinct
+namespace exempts them by construction. **Crash convergence** is the existing behaviour under a
+second name: a lost worktree directory is remade by `resume` (whose `worktree prune` clears the stale
+registration, bl-b404), and a squash that landed before the caller recorded it is detected
+fork-scoped by content-containment and REPORTED as this delivery's own commit (bl-c231's abort-loudly
+arm unchanged for a source carrying work beyond its delivery).
+
+**Nothing is stored to make provenance work.** `Delivered` carries the target ref, the PINNED target
+tip (`base` — squash parent and CAS old-value), the source tip, and the delivery commit; every field
+is a value the delivery already computed for its own use. Both `Option`s mean one thing between them
+— the target already contained everything the source had. Acceptance is the target's own history (the
+`[handle]`-tagged squash it carries), cohort is `(target, base)`, provenance is ancestry, and
+rejection is the ABSENCE of a delivery. There is no candidate, winner, cohort or outcome field, and
+there must not be: a stored winner would be a second home for a fact git already keeps (§0).
+
+**Library, not a verb.** The capability is reachable from a linking host exactly as
+`delivery_bin::run` lets a host BE the `bl-delivery` sibling. A CLI counterpart would be a second
+entry point to a capability whose whole point is that both paths are one mechanism: `bl close` is the
+N = 1 ball attempt, the crate is the N > 1 one.
 
 ## §12 bl prime & federation (the store pointer)
 
@@ -2587,6 +2667,28 @@ RESOLVED (folded into the body, no longer open):
   capture, the gate, the tagged one-commit squash, the no-resurrection check, settled/forge/retry
   convergence, teardown. No lease, no merge queue, no internal refold loop, no new verb. Touched §8
   (close.pre), §11 (the delivery path), §15 (this entry).
+- **delivery is reachable without a ball: the ATTEMPT (2026-08-06, bl-4eac — post-freeze; design
+  record `docs/design/bl-4eac-attempt-capability.md`; upstream ruling yog `docs/VISION.md` §4.10,
+  bl-2b8c).** An embedding host needs N ≥ 1 isolated project-delivery attempts for ONE obligation.
+  Manufacturing a ball per alternative turns an OR choice into balls' close-gate AND semantics and
+  leaves a rejected ball with no honest retirement — so an alternative is not a task kind, it is an
+  ordinary delivery attempt. THE FINDING: balls already owned the entire mechanism (mint a source ref
+  at an exact base, materialize a private worktree, bl-a1a4's precondition, the gate, the tagged
+  squash, the CAS, retry standing, release-vs-discard, `worktree prune` healing) and every part of it
+  was already policy-blind. Only two things were missing — the acts were reachable only THROUGH a
+  ball, and `deliver` computed the base, the source tip and the delivery commit and then returned
+  `()`. Filling exactly those two is the whole change: `attempt/<handle>` as a second source namespace
+  (`work/*` stays ball identity), an opaque `Target` a caller can only ASK balls for, and a
+  `Delivered` return of identities the delivery already computed. Both callers funnel into one
+  `deliver_to`, so there is no attempt/ball branch anywhere downstream. Nothing new was invented for
+  the hard parts: the LEASE is git's own (fresh handle + the worktree registry's one-checkout rule; no
+  lockfile, and bl-1e98's refusal of liveness probes stands), CRASH CONVERGENCE is `resume` plus the
+  existing content-containment standing, and EXEMPTION FROM CLEANUP fell out of the namespace because
+  `prime`'s prune globs `work/`. No new verb, task status, blocker kind, fan/judge policy, merge
+  queue, retention timer, or stored candidate/winner/cohort/outcome — acceptance is the target's own
+  history, cohort is `(target, base)`, rejection is the ABSENCE of a delivery. Library-only by design:
+  a CLI counterpart would be a second entry point to a capability whose whole point is that `bl close`
+  (N = 1) and the alternatives (N > 1) are one mechanism. Touched §11.1 (new), §15 (this entry).
 - **the auto-gen collision retry was SPECIFIED but never built; front-door ids now take a shape check
   (2026-07-26, bl-1fc4 — post-freeze; dissolves the bl-a2bc flake).** § id generation has always split
   collision by WHO chose the id — "auto-gen → retry (bounded); plugin-assigned → abort (an explicit
