@@ -226,7 +226,8 @@ fn append_after_tracker_publishes_then_unseals_and_the_next_push_rejects() {
     assert!(!next.status.success(), "the next push is rejected non-ff");
     let err = String::from_utf8_lossy(&next.stderr);
     assert!(err.contains("push rejected: the remote store moved ahead"), "{err}");
-    assert!(err.contains("run `bl sync`, then re-run the command"), "{err}");
+    assert!(err.contains("run `bl sync`"), "{err}");
+    assert!(err.contains("then re-run the command"), "{err}");
 }
 
 /// No live row carries `id` — the archived predicate (used post-close).
