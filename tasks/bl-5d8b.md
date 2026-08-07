@@ -1,7 +1,8 @@
 +++
 title = "README: a bootstrap section — how to configure a repo so agents find balls (AGENTS.md points, PRIME.md briefs, the harness names)"
 created = 1786064575
-updated = 1786064575
+updated = 1786064576
+claimant = "Pale"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
