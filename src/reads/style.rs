@@ -35,4 +35,19 @@ impl Style {
         }
         "\u{1b}[90m\u{2713}\u{1b}[0m".to_string() // ✓ dim grey — retired, not live
     }
+
+    /// The comment byline (§9, bl-236c): the `<ISO>  <actor>` line human `show`
+    /// hangs under each `comment`-op region of a ball's body, in the journal's
+    /// own vocabulary and subordinate to the text it attributes — dim grey in
+    /// rich mode, the same line bare under `--plain`/`NO_COLOR`/non-tty.
+    ///
+    /// Plain degrades by dropping COLOUR alone: there is no glyph to lose, and a
+    /// plain form differing in CONTENT would be a second render to keep true.
+    pub(crate) fn byline(&self, at: i64, actor: &str) -> String {
+        let line = format!("  {}  {actor}", crate::civil::iso8601(at));
+        if self.plain {
+            return line;
+        }
+        format!("\u{1b}[90m{line}\u{1b}[0m")
+    }
 }

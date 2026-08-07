@@ -25,6 +25,7 @@
 //! is no second representation to drift).
 
 use std::collections::HashSet;
+use std::fmt::Write;
 use std::io;
 use std::path::Path;
 
@@ -42,6 +43,12 @@ pub(crate) struct Dead {
     pub id: String,
     pub task: Task,
     pub retired_at: i64,
+    /// The revision whose tree still holds `tasks/<id>.md` — the deletion's
+    /// PARENT, the coordinate this reconstruction was read from. Carried rather
+    /// than re-derived: the walk below already knows it, and a content-derived
+    /// read of the same bytes (the §9 comment byline's blame, bl-236c) must
+    /// address the very revision the rendered body came from.
+    pub rev: String,
 }
 
 /// The `\x1f` field separator the reconstruction `git log` format uses — a
@@ -66,18 +73,19 @@ pub(crate) fn resolve_dead(store: &Path, id: &str) -> io::Result<Option<Dead>> {
     let sha = fields.next().expect("splitn always yields a first field");
     let ct = fields.next().expect("git --format emitted a %ct field");
     let retired_at = ct.parse().expect("git %ct is an integer unix timestamp");
-    let content = git::run(store, &["show", &format!("{sha}^:{path}")], None)?;
+    let rev = format!("{sha}^");
+    let content = git::run(store, &["show", &format!("{rev}:{path}")], None)?;
     let task = Task::parse(&content).map_err(|e| invalid(e.to_string()))?;
-    Ok(Some(Dead { id: id.to_string(), task, retired_at }))
+    Ok(Some(Dead { id: id.to_string(), task, retired_at, rev }))
 }
 
 /// One enumerated deletion, before its content is read: the ball's id, the
-/// `<sha>^:tasks/<id>.md` object name holding its last live bytes, and the
-/// deletion date. The enumeration walk already knows all three, so nothing here
-/// is re-derived per id.
+/// `<sha>^` revision still holding its last live bytes, and the deletion date.
+/// The enumeration walk already knows all three, so nothing here is re-derived
+/// per id — the object name the batch reads is that revision plus the path.
 struct Deletion {
     id: String,
-    object: String,
+    rev: String,
     retired_at: i64,
 }
 
@@ -98,8 +106,7 @@ pub(crate) fn dead_balls(store: &Path, live: &Catalog) -> io::Result<Vec<Dead>> 
     // special case.
     let mut names = String::new();
     for d in &deletions {
-        names.push_str(&d.object);
-        names.push('\n');
+        let _ = writeln!(names, "{}:tasks/{}.md", d.rev, d.id);
     }
     let batch = git::run_bytes(store, &["cat-file", "--batch"], Some(&names))?;
     let mut stream = batch.as_slice();
@@ -108,7 +115,7 @@ pub(crate) fn dead_balls(store: &Path, live: &Catalog) -> io::Result<Vec<Dead>> 
         let (content, rest) = next_object(stream);
         stream = rest;
         let task = Task::parse(&content).map_err(|e| invalid(e.to_string()))?;
-        dead.push(Dead { id: d.id, task, retired_at: d.retired_at });
+        dead.push(Dead { id: d.id, task, retired_at: d.retired_at, rev: d.rev });
     }
     Ok(dead)
 }
@@ -135,7 +142,7 @@ fn newest_deletions(store: &Path, live: &Catalog) -> io::Result<Vec<Deletion>> {
                 continue;
             }
             let (sha, retired_at) = at.expect("git log prints a commit header before the paths it touched");
-            deletions.push(Deletion { id: id.to_string(), object: format!("{sha}^:tasks/{id}.md"), retired_at });
+            deletions.push(Deletion { id: id.to_string(), rev: format!("{sha}^"), retired_at });
         }
     }
     Ok(deletions)

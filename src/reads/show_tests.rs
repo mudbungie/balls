@@ -118,20 +118,12 @@ fn show_json_is_the_bedrock_record_total_with_no_derived_fields() {
     }
 }
 
-#[test]
-fn show_folds_the_read_dispatch_lines_into_the_field_block_not_json() {
-    // §6 read dispatch: a wired plugin's captured stdout (the delivery worktree
-    // line, §11) is folded verbatim between the field block and the body…
-    let s = git_store();
-    s.create("bl-1", &rich_task(), 100);
-    let cat = Catalog::load(s.dir()).unwrap();
-    let out = dispatch(s.dir(), &cat, &flags(false, "bl-1"), &plain(), "  worktree /wt/bl-1\n", NOW).unwrap();
-    assert!(out.contains("  worktree /wt/bl-1\n\nSome body text."), "fold precedes the body:\n{out}");
-    // …and `--json` stays the bedrock store mirror whatever the caller passes
-    // (reads::run never dispatches for it; this guards the render half).
-    let json = dispatch(s.dir(), &cat, &flags(true, "bl-1"), &plain(), "  worktree /wt/bl-1\n", NOW).unwrap();
-    assert!(!json.contains("worktree"));
-}
+// The body-projection tests — the read-dispatch fold, the derived comment
+// bylines (bl-236c) and the `--legacy` stand-down — are a nested sibling module
+// so this file stays under the 300-line cap; they inherit every fixture above
+// through `super::*` (the decomposition convention).
+#[path = "show_body_tests.rs"]
+mod body;
 
 #[test]
 fn show_errors_when_the_id_is_unknown() {

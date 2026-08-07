@@ -76,7 +76,7 @@ fn a_dead_child_nests_under_a_live_parent_in_the_all_reach() {
     // the tree shapes whatever it gets.
     let cat = catalog(&[("bl-epic", task("Epic", 1))]);
     let gone = child("Done kid", 2, "bl-epic");
-    let dead_set = [Dead { id: "bl-done".into(), task: gone, retired_at: 3 }];
+    let dead_set = [Dead { id: "bl-done".into(), task: gone, retired_at: 3, rev: String::new() }];
     let out = render(&cat, &dead_set, &flags_reach(Reach::All), &plain());
     assert_eq!(out, "ready    bl-epic  Epic\n  closed   bl-done  Done kid\n");
 }

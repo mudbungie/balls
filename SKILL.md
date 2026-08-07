@@ -95,7 +95,8 @@ or you collide with another agent.
 - **Read `list` / `show` in their default render** — it is the read surface for
   agents as much as humans. Everything derived is human-only by design (the
   journal of `-m` notes, claim-age, the `worktree` line, the `delivers <id>` /
-  `->` target), and that derived content IS the handoff context. `--json` is the
+  `->` target, the byline under each `bl comment` in a body), and that derived
+  content IS the handoff context. `--json` is the
   lossless bedrock export — round-tripping through `bl import`, diffing stored
   fields, feeding an outside integrator — and it carries none of it.
 

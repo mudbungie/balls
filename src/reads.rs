@@ -28,6 +28,7 @@ use crate::log::{self, Level, Log};
 use crate::task::Status;
 use crate::verb::Verb;
 
+mod attribution;
 mod catalog;
 mod claim_age;
 mod filter;
