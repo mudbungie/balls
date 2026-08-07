@@ -150,6 +150,24 @@ Write **pointers, not copies**: *"read `docs/architecture.md` §9 before touchin
 
 Every claim/close/prime is stamped with a worker identity, resolved from `--as ID`, else `$USER`, else the literal `"unknown"`. **Don't let an LLM invent its own name** — language models are not RNGs and collapse to the same handful of names across sessions (you end up with three Junipers stepping on each other's claims). Source the randomness outside the model: have the agent harness pick a name at session start and pass it via `--as`. A portable recipe is `shuf -n1 /usr/share/dict/words`. In Claude Code, a `SessionStart` hook in `~/.claude/settings.json` that exports the name for the agent to pass as `--as` works well.
 
+### Bootstrapping a repo for agents
+
+Three pieces wire a repo so a fresh agent finds balls at all, and each sits where the thing it describes already lives:
+
+- **`AGENTS.md` in the project tree — discovery.** Your harness loads it before the agent does anything; one line is enough:
+
+  ```
+  We use balls (`bl`) for task tracking. Run `bl --skill` for the operating guide.
+  ```
+
+  From there the agent reads `SKILL.md` and follows it to each `bl <cmd> --skill`. balls does not write this file and *cannot*: base balls never opens the project repo (§11) — the same property that makes "nothing on `main`" structural. That hop is yours.
+- **`config/PRIME.md` on the landing — this project's rules**, printed verbatim by every `bl prime` (above). Unlike `AGENTS.md` it travels: `install` copies the config it lives in, so one center briefs the whole fleet.
+- **A harness hook passing `--as` — identity** (above). balls cannot see session boundaries, so the name has to come from outside the model.
+
+Keep the two files on separate jobs. `AGENTS.md` says balls exists; `PRIME.md` says what this project expects of whoever just primed. Restating either inside the other is how `PRIME.md` becomes a second `AGENTS.md`, and then both drift — so write pointers, not copies, in both.
+
+There is deliberately no `bl setup <editor>`: a generator for someone else's config schema is code you must edit when their schema moves, which fails the severability test (§0). The setup is three files you own.
+
 ---
 
 ## Task schema
