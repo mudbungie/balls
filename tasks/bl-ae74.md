@@ -6,6 +6,10 @@ claimant = "Jinns"
 priority = 3
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
+
+[[blockers]]
+id = "bl-4f87"
+on = "close"
 +++
 Both dead-ball reads run `git log --diff-filter=D` WITHOUT `--no-renames`, and
 git's rename detection has been on by default since 2.9. If one commit both
