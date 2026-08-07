@@ -35,8 +35,8 @@ pub(super) struct Authored {
 /// `create` STAMPS the first (canonical) root on the ball, `claim` ADMITS a ball
 /// recorded against ANY of them (bl-0161), the other verbs ignore it. The
 /// `editor` seam serves only `update --edit`. `Ok(None)` is `--edit`'s
-/// unchanged-buffer no-op — there is nothing to author. Only the five mutating
-/// verbs reach here.
+/// unchanged-buffer no-op — there is nothing to author. Only the mutating verbs
+/// reach here.
 pub(super) fn base_change(
     verb: Verb,
     store: &Path,
@@ -130,8 +130,24 @@ pub(super) fn base_change(
                     _ => None,
                 }),
             )?;
-            let base = Update { id: id.clone(), actor, now, edits, message: flags.message.clone() };
+            let base = Update { verb, id: id.clone(), actor, now, edits, message: flags.message.clone() };
             Ok(Some(Authored { base: Box::new(base), before: Some(before), id }))
+        }
+        // `comment` is `update --body` with the body computed instead of given
+        // (§9, bl-d136): read the stored body, append the TEXT positional under a
+        // rule, seal it through the SAME base change under its own verb. It lands in the
+        // BODY — stored state the bedrock `--json` carries — so the note renders
+        // in `bl show` AND `bl show --json`, which the derived journal cannot.
+        Verb::Comment => {
+            guards::forbid_shaping_and_note(flags)?;
+            let [id, text] = flags.positionals.as_slice() else {
+                return Err(crate::usage("comment: expects a task id and the comment TEXT"));
+            };
+            let before = read_task(store, id)?;
+            let body = build::appended_body(&before.body, text)?;
+            let edits = vec![FieldEdit::Body(body)];
+            let base = Update { verb, id: id.clone(), actor, now, edits, message: None };
+            Ok(Some(Authored { base: Box::new(base), before: Some(before), id: id.clone() }))
         }
         Verb::Close => {
             guards::forbid_shaping(flags, verb)?;

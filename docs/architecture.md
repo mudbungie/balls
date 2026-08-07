@@ -522,14 +522,14 @@ bl-actor: mudbungie@gmail.com
   points, the store seal AND the delivery squash (§11).** The store seal is the mechanism: `Message`
   carries `subject` (the ball `title`) and `body` (`Some(-m)`) as two fields, and
   `change::commit_message` fixes the subject from `title` — `close` captures that title before it
-  deletes the file, the file-surviving verbs (`create`/`claim`/`unclaim`/`update`) re-read it from
+  deletes the file, the file-surviving verbs (`create`/`claim`/`unclaim`/`update`/`comment`) re-read it from
   the tree. There is no `title` to pass at close: it IS the ball's title (edit a wrong one with `bl
   update`, never a `-t`/`--title` flag). The delivery squash does the SAME — subject is the tagged
   title, `-m` is body — so no commit balls makes ever takes a subject override (bl-9961).
 - **Namespacing:** every key is namespaced by owner. `bl-` is RESERVED to core (plugins may not
   emit `bl-*`); plugins prefix with their own name (`jira-id`, `github-url`).
 - balls always writes `bl-protocol`, `bl-op`, `bl-actor`; `bl-id` on every per-task op
-  (`create`/`claim`/`unclaim`/`update`/`close`), absent on the checkout-scoped ops
+  (`create`/`claim`/`unclaim`/`update`/`comment`/`close`), absent on the checkout-scoped ops
   (`prime`/`sync`/`install`/`conf`) which name no single ball. **No `bl-from-state`/`bl-to-state`
   trailers** (bl-4778) — there is no status field to transition; `bl-op` already names the op,
   and the `claimant` change
@@ -794,12 +794,13 @@ balls runs TWO families of op, and they are deliberately NOT forced into one sha
 sequence below as universal — it is the **task-op** shape; the rest inherit what generalizes and no
 more.
 
-**Task ops — the symmetric family** (`create`/`claim`/`unclaim`/`update`/`close`): **balls authors a base
+**Task ops — the symmetric family** (`create`/`claim`/`unclaim`/`update`/`comment`/`close`): **balls
+authors a base
 change, an ordered plugin chain acts on it, balls seals it, plugins react.** The boundary is the SEAL —
 `commit + integrate`, atomic: **pre** modifiers shape what gets sealed (the record isn't fixed yet);
 **post** reactors act on the now-landed record and MUST NOT mutate the ball (it is sealed). One commit
 per op, sealed to the STORE. This is the canonical sequence (below), and it is fully symmetric across
-the five verbs — they differ only in which fields the base change stages.
+the six verbs — they differ only in which fields the base change stages.
 
 **Everything else inherits partially — a spectrum, not the same shape:**
 - **`config` / `install`** keep the sealing shape but seal to the LANDING, not the store; `install`'s
@@ -909,7 +910,7 @@ deliberately NOT tied to `T`: local diagnostics stay honest even when the commit
 
 ## §9 Verbs
 
-Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `close`** — plus
+Deliverable lifecycle verbs: **`create`, `claim`, `unclaim`, `update`, `comment`, `close`** — plus
 **`import`**, the one mutating verb outside the lifecycle: it reproduces already-identified balls
 (the write inverse of the bedrock read; see below and §16).
 There is **no `review` verb** — see "close" below.
@@ -1063,9 +1064,10 @@ A blocker that really blocks must be removable in-band — no store-file surgery
 for a stale parent, a wrong title, or a leftover scalar. (No status to set — that field doesn't
 exist, §3; a team's opt-in
 `state:` key, being an unknown preserved field, rides through `update` like any other.)
-**A zero-edit `update <id> -m NOTE` is the note-append** (bl-cf93): the narration rides the §5
-commit's free body — the journal is the store branch's git history, never a ball field or a second
-verb — and the seal still commits via the `updated` restamp. When even the restamp lands on the same
+**A zero-edit `update <id> -m NOTE` is the JOURNAL append** (bl-cf93): the narration rides the §5
+commit's free body — the journal is the store branch's git history, never a ball field — and the
+seal still commits via the `updated` restamp. It is derived, so it renders in human `bl show` alone;
+the note that must reach `--json` too is `bl comment` (below). When even the restamp lands on the same
 second (a truly byte-identical tree), the op ABORTS instead of converging note-less (§8 step 3).
 **`--edit`** is the HUMAN projection of the same update (bl-e196): render the stored `tasks/<id>.md`
 to a temp buffer, block on `$EDITOR` (else `$VISUAL`), parse-validate the saved buffer as a whole
@@ -1077,10 +1079,24 @@ editor is an ERROR, not a fallback, so agents stay on the flag-driven path. The 
 and `update` honor a **`--` end-of-options separator** (the getopt convention, bl-d31f), so an
 untrusted `-`-leading positional cannot hijack a flag: `bl create -- "$TITLE"`. balls stages
 the edit; `update.pre` may reject/adjust; seal; `update.post` reactors propagate (the tracker pushes;
-an external-mirror plugin reflects the new title). claim / unclaim / close are NAMED
+an external-mirror plugin reflects the new title). claim / unclaim / comment / close are NAMED
 specializations of `update` (they fix specific fields and, for close, stage a deletion) — kept
 as distinct ops because the op NAME is the §6 hook-dispatch key, so a plugin wires into `claim.post`
 rather than sniffing "an update that set `claimant`."
+
+**`comment`** (`bl comment <id> "TEXT"`, bl-d136): append TEXT to the ball's markdown body under a
+horizontal rule (blank line, `---`, blank line), then seal through the update path unchanged — the
+same base change carrying one body edit, under its own verb so the §5 trailer, the §6 hook key
+(`comment.pre`/`comment.post`) and the §10 op-keyed gate all name the op that ran. It exists for ONE
+reason: the body is STORED and the journal is DERIVED, so a body-append is the only note that renders
+in `bl show` AND in bedrock `bl show --json` (§3 — the record is total, `body` included). The append
+is the LITERAL text and nothing else — no timestamp, no attribution, no id — because the commit
+records who and when authoritatively and a second copy in the body would drift (`--edit`, `import`);
+the rule is decoration balls writes once and NEVER reads back, so the body stays opaque markdown and
+`--body` overwrites it wholesale, comments and rules alike. An empty body takes the text with no
+leading rule. Refused: empty or whitespace-only TEXT (an append that seals nothing is bl-cf93's
+silent-note-loss again), `-m` (the diff already shows the text — one fact, one home), and every
+field flag (the append IS the payload). No stdin flag; `"$(cat notes.md)"` already works.
 
 **`close`** (retire a claimed ball) — **deliver + retire across the seal boundary; this is what `review`
 used to gesture at.** A task's deliverable life is claim → write code → DELIVER → RETIRE; in the
@@ -2317,6 +2333,40 @@ OPEN:
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
 
 RESOLVED (folded into the body, no longer open):
+- **`bl comment <id> "TEXT"` — the body-append verb, REVERSING bl-cf93's "no `comment` verb"
+  (2026-08-06, bl-d136).** bl-cf93 (below) ruled a comment verb out on one-fact-one-home: the body is
+  the living document, the journal is store-branch git history, so `-m` is the note path. That
+  reasoning STANDS for the journal and is not withdrawn. What it got wrong is treating a body-append
+  and a journal entry as the same fact. They differ in exactly one way that matters: **the journal is
+  DERIVED, so bedrock `--json` cannot carry it** (§3/§9) — a `-m` note renders in `bl show` and is
+  invisible in `bl show --json`, which is the projection an integrating agent reads. The body is
+  STORED, and the bedrock record went TOTAL for the import round-trip (bl-e614, §16), so a note
+  appended to the body renders in BOTH views with no new mechanism. That is the whole justification:
+  if it did not render in both, it would not be worth building. The second reason is discovery — `-m`
+  is documented under a heading called "Body vs journal", so the word people actually reach for
+  ("comment") found nothing, which is why notes never landed. **The verb adds no mechanism**: it is
+  `update --body` with the body COMPUTED instead of given, the same [`crate::change::Update`] base
+  change carrying one `FieldEdit::Body` under its own [`Verb`] (so the §5 trailer, the §6 hook key
+  and the §10 op-keyed gate all name `comment`), the same seal, the same CAS. Two concurrent comments
+  conflict textually like any two writes to one file. The append is the literal text under a markdown
+  horizontal rule (blank line, `---`, blank line) and NOTHING else — no timestamp, no attribution, no
+  id: git records who and when authoritatively, and a second copy in the body would drift (hand-edited
+  through `--edit`, re-imported through `import`). The rule is DECORATION, written once and never
+  read: balls never searches for it, counts rules, or splits on one, so the body stays opaque markdown
+  and `--body` still overwrites wholesale, comments and rules alike. An empty body takes the text with
+  no leading rule (a rule separates two things), and both sides are trimmed so the seam is exactly one
+  blank line however many newlines the stored body ended with. Refusals: **empty or whitespace-only
+  TEXT** (an append that seals nothing is bl-cf93's silent-note-loss in a new costume), **`-m`** (the
+  commit subject derives from the op and the diff already shows the text — echoing it would store one
+  fact twice), and every field flag (the append IS the payload). No stdin flag: `bl comment bl-1a2b
+  "$(cat notes.md)"` already works. Because `Verb` IS a blocker edge's `on`, `--needs X:comment`
+  becomes expressible — harmless, and special-cased nowhere. Touched §8 (the task-op family list), §9
+  (the verb list, the update prose, the new `comment` entry), §15 (this entry; the bl-cf93 entry below
+  carries a reversal marker). Code: `src/verb.rs` (`Verb::Comment`, `ALL` 12→13), `src/change.rs`
+  (`Update` carries its `verb`), `src/mutate_author.rs` (the authoring arm), `src/mutate_build.rs`
+  (`appended_body`), `src/mutate_guards.rs` (`forbid_shaping_and_note`), `skill/comment.md` (new),
+  `skill/update.md`, `src/reads/journal.rs` (module doc), `SKILL.md`, `README.md`. Tracked under
+  bl-d136.
 - **the landing briefs the agent: `config/PRIME.md`, printed verbatim by every prime (2026-08-05,
   bl-c84f).** The gap was context bootstrap, not memory: prime founds, converges and settles, then
   says nothing about the project it just readied, so a fresh agent learns this repo's rules only if
@@ -2677,12 +2727,15 @@ RESOLVED (folded into the body, no longer open):
   work, and the prime prune preserves such a diverged branch. Touched §9 (close path), §11
   (rollback rows + retry predicate), §14 (inverted).
 - **`-m` narration refuses the no-op seal; notes-via-`-m` is the comment mechanism (2026-06-09,
-  bl-cf93 — post-freeze).** The §5 free body lives only in the sealed commit, and a zero-diff op (a
+  bl-cf93 — post-freeze; its "no `comment` verb" half REVERSED by bl-d136 above — the journal
+  reasoning stands, but a body-append and a journal entry are not the same fact: only one of them
+  renders in both projections).** The §5 free body lives only in the sealed commit, and a zero-diff op (a
   pure-note `update` whose second-granular `updated` restamp landed on the same second as the ball's
   last write) converged on the tip — sealing nothing and silently dropping the note while still
   confirming `update <id>`. Appending a comment is NOT a missing feature: the body is the living
   document, the journal is store-branch git history (one fact, one home — no `comment` verb, no
-  body-append flag), so `-m` is the blessed note path and its loss must be loud. The engine now
+  body-append flag; the verb half is reversed by bl-d136, the journal half stands), so `-m` is the
+  blessed note path and its loss must be loud. The engine now
   ABORTS a converged seal when the base change carries narration (`BaseChange::narrated`, overridden
   only by `update` — every other base always stages a real diff), unwinding like any seal failure;
   §13 idempotent converge is untouched for every `-m`-less op. Touched §8 (step 3), §9 (update

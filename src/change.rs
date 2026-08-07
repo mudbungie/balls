@@ -8,11 +8,12 @@
 //! an op — and the clock and minted id are injected, so authoring is pure and
 //! unit-testable on a plain temp dir.
 //!
-//! `claim`/`unclaim`/`close` are NAMED specializations of `update` (§9):
-//! [`Occupancy`] fixes `claimant` (claim carries two guards — the already-claimed
-//! refusal here, plus the §10 claim-blocker guard via [`crate::enforce`]),
-//! [`Retire`] stages the file DELETION, [`Update`] applies a generic
-//! [`FieldEdit`] list. Each mutating op runs the SAME op-keyed guard
+//! `claim`/`unclaim`/`comment`/`close` are NAMED specializations of `update`
+//! (§9): [`Occupancy`] fixes `claimant` (claim carries two guards — the
+//! already-claimed refusal here, plus the §10 claim-blocker guard via
+//! [`crate::enforce`]), [`Retire`] stages the file DELETION, [`Update`] applies a
+//! generic [`FieldEdit`] list — and `comment` IS [`Update`], carrying its own
+//! [`Verb`] and one [`FieldEdit::Body`]. Each mutating op runs the SAME op-keyed guard
 //! ([`crate::enforce::gate`], §10/§15) for its own verb — `claim`/`close` via
 //! their named [`crate::enforce::claim`]/[`crate::enforce::close`] spellings, the
 //! rest (`unclaim`/`update`) directly — so a blocker on ANY op is honored.
@@ -139,7 +140,16 @@ fn guard_repo(task: &Task, current_roots: &[String], id: &str) -> io::Result<()>
 /// overwriteable here — title, body, parent, priority, tags, extras, blockers —
 /// so there is no create-only split; the ball-body edit rides `edits`
 /// ([`FieldEdit::Body`]) while `message` is the `-m` commit narration (§5).
+///
+/// `comment` (§9, bl-d136) is a NAMED specialization of it in the same sense
+/// [`Occupancy`] is — one [`FieldEdit::Body`] carrying the appended body, sealed
+/// under its own [`Verb`]. So the verb is a field, not a constant: the §5 `bl-op`
+/// trailer, the §6 hook key and the §10 op-keyed gate all name the op the caller
+/// actually ran.
 pub struct Update {
+    /// The op this change is sealed under — `update`, or `comment` for the
+    /// body-append sugar over it.
+    pub verb: Verb,
     pub id: String,
     pub actor: String,
     pub now: i64,
@@ -151,7 +161,7 @@ pub struct Update {
 impl BaseChange for Update {
     fn stage(&self, dir: &Path) -> io::Result<()> {
         let mut task = read_task(dir, &self.id)?;
-        enforce::gate(&task, Verb::Update, &self.id, dir)?;
+        enforce::gate(&task, self.verb, &self.id, dir)?;
         for edit in &self.edits {
             edit.apply(&mut task);
         }
@@ -162,19 +172,20 @@ impl BaseChange for Update {
         // `--edit` Replace stays the verbatim hand-stitch escape hatch.
         for edit in &self.edits {
             if let FieldEdit::AddBlocker(b) = edit {
-                enforce::acyclic(dir, Verb::Update, &self.id, b)?;
+                enforce::acyclic(dir, self.verb, &self.id, b)?;
             }
         }
         Ok(())
     }
 
     fn finalize(&self, dir: &Path) -> io::Result<String> {
-        finalize_titled(dir, Verb::Update, &self.actor, &self.id, self.message.as_deref())
+        finalize_titled(dir, self.verb, &self.actor, &self.id, self.message.as_deref())
     }
 
     /// `update` is the one base that can stage a byte-identical tree (zero
     /// effective edits + a same-second `updated` restamp), hitting the no-op
     /// seal — its `-m` must refuse to converge rather than drop (bl-cf93).
+    /// `comment` cannot: its non-empty append always changes the body.
     fn narrated(&self) -> bool {
         self.message.is_some()
     }

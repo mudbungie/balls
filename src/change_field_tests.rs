@@ -12,6 +12,7 @@ fn update_applies_every_field_edit_and_bumps_updated() {
     let dir = d.path();
     write(dir, "bl-1", RICH);
     let u = Update {
+        verb: Verb::Update,
         id: "bl-1".into(),
         actor: "me".into(),
         now: 99,
@@ -58,6 +59,7 @@ fn update_replace_overwrites_the_whole_ball_but_preserves_created() {
     let original_created = read_task(dir, "bl-1").unwrap().created;
     let buffer = Task { title: "Hand-edited".into(), created: 999, updated: 999, body: "rewritten\n".into(), ..Task::default() };
     let u = Update {
+        verb: Verb::Update,
         id: "bl-1".into(),
         actor: "me".into(),
         now: 7,
@@ -87,6 +89,7 @@ fn update_is_refused_while_an_on_update_blocker_is_open() {
         "+++\ntitle = \"A\"\ncreated = 0\nupdated = 0\n\n[[blockers]]\nid = \"bl-dep\"\non = \"update\"\n+++\n",
     );
     let u = Update {
+        verb: Verb::Update,
         id: "bl-1".into(),
         actor: "me".into(),
         now: 9,
@@ -112,6 +115,7 @@ fn update_refuses_a_needs_edge_that_closes_a_deadlock() {
     );
     write(dir, "bl-gate", TASK);
     let u = Update {
+        verb: Verb::Update,
         id: "bl-gate".into(),
         actor: "me".into(),
         now: 9,
@@ -129,6 +133,7 @@ fn update_clears_optional_fields_with_none() {
     let dir = d.path();
     write(dir, "bl-1", RICH);
     let u = Update {
+        verb: Verb::Update,
         id: "bl-1".into(),
         actor: "me".into(),
         now: 99,
@@ -147,6 +152,7 @@ fn update_finalizes_with_the_retitled_subject() {
     let dir = d.path();
     write(dir, "bl-1", TASK);
     let u = Update {
+        verb: Verb::Update,
         id: "bl-1".into(),
         actor: "me".into(),
         now: 99,
@@ -164,8 +170,8 @@ fn update_is_narrated_iff_it_carries_m() {
     // bl-cf93: the engine consults `narrated()` to refuse a no-op seal that
     // would drop the `-m` note; a note-less update may still converge.
     let noted =
-        Update { id: "bl-1".into(), actor: "me".into(), now: 1, edits: vec![], message: Some("n".into()) };
+        Update { verb: Verb::Update, id: "bl-1".into(), actor: "me".into(), now: 1, edits: vec![], message: Some("n".into()) };
     assert!(noted.narrated());
-    let plain = Update { id: "bl-1".into(), actor: "me".into(), now: 1, edits: vec![], message: None };
+    let plain = Update { verb: Verb::Update, id: "bl-1".into(), actor: "me".into(), now: 1, edits: vec![], message: None };
     assert!(!plain.narrated());
 }

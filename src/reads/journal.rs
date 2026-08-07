@@ -1,10 +1,16 @@
 //! The §9 journal render — the store-branch history of one ball's
 //! `tasks/<id>.md`, folded into human `bl show` (bl-0e16). Notes ride the §5
-//! commit's free body (`-m`, §9 note-append); there is no comment verb and no
-//! stored field, so the journal IS git history and this module is a pure
-//! read-side projection: one `git log` walk per show, oldest-first, one entry
-//! per commit — timestamp, op, actor, and the note. Derived means human-only:
-//! bedrock `--json` never carries it (§3).
+//! commit's free body (`-m`, §9 note-append); there is no journal field, so the
+//! journal IS git history and this module is a pure read-side projection: one
+//! `git log` walk per show, oldest-first, one entry per commit — timestamp, op,
+//! actor, and the note. Derived means human-only: bedrock `--json` never carries
+//! it (§3).
+//!
+//! That is exactly why `bl comment` (§9, bl-d136) appends to the BODY instead:
+//! a note here is invisible to `--json`, so a note that must reach both
+//! projections has to land in stored state. The two are different facts with
+//! different reach, not two spellings of one — history for what happened, the
+//! body for what the ball says.
 //!
 //! The §5 no-hand-rolled-parser discipline holds on the read side too: the
 //! walk asks git for the trailer VALUES (`%(trailers:key=…)`) and for the
