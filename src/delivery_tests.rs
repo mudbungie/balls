@@ -48,9 +48,14 @@ impl Repo for FakeRepo {
         self.log(format!("mint {branch} at {base}"));
         Ok(())
     }
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<()> {
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<Delivered> {
         self.log(format!("deliver {} {branch} -> {integration} : {message} : {marker}", path.display()));
-        Ok(())
+        Ok(Delivered {
+            target: integration.into(),
+            base: "base".into(),
+            source: Some("source".into()),
+            commit: Some("commit".into()),
+        })
     }
     fn work_messages(&self, _branch: &str, _integration: &str) -> io::Result<Vec<String>> {
         Ok(Vec::new()) // no authored work → deliver_close falls back to the subject

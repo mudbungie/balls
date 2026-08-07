@@ -61,6 +61,31 @@ pub fn work_branch(id: &str) -> String {
     format!("work/{id}")
 }
 
+/// An ATTEMPT's private worktree (§11.1, bl-4eac):
+/// `$XDG_STATE_HOME/balls/attempts/<invocation_path>/<handle>/`. A sibling
+/// territory of the delivery plugin's, not a child of it — an attempt is a
+/// capability of the crate, not an op of one plugin binding, so it cannot key on
+/// a plugin name. The invocation path is MIRRORED verbatim for the same reason
+/// [`binding_territory`] mirrors it: this is a cargo build dir and `rust-lld`
+/// cannot open an output file under a `%` ancestor (bl-f3e4). Pairs with
+/// [`attempt_branch`] on the same `<handle>` key, exactly as
+/// [`worktree_path`] pairs with [`work_branch`] on `<id>`.
+#[must_use]
+pub fn attempt_path(xdg: &Xdg, invocation_path: &str, handle: &str) -> PathBuf {
+    xdg.state_dir().join("attempts").join(invocation_path.trim_start_matches('/')).join(handle)
+}
+
+/// The `attempt/<handle>` source ref of one attempt (§11.1, bl-4eac) — a
+/// namespace DISTINCT from `work/*`, which remains ball identity. Two
+/// consequences ride the separation and neither needs a flag: `prime`'s settled-
+/// branch prune globs `work/` and so leaves attempts alone (retention is the
+/// caller's), and a `git branch --list 'attempt/*'` is the whole enumeration of
+/// live attempts.
+#[must_use]
+pub fn attempt_branch(handle: &str) -> String {
+    format!("attempt/{handle}")
+}
+
 /// The delivery commit subject: `<title> [<id>]`. The `[<id>]` tag is delivery
 /// ground truth — the `marked` tag-scan (§11) reads the integration branch for
 /// it, and deliver's retry standing detects a landed squash by it.

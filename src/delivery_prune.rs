@@ -91,7 +91,7 @@ impl Project {
         for branch in refs.lines() {
             let id = branch.strip_prefix("work/").unwrap_or(branch);
             match self.standing(branch, &integration, &marker(id))? {
-                Standing::Settled => {
+                Standing::Settled(_) => {
                     Self::ok(&self.root, &["branch", "-D", branch])?; // best-effort: refused while checked out
                 }
                 Standing::Undelivered | Standing::Diverged => {

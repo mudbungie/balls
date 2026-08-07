@@ -11,7 +11,7 @@
 
 use std::io;
 
-use crate::delivery::{Repo, Spec};
+use crate::delivery::{Delivered, Repo, Spec};
 
 /// The body's byte budget (bl-a500). The transport is stdin, so this is NOT a
 /// platform limit — it is the ceiling past which a commit message stops being a
@@ -40,11 +40,37 @@ pub(crate) fn subject_line(message: &str) -> &str {
 /// [`Repo::deliver`] captures pending work, so the ball-titled capture commit
 /// does not pollute them (the closer's own reconciling merges are already
 /// dropped by `--no-merges`) — compose the delivery message, then squash.
-pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<()> {
-    let integration = crate::delivery::target_branch(repo, spec.target)?;
-    let work = repo.work_messages(spec.branch, &integration)?;
-    let message = compose(spec.override_msg, &work, spec.subject);
-    repo.deliver(spec.worktree, spec.branch, &integration, &message, spec.marker)
+pub fn deliver_close(repo: &dyn Repo, spec: &Spec) -> io::Result<Delivered> {
+    let target = crate::delivery::target_branch(repo, spec.target)?;
+    deliver_to(repo, spec.worktree, spec.branch, &target, spec.subject, spec.override_msg, spec.marker)
+}
+
+/// THE ONE DELIVERY (§11.1, bl-4eac): read the author's substantive source-ref
+/// messages — BEFORE [`Repo::deliver`] captures pending work, so the
+/// subject-labelled capture commit does not pollute them (the closer's own
+/// reconciling merges are already dropped by `--no-merges`) — compose the
+/// delivery message, then squash source → target.
+///
+/// Both delivery callers funnel here and differ in NOTHING downstream of it: the
+/// ball path ([`deliver_close`]) arrives with `work/<id>`, a graph-derived
+/// target and the `[<id>]` marker; a non-task attempt
+/// ([`crate::attempt::Attempt::deliver`]) arrives with `attempt/<handle>`, its
+/// own opaque target and the `[<handle>]` marker. That identity IS the
+/// deliverable and not merely a nice property of it — an attempt that landed by
+/// any other route would be a second delivery law, and two representations of
+/// one law drift.
+pub fn deliver_to(
+    repo: &dyn Repo,
+    worktree: &std::path::Path,
+    source: &str,
+    target: &str,
+    subject: &str,
+    note: Option<&str>,
+    marker: &str,
+) -> io::Result<Delivered> {
+    let work = repo.work_messages(source, target)?;
+    let message = compose(note, &work, subject);
+    repo.deliver(worktree, source, target, &message, marker)
 }
 
 /// Compose the §11 delivery commit message. The SUBJECT line is ALWAYS the

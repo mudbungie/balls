@@ -39,6 +39,30 @@ use crate::message::Metadata;
 /// it, and never persists it.
 pub const PROTOCOL_JSON: &str = r#"{"protocol":[1],"ops":["claim","unclaim","close","prime","show"]}"#;
 
+/// The identities ONE delivery acted on (§11.1, bl-4eac) — everything a caller
+/// needs to reconstruct provenance, and nothing balls stores to produce it.
+/// Every field is a value [`Repo::deliver`] already computed for its own use.
+///
+/// The two `Option`s mean one thing between them: *the target already contained
+/// everything the source had*. `source: None` is a source ref that was never
+/// made (a claimed non-deliverable); `commit: None` is an empty deliverable or a
+/// fully-merged source. A CONVERGED retry returns the STANDING delivery commit —
+/// the one an earlier aborted close already landed — because provenance wants
+/// the commit that exists, not the fact that this call did not mint it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Delivered {
+    /// The target ref this delivery advanced (a branch name).
+    pub target: String,
+    /// The PINNED target tip (bl-8b89): the ancestry precondition's comparison
+    /// point, the squash parent, and the CAS old-value — one read, four uses.
+    pub base: String,
+    /// The source tip at delivery (after any capture commit). `None` when the
+    /// source ref does not exist.
+    pub source: Option<String>,
+    /// The delivery commit. `None` when nothing landed.
+    pub commit: Option<String>,
+}
+
 /// The project-repo git acts the delivery hooks need, behind a seam so
 /// [`dispatch`] is testable without a real repo. Each is idempotent — it
 /// recomputes from `(path, branch)` and checks the filesystem (§11).
@@ -88,8 +112,11 @@ pub trait Repo {
     /// close, bl-430e, or a forge squash-merge) and deliver SKIPS the squash —
     /// IFF the delivery commit CONTAINS the branch's content; a branch carrying
     /// content beyond it (the bl-65e0 handoff) ABORTS loudly instead of
-    /// stranding the work (bl-c231).
-    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<()>;
+    /// stranding the work (bl-c231). Returns the [`Delivered`] identities in
+    /// EVERY arm — the no-ops included, which is what makes an empty or
+    /// converged delivery as provenance-legible as a freshly landed one
+    /// (bl-4eac).
+    fn deliver(&self, path: &Path, branch: &str, integration: &str, message: &str, marker: &str) -> io::Result<Delivered>;
     /// The author's substantive `work/<id>` commit messages for the delivery
     /// message (bl-b9a6): every NON-MERGE commit on `branch` since it forked
     /// from `integration`, oldest-first. Empty when the branch is absent (never
@@ -146,7 +173,10 @@ pub fn dispatch(op: &str, phase: &str, rolling_back: bool, repo: &dyn Repo, spec
             fork(repo, spec)?;
             repo.materialize(spec.worktree, spec.branch)
         }
-        ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec),
+        // The hook wire has no return channel (§6), so the close.pre delivery's
+        // identities are dropped here — a LINKING caller that wants them reaches
+        // the same delivery through [`crate::attempt`] (bl-4eac).
+        ("close", "pre", false) => crate::delivery_message::deliver_close(repo, spec).map(|_| ()),
         // UNCLAIM releases the worktree and KEEPS the branch: the ball goes back
         // on the board, nothing was delivered, and committed work on the branch
         // is what the next claim re-materializes onto (bl-65e0).

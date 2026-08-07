@@ -4,6 +4,7 @@
 //! is_git_repo`]) is covered against actual temp dirs in `delivery_repo_tests`.
 
 use super::*;
+use crate::delivery::Delivered;
 use std::path::Path;
 
 /// A [`Repo`] that answers only [`Repo::is_git_repo`] (the one act the gate
@@ -31,7 +32,7 @@ impl Repo for FakeRepo {
     fn mint(&self, _: &str, _: &str) -> io::Result<()> {
         unreachable!("the gate consults only is_git_repo")
     }
-    fn deliver(&self, _: &Path, _: &str, _: &str, _: &str, _: &str) -> io::Result<()> {
+    fn deliver(&self, _: &Path, _: &str, _: &str, _: &str, _: &str) -> io::Result<Delivered> {
         unreachable!("the gate consults only is_git_repo")
     }
     fn work_messages(&self, _: &str, _: &str) -> io::Result<Vec<String>> {

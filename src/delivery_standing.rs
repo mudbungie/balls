@@ -25,8 +25,12 @@ use crate::delivery_repo::Project;
 /// ([`Project::prune`]) both read through.
 pub(crate) enum Standing {
     /// Nothing undelivered: fully merged, or a fork-scoped delivery commit
-    /// CONTAINS the branch's content. Deliver skips; prune may delete.
-    Settled,
+    /// CONTAINS the branch's content. Deliver skips; prune may delete. Carries
+    /// that standing delivery commit when a `marker` scan found one — the
+    /// converged retry reports it as its own [`crate::delivery::Delivered`]
+    /// commit (bl-4eac), since it is where this source's content actually is.
+    /// `None` on the fully-merged arm, where no tagged squash ever existed.
+    Settled(Option<String>),
     /// No delivery commit since the fork — the normal path: deliver proceeds.
     Undelivered,
     /// A delivery commit stands since the fork AND the branch carries content
@@ -43,13 +47,13 @@ impl Project {
     /// tested for content-containment.
     pub(crate) fn standing(&self, branch: &str, integration: &str, marker: &str) -> io::Result<Standing> {
         if Self::ok(&self.root, &["merge-base", "--is-ancestor", branch, integration])? {
-            return Ok(Standing::Settled);
+            return Ok(Standing::Settled(None));
         }
         let Some(delivery) = self.delivered_since_fork(branch, integration, marker)? else {
             return Ok(Standing::Undelivered);
         };
         if self.contained(branch, &delivery)? {
-            Ok(Standing::Settled)
+            Ok(Standing::Settled(Some(delivery)))
         } else {
             Ok(Standing::Diverged)
         }

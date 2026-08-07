@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// The production [`crate::delivery::Repo`]: git against one project-repo root.
+#[derive(Debug)]
 pub struct Project {
     pub(crate) root: PathBuf,
 }
