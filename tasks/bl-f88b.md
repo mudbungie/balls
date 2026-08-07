@@ -6,6 +6,10 @@ claimant = "Odometers"
 priority = 1
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
+
+[[blockers]]
+id = "bl-f34e"
+on = "close"
 +++
 Observed 2026-08-03 in this checkout: 18 directories under
 ~/.local/state/balls/plugins/bl-chore/%2Fhome%2Fmark%2Fdev%2Fballs/<parent-id>/,
