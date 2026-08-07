@@ -74,6 +74,29 @@ fn a_missing_body_defaults_empty_and_a_nonstring_body_is_refused() {
 }
 
 #[test]
+fn an_edge_id_that_is_not_a_path_token_refuses_but_a_dangling_one_imports() {
+    // §9/bl-6c19: SHAPE is checked on every id in the record, because `parent`
+    // and each blocker id are read back AS `tasks/<id>.md` paths — a `..` in
+    // one escapes the store on read.
+    for (edge, want) in [
+        (r#""parent":"../../etc/passwd""#, "parent '../../etc/passwd'"),
+        (r#""blockers":[{"id":"a b","on":"claim"}]"#, "blocker 'a b'"),
+    ] {
+        let text = format!(r#"{{"id":"bl-e","title":"T","created":1,"updated":1,{edge}}}"#);
+        let err = records(&text).unwrap_err();
+        assert!(err.to_string().contains(want), "{text} → {err}");
+        assert!(err.to_string().contains("safe path token"), "{err}");
+    }
+    // …and LIVENESS is not the question: a well-shaped edge naming a ball this
+    // store has never seen is exactly what a peer or a partial stream carries.
+    let text = r#"{"id":"bl-d","title":"T","created":1,"updated":1,
+        "parent":"bl-gone","blockers":[{"id":"bl-also-gone","on":"claim"}]}"#;
+    let (_, task) = records(text).unwrap().pop().unwrap();
+    assert_eq!(task.parent.as_deref(), Some("bl-gone"));
+    assert_eq!(task.blockers[0].id, "bl-also-gone");
+}
+
+#[test]
 fn refusals_name_the_defect() {
     for (text, want) in [
         ("not json", "bad JSON on stdin"),

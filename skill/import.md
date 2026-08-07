@@ -39,6 +39,13 @@ Restoring the ball says nothing about the CODE: `bl close` squashed `work/<id>`
 onto the delivery target before archiving the task, and that commit stands.
 Reverting it is an ordinary `git revert`, a separate and deliberate act.
 
+Verbatim stops at **shape**. Every id in a record — its own, its `parent`, and
+each blocker's — must be a safe path token (`^[A-Za-z0-9][A-Za-z0-9_-]*$`),
+because an id IS a filename and the edges are read back as `tasks/<id>.md`; one
+that is not refuses the stream, naming the field. Liveness is NOT checked: an
+edge pointing at a ball this store has never seen imports fine, which is what a
+peer or a filtered stream carries.
+
 Verbatim includes the **edges**: blockers arrive exactly as the stream spells
 them, with no create-time sugar applied. So a stream carrying an older store's
 subtasks — `{child, claim}` edges on the epic, which is what `--subtask-of` used
