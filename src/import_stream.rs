@@ -3,8 +3,10 @@
 //! JSON object carrying a valid string `id`, the §3 canonical fields typed as
 //! the bedrock emits them (`created`/`updated` required — the record is
 //! fully-identified or refused), and a string `body`; unknown keys land in the
-//! preserved `extra` table like any stored frontmatter (§3). Anything else is
-//! an error naming the record — refuse, don't guess.
+//! preserved `extra` table like any stored frontmatter (§3). Every id the
+//! record carries — its own AND its `parent`/`blockers[].id` edges — must be a
+//! safe path token ([`require_edge_shapes`]). Anything else is an error naming
+//! the record — refuse, don't guess.
 
 use std::io;
 
@@ -54,8 +56,30 @@ fn from_record(mut value: Value) -> io::Result<(String, Task)> {
     };
     let mut task: Task =
         serde_json::from_value(value).map_err(|e| invalid(format!("import: {id}: {e}")))?;
+    require_edge_shapes(&id, &task)?;
     task.body = body;
     Ok((id, task))
+}
+
+/// EVERY id in a record must be a safe path token (§9, bl-6c19) — the record's
+/// own (checked above, it names the file written) and each edge id it carries.
+/// `parent` is read back through `tasks/<parent>.md` ([`crate::target::derive`])
+/// and a blocker id through that file's existence ([`crate::enforce`]), so a
+/// `/` or `..` in either escapes the store on READ, one hop after the import
+/// that took it verbatim. SHAPE only, never liveness (bl-1fc4's line): a
+/// DANGLING edge imports fine — that is the record a peer, a backup or a
+/// partial stream legitimately carries, and refusing it would be the enforce
+/// gate §9 says `import` does not have.
+fn require_edge_shapes(id: &str, task: &Task) -> io::Result<()> {
+    let parent = task.parent.iter().map(|p| ("parent", p));
+    for (what, edge) in parent.chain(task.blockers.iter().map(|b| ("blocker", &b.id))) {
+        if !id::is_valid(edge) {
+            return Err(invalid(format!(
+                "import: {id}: {what} '{edge}' is not a task id — an id is a filename (§3), so every id in a record must be a safe path token"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

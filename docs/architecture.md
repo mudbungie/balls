@@ -1194,6 +1194,31 @@ close` the holder, or filter the stream) — so there is no `--skip`/`--replace`
 `import` prints nothing to stdout (the caller supplied every id — there is no product to print);
 confirmation goes to stderr. `bl import --legacy[=REF]` is the §16 cutover button.
 
+**Verbatim governs IDENTITY, not whether a string can be a filename (bl-6c19).** Every id a record
+carries — its own, its `parent`, and each `blockers[].id` — must pass the § id-generation
+string-safety check (`id::is_valid`, `^[A-Za-z0-9][A-Za-z0-9_-]*$`); a record carrying one that
+cannot be a path token is refused, naming the field and the value. This is not a new rule, it is the
+existing one applied uniformly. `import` has always run that check on the record's **own** id,
+because the id IS the file it writes (§3, Model A) — and nobody reads that as a verbatim violation.
+The edge ids are the same question one hop later: `parent` is read back through `tasks/<parent>.md`
+(§11 delivery-target derivation) and a blocker id through that file's existence (§10 resolution), so
+a `/` or `..` in either escapes the store on **read**, in a verb that never saw the import. The
+asymmetry — own id checked, edge ids not — was an accident of where the record gets peeled apart,
+not a doctrine. It is the same hole bl-1fc4 closed on the `create`/`update` front door, reached
+through a different door.
+
+**Shape, never liveness** — bl-1fc4's line, and the reason this costs `import` nothing. A DANGLING
+`parent` or blocker (a well-formed id no live ball holds) imports fine and MUST: that is precisely
+the record a federation peer, a backup, or a filtered stream legitimately carries, and refusing it
+would be the enforce gate this section says `import` does not have. What is refused is only a string
+that was never a filename anywhere — which no source could have exported, because every source
+stores one file per task (`show --json` reads `tasks/<id>.md`; the §16 legacy store reads
+`.balls/tasks/*.json`). So there is no historical record under any other id scheme that this loses:
+round-trip fidelity is intact by construction, and the rejected input is not a record but corruption
+or an injection. "Garbage-in-garbage-out" was never the real alternative — the alternative was a
+graph whose broken edge surfaces as a path escape three verbs downstream, with nothing left pointing
+back at the import that admitted it.
+
 **The foreign-root hint (bl-d3fa)** decorates that confirmation. `root_commit` is verbatim like every
 other field, so importing a ball born in another project lands it correctly and then the root-aware
 default `list` scope (bl-0161) rightly hides it — `list` shows what `claim` admits, and this checkout
