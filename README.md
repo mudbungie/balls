@@ -98,9 +98,9 @@ A task has no `status` field. The three live states are computed on read:
 - **blocked** — unclaimed, but an unresolved `claim`-blocker remains.
 - **ready** — unclaimed with every `claim`-blocker resolved; claimable now.
 
-A closed task has **no file** — absence is the resolution. Its history (including the delivery commit on `main` tagged `[bl-xxxx]`) is the record. Closed work is not gone and not summarized: `bl show <id>` resolves any dead id, and every `bl list` filter reaches the dead set with `--all` (live + dead) or `-s closed` (dead only), reconstructed from `balls/tasks` history. `bl list <needle> --all` is a full-text substring search over the title **and body** of every task the project has ever had.
+A closed task has **no file** — absence is the resolution. Its history (including the delivery commit on `main` tagged `[bl-xxxx]`) is the record. Closed work stays reachable: `bl show <id>` resolves any dead id, and every `bl list` filter reaches the dead set with `--all` (live + dead) or `-s closed` (dead only), reconstructed from `balls/tasks` history. `bl list <needle> --all` is a substring search over the title **and body** of every task the project has ever had.
 
-That is what the delete buys, and it is the whole answer to context pressure: **the live tree is already the compaction.** Closed tasks cost nothing to have — they are not in the working set, so a backlog with a thousand finished tasks reads exactly as fast as a fresh one — and they cost nothing in fidelity either, because reaching them replays the real record rather than a summary of it. There is no decay pass to schedule, no summarizer that can quietly drop the one detail you needed, and nothing to tune as the backlog grows.
+Deleting on close is also what keeps a long backlog cheap to read: finished tasks are out of the working set, with nothing to summarize or age out to get them there.
 
 ### `--json` is bedrock
 
@@ -142,9 +142,9 @@ bl prime --as YOUR_IDENTITY
 
 #### The landing's brief
 
-If the landing carries a `config/PRIME.md`, prime prints it **verbatim** as its last act — the project's own briefing to whoever just primed. There is no verb, no flag and no store behind it: the brief *is* config, and core holds only "print it if present," so removing the capability deletes a file rather than a line of code. Because `install` is a pure path-copy, the brief travels with the config it lives in — `bl prime --center <hub>` adopts a center's `config/`, brief included, and shows it on the same op that enrolls you, so one authority briefs the whole fleet.
+If the landing carries a `config/PRIME.md`, prime prints it **verbatim** as its last act — the project's own briefing to whoever just primed. Because `install` is a pure path-copy, the brief travels with the config it lives in: `bl prime --center <hub>` adopts a center's `config/`, brief included, and shows it on the same op that enrolls you, so one authority briefs the whole fleet.
 
-Write **pointers, not copies**: *"read `docs/architecture.md` §9 before touching close"*, never a restatement of §9. A copied fact drifts from its original, because the change that invalidates it never touches the copy — and a stale brief is worse than no brief, since agents trust what they are handed. That discipline is also what keeps PRIME.md from becoming a second home for your `AGENTS.md`. Nothing seeds a default (absence is silence), and there is no flag to suppress it — a brief too long to read every session is a file to shorten.
+Write **pointers, not copies**: *"read `docs/architecture.md` §9 before touching close"*, never a restatement of §9. A copied fact drifts from its original, because the change that invalidates it never touches the copy — and a stale brief is worse than no brief, since agents trust what they are handed. Nothing seeds a default (absence is silence), and there is no flag to suppress it — a brief too long to read every session is a file to shorten.
 
 ### Identity
 
@@ -305,25 +305,11 @@ A second exception serves hosts that embed balls **and multiplex the plugin bina
 
 ### Beads
 
-Beads and balls start from the same premise: agents need structured, queryable, persistent task state — not markdown files strewn across a repo — and that state belongs out of `main`'s commit history so feature work and bookkeeping don't interleave. We diverge on two axes: **what holds the state**, and **what happens to it once it's finished**.
+Beads and balls start from the same premise: agents need structured, queryable, persistent task state — not markdown files strewn across a repo — and that state belongs out of `main`'s commit history so feature work and bookkeeping don't interleave. What differs is what holds it.
 
-#### The substrate
+Beads uses Dolt — a version-controlled SQL database. That buys cell-level merging and fast queries on large task sets. The cost is running two version-control systems side by side: git for code, Dolt for tasks — two histories to keep consistent, two merge models, two remotes, and a database binary every collaborator installs.
 
-Beads uses Dolt — a version-controlled SQL database. That buys cell-level merging, which is genuinely more granular than what git offers. The cost is running two version-control systems side by side: git for code, Dolt for tasks — two histories to keep consistent, two merge models, two remotes, and a database binary every collaborator installs.
-
-The usual second argument for a database is query speed, and it doesn't survive contact with backlog-sized data. SQL is faster per query in the abstract; the question is whether the difference is reachable. Listing the live set is an open-and-parse over one file per task — about 0.1s at 5,000 tasks. Reaching the *closed* set costs two `git` invocations at any store size, measured at 0.07s across this project's own 1,193-commit task history. Both sit under the threshold where a human or an agent notices, so the database's advantage doesn't convert into a workflow difference — and it is paid for in a second VCS, permanently. (That number used to be 7.2s, and the fix was not an index: the old path re-derived per task a commit sha the enumeration had already been handed. §0's *"never add an index unless indexing is the app"* held, because the cost was redundant derivation and the fix was to delete it. A performance complaint is not automatically an argument for a database.)
-
-#### Memory
-
-Beads pitches itself as a memory upgrade rather than a tracker: `bd remember` stores project insights, `bd prime` injects them, and *compaction* semantically decays old closed tasks to save context. Balls answers the first structurally and does not need the second.
-
-**Injection** balls does, in one file: a `config/PRIME.md` on the landing is printed verbatim by every `bl prime`. No verb, no store, no schema — the brief is config, and it rides the same path-copy that distributes everything else, so one center briefs a whole fleet.
-
-**A `remember` store balls deliberately refuses**, because an insight kept beside the code it describes is corrected by the same diff that invalidates it, while one in a sidecar store is never in anybody's diff. It rots silently, and a rotted memory is worse than none — agents trust what they are handed. So a brief here *points* at the authority (a design doc, a spec section) rather than restating it. Pointers can't drift.
-
-**Compaction balls does not implement, because closing already is compaction.** `bl close` deletes the task file; the live tree is the working set, so a thousand finished tasks cost exactly nothing to have around, and there is no decay pass to schedule or tune. What that delete does *not* do is lose anything: `bl list <needle> --all` searches title and body across every task the project has ever had, and `bl show <id>` replays a closed ball in full — its body, its journal, its blockers. A summarizer over retained records can only subtract information from records you already hold, and it subtracts on a guess about what you'll want later. Git had a lossless answer to this already.
-
-#### One VCS, if one is enough
+Beads also pitches itself as a memory upgrade rather than a tracker: project insights stored and injected at session start, plus *compaction* to decay old closed tasks out of the context window. Balls does the first with a file — a `config/PRIME.md` on the landing, printed verbatim by every `bl prime`. It needs nothing for the second: closing deletes the task file, so finished work is already out of the working set, and `bl list <needle> --all` still searches every task the project has ever had.
 
 Balls asks whether one VCS can do both jobs. The two-branch design keeps task data fully out of `main`'s commit graph — same separation — but stores it in the same git repository, fetched by the same `git fetch`, pushed by the same `git push`. A collaborator who clones the repo gets the backlog; one without `bl` installed can still read, diff, and hand-edit task files with stock git. There is no second system to operate. The tradeoff is real: Dolt's cell-level merge is strictly more granular than git's file-level merge. Balls mitigates with one file per task (conflicts are per-task) and a text-mergeable TOML schema, but doesn't match per-cell precision. The bet is that one VCS beats two whenever one is sufficient — and for a backlog of tasks, git is sufficient.
 
