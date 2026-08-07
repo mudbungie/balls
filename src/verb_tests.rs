@@ -41,6 +41,7 @@ fn only_deliverable_verbs_are_mutating() {
         Verb::Claim,
         Verb::Unclaim,
         Verb::Update,
+        Verb::Comment,
         Verb::Close,
         Verb::Import,
     ];

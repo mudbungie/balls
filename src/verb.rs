@@ -20,6 +20,14 @@ pub enum Verb {
     Claim,
     Unclaim,
     Update,
+    /// §9 `bl comment <id> "TEXT"` — append TEXT to the ball's markdown body
+    /// under a horizontal rule. Sugar over [`Verb::Update`]'s `--body`
+    /// (the same base change, the same seal), so it is a verb only because the
+    /// word people reach for has to BE the command. It appends to the body and
+    /// not the journal because the body is STORED state: bedrock `--json`
+    /// carries it, so a comment renders in `bl show` AND `bl show --json` —
+    /// which the derived journal cannot (bl-d136).
+    Comment,
     Close,
     /// §16 `bl import` — ingest verbatim, fully-identified task JSON (the
     /// `show --json` bedrock shape) through the real store. The inverse of the
@@ -52,11 +60,12 @@ pub enum OpClass {
 
 impl Verb {
     /// Every verb, in §9 order — the single source the parser and tests draw on.
-    pub const ALL: [Verb; 12] = [
+    pub const ALL: [Verb; 13] = [
         Verb::Create,
         Verb::Claim,
         Verb::Unclaim,
         Verb::Update,
+        Verb::Comment,
         Verb::Close,
         Verb::Import,
         Verb::Show,
@@ -74,6 +83,7 @@ impl Verb {
             Verb::Claim => "claim",
             Verb::Unclaim => "unclaim",
             Verb::Update => "update",
+            Verb::Comment => "comment",
             Verb::Close => "close",
             Verb::Import => "import",
             Verb::Show => "show",
@@ -100,6 +110,7 @@ impl Verb {
             Verb::Claim => "take a task and materialize its work worktree",
             Verb::Unclaim => "release a claim",
             Verb::Update => "overwrite any field of a task",
+            Verb::Comment => "append a note to a task's body (renders in both show and show --json)",
             Verb::Close => "deliver the work and archive the task",
             Verb::Import => "bulk-create tasks from JSON on stdin (won't overwrite existing ids — use update to modify)",
             Verb::Show => "show one task in full",
@@ -118,6 +129,7 @@ impl Verb {
             | Verb::Claim
             | Verb::Unclaim
             | Verb::Update
+            | Verb::Comment
             | Verb::Close
             | Verb::Import => OpClass::Mutating,
             Verb::Show

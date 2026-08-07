@@ -177,6 +177,32 @@ pub(super) fn edits<'a>(extras: impl Iterator<Item = &'a String>, flags: &Flags)
     Ok(edits)
 }
 
+/// `comment`'s one edit (§9, bl-d136): the stored `body` with `text` appended
+/// under a markdown horizontal rule (blank line, `---`, blank line). Beyond that
+/// seam the append is the LITERAL text — no timestamp, no attribution, no other
+/// marker — because the store commit records who and when authoritatively, and a
+/// second copy in the body could drift (hand-edited through `--edit`, re-imported
+/// through `bl import`).
+///
+/// The rule is DECORATION, written once and never read: balls never searches for
+/// it, counts rules, or splits on one. The body stays opaque markdown — there is
+/// no section boundary and nothing for `--body` to preserve, so overwriting the
+/// body overwrites every comment and every rule with it, as intended.
+///
+/// An empty or whitespace-only `text` is REFUSED: the append would seal nothing,
+/// which is the bl-cf93 silent-note-loss in a new costume. An empty body takes
+/// the text alone — a rule separates two things or it is not there. Both sides
+/// are trimmed of trailing whitespace, so the seam is exactly one blank line
+/// either way however many newlines the stored body ended with.
+pub(super) fn appended_body(body: &str, text: &str) -> io::Result<String> {
+    if text.trim().is_empty() {
+        return Err(other("comment: TEXT is empty — a comment that appends nothing would seal nothing"));
+    }
+    let existing = body.trim_end();
+    let separator = if existing.is_empty() { "" } else { "\n\n---\n\n" };
+    Ok(format!("{existing}{separator}{}\n", text.trim_end()))
+}
+
 /// The keys `key=value` refuses by name: facts whose one authoritative home is
 /// not a preserved extra. `id` is the filename and `body` is the markdown after
 /// the fence (the [`crate::task`] shadow keys — a stored line would be a lossy

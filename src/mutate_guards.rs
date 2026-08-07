@@ -85,6 +85,19 @@ pub(super) fn forbid_shaping(flags: &Flags, verb: Verb) -> io::Result<()> {
     Ok(())
 }
 
+/// `comment` takes ONLY `<id> "TEXT"` and `--as`. No field edits (the append IS
+/// the body edit, authored from the TEXT positional) and no `-m`: echoing the
+/// text into the commit note would store one fact twice — the commit subject
+/// derives from the op, and the diff already shows the text (§9, bl-d136).
+pub(super) fn forbid_shaping_and_note(flags: &Flags) -> io::Result<()> {
+    if shapes(flags) || flags.edit || flags.message.is_some() {
+        return Err(crate::usage(
+            "comment: takes only <id> \"TEXT\" and --as — the append IS the body edit, and -m would store the text twice",
+        ));
+    }
+    Ok(())
+}
+
 /// `update --edit` and the field-setting flags would race over the same payload
 /// (the buffer vs the flag values), so they are a clean either/or (§9): set
 /// fields OR hand-edit, never both.

@@ -31,16 +31,24 @@ reciprocal `--blocks` (an edge on ANOTHER task; that stays create-only).
     bl update bl-1a2b --body "now waiting on the upstream release"
     bl update bl-1a2b -m "progress note (rides git history, not the body)"
 
-## Body vs journal: `--body` vs `-m`
+## Body vs journal: `--body` vs `-m` vs `bl comment`
 
-`--body` is the task's **living document** (current state — overwrite it when the
-state changes). `-m` is the **append-only journal entry**, riding the update
-commit's message on the store branch. There is no `comment` verb and no
-body-append flag — the journal IS git history (`git log -- tasks/<id>.md` in the
-store checkout), and human `bl show <id>` renders it as a `journal` section after
-the body, oldest-first, one entry per store commit. Taking over a ball, read the
-prior agent's notes there. `--json` stays the bedrock frontmatter mirror and
-never carries the journal (it is derived history).
+Three ways to write, one distinction — which projection the words land in:
+
+- `--body B` rewrites the task's **living document** (current state — overwrite
+  it when the state changes). Stored, so both views carry it.
+- `-m MSG` writes an **append-only journal entry**, riding the update commit's
+  message on the store branch. The journal IS git history (`git log --
+  tasks/<id>.md` in the store checkout), and human `bl show <id>` renders it as a
+  `journal` section after the body, oldest-first, one entry per store commit.
+  Taking over a ball, read the prior agent's notes there. Derived, so `--json`
+  never carries it.
+- `bl comment <id> "TEXT"` **appends** to the living document without rewriting
+  it — the note that renders in `bl show` AND `bl show --json`, which the derived
+  journal cannot. See `bl comment --skill`.
+
+`--json` stays the bedrock frontmatter mirror (`body` included) and never carries
+the journal.
 
 A pure-note update always commits (the `updated` restamp); if truly nothing
 changed — a second write inside the same wall-clock second — the op **fails**

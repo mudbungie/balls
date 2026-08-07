@@ -234,3 +234,7 @@ mod create;
 // The `update` front-door tests share this module's flags/write/TASK fixtures.
 #[path = "mutate_update_tests.rs"]
 mod update;
+
+// The `comment` front-door tests share this module's flags/write/TASK fixtures.
+#[path = "mutate_comment_tests.rs"]
+mod comment;

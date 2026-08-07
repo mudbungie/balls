@@ -105,7 +105,7 @@ Run `bl help` for the terse one-line directory. Full usage for any command is
 `bl <command> --skill` (`--help` is an alias). Grouped by lifecycle:
 
 - **Deliverable** — author a `tasks/<id>.md` change:
-  `create` · `claim` · `unclaim` · `update` · `close` · `import`
+  `create` · `claim` · `unclaim` · `update` · `comment` · `close` · `import`
 - **Reads** — project the store, author nothing:
   `show` · `list`
 - **Checkout lifecycle** — act on this checkout, not a ball:
