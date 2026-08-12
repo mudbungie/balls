@@ -33,7 +33,7 @@ doc:
 # leaves `bl` resolving no `bl-tracker`/`bl-delivery` beside it (Edge::resolve
 # looks beside the bl binary), so `bl prime` founds stealth-only and federation
 # silently never engages. Installing the plugins next to bl is what wires them.
-install: install-core install-tracker install-delivery install-chore
+install: install-core install-tracker install-delivery install-chore install-speculate
 
 # Just the bl core binary + the `balls` alias.
 install-core: build
@@ -56,6 +56,12 @@ install-delivery: build
 install-chore: build
 	install -d $(BIN_DIR)
 	install -m 0755 target/release/bl-chore $(BIN_DIR)/bl-chore
+
+# Verdict-cache edge (bl-1263, design bl-24e7). Consulted by scripts/pre-commit
+# via PATH; fail-open, so installing it only ever removes redundant gate runs.
+install-speculate: build
+	install -d $(BIN_DIR)
+	install -m 0755 target/release/bl-speculate $(BIN_DIR)/bl-speculate
 
 uninstall:
 	rm -f $(BIN_DIR)/bl $(BIN_DIR)/balls $(BIN_DIR)/bl-tracker $(BIN_DIR)/bl-delivery $(BIN_DIR)/bl-chore

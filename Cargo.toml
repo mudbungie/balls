@@ -38,6 +38,15 @@ path = "src/bin/bl-delivery.rs"
 name = "bl-chore"
 path = "src/bin/bl-chore.rs"
 
+# Verdict-cache edge (design bl-24e7, bl-1263) — a SIBLING binary consulted by
+# scripts/pre-commit rather than dispatched by bl: tree-keyed gate memoization,
+# so a gate run whose exact (tree, gate) pair already passed is skipped and a
+# fresh pass warms the cache. Fail-open by contract — every failure means "run
+# the stock gate".
+[[bin]]
+name = "bl-speculate"
+path = "src/bin/bl-speculate.rs"
+
 # Greenfield rewrite: runtime deps are added per phase as the architecture
 # needs them (YAML frontmatter, git plumbing, CLI parsing, ...). The skeleton
 # is std-only.
