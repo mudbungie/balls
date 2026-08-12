@@ -1567,7 +1567,14 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   resolution paths (its combined `--cc` diff; a conflict resolution IS a work commit, so it counts). An
   excess path means the squash carries something the task never wrote — a resurrection or a leak —
   and aborts the close NAMING the path. Pure plumbing: two `--name-only` path-set compares over
-  existing refs, zero new state (derive-don't-store, §0). The delivery destination is the task's TARGET REF, derived per op and never stored (bl-7b71,
+  existing refs, zero new state (derive-don't-store, §0). BOTH reads pass `--no-renames` (bl-4235,
+  the same reason as bl-ae74's history walk): the question is which paths a commit TOUCHED, and rename
+  pairing is a presentation choice that must not change that answer. Detection is bounded by
+  `diff.renameLimit`, so the aggregate tree-to-tree diff can blow the budget and silently stop pairing
+  while the per-commit walk stays under it — a rename `a`→`b` then reads as `{a, b}` on one side and
+  `{b}` on the other, and an innocent close aborts naming a path the branch demonstrably authored.
+  Unpaired, every rename is its delete plus its add on both sides and the subset relation holds by
+  construction. The delivery destination is the task's TARGET REF, derived per op and never stored (bl-7b71,
   docs/design/bl-7b71-nested-delivery.md): a task that close-gates its LIVE parent (`--parent X` plus
   a `{this, on: close}` edge on X) targets `work/<X>`; every other task targets the integration
   branch (the plugin's own `HEAD@project-repo` default — never hardcoded to `main`). `claim` forks

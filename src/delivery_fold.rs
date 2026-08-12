@@ -96,12 +96,22 @@ pub(crate) fn ensure_no_merge_in_progress(path: &Path) -> io::Result<()> {
 /// landing read as excess (a false resurrection abort naming innocent paths);
 /// against the pin, a mid-gate move is the delivery CAS's clean rejection and
 /// excess means only a real resurrection or leak.
+///
+/// `--no-renames` on BOTH reads (bl-4235, same reason as bl-ae74): the question
+/// is WHICH PATHS A COMMIT TOUCHED, and rename pairing is a presentation choice
+/// with no business changing that answer. Detection is not unconditional — it is
+/// bounded by `diff.renameLimit`, so a big tree-to-tree diff can blow the budget
+/// and silently stop pairing while a small per-commit diff stays under it. Then
+/// a rename `a`→`b` reports as `{a, b}` on one side and `{b}` on the other, `a`
+/// lands in `excess`, and an innocent close aborts naming a path the work branch
+/// demonstrably authored. Unpaired, every rename is its delete plus its add on
+/// both sides and the subset relation holds by construction.
 pub(crate) fn ensure_no_resurrection(root: &Path, branch: &str, base: &str) -> io::Result<()> {
-    let squash = path_set(&Project::run(root, &["diff", "--name-only", base, branch])?);
+    let squash = path_set(&Project::run(root, &["diff", "--no-renames", "--name-only", base, branch])?);
     let not_base = format!("^{base}");
     let authored = path_set(&Project::run(
         root,
-        &["log", "--format=", "--name-only", "--cc", branch, &not_base],
+        &["log", "--format=", "--no-renames", "--name-only", "--cc", branch, &not_base],
     )?);
     let excess: Vec<&str> = squash.difference(&authored).map(String::as_str).collect();
     if excess.is_empty() {
