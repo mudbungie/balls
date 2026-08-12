@@ -1,7 +1,8 @@
 +++
 title = "Merging queue: seal-by-tag ordering + monotone landing"
 created = 1786515683
-updated = 1786515683
+updated = 1786516036
+claimant = "Gushed"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["merge-queue"]
 +++
