@@ -120,3 +120,43 @@ fn a_hand_resolved_fold_counts_as_authored_and_delivers() {
     assert_eq!(g(&root, &["show", "main:conflict.txt"]), "merged\n");
     assert_eq!(g(&root, &["show", "main:extra.txt"]), "fixed in resolution\n");
 }
+
+#[test]
+fn a_rename_the_squash_diff_could_not_pair_is_still_authored_and_delivers() {
+    // bl-4235: both reads did rename detection, and detection is BOUNDED by
+    // `diff.renameLimit` — so the big tree-to-tree diff can blow the budget and
+    // silently stop pairing while the small per-commit diff stays under it. A
+    // rename `a`→`b` then reads as {a, b} on the squash side and {b} on the
+    // authored side, `a` becomes excess, and an innocent close aborts naming a
+    // path the work branch demonstrably authored. `--no-renames` on both makes
+    // the sets comparable by construction.
+    let (tmp, root, p) = project();
+    let lines = "line\n".repeat(60); // bulk enough for an INEXACT rename to pair
+    fs::write(root.join("a.txt"), &lines).unwrap();
+    fs::write(root.join("c.txt"), "c\n").unwrap();
+    g(&root, &["add", "-A"]);
+    g(&root, &["commit", "-qm", "base"]);
+    g(&root, &["config", "diff.renameLimit", "1"]); // one pair fits; two do not
+    let wt = tmp.path().join("wt");
+    p.materialize(&wt, "work/bl-x").unwrap();
+    // Commit one: an INEXACT rename (content changed too, so the exhaustive
+    // pass — the one the limit gates — is what has to pair it).
+    g(&wt, &["mv", "a.txt", "b.txt"]);
+    fs::write(wt.join("b.txt"), format!("{lines}one more\n")).unwrap();
+    g(&wt, &["add", "-A"]);
+    g(&wt, &["commit", "-qm", "work renames a to b"]);
+    // Commit two: an unrelated delete + add, which alone pushes the AGGREGATE
+    // diff over the limit while each single commit stays under it.
+    g(&wt, &["rm", "-q", "c.txt"]);
+    fs::write(wt.join("d.txt"), "d\n").unwrap();
+    g(&wt, &["add", "-A"]);
+    g(&wt, &["commit", "-qm", "work swaps c for d"]);
+    // The asymmetry is live in this fixture: the squash side cannot pair the
+    // rename, the authored side can.
+    assert!(g(&root, &["diff", "--name-only", "main", "work/bl-x"]).contains("a.txt"));
+    assert!(!g(&root, &["log", "--format=", "--name-only", "--cc", "work/bl-x", "^main"]).contains("a.txt"));
+
+    p.deliver(&wt, "work/bl-x", "main", "renamed [bl-x]", "[bl-x]").unwrap();
+    assert_eq!(tip(&root), "renamed [bl-x]");
+    assert_eq!(g(&root, &["show", "main:b.txt"]), format!("{lines}one more\n"));
+}
