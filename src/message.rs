@@ -145,6 +145,16 @@ pub fn parse(message: &str) -> io::Result<Metadata> {
 /// trailers" — the empty parse that fired bl-dede's panic three frames later.
 /// [`TRAILER_ROOT`] removes the failure that was actually reached; this removes
 /// the class, so the next one arrives as an error at its own locus.
+///
+/// The stdin write's own result is DROPPED (bl-2695), because it is the one
+/// error that is never the interesting one: a git that fails before draining
+/// stdin closes the read end, so the write returns EPIPE — and propagating that
+/// masked the exit status that actually says what went wrong, reinstating
+/// bl-dede's voiceless failure one layer up as `Broken pipe (os error 32)`.
+/// Nothing is lost: both subcommands here read stdin to EOF, so an EPIPE means
+/// git exited early, which means the status check below has a non-zero status
+/// and git's stderr to report. A short write under a SUCCEEDING git is not
+/// reachable from either call site.
 fn run_git(args: &[&str], stdin: &str) -> io::Result<String> {
     let mut child = crate::safegit::at(Path::new(TRAILER_ROOT))
         .args(args)
@@ -152,11 +162,11 @@ fn run_git(args: &[&str], stdin: &str) -> io::Result<String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    child
+    let _ = child
         .stdin
         .take()
         .expect("stdin was configured as a pipe")
-        .write_all(stdin.as_bytes())?;
+        .write_all(stdin.as_bytes());
     let out = child.wait_with_output()?;
     if !out.status.success() {
         return Err(io::Error::other(format!(

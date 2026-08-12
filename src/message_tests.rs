@@ -119,3 +119,18 @@ fn parse_of_a_trailerless_message_is_empty() {
         .unwrap()
         .is_empty());
 }
+
+#[test]
+fn a_git_that_dies_before_draining_stdin_still_reports_git_not_the_broken_pipe() {
+    // bl-2695: the same failure as above, made DETERMINISTIC. A payload past
+    // the 64 KiB pipe buffer cannot be parked in the kernel and walked away
+    // from — the write blocks until the dead child's closed read end turns it
+    // into EPIPE, every run. Propagating that error masked the exit status and
+    // handed the operator `Broken pipe (os error 32)`, naming neither the git
+    // command nor the reason; the flake surfaced it one time in a hundred (a
+    // close gate under load), which is the worst way to learn it.
+    let payload = "Subject\n\n".to_string() + &"a filler line to outgrow the pipe buffer\n".repeat(4096);
+    assert!(payload.len() > 64 * 1024, "must exceed the pipe buffer: {}", payload.len());
+    let err = run_git(&["not-a-git-subcommand"], &payload).unwrap_err();
+    assert!(err.to_string().starts_with("git not-a-git-subcommand:"), "{err}");
+}
