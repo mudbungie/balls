@@ -98,7 +98,11 @@
 //! re-execution of a known pass, recording fresh passes for whoever folds to
 //! the same tree next. The `bl-speculate` SIBLING binary is the env-reading
 //! edge; it is called by the hook, not dispatched by `bl`. Speculative
-//! builders (bl-d0c2) warm the same records ahead of the merge queue. See
+//! builders (bl-d0c2) warm the same records ahead of the merge queue.
+//! [`speculate_queue`] (bl-5c5f) is that queue: an annotated `merging/<id>`
+//! tag on the sealed `work/<id>` tip is membership, position (taggerdate) and
+//! seal (tag target vs live tip) in one ref — order is a query, eviction is
+//! re-tagging at the bottom, and reads never mutate. See
 //! docs/design/bl-24e7-speculative-merge-queue.md.
 //!
 //! # §4 — config values, read from the landing
@@ -177,6 +181,7 @@ pub mod seed;
 pub(crate) mod seen;
 pub mod skill;
 pub mod speculate;
+pub mod speculate_queue;
 pub mod substrate;
 pub(crate) mod target;
 pub mod task;
