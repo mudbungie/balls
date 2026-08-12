@@ -23,6 +23,18 @@ cd "$ROOT"
 # clippy, the tests and tarpaulin run as if from a clean shell.
 unset $(git rev-parse --local-env-vars)
 
+# Verdict cache (bl-1263, design docs/design/bl-24e7-speculative-merge-queue.md):
+# the gate verdict is a pure function of the tree it tests and the gate that
+# tests it. If this exact worktree tree already passed this exact gate — an
+# earlier run here, or a trusted speculator ahead of the merge queue — the run
+# below would re-execute a known result, so skip it. An absent binary, an
+# absent verdict, or any error all fall through to the stock gate (fail-open):
+# deleting the cache restores stock behavior exactly.
+if command -v bl-speculate >/dev/null 2>&1 && bl-speculate check 2>/dev/null; then
+    echo "pre-commit: verdict cache hit — this exact tree already passed this exact gate."
+    exit 0
+fi
+
 echo "pre-commit: clippy..."
 cargo clippy --all-targets -- -D warnings 2>&1
 
@@ -39,5 +51,12 @@ cargo test --quiet 2>&1
 
 echo "pre-commit: coverage..."
 "$ROOT/scripts/check-coverage.sh"
+
+# Warm the cache with the verdict just earned — the next fold to this exact
+# tree (a queued close behind this one, or a retry) skips the whole run.
+# Fail-open: recording is never allowed to block a pass.
+if command -v bl-speculate >/dev/null 2>&1; then
+    bl-speculate record pass 2>/dev/null || true
+fi
 
 echo "pre-commit: OK."

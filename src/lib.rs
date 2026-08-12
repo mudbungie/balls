@@ -89,6 +89,18 @@
 //! it; `bl close` is the N = 1 ball attempt, and a linking host reaches the N > 1
 //! alternatives through the crate. See docs/design/bl-4eac-attempt-capability.md.
 //!
+//! # the speculative merge queue — verdict cache (design bl-24e7)
+//!
+//! [`speculate`] is tree-keyed gate memoization (bl-1263): the pre-commit
+//! gate's verdict is a pure function of the worktree TREE and the GATE
+//! fingerprint (toolchain + gate scripts), so `scripts/pre-commit` consults a
+//! per-`(tree, gate)` record under the `bl-speculate` §1 territory and skips a
+//! re-execution of a known pass, recording fresh passes for whoever folds to
+//! the same tree next. The `bl-speculate` SIBLING binary is the env-reading
+//! edge; it is called by the hook, not dispatched by `bl`. Speculative
+//! builders (bl-d0c2) warm the same records ahead of the merge queue. See
+//! docs/design/bl-24e7-speculative-merge-queue.md.
+//!
 //! # §4 — config values, read from the landing
 //!
 //! [`config`] is the §4 `EffectiveConfig`: the landing's `config/balls.toml`
@@ -164,6 +176,7 @@ pub(crate) mod safegit;
 pub mod seed;
 pub(crate) mod seen;
 pub mod skill;
+pub mod speculate;
 pub mod substrate;
 pub(crate) mod target;
 pub mod task;
