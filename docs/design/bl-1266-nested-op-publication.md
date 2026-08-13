@@ -8,9 +8,12 @@ the fix is a **subtraction** — one condition that stops a nested op from
 publishing — rather than the compensating-rollback reframe the ball leans
 toward. §7 is the part that is NOT settled and wants the maintainer's attack.
 
-**Status: the RULE (§3) is IMPLEMENTED and closes bl-1266 (2026-08-12).** The
-record stays OPEN for what it does not close: the bl-chore fold (§4) and H1's
-cross-repo fill (§3.1), both severable and both without a ball yet.
+**Status: the RULE (§3) is IMPLEMENTED and closed bl-1266 (2026-08-12, main
+`9f3d1bf4`); the FOLD (§4) is IMPLEMENTED and closed bl-1da3 (2026-08-12, main
+`b45c37ba`).** The record stays OPEN for exactly one thing, and it is the one
+nothing can currently reach: H1's cross-repo fill (§3.1). The fold's own
+by-product is that no shipped plugin shells `bl` at all any more, so the hole is
+now unreachable by construction rather than merely unexercised.
 
 **Second pass (2026-08-11, Enthused).** Every premise above re-verified against
 `main`: the wiring still reads `claim.post = bl-chore, bl-delivery, bl-tracker`
@@ -410,7 +413,15 @@ rules now live in `remote_ops_push_tests.rs`.
    prose ships a documented lie. Two of the sites (§4's provenance paragraph,
    `conf_resolve.rs`'s doc comment) assert a CLOSED set of no-remote readouts
    and must be restructured rather than appended to.
-2. **The fold** (§4): bl-chore mints in `claim.pre` by writing files, deleting
-   the nested `create`, `src/chore_scratch.rs`, and bl-chore's rollback. Own
-   ball. Wants §7.3 settled first, nothing else.
+2. **The fold** (§4): **BUILT (2026-08-12, bl-1da3, main `b45c37ba`).** bl-chore
+   mints in `claim.pre` by writing `tasks/<child>.md` plus the parent's blocker,
+   deleting the nested `create`, the `Bl` seam and `src/chore_cli.rs`,
+   `src/chore_scratch.rs`, the rollback and its inline unwind, and the
+   `close.post` record sweep — net −402 lines. epic-skip's `bl list --json` went
+   with it (the children are in the worktree). §7.3 was the only prerequisite and
+   settled as predicted: nothing gated a `pre` plugin authoring a ball, so the
+   answer was a doctrine sentence, now in architecture §8. The child's clock is
+   the parent's freshly-staged `updated` and its `root_commit` is the parent's —
+   neither fact is derived twice. Verified live: one commit carries both the
+   claim's edit and the child's birth.
 3. **H1's fill** (§3.1): only if a `bl -C` plugin ever appears.
