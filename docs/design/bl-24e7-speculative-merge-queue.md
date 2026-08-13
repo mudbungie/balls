@@ -111,6 +111,20 @@ untouched. Delete the speculator and you have stock balls, just slower
   its slack (unresolved positions ahead × observed drain rate) approaches one
   build time. Record the inputs (per-branch failure rate from verdict
   history, drain rate) as metrics, not configuration.
+- **Implementation reframe (bl-d0c2, 2026-08-12): strict order zeroes the
+  depth-risk entirely.** The shipped speculator builds candidates strictly
+  head-first and only ever atop prefixes already holding a PASS verdict —
+  evictions are gate failures, gate failures are known, so at build time the
+  "will a predecessor evict?" probability the slack formula priced is zero
+  (what remains is out-of-order landings and external main movement, both of
+  which degrade to an honest cache miss). The slack arithmetic above is kept
+  as the reasoning that *led* here, but the implementation needs none of it:
+  a conflict or a FAIL verdict ends the buildable chain, and eagerness
+  degenerates to **builds-per-pass** — how many gates one speculator pass may
+  spend. There is no cross-agent machine cap in v1 (subtracted): passes build
+  one candidate at a time under `nice -n19`, and agents invoke a pass when
+  idle, which self-limits; the close-time gate on a miss runs unniced and so
+  always preempts.
 - **One declared knob: eagerness.** The metric is computed; *where the
   threshold sits* is a preference the system cannot derive — it encodes the
   owner's watts-vs-wall-time tradeoff. A server with idle cores should burn
@@ -193,13 +207,14 @@ Fits the verdict interface as-is. Caveats to resolve before wiring:
    close merely misses the cache and pays the stock gate). The special case
    was a missing reframe: per-ball landing + content-addressed verdicts
    already are the invariant.
-2. **Conflicted candidates** — `git merge-tree` reports conflicts. Proposal:
-   the candidate is simply unbuildable; the ball falls back to fold-at-close
-   (bl-a1a4: merge main yourself, retry). Alternative: a speculator resolves
-   and records a resolution tree — rejected for now (resolution is judgment,
-   judgment belongs to the branch owner).
-3. **Verdict store home** — center store (travels with the fleet) vs local
-   XDG (per-box, matches "trust = builder identity" for local builders)?
+2. **Conflicted candidates** — **SETTLED (bl-d0c2)** as proposed: the
+   candidate is unbuildable and ends the chain; the ball falls back to
+   fold-at-close (bl-a1a4: merge main yourself, retry). Resolution is
+   judgment and judgment belongs to the branch owner.
+3. **Verdict store home** — **SETTLED (bl-1263)**: local XDG state, under the
+   `bl-speculate` plugin territory. A verdict is a builder's assertion on
+   this trust boundary; publishing it to the center store would widen the
+   boundary without widening the trust.
 4. **GH wiring details** — tree-push mechanics, TTL sweep, fingerprinting the
    hosted toolchain.
 

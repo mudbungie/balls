@@ -102,7 +102,16 @@
 //! [`speculate_queue`] (bl-5c5f) is that queue: an annotated `merging/<id>`
 //! tag on the sealed `work/<id>` tip is membership, position (taggerdate) and
 //! seal (tag target vs live tip) in one ref — order is a query, eviction is
-//! re-tagging at the bottom, and reads never mutate. See
+//! re-tagging at the bottom, and reads never mutate. [`speculate_run`]
+//! (bl-d0c2) is the speculator pass that joins them: sweep the unsealed, then
+//! chain candidates head-first with [`speculate_candidate`] (`merge-tree`
+//! trees wrapped in UNREFERENCED commits — `git gc` food, nothing to leak),
+//! consulting the cache before spending a gate; strict order means every
+//! prefix under a build already holds a PASS, so the depth-risk of building
+//! on a future eviction is zero at build time, and a conflict or FAIL ends
+//! the buildable chain. Gates run under `nice` in a detached build worktree,
+//! removed before the pass returns; the close-time gate on a cache miss runs
+//! unniced, so the real merge path always preempts. See
 //! docs/design/bl-24e7-speculative-merge-queue.md.
 //!
 //! # §4 — config values, read from the landing
@@ -181,7 +190,9 @@ pub mod seed;
 pub(crate) mod seen;
 pub mod skill;
 pub mod speculate;
+pub mod speculate_candidate;
 pub mod speculate_queue;
+pub mod speculate_run;
 pub mod substrate;
 pub(crate) mod target;
 pub mod task;
