@@ -161,9 +161,18 @@ pub fn landing_repo(tmp: &Path) -> PathBuf {
 
 /// An [`Env`](super::Env) whose XDG state root is under `state` (so a test's
 /// clone bundle and stealth lock land in its tempdir, not the real `$HOME`).
+/// An [`Env`](super::Env) at an explicit §6 depth, for the handlers that read it
+/// only to decide publication (bl-1266) and never touch the XDG roots. `1` is a
+/// plugin spawned by a TOP-LEVEL `bl`; `2`+ is one spawned by a `bl` a plugin
+/// itself shelled.
+pub fn env_at(depth: u32) -> super::Env {
+    super::Env { xdg: crate::layout::Xdg::with(Path::new("/nonexistent"), None, None), depth }
+}
+
 pub fn env(home: &Path, state: &Path) -> super::Env {
     super::Env {
         xdg: crate::layout::Xdg::with(home, None, Some(&state.to_string_lossy())),
+        depth: 1, // spawned by a TOP-LEVEL bl — the ordinary case, so pushes run
     }
 }
 

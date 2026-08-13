@@ -133,6 +133,23 @@ fn task_remote_reads_the_durable_ladder_and_shows_stealth() {
     assert_eq!(res(&e, &clone, "task-remote"), ("(none)".into(), "landing".into()));
 }
 
+/// bl-1266's fourth no-remote readout, and the one that is NOT a kind of stealth:
+/// a nested invocation will not publish because the enclosing op does, so the row
+/// says so — and it PREEMPTS a perfectly good configured remote, which is the
+/// whole point (a URL is the most misleading possible answer to "will this op
+/// publish?" while an enclosing `bl` holds the anvil open).
+#[test]
+fn task_remote_reads_nested_when_an_enclosing_bl_holds_the_store_open() {
+    let tmp = TempDir::new().unwrap();
+    let e = edge(&tmp);
+    let clone = founded(&e);
+    fs::write(clone.binding(), "remote = \"git@hub:b\"\n").unwrap();
+    assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:b".into(), "binding".into()));
+
+    let nested = Edge { depth: 1, ..e };
+    assert_eq!(res(&nested, &clone, "task-remote"), ("(none)".into(), "nested".into()));
+}
+
 #[test]
 fn clock_provider_resolves_the_local_trust_tiers_and_names_them() {
     // bl-cfe3: the op-clock provider is read from the NON-TRAVELING local layer —

@@ -14,7 +14,13 @@ use tempfile::TempDir;
 /// tempdir so its clone bundle never lands in the real `$HOME`.
 fn bl(project: &Path, home: &Path, state: &Path) -> Command {
     let mut cmd = Command::cargo_bin("bl").unwrap();
-    cmd.current_dir(project).env("HOME", home).env("XDG_STATE_HOME", state).env_remove("XDG_CONFIG_HOME");
+    cmd.current_dir(project)
+        .env("HOME", home)
+        .env("XDG_STATE_HOME", state)
+        .env_remove("XDG_CONFIG_HOME")
+        // bl-1266: a leaked depth makes the tracker read this shelled `bl` as NESTED
+        // and skip its push — the suite runs inside the close hook's plugin chain.
+        .env_remove("BALLS_PLUGIN_DEPTH");
     cmd
 }
 

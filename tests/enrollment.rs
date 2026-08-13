@@ -20,7 +20,10 @@ fn bl_primed(project: &Path, home: &Path, state: &Path) -> Command {
     cmd.current_dir(project)
         .env("HOME", home)
         .env("XDG_STATE_HOME", state)
-        .env_remove("XDG_CONFIG_HOME");
+        .env_remove("XDG_CONFIG_HOME")
+        // bl-1266: a leaked depth makes the tracker read this shelled `bl` as NESTED
+        // and skip its push — the suite runs inside the close hook's plugin chain.
+        .env_remove("BALLS_PLUGIN_DEPTH");
     cmd
 }
 

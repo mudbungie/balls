@@ -93,15 +93,18 @@ fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
 /// branch is FOUNDED by this push; a rejection there is the once-per-clone
 /// founding-miss (no create perm) and degrades to stealth-local SILENTLY, the
 /// fallback that is founding's ALONE (nothing existed to land on). Stealth (no
-/// remote) no-ops, like every handler.
-pub fn prime_post(b: &Binding) -> io::Result<()> {
+/// remote) no-ops, like every handler; so does a NESTED op, inside
+/// [`super::remote_ops::push`] (bl-1266) — the FOUNDING push below is deliberately
+/// not gated, because founding is what makes a store publishable at all and no
+/// enclosing op's established-store push can stand in for it.
+pub fn prime_post(b: &Binding, env: &Env) -> io::Result<()> {
     let Some(remote) = b.remote.clone() else {
         return Ok(());
     };
     let store = Path::new(&b.store);
     if remote_has_branch(store, &remote, &b.tasks_branch)? {
         super::remote_ops::sync(b)?; // established → bring current (fetch + ff-only)
-        return super::remote_ops::push(b); // → publish; a reject is split-brain (E5)
+        return super::remote_ops::push(b, env); // → publish; a reject is split-brain (E5)
     }
     // FOUNDING-MISS: the branch is absent, so this push CREATES it. A rejection is
     // the once-per-clone founding attempt failing for lack of a create permission

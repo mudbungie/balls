@@ -45,16 +45,30 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
 
 /// The store remote per the §12 ladder's DURABLE tiers (`conf` takes no
 /// `--remote`), through the SAME [`config::remote_ladder`] the ops bind with:
-/// the landing `task_remote` policy (declared stealth reads `(none)` from
-/// `landing` — bl-9df0), else this clone's `binding` remote, else the legacy
-/// global XDG remote, else the project repo's `origin` (a local `git remote
-/// get-url` — naming, not contacting, §12), else `(none)` from `stealth` —
-/// circumstantial, nothing set. A non-stealth URL is labelled by its tier:
+/// a NESTED invocation reads `(none)` from `nested` (bl-1266) and PREEMPTS every
+/// durable tier, else the landing `task_remote` policy (declared stealth reads
+/// `(none)` from `landing` — bl-9df0), else this clone's `binding` remote, else
+/// the legacy global XDG remote, else the project repo's `origin` (a local `git
+/// remote get-url` — naming, not contacting, §12), else `(none)` from `stealth`
+/// — circumstantial, nothing set. A non-stealth URL is labelled by its tier:
 /// `binding` (per-clone, this checkout's own) vs `xdg (global)` (per-machine,
 /// shared by every repo — the bl-d081 disambiguation, so a global value is told
-/// apart from a per-clone one). Three distinct no-remote readouts (bl-d234):
-/// declared, unset-with-origin, unset-without.
+/// apart from a per-clone one).
+///
+/// **FOUR no-remote readouts, and the fourth is not a kind of stealth.**
+/// Declared (bl-d234's `landing`), unset-with-origin, unset-without
+/// (`stealth`) all say the same thing — *nothing will be published*. `nested`
+/// says the OPPOSITE of nothing: the push is OWED, and the outermost `bl` in
+/// this invocation tree pays it. It preempts the URL tiers deliberately, because
+/// the question the line answers is *"will this op publish?"* and a perfectly
+/// configured remote is the most misleading possible answer when the enclosing
+/// op holds the anvil open. Reading `nested` at top level means a
+/// `BALLS_PLUGIN_DEPTH` leaked into the shell (§6) — nothing is lost, the store
+/// publishes on the next clean op.
 fn task_remote(edge: &Edge, landing: &Path, binding: &Path) -> io::Result<Resolved> {
+    if edge.depth > 0 {
+        return Ok(Resolved { value: "(none)".into(), layer: "nested".into() });
+    }
     let (remote, declared) = config::remote_ladder(None, landing, binding, &edge.xdg.user_config())?;
     if declared {
         return Ok(Resolved { value: "(none)".into(), layer: "landing".into() });

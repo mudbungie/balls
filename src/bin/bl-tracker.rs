@@ -17,7 +17,7 @@ fn main() {
     let config_home = env::var("XDG_CONFIG_HOME").ok();
     let state_home = env::var("XDG_STATE_HOME").ok();
     let xdg = balls::layout::Xdg::with(&home, config_home.as_deref(), state_home.as_deref());
-    let env = balls::tracker::Env { xdg };
+    let env = balls::tracker::Env::resolve(xdg, env::var("BALLS_PLUGIN_DEPTH").ok());
     let code = balls::tracker::run(&args, &mut io::stdin().lock(), &mut io::stdout().lock(), &env);
     exit(code);
 }
