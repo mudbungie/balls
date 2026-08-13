@@ -142,6 +142,34 @@ pub fn record(
     write(territory, &tree, &gate, &verdict)
 }
 
+/// Adopt a verdict file produced by ANOTHER builder — the whole remote
+/// protocol (bl-6312). The store file already IS the wire format: the
+/// filename carries the key (`<tree>-<gate>.toml`), the body the verdict, so
+/// a GitHub Actions runner (or any trusted box) simply runs the stock gate —
+/// whose hook records into its own store — and ships the files; importing is
+/// validate-and-copy. Returns the adopted `(tree, gate)` key. Validation is
+/// the trust seam: a name that is not two 40-hex oids, or a body that is not
+/// a [`Verdict`], is refused loudly.
+pub fn import(territory: &Path, file: &Path) -> io::Result<(String, String)> {
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| io::Error::other(format!("not a verdict filename: {}", file.display())))?;
+    let key = name
+        .strip_suffix(".toml")
+        .and_then(|stem| stem.split_once('-'))
+        .filter(|(t, g)| is_oid(t) && is_oid(g))
+        .ok_or_else(|| io::Error::other(format!("not a <tree>-<gate>.toml verdict name: {name}")))?;
+    let verdict: Verdict = toml::from_str(&fs::read_to_string(file)?).map_err(io::Error::other)?;
+    write(territory, key.0, key.1, &verdict)?;
+    Ok((key.0.to_string(), key.1.to_string()))
+}
+
+/// A full git object id — 40 hex digits.
+fn is_oid(s: &str) -> bool {
+    s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 /// Success → trimmed stdout; failure → an error carrying git's stderr voice.
 fn ok_stdout(out: &Output, what: &str) -> io::Result<String> {
     if out.status.success() {

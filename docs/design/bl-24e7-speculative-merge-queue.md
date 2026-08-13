@@ -76,10 +76,16 @@ The whole contract between speculators and close is one record:
 
 - `gate_fingerprint` = hash of toolchain + gate config, so a clippy upgrade or
   rubric change silently invalidates stale verdicts.
-- Close folds main as it does today, hashes the folded tree, and looks it up.
+- The gate consulted at close hashes the worktree tree and looks it up.
   **Hit → skip the gate. Miss → build locally, exactly stock behavior.**
   "Stated build matches the merge" is inherent in the content-addressed key;
-  trust reduces entirely to builder identity.
+  trust reduces entirely to builder identity. (Corrected 2026-08-12: close
+  does NOT fold main — since bl-a1a4 delivery *refuses* a moved main and the
+  AGENT folds by merging main into the worktree, then re-closes. The cache is
+  indifferent — it keys on the worktree tree, which after the agent's fold IS
+  the candidate tree — but the landing choreography is "wake the agent, agent
+  merges main (clean by construction: the speculator already proved this
+  exact merge), close hits the cache", not an unattended close.)
 - The builder is therefore swappable policy: a local speculator loop, a
   sibling box, or GitHub Actions all satisfy the same record. Offline degrades
   to today's behavior, never blocks a close.
@@ -197,9 +203,11 @@ Fits the verdict interface as-is. Caveats to resolve before wiring:
 
 1. **Monotone landing rule** — **DISSOLVED (2026-08-12)**: no rule is needed,
    because monotonicity is by construction. Every ball lands only via its own
-   close, which independently folds main and consults the tree-keyed cache.
-   If prefix j failed, j's own close folds to exactly the prefix-j tree,
-   reads the FAIL verdict (or misses), gates locally, and fails — a passing
+   close, whose gate consults the tree-keyed cache on the worktree tree its
+   OWNER folded (close refuses a moved main — bl-a1a4; the fold is the
+   agent's act). If prefix j failed, j's folded worktree is exactly the
+   prefix-j tree — it reads the FAIL verdict (or misses), gates locally, and
+   fails — while a passing
    prefix k > j cannot land j's code because nothing but j's close lands j.
    If j evicts instead, every deeper candidate's eventual fold produces a
    *different* tree than was speculated — cache miss, honest local build.
@@ -215,8 +223,18 @@ Fits the verdict interface as-is. Caveats to resolve before wiring:
    `bl-speculate` plugin territory. A verdict is a builder's assertion on
    this trust boundary; publishing it to the center store would widen the
    boundary without widening the trust.
-4. **GH wiring details** — tree-push mechanics, TTL sweep, fingerprinting the
-   hosted toolchain.
+4. **GH wiring details** — **SETTLED (bl-6312)** by a subtraction: the store
+   file already IS the wire format (filename = `<tree>-<gate>.toml` key, body
+   = verdict), so no remote protocol exists. The runner runs the STOCK gate —
+   whose hook records into its own store — and ships the store dir home as an
+   artifact; `bl-speculate import` is validate-and-copy, the trust seam.
+   `.github/workflows/speculate.yml` triggers on `speculation/**` pushes;
+   retrieval (`gh run download` + import) and the branch sweep are manual by
+   design — a remote builder must never become a close dependency. Toolchain
+   fingerprints do not vouch across versions: a remote verdict hits only when
+   `rustc -V` matches, which is the fingerprint working, not failing. Live
+   wiring is UNVERIFIED from this box (no network); the workflow is a
+   reference implementation.
 
 ## Why this shape (philosophy)
 

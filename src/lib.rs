@@ -111,7 +111,11 @@
 //! on a future eviction is zero at build time, and a conflict or FAIL ends
 //! the buildable chain. Gates run under `nice` in a detached build worktree,
 //! removed before the pass returns; the close-time gate on a cache miss runs
-//! unniced, so the real merge path always preempts. See
+//! unniced, so the real merge path always preempts. Remote builders (bl-6312)
+//! need no protocol of their own: the store file IS the wire format, so a
+//! runner executes the stock gate and ships its store dir home, and
+//! [`speculate::import`] adopts each file after validating the key — see
+//! .github/workflows/speculate.yml. See
 //! docs/design/bl-24e7-speculative-merge-queue.md.
 //!
 //! # §4 — config values, read from the landing

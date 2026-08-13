@@ -26,7 +26,7 @@ use balls::layout::Xdg;
 use balls::{speculate, speculate_queue, speculate_run};
 
 const USAGE: &str = "usage: bl-speculate check | record pass|fail | enqueue ID | dequeue ID | queue \
-| run [--gate CMD] [--onto BRANCH] [--builds N]";
+| run [--gate CMD] [--onto BRANCH] [--builds N] | import FILE...";
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -91,6 +91,17 @@ fn run(args: &[String]) -> io::Result<bool> {
                 speculate_run::run(&root, &scratch, &territory, &toolchain()?, &onto, &gate, builds)?;
             for line in report {
                 println!("{line}");
+            }
+            Ok(true)
+        }
+        Some("import") => {
+            if args.len() < 2 {
+                return Err(io::Error::other(USAGE));
+            }
+            let (territory, _) = territory()?;
+            for file in &args[1..] {
+                let (tree, gate) = speculate::import(&territory, Path::new(file))?;
+                println!("imported {tree} {gate}");
             }
             Ok(true)
         }
