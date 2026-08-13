@@ -1,8 +1,9 @@
 //! End-to-end harness for the `bl-chore` plugin binary: drive it as balls would
 //! (`<bin> <op> <phase>` with the §7 wire on stdin) and prove the process
 //! boundary — argv, stdin, the protocol self-describe, and the exit code. The
-//! library unit tests cover the guard/mint branches against a fake `bl`; this
-//! covers the thin edge (the `main`/`run` shell tarpaulin sees via the built bin).
+//! library unit tests cover the guard/mint branches against a real change
+//! worktree; this covers the thin edge (the `main`/`run` shell tarpaulin sees
+//! via the built bin), including the cwd it reads as that worktree.
 
 use assert_cmd::Command;
 use predicates::str::contains;
@@ -15,20 +16,20 @@ fn protocol_self_describes_to_stdout() {
         .assert()
         .success()
         .stdout(contains("\"protocol\":[1]"))
-        // Two ops: `claim` mints the gates, `close` retires the mint record
-        // (§14 scratch lifetime, bl-f88b). `bl install` refuses a bind for an op
-        // the plugin does not name, so both hooks depend on this line.
-        .stdout(contains("\"ops\":[\"claim\",\"close\"]"));
+        // ONE op since bl-1da3: the mint rides the claim's own atom, so there
+        // is no `close` record to retire. `bl install` refuses a bind for an op
+        // the plugin does not name, so the claim.pre hook depends on this line.
+        .stdout(contains("\"ops\":[\"claim\"]"));
 }
 
 #[test]
-fn tag_skip_is_a_clean_no_op_without_shelling_bl() {
-    // A claim.post of a task already carrying the bl-chore tag bails before any
-    // `bl` call — exit 0 — exercising argv + stdin + the dispatch wiring.
-    let wire = r#"{"binding":{"landing":"/x","invocation_path":"/x"},"previous_state":{"tags":["bl-chore"]}}"#;
+fn tag_skip_is_a_clean_no_op_that_writes_nothing() {
+    // A claim.pre of a task already carrying the bl-chore tag bails before any
+    // read or write — exit 0 — exercising argv + stdin + the dispatch wiring.
+    let wire = r#"{"binding":{"landing":"/x"},"command":{"id":"bl-9"},"current_state":{"tags":["bl-chore"]}}"#;
     Command::cargo_bin("bl-chore")
         .unwrap()
-        .args(["claim", "post"])
+        .args(["claim", "pre"])
         .env("BALLS_PLUGIN_NAME", "bl-chore")
         .write_stdin(wire)
         .assert()
@@ -47,7 +48,7 @@ fn a_malformed_wire_aborts_the_claim() {
     // value is unused here — the wire fails to parse before the name is read).
     Command::cargo_bin("bl-chore")
         .unwrap()
-        .args(["claim", "post"])
+        .args(["claim", "pre"])
         .env_remove("BALLS_PLUGIN_NAME")
         .write_stdin("not json")
         .assert()

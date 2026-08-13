@@ -1,58 +1,26 @@
-//! `bl-chore` DISPATCH tests — every guard, the mint, and the §14 unwind, driven
-//! through [`run`] against a fake [`Bl`] (no real `bl`) and temp config files.
-//! The pure render/reader tests live in the sibling `chore_render_tests.rs`.
+//! `bl-chore` tests — every guard and the mint itself, driven through [`run`]
+//! against a REAL change worktree (a temp dir holding `tasks/`), which is what
+//! the plugin now writes. There is no `bl` to fake and no rollback to drive:
+//! since bl-1da3 the mint is a file write inside the claim's own atom.
 
 use super::*;
-use std::cell::RefCell;
 use tempfile::TempDir;
 
-/// A fake [`Bl`] recording every call; `list` returns a scripted JSON, `create`
-/// mints a sequential id on stdout (as the real `bl create` does — the id ALONE)
-/// and succeeds while `creates_ok` allows.
-struct FakeBl {
-    list_json: String,
-    /// How many `create`s succeed before the rest fail; `None` ⇒ all succeed.
-    creates_ok: Option<usize>,
-    calls: RefCell<Vec<Vec<String>>>,
-}
-
-impl FakeBl {
-    fn new(list_json: &str) -> Self {
-        Self { list_json: list_json.into(), creates_ok: None, calls: RefCell::new(Vec::new()) }
-    }
-    fn of_verb(&self, verb: &str) -> Vec<Vec<String>> {
-        self.calls.borrow().iter().filter(|a| a.first().map(String::as_str) == Some(verb)).cloned().collect()
-    }
-    fn creates(&self) -> Vec<Vec<String>> {
-        self.of_verb("create")
-    }
-    fn listed(&self) -> bool {
-        !self.of_verb("list").is_empty()
-    }
-    /// The ids the recorded `bl close` calls named, in order.
-    fn closed(&self) -> Vec<String> {
-        self.of_verb("close").iter().map(|a| a[1].clone()).collect()
-    }
-}
-
-impl Bl for FakeBl {
-    fn run(&self, _cwd: &Path, argv: &[String]) -> io::Result<String> {
-        self.calls.borrow_mut().push(argv.to_vec());
-        let verb = argv.first().map(String::as_str);
-        if verb == Some("list") {
-            return Ok(self.list_json.clone());
-        }
-        if verb == Some("create") && self.creates_ok.is_some_and(|ok| self.creates().len() > ok) {
-            return Err(io::Error::other("boom"));
-        }
-        // The minted id, trailing newline and all — what stdout really carries.
-        Ok(format!("bl-c{}\n", self.creates().len()))
-    }
-}
-
-/// A scratch territory for a run that mints nothing, so nothing is ever written.
-fn nowhere() -> &'static Path {
-    Path::new("/nonexistent-territory")
+/// A change worktree holding one parent ball, staged as `claim` leaves it —
+/// `updated` already bumped to the op instant, which is the clock the children
+/// inherit.
+fn worktree(parent_id: &str) -> TempDir {
+    let tmp = TempDir::new().unwrap();
+    let parent = Task {
+        title: "The claimed ball".into(),
+        created: 100,
+        updated: 4242, // the op instant `base.stage` stamped
+        claimant: Some("tester".into()),
+        root_commit: Some("deadbeef".into()),
+        ..Task::default()
+    };
+    write_task(tmp.path(), parent_id, &parent).unwrap();
+    tmp
 }
 
 /// A temp landing whose `config/plugins/bl-chore/chores.toml` holds `toml`.
@@ -64,216 +32,178 @@ fn landing_with(toml: &str) -> TempDir {
     tmp
 }
 
-/// A claim.post wire JSON with the given landing, tags, and `bl-id`.
-fn wire(landing: &str, tags: &[&str], bl_id: Option<&str>) -> String {
-    let mut v = serde_json::json!({
-        "actor": "tester",
-        "binding": { "landing": landing, "invocation_path": "/proj" },
-        "previous_state": { "tags": tags },
-    });
-    if let Some(id) = bl_id {
-        v["metadata"] = serde_json::json!({ "bl-id": [id] });
-    }
-    v.to_string()
-}
-
-/// The same wire balls hands a `claim.post` plugin when the op ABORTS: identical
-/// fields plus `rolling_back` (§7) — a post-phase unwind, so the sealed `bl-id`
-/// is still on it.
-fn rollback_wire(landing: &str, bl_id: Option<&str>) -> String {
-    let mut v: serde_json::Value = serde_json::from_str(&wire(landing, &[], bl_id)).unwrap();
-    v["rolling_back"] = serde_json::json!("post");
-    v.to_string()
+/// A `claim.pre` wire: the landing, the op-start tags, and the ball the op is
+/// about (§7 `command.id`, present on a `pre` payload).
+fn wire(landing: &str, tags: &[&str], id: Option<&str>) -> String {
+    serde_json::json!({
+        "binding": { "landing": landing },
+        "command": { "op": "claim", "id": id },
+        "current_state": { "tags": tags },
+    })
+    .to_string()
 }
 
 const TWO_CHORES: &str = "[[chore]]\ntitle = \"Run the test suite\"\n[[chore]]\ntitle = \"Review the docs\"\n";
 
+/// Every `tasks/*.md` in `dir` except `except`, as (id, task) pairs.
+fn children(dir: &Path, except: &str) -> Vec<(String, Task)> {
+    let mut out: Vec<(String, Task)> = task_ids(dir)
+        .unwrap()
+        .into_iter()
+        .filter(|id| id != except)
+        .map(|id| {
+            let t = read_task(dir, &id).unwrap();
+            (id, t)
+        })
+        .collect();
+    out.sort_by(|a, b| a.1.title.cmp(&b.1.title));
+    out
+}
+
 #[test]
-fn non_claim_post_and_an_unkeyed_rollback_are_no_ops() {
-    let bl = FakeBl::new("[]");
-    run("update", "post", "bl-chore", nowhere(), &wire("/x", &[], None), &bl).unwrap();
-    run("claim", "pre", "bl-chore", nowhere(), &wire("/x", &[], None), &bl).unwrap();
-    // A rollback wire carrying no sealed `bl-id` names no claim, so there is no
-    // record keyed to it to unwind (and nothing was ever minted for one).
-    let rb = r#"{"binding":{"landing":"/x"},"rolling_back":"post"}"#;
-    run("claim", "post", "bl-chore", nowhere(), rb, &bl).unwrap();
-    assert!(bl.calls.borrow().is_empty());
+fn only_the_claim_pre_forward_pass_does_anything() {
+    let land = landing_with(TWO_CHORES);
+    let l = land.path().to_string_lossy().into_owned();
+    let w = worktree("bl-9");
+    let mint_nothing = |op: &str, phase: &str, payload: &str| {
+        run(op, phase, "bl-chore", w.path(), payload).unwrap();
+        assert_eq!(children(w.path(), "bl-9"), vec![], "{op}.{phase} minted");
+    };
+    mint_nothing("update", "pre", &wire(&l, &[], Some("bl-9")));
+    mint_nothing("claim", "post", &wire(&l, &[], Some("bl-9")));
+    // A rollback is a no-op BY CONSTRUCTION: whatever a forward pass wrote is in
+    // the change worktree core discards, so there is nothing keyed to unwind.
+    let mut rb: serde_json::Value = serde_json::from_str(&wire(&l, &[], Some("bl-9"))).unwrap();
+    rb["rolling_back"] = serde_json::json!("pre");
+    mint_nothing("claim", "pre", &rb.to_string());
 }
 
 #[test]
 fn tag_skip_bails_when_the_claimed_task_carries_the_tag() {
-    let bl = FakeBl::new("[]");
-    run("claim", "post", "bl-chore", nowhere(), &wire("/x", &["bl-chore"], Some("bl-9")), &bl).unwrap();
-    assert!(bl.calls.borrow().is_empty());
+    let land = landing_with(TWO_CHORES);
+    let w = worktree("bl-9");
+    let payload = wire(&land.path().to_string_lossy(), &["bl-chore"], Some("bl-9"));
+    run("claim", "pre", "bl-chore", w.path(), &payload).unwrap();
+    assert_eq!(children(w.path(), "bl-9"), vec![], "a chore must not mint a chore-of-a-chore");
 }
 
 #[test]
-fn empty_or_absent_config_mints_nothing() {
-    let bl = FakeBl::new("[]");
-    let tmp = TempDir::new().unwrap(); // no config file written
-    run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).unwrap();
-    assert!(bl.calls.borrow().is_empty());
-}
-
-#[test]
-fn a_payload_without_bl_id_is_an_error() {
-    let bl = FakeBl::new("[]");
-    let tmp = landing_with(TWO_CHORES);
-    let err = run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], None), &bl);
-    assert!(err.is_err());
-}
-
-#[test]
-fn the_happy_path_mints_one_gate_per_chore() {
-    let bl = FakeBl::new("[]"); // no children
-    let tmp = landing_with(TWO_CHORES);
-    run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).unwrap();
-    let creates = bl.creates();
-    assert_eq!(creates.len(), 2);
-    // Order + per-chore distinctness across the loop.
-    assert_eq!(creates[0].last().unwrap(), "Run the test suite");
-    assert_eq!(creates[1].last().unwrap(), "Review the docs");
-    for c in &creates {
-        assert!(c.contains(&"--parent".to_string()) && c.contains(&"bl-9".to_string()));
-        assert!(c.contains(&"--blocks".to_string()) && c.contains(&"close".to_string()));
-        assert!(c.contains(&"-t".to_string()) && c.contains(&"bl-chore".to_string()));
-        // Authored as the CLAIMING actor (off the wire's distinctive "tester"),
-        // not bl-chore's inherited identity — a regression to `--as bl-chore`
-        // (the plugin name) would fail this.
-        assert!(c.contains(&"--as".to_string()) && c.contains(&"tester".to_string()));
+fn an_absent_or_choreless_config_mints_nothing() {
+    let w = worktree("bl-9");
+    for landing in ["/nonexistent-landing".to_string(), landing_with("").path().to_string_lossy().into_owned()] {
+        run("claim", "pre", "bl-chore", w.path(), &wire(&landing, &[], Some("bl-9"))).unwrap();
+        assert_eq!(children(w.path(), "bl-9"), vec![]);
     }
-    assert!(bl.listed()); // epic-skip queried (default on)
 }
 
 #[test]
-fn body_and_priority_deserialize_and_thread_into_the_mint() {
-    let bl = FakeBl::new("[]");
-    let tmp = landing_with("[[chore]]\ntitle = \"Docs\"\nbody = \"check §6\"\npriority = 3\n");
-    run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).unwrap();
-    let c = &bl.creates()[0];
-    assert!(c.contains(&"--body".to_string()) && c.contains(&"check §6".to_string()));
-    assert!(c.contains(&"-p".to_string()) && c.contains(&"3".to_string()));
-}
+fn the_mint_writes_each_chore_as_a_close_gate_child_of_the_claimed_ball() {
+    let land = landing_with(
+        "[[chore]]\ntitle = \"Run the test suite\"\nbody = \"cargo test\"\npriority = 3\n\
+         [[chore]]\ntitle = \"Review the docs\"\n",
+    );
+    let w = worktree("bl-9");
+    run("claim", "pre", "bl-chore", w.path(), &wire(&land.path().to_string_lossy(), &[], Some("bl-9"))).unwrap();
 
-#[test]
-fn epic_skip_mints_when_the_only_child_belongs_to_another_parent() {
-    let bl = FakeBl::new(r#"[{"parent":"bl-other"}]"#); // a child, but not of bl-9
-    let tmp = landing_with(TWO_CHORES);
-    run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).unwrap();
-    assert!(bl.listed() && bl.creates().len() == 2); // queried, foreign child != ours
-}
-
-#[test]
-fn epic_skip_default_on_bails_when_the_task_has_children() {
-    let bl = FakeBl::new(r#"[{"parent":"bl-9"}]"#); // bl-9 already has a child
-    let tmp = landing_with(TWO_CHORES);
-    run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).unwrap();
-    assert!(bl.listed() && bl.creates().is_empty());
-}
-
-#[test]
-fn epic_skip_off_mints_without_the_child_query() {
-    let bl = FakeBl::new(r#"[{"parent":"bl-9"}]"#); // would-be child, but knob off
-    let tmp = landing_with(&format!("epic_skip = false\n{TWO_CHORES}"));
-    run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).unwrap();
-    assert!(!bl.listed() && bl.creates().len() == 2);
-}
-
-#[test]
-fn a_malformed_child_listing_is_an_error() {
-    let bl = FakeBl::new("not json"); // epic-skip query returns garbage
-    let tmp = landing_with(TWO_CHORES);
-    assert!(run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).is_err());
-}
-
-#[test]
-fn a_failed_create_aborts_with_nothing_minted_to_take_down() {
-    let mut bl = FakeBl::new("[]");
-    bl.creates_ok = Some(0); // the very first create fails
-    let tmp = landing_with(TWO_CHORES);
-    assert!(run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).is_err());
-    assert!(bl.closed().is_empty(), "nothing landed, so the inline cleanup has nothing to close");
-}
-
-#[test]
-fn a_create_that_fails_midway_takes_the_landed_gates_back_down() {
-    // §14: core never calls a FAILING plugin's own rollback — the plugin cleans
-    // up INLINE before exiting non-zero. The first gate landed and the second
-    // create failed, so the claim aborts AND the landed gate is closed: an
-    // aborted claim leaves no orphan on either failure path (bl-ffbf).
-    let mut bl = FakeBl::new("[]");
-    bl.creates_ok = Some(1);
-    let tmp = landing_with(TWO_CHORES);
-    assert!(run("claim", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], Some("bl-9")), &bl).is_err());
-    assert_eq!(bl.closed(), vec!["bl-c1"]);
-}
-
-#[test]
-fn a_rolled_back_claim_closes_exactly_the_gates_it_minted() {
-    // bl-ffbf/§14 appendix: each mint is a nested `bl create` with its own commit
-    // point, sealed OUTSIDE the claiming op's atom — so an aborted claim's gates
-    // are artifacts keyed to an op that never sealed, which nothing converges
-    // onto. The rollback closes them, reading the ids from the record the
-    // forward pass left in the plugin's own territory (§7 has no return channel
-    // and no env crosses process boundaries). Consuming the record makes the
-    // unwind idempotent, and a ball that minted nothing has none to read.
-    let bl = FakeBl::new("[]");
-    let tmp = landing_with(TWO_CHORES);
-    let land = tmp.path().to_str().unwrap();
-    run("claim", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
-    assert_eq!(bl.creates().len(), 2);
-
-    run("claim", "post", "bl-chore", tmp.path(), &rollback_wire(land, Some("bl-9")), &bl).unwrap();
-    assert_eq!(bl.closed(), vec!["bl-c1", "bl-c2"]);
-    for closed in bl.of_verb("close") {
-        // Authored as the CLAIMING actor, exactly like the mint it undoes.
-        assert!(closed.contains(&"--as".to_string()) && closed.contains(&"tester".to_string()));
+    let kids = children(w.path(), "bl-9");
+    let titles: Vec<&str> = kids.iter().map(|(_, t)| t.title.as_str()).collect();
+    assert_eq!(titles, vec!["Review the docs", "Run the test suite"]);
+    for (id, t) in &kids {
+        assert!(crate::id::is_valid(id), "minted a malformed id: {id}");
+        assert_eq!(t.parent.as_deref(), Some("bl-9"));
+        assert_eq!(t.tags, vec!["bl-chore".to_string()], "the recursion-break tag is always injected");
+        // The op instant and the repo identity are INHERITED, never re-derived.
+        assert_eq!((t.created, t.updated), (4242, 4242));
+        assert_eq!(t.root_commit.as_deref(), Some("deadbeef"));
     }
-    // Idempotent (§14): the record is consumed, so a second unwind closes nothing…
-    run("claim", "post", "bl-chore", tmp.path(), &rollback_wire(land, Some("bl-9")), &bl).unwrap();
-    // …and a ball this claim never minted for was never recorded at all.
-    run("claim", "post", "bl-chore", tmp.path(), &rollback_wire(land, Some("bl-other")), &bl).unwrap();
-    assert_eq!(bl.closed().len(), 2);
+    let suite = &kids[1].1;
+    assert_eq!(suite.priority, Some(3));
+    assert_eq!(suite.body, "cargo test");
+
+    // The gate edge lands on the PARENT — one `{id, on: close}` blocker per chore.
+    let parent = read_task(w.path(), "bl-9").unwrap();
+    let gated: Vec<&str> = parent.blockers.iter().map(|b| b.id.as_str()).collect();
+    let mut minted: Vec<&str> = kids.iter().map(|(id, _)| id.as_str()).collect();
+    minted.sort_unstable();
+    let mut gated_sorted = gated.clone();
+    gated_sorted.sort_unstable();
+    assert_eq!(gated_sorted, minted);
+    assert!(parent.blockers.iter().all(|b| b.on == On::Close));
 }
 
 #[test]
-fn a_close_retires_the_record_the_successful_claim_left() {
-    // bl-f88b: §14 bounds scratch lifetime by the RESOURCE — "the plugin deletes
-    // `<name>/<id>/` when the resource is gone (successful terminal op, or after
-    // a rollback consumes it)". Only the rollback half was ever built, so every
-    // claim that SUCCEEDED left a directory nothing would read, write, or delete
-    // again. Closing the ball ends every claim of it, so that is where the
-    // record dies — a delete, with no store query and no liveness predicate.
-    let bl = FakeBl::new("[]");
-    let tmp = landing_with(TWO_CHORES);
-    let land = tmp.path().to_str().unwrap();
-    run("claim", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
-    let record = tmp.path().join(crate::encoding::percent_encode("/proj")).join("bl-9");
-    assert!(record.is_dir(), "the successful claim recorded its mints");
+fn epic_skip_bails_on_an_existing_child_and_the_knob_turns_it_off() {
+    let land = landing_with(TWO_CHORES);
+    let l = land.path().to_string_lossy().into_owned();
+    let w = worktree("bl-9");
+    let kid = Task { title: "A real subtask".into(), parent: Some("bl-9".into()), ..Task::default() };
+    write_task(w.path(), "bl-kid", &kid).unwrap();
 
-    run("close", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
-    assert!(!record.exists());
-    // Idempotent, and scoped: a re-close, and a close of a ball bl-chore never
-    // minted for, are both clean — the record is simply already absent.
-    run("close", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-9")), &bl).unwrap();
-    run("close", "post", "bl-chore", tmp.path(), &wire(land, &[], Some("bl-never")), &bl).unwrap();
-    // A close only FORGETS: it never mints, and never closes what it forgets.
-    assert!(bl.closed().is_empty() && bl.creates().len() == 2);
+    run("claim", "pre", "bl-chore", w.path(), &wire(&l, &[], Some("bl-9"))).unwrap();
+    assert_eq!(children(w.path(), "bl-9").len(), 1, "epic-skip: only the pre-existing child");
+
+    // The same worktree with the knob off mints anyway.
+    let off = landing_with(&format!("epic_skip = false\n{TWO_CHORES}"));
+    let payload = wire(&off.path().to_string_lossy(), &[], Some("bl-9"));
+    run("claim", "pre", "bl-chore", w.path(), &payload).unwrap();
+    assert_eq!(children(w.path(), "bl-9").len(), 3);
 }
 
 #[test]
-fn a_close_wire_without_a_bl_id_names_no_record() {
-    // On `claim.post` an absent `bl-id` is a contract violation (the mint has
-    // nowhere to be keyed); here there is merely nothing to forget, so it is a
-    // clean no-op — the same guarded bail the rollback takes.
-    let bl = FakeBl::new("[]");
-    let tmp = landing_with(TWO_CHORES);
-    run("close", "post", "bl-chore", tmp.path(), &wire(tmp.path().to_str().unwrap(), &[], None), &bl).unwrap();
-    assert!(bl.calls.borrow().is_empty());
+fn a_ball_with_an_unrelated_child_is_not_epic_skipped() {
+    let land = landing_with(TWO_CHORES);
+    let w = worktree("bl-9");
+    let other = Task { title: "Child of someone else".into(), parent: Some("bl-other".into()), ..Task::default() };
+    write_task(w.path(), "bl-oth", &other).unwrap();
+    run("claim", "pre", "bl-chore", w.path(), &wire(&land.path().to_string_lossy(), &[], Some("bl-9"))).unwrap();
+    assert_eq!(children(w.path(), "bl-9").len(), 3); // the stranger + two chores
 }
 
 #[test]
-fn malformed_stdin_is_an_error() {
-    let bl = FakeBl::new("[]");
-    assert!(run("claim", "post", "bl-chore", nowhere(), "not json", &bl).is_err());
+fn a_wire_that_names_no_ball_is_a_contract_violation() {
+    let land = landing_with(TWO_CHORES);
+    let w = worktree("bl-9");
+    let err = run("claim", "pre", "bl-chore", w.path(), &wire(&land.path().to_string_lossy(), &[], None))
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("names no ball"), "{err}");
+}
+
+#[test]
+fn a_malformed_payload_or_config_aborts_the_claim() {
+    let w = worktree("bl-9");
+    let bad_wire = run("claim", "pre", "bl-chore", w.path(), "not json").unwrap_err().to_string();
+    assert!(bad_wire.contains("expected"), "{bad_wire}");
+
+    let land = landing_with("[[chore]]\nnot_a_title = 1\n");
+    let bad_cfg = run("claim", "pre", "bl-chore", w.path(), &wire(&land.path().to_string_lossy(), &[], Some("bl-9")))
+        .unwrap_err()
+        .to_string();
+    assert!(bad_cfg.contains("title"), "{bad_cfg}");
+
+    // A config path that is not a readable file at all (a DIRECTORY where the
+    // toml should be) is neither absent nor parseable — the read error rides out.
+    let land = TempDir::new().unwrap();
+    fs::create_dir_all(land.path().join("config/plugins/bl-chore/chores.toml")).unwrap();
+    let payload = wire(&land.path().to_string_lossy(), &[], Some("bl-9"));
+    assert!(run("claim", "pre", "bl-chore", w.path(), &payload).is_err());
+}
+
+#[test]
+fn an_unreadable_sibling_or_missing_parent_aborts_rather_than_minting_blind() {
+    let land = landing_with(TWO_CHORES);
+    let l = land.path().to_string_lossy().into_owned();
+
+    // epic-skip reads every ball in the worktree; one that does not parse is a
+    // store it cannot answer over, so the claim aborts instead of guessing.
+    let w = worktree("bl-9");
+    fs::write(w.path().join("tasks").join("bl-bad.md"), "not a ball").unwrap();
+    assert!(run("claim", "pre", "bl-chore", w.path(), &wire(&l, &[], Some("bl-9"))).is_err());
+
+    // The named ball is not in the worktree: nothing to inherit a clock or a
+    // root_commit from, and nothing to hang the gate on.
+    let empty = TempDir::new().unwrap();
+    let off = landing_with(&format!("epic_skip = false\n{TWO_CHORES}"));
+    let payload = wire(&off.path().to_string_lossy(), &[], Some("bl-9"));
+    assert!(run("claim", "pre", "bl-chore", empty.path(), &payload).is_err());
 }

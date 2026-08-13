@@ -630,8 +630,8 @@ a list property, not an `NN-` filename convention faking one.
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
-# bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.post bl-chore`
-# AND `bl conf prepend close.post bl-chore` (the second retires the mint record the first leaves; §14)
+# bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.pre bl-chore`
+# (ONE hook: the mint is a write into the claim's own change worktree, §14/bl-1da3)
 # (shipped ≠ scheduled: default-wiring would mint chore gates for every claim, system-wide).
 ```
 
@@ -858,6 +858,14 @@ The canonical task-op sequence (verb-agnostic):
 2. **pre modifiers run in hook-list order** — the §7 wire (current state + intent). They edit the shared
    worktree (rename the ball file to reassign an id, edit frontmatter) or REJECT. They see each
    other's cumulative FILE state, never each other's commits (§7) — there are no intermediate commits.
+   **A `pre` plugin MAY AUTHOR A NEW BALL** (bl-1da3), not merely reassign one: writing
+   `tasks/<id>.md` is the same act as editing a sibling's, and nothing gated it — the id scheme is
+   public and fixed (§ id generation), and the live set to re-roll against is the worktree the plugin
+   is standing in, so ordered plugins compose (a later one sees an earlier one's file). This is the
+   sanctioned way to mint a ball as part of another op's atom; shelling a nested `bl` to do it buys
+   a second commit point and the rollback that implies, which is what §14's appendix used to have to
+   answer for. The seal validates whatever appears (§8.3), so an unparseable write is refused, not
+   sealed.
 3. **balls SEALS — commit + integrate, atomically** — validate, commit the worktree with the §5
    trailer (re-reading the tree to learn the final id/state), and integrate it onto its target branch
    (the STORE for task ops, the landing for `config`/`install`) as ONE act. *This is the pre/post
@@ -1427,19 +1435,23 @@ non-ready (only claim-blockers do that; the parent stays claimed/ready and the g
 The resolution mechanism is pluggable; the blocking mechanism is one thing.
 
 The reference create-side guarded-mint primitive is **`bl-chore`** (opt-in, shipped beside `bl`, §6).
-At `claim.post`, for each configured chore it renders `bl create --parent <id> --blocks close -t
-bl-chore --as <claimant> -- "<title>"` — one tagged close-gate child the claimant must discharge
-before `bl close`. The mint authors each gate as the CLAIMANT (`--as` the §7 wire `actor`), not
-bl-chore's inherited env identity. Two guards keep it sound: **tag-skip** (always-on, structural —
-bail if the claimed task carries the `bl-chore` tag, which breaks chore-of-a-chore since a chore is a
-leaf the has-children check would miss) and **epic-skip** (a default-on knob in bl-chore's own config —
-bail if the task already has children, which also buys idempotency on reclaim). Core never mints these
-edges (the auto-mint rejection below holds — a PLUGIN mints the explicit `--blocks close`, core only
-ENFORCES the close-blocker). **Resolution is a separate, orthogonal plugin** — closing a chore on a
-mechanism (e.g. close-the-gate-on-`make test`) is NOT bl-chore's job; bl-chore is create-side only, so
-"just have bl-chore also run the tests" is out of scope by construction. It takes a SECOND hook,
-`close.post`, for one non-create reason: to delete the §14 scratch record its `claim.post` wrote (see
-the §14 appendix, bl-f88b) — the ball is gone, so the record of what a claim of it minted is dead.
+At `claim.pre`, for each configured chore it WRITES `tasks/<child>.md` into the change worktree and
+hangs a `{id, on: close}` blocker on the claimed ball's file — one tagged close-gate child the
+claimant must discharge before `bl close`. It writes rather than shelling `bl create` (bl-1da3): the
+worktree it is invited to edit IS the store, so the mint rides the claim's own atom instead of being a
+nested op with its own commit point that a rollback would have to compensate (§14). Nothing is derived
+twice — the child's clock is the parent's freshly-staged `updated` (the op instant) and its
+`root_commit` is the parent's, so a chore is bound to the same repo as the ball it gates without
+asking git. Two guards keep it sound: **tag-skip** (always-on, structural — bail if the claimed task
+carries the `bl-chore` tag, which breaks chore-of-a-chore since a chore is a leaf the has-children
+check would miss) and **epic-skip** (a default-on knob in bl-chore's own config — bail if the task
+already has children, which also buys idempotency on reclaim; the children are read straight out of
+the worktree, so even this is not a query). Core never mints these edges (the auto-mint rejection
+below holds — a PLUGIN mints the explicit `--blocks close`, core only ENFORCES the close-blocker).
+**Resolution is a separate, orthogonal plugin** — closing a chore on a mechanism (e.g.
+close-the-gate-on-`make test`) is NOT bl-chore's job; bl-chore is create-side only, so "just have
+bl-chore also run the tests" is out of scope by construction. It takes ONE hook and no second: there
+is no scratch record to retire, because there is no record.
 
 (The old "late-added subtask doesn't gate a claimed epic's close" gap is DISSOLVED, not patched: it
 existed only because `--parent` auto-minted a *claim* edge. With containment and blocking separated,
@@ -1609,8 +1621,8 @@ cwd is not deleted underneath it (a recommendation in the skill guide, not an en
   breakage fails in the worktree that caused it, at its own close, rather than surfacing at whoever
   closes last. The root run stays non-redundant (two children can each pass alone and fail merged).
 - FORGE (opt-in) is NOT a delivery variant — it never hooks `close.pre`. Forge is a COMPOSITION over
-  the §10 create-side primitive: **`bl-chore` (mint the approval gate child at `claim.post`) +
-  forge-`sync` (resolve it on PR merge)**. It mints an **approval gate child** at `claim.post` (a
+  the §10 create-side primitive: **`bl-chore` (mint the approval gate child at `claim.pre`) +
+  forge-`sync` (resolve it on PR merge)**. It mints an **approval gate child** at `claim.pre` (a
   normal close-blocker, §10 — NOT a special mechanism; identical to a build or audit gate; it skips
   minting on its own gate children, so no gates-for-gates) and resolves it at `sync` (PR merged ⇒
   close the gate child → the next close unblocks). Forge sits on the same mint pattern **with its own
@@ -1652,14 +1664,13 @@ property AND the disambiguation. (A cross-clone miss is reported honestly or res
 BINDING commit point and STANDS through an abort; everything else the plugin makes is derived and
 recomputes. `rollback claim.post` = remove the worktree + delete `work/<id>` (forge: also remove
 the just-minted gate child) — a tidy of derived state, never load-bearing (a retried claim would
-re-create both). (bl-chore's rollback is the OPPOSITE of derived-state tidy and REVERSES its original
-no-op (bl-ffbf, superseding the bl-3df3 dialogue): each chore it shells is an independently SEALED
-`bl create` — published state the moment it returns — so a gate minted for a claim that ABORTS is
-§14's appendix orphan, an artifact keyed to an op that never sealed which nothing converges onto,
-and `rollback claim.post` closes exactly the ids that claim minted. The old reading — "the gates
-persist to gate the task's next holder" — held only for a claim that SUCCEEDED, which still stands
-and is still de-duped by epic-skip on reclaim. Nested `bl` ops are precisely what makes this
-load-bearing rather than a tidy: see the §14 appendix.) `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
+re-create both). (bl-chore has NO rollback since bl-1da3: its mint is a
+`claim.pre` write into the change worktree, so an abort discards the children with the worktree and
+there is no separate effect to reverse. The bl-ffbf rollback this paragraph used to describe existed
+only because each chore was an independently SEALED nested `bl create`; folding the mint into the
+claim's atom deleted the orphan class rather than compensating it — see the §14 appendix. The old
+reading — "the gates persist to gate the task's next holder" — still stands for a claim that
+SUCCEEDS, and is still de-duped by epic-skip on reclaim.) `rollback close.pre` DECLINES (bl-c231; it WAS a `git reset --hard HEAD~1`
 un-squash): the reset raced concurrent integration movement in a shared hub — a sibling's commit
 landing between squash and reset gets eaten by it — and a standing squash without a sealed close
 is exactly the bl-430e state the retried close completes; the squash is always GATED code (the
@@ -2068,7 +2079,8 @@ the dump shows is exactly the one the tracker will act on.
 
 **AN OP PUBLISHES ONLY IF IT IS THE OUTERMOST `bl` IN ITS INVOCATION TREE** (bl-1266) — the one rung
 above every tier above, because it decides whether the ladder is consulted at all. A plugin may shell
-`bl` (the shipped case: bl-chore's `claim.post` mint), and that nested op runs its own hook chain
+`bl` (bl-chore's mint was the shipped case until bl-1da3 folded it into `claim.pre` file writes), and
+that nested op runs its own hook chain
 including the tracker's `*/post` push; without this rule that push publishes the PARENT's not-yet-final
 seal, which core's §14 un-seal — `git reset --hard`, purely local — cannot chase, so the next `bl sync`
 fast-forwards a repudiated op straight back in. The general form is *an op does not publish an anvil
@@ -2493,37 +2505,24 @@ converges onto the orphan — the plugin's rollback must delete it.
 - `rollback create.pre`: read the id from scratch/worktree, best-effort delete the remote issue,
   remove the scratch dir. Idempotent: absent ⇒ nothing created ⇒ no-op.
 
-**A NESTED `bl` OP IS THE SAME CASE — the shipped instance is `bl-chore` (bl-ffbf).** A plugin that
-shells `bl` makes balls itself the "external tracker that assigns its own id": `bl-chore`'s
-`claim.post` mint is a whole nested `create` with its OWN commit point, sealed (and in a tracked
-checkout PUSHED) outside the claiming op's atom. So a gate minted for a claim that then aborts is
-precisely the appendix case — an artifact keyed to an op that never sealed, onto which a retry (which
-mints a fresh gate) never converges — and it takes the appendix answer: the rollback DELETES it.
-`bl close` is that delete; a closed ball's `tasks/<id>.md` is removed (§2, no archive dir). Two
-details make it exact:
-- **The ids ride §14 scratch, because nothing else crosses the process boundary.** The minted id is
-  knowable only in the forward process (§7 has no return channel, `BALLS_*` never crosses to the
-  later rollback process), so `claim.post` writes it to `plugins/<name>/<pct-enc invocation>/<bl-id>/`
-  as each child lands. The record is REWRITTEN, never appended, so it names exactly THIS claim's
-  mints — a rollback is scoped to one op invocation and must never reach back into a claim that
-  already succeeded. A `create` that fails mid-list unwinds the landed ones INLINE, since core never
-  calls a failing plugin's own rollback.
-- **The record dies with the ball, on `close.post` (bl-f88b).** The lifetime rule above — the plugin
-  deletes `<name>/<id>/` when the resource is gone — needs BOTH halves, and bl-chore shipped only the
-  rollback's. A successful claim's record was called "inert bytes the next claim of that ball
-  overwrites", which holds only for a RE-claim; a ball is normally claimed once, so what it described
-  was a directory nothing would ever overwrite, read, or delete (41 of them in this repo inside two
-  months). Closing the ball ends every claim of it, so its record is provably dead and `close.post`
-  deletes it — a `remove_dir_all`, no store query and no liveness predicate. This is why SCRATCH gets
-  no converger while §11's DERIVED delivery state gets `prime`'s prune: derived state is recomputed
-  and reconciled, scratch is bounded by its resource. The residue is exactly the claimed-but-not-yet-
-  closed working set, which is not growth. Wiring `claim.post` without `close.post` is severable —
-  it restores the old behavior, litter and all, and breaks nothing.
-- **What actually survives is the PUBLISHED copy.** Core's tier-1 un-seal resets the store branch to
-  the pre-op tip, which already discards the nested commit locally; the orphan that persists is the
-  one the nested op pushed. The nested close is what takes it off the shared record. This is the
-  general shape of the tier-3 line: a nested `bl` op's push is beyond core's local un-seal, which is
-  exactly why plugin rollback stays load-bearing here.
+**A NESTED `bl` OP IS NOT THIS CASE — and the shipped instance stopped being one (bl-1da3).** bl-ffbf
+filed `bl-chore`'s `claim.post` mint here on the reading that a plugin shelling `bl` makes balls "the
+external tracker that assigns its own id", so the mint needed the appendix answer: a rollback closing
+what the claim minted, ids carried across the process boundary in scratch, and a `close.post` sweep of
+the record. **balls is not external to itself.** The appendix exists because core cannot reach INTO
+jira to make the ticket part of the atom; core can reach the store, because the store is the change
+worktree, and `pre` is the sanctioned door (§8 step 2, §8.3). So the mint is not an effect to
+compensate — it is two writes into the claim's own worktree: `tasks/<child>.md` per chore, and the
+`{id, on: close}` blocker onto the parent's file, which is already staged there. One seal, one commit,
+one push.
+
+That deletes the whole apparatus rather than satisfying it: no nested op and no second commit point,
+no shell seam, no scratch record (nothing crosses a process boundary, so there is nothing to carry),
+no rollback and no mid-list inline unwind, and no `close.post` half to remember. **An aborted claim
+discards the change worktree, and the children go with it** — the §14 obligation is met by tier 1
+alone, which is the whole point of tier 1. The general rule this leaves: a plugin that wants to author
+balls should WRITE them in `pre`, and a plugin that shells `bl` should expect §12's
+outermost-publishes rule (bl-1266) rather than the appendix.
 
 **sync/prime have no change worktree** (§13): tier 1 is empty (no ball seal), so rollback reduces to
 each plugin's own `rollback`. Most sync/prime plugins are idempotent refreshers (no-op rollback); the
@@ -2532,32 +2531,26 @@ or the new HEAD, never wedged — re-running converges.
 
 ## §15 Open topics (epic bl-b465)
 
-Each becomes a § edit here when settled. **One open** (bl-1266's RESIDUE — the publication rule itself
-is settled into §12/§14/§4, but the bl-chore fold and cross-repo nesting are unbuilt); every other
-topic resolved into the body.
+Each becomes a § edit here when settled. **One open** (bl-1266's RESIDUE — the publication rule and
+the bl-chore fold are both settled into §8/§10/§12/§14, leaving only cross-repo nesting, which is
+unreachable); every other topic resolved into the body.
 
 OPEN:
-- **nesting's RESIDUE: bl-chore should not nest at all, and cross-repo nesting has no payer
-  (2026-08-06, bl-1266, from the bl-ffbf landing; design record
-  `docs/design/bl-1266-nested-op-publication.md`, status OPEN).** The topic's CORE is SETTLED and
-  written into the body: an op publishes only if it is the outermost `bl` in its invocation tree
-  (§12, with the two known edges), §14's tier-1 sentence now says why it holds, and §4 carries the
-  fourth `(none)` readout. Compensating rollback was REJECTED (it costs tier 1 its infallibility,
-  needs a per-verb inverse, and re-admits half-states as a class), as was sync-side convergence (an
-  aborted claim commit is byte-identical to one that stuck). TWO pieces remain unbuilt and unballed.
-  (a) **The fold.** The record argues §14 filed nesting under the WRONG heading — the appendix is for
-  effects binding an EXTERNAL system, and balls is not external to itself — so `bl-chore`'s mint
-  belongs in `claim.pre` writing files into the shared change worktree, which deletes the nested
-  `create`, `src/chore_scratch.rs` and bl-chore's rollback outright. It costs a doctrine call ("may a
-  `pre` plugin MINT a new id" — nothing gates it today, the id scheme is public and the live set is
-  in the worktree the plugin stands in) and nothing else; §5's one-act-per-commit journal objection
-  dissolved (a child born in a `claim <parent>` commit WAS born of that act). (b) **H1's fill**, if a
-  `bl -C` plugin ever exists: a held-store export the tracker compares its binding against, replacing
-  the depth predicate with the true rule. Also settles bl-4945's *"which side owns reconciliation"*:
-  the remote is behind-or-equal by construction, so the only residual divergence is
-  local-ahead-unpublished and its remedy is forward-only.
-
-RESOLVED (folded into the body, no longer open):
+- **nesting's RESIDUE: cross-repo nesting has no payer (2026-08-06, bl-1266; design record
+  `docs/design/bl-1266-nested-op-publication.md`, status OPEN).** Both built pieces are settled into
+  the body: an op publishes only if it is the outermost `bl` in its invocation tree (§12, bl-1266),
+  and the shipped nesting instance is gone — bl-chore mints by WRITING into the claim's change
+  worktree at `claim.pre` (§10/§14, bl-1da3), which deleted the nested op, the shell seam, the scratch
+  record, the rollback and the `close.post` sweep outright, and settled "may a `pre` plugin author a
+  new ball" as a §8 doctrine sentence rather than a mechanism. Compensating rollback was REJECTED (it
+  costs tier 1 its infallibility, needs a per-verb inverse, and re-admits half-states as a class), as
+  was sync-side convergence (an aborted claim commit is byte-identical to one that stuck). WHAT IS
+  LEFT is one hole that is real but unreachable: a plugin shelling `bl -C <other repo>` writes an
+  anvil no enclosing push covers, so the depth predicate suppresses a publish nobody else pays. The
+  fill is a held-store export the tracker compares its binding against, replacing depth with the true
+  rule (*an op does not publish an anvil an enclosing op holds open*); it is deferred, not solved,
+  because nothing shipped shells `bl` at all any more. Whoever writes the first such plugin owes it,
+  and also reopens §4's `nested` provenance rung, whose honesty depends on this staying unreachable.
 - **atomicity is a CORE GUARANTEE, with four obligations — and two shipped commit points violate it
   (2026-07-25, bl-ea55, from the bl-cdec report; design record
   `docs/design/bl-cdec-atomicity.md`).** balls had every component atomicity needs — inert change
