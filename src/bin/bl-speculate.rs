@@ -23,9 +23,10 @@ use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
 use balls::layout::Xdg;
-use balls::{speculate, speculate_queue};
+use balls::{speculate, speculate_queue, speculate_run};
 
-const USAGE: &str = "usage: bl-speculate check | record pass|fail | enqueue ID | dequeue ID | queue";
+const USAGE: &str = "usage: bl-speculate check | record pass|fail | enqueue ID | dequeue ID | queue \
+| run [--gate CMD] [--onto BRANCH] [--builds N]";
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -79,8 +80,64 @@ fn run(args: &[String]) -> io::Result<bool> {
             }
             Ok(true)
         }
+        Some("run") => {
+            let (territory, scratch) = territory()?;
+            let (gate, onto, builds) = run_flags(&args[1..])?;
+            let builds = match builds {
+                Some(n) => n,
+                None => eager_builds()?,
+            };
+            let report =
+                speculate_run::run(&root, &scratch, &territory, &toolchain()?, &onto, &gate, builds)?;
+            for line in report {
+                println!("{line}");
+            }
+            Ok(true)
+        }
         _ => Err(io::Error::other(USAGE)),
     }
+}
+
+/// `run`'s flags: `--gate CMD` (default the stock gate), `--onto BRANCH`
+/// (default `main`), `--builds N` (default the eagerness ladder).
+fn run_flags(args: &[String]) -> io::Result<(String, String, Option<usize>)> {
+    let (mut gate, mut onto, mut builds) = ("scripts/pre-commit".to_string(), "main".to_string(), None);
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it.next().ok_or_else(|| io::Error::other(USAGE))?;
+        match flag.as_str() {
+            "--gate" => gate.clone_from(value),
+            "--onto" => onto.clone_from(value),
+            "--builds" => builds = Some(value.parse().map_err(|_| io::Error::other(USAGE))?),
+            _ => return Err(io::Error::other(USAGE)),
+        }
+    }
+    Ok((gate, onto, builds))
+}
+
+/// The eagerness ladder (design bl-24e7): `BALLS_SPECULATE_EAGERNESS` when
+/// declared — the owner's watts-vs-wall-time preference, `0` meaning "off" —
+/// else defaulted from the power state: positive evidence of battery throttles
+/// to one build per pass; AC or no evidence at all builds everything (a server
+/// with no power_supply entries should burn its idle cores).
+fn eager_builds() -> io::Result<usize> {
+    if let Ok(declared) = env::var("BALLS_SPECULATE_EAGERNESS") {
+        return declared.parse().map_err(|_| io::Error::other("BALLS_SPECULATE_EAGERNESS: not a number"));
+    }
+    let sys = env::var("BALLS_POWER_SYS")
+        .unwrap_or_else(|_| "/sys/class/power_supply".to_string());
+    Ok(if on_battery(Path::new(&sys)) { 1 } else { usize::MAX })
+}
+
+/// TRUE only on positive evidence: some supply reports `online` = 0 and none
+/// reports `online` = 1.
+fn on_battery(sys: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(sys) else { return false };
+    let states: Vec<String> = entries
+        .filter_map(|e| std::fs::read_to_string(e.ok()?.path().join("online")).ok())
+        .map(|s| s.trim().to_string())
+        .collect();
+    states.iter().any(|s| s == "0") && !states.iter().any(|s| s == "1")
 }
 
 /// The queue verbs' second word — the ball id.
