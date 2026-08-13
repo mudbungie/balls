@@ -4,6 +4,7 @@
 
 use super::*;
 use tempfile::TempDir;
+use std::path::Path;
 
 fn env() -> (TempDir, Env) {
     let tmp = TempDir::new().unwrap();
@@ -223,4 +224,26 @@ fn dispatch_discovers_the_project_origin_when_no_explicit_remote() {
     );
     assert_eq!(invoke("sync", "pre", &payload, &env), 0);
     assert_eq!(super::fixtures::tip(&store, "HEAD"), moved); // discovered origin → ff'd
+}
+
+/// bl-1266 — the depth parse lives in the lib (the bl-bfa8 rule) and FAILS OPEN:
+/// a tracker run by hand, or by a core too old to set the variable, must publish
+/// rather than silently stop federating. `1` is the ordinary top-level spawn.
+#[test]
+fn env_resolve_parses_the_depth_and_fails_open() {
+    let xdg = || crate::layout::Xdg::with(Path::new("/h"), None, None);
+    assert_eq!(Env::resolve(xdg(), None).depth, 0); // unset ⇒ publishes
+    assert_eq!(Env::resolve(xdg(), Some("nonsense".into())).depth, 0); // garbage ⇒ publishes
+    assert_eq!(Env::resolve(xdg(), Some("2".into())).depth, 2);
+}
+
+/// The §12 rung itself: a plugin spawned by a top-level `bl` sees `1` and
+/// publishes; one spawned by a `bl` that a plugin shelled sees `2`+ and does not.
+#[test]
+fn only_the_outermost_bl_in_the_invocation_tree_publishes() {
+    let nested = |d| super::fixtures::env_at(d).nested();
+    assert!(!nested(0), "a hand-run tracker fails open");
+    assert!(!nested(1), "spawned by a top-level bl — this op's push is its own");
+    assert!(nested(2), "spawned by a bl a plugin shelled — the parent publishes");
+    assert!(nested(3));
 }

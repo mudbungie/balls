@@ -17,7 +17,12 @@ syncs.
   acquisition hint or `(no source given)`; all bound ⇒ no rows.
 - `bl conf <key>` — print one value (stdout) with its provenance (stderr). A
   checkout with no durable remote shows `task-remote (none)` — that checkout is
-  stealth.
+  stealth. **One `(none)` is NOT stealth: layer `nested`.** It means an
+  enclosing `bl` holds this store open and will publish for this op — the push
+  is owed, and the outermost `bl` in the invocation tree pays it (every other
+  `(none)` means nothing will be published at all). Seeing `nested` at a top-level
+  prompt means a stale `BALLS_PLUGIN_DEPTH` is exported in your shell; nothing is
+  lost, the store publishes on the next clean op.
 
 ## Writing (scope-keyed — the key implies the file, there is no `--scope`)
 

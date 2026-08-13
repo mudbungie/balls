@@ -456,7 +456,13 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
   no durable remote reads `task-remote (none)`: stealth is VISIBLE, closing the bl-d234 gap where
   "deliberately stealth" and "meant to federate, nothing set" were indistinguishable — and the two
   are DISTINCT readouts (bl-9df0): declared stealth reads `(none)` from `landing` (the sentinel),
-  circumstantial stealth reads `(none)` from `stealth` (nothing set, no origin). The dump and the
+  circumstantial stealth reads `(none)` from `stealth` (nothing set, no origin). A FOURTH `(none)`
+  reads from `nested` and is NOT a third kind of stealth (bl-1266): the other three all say *nothing
+  will be published*, while `nested` says the push is OWED and the outermost `bl` in this invocation
+  tree pays it — an enclosing op holds this anvil open (§12). It PREEMPTS the URL tiers, because the
+  question the row answers is "will this op publish?" and a correctly configured remote is the most
+  misleading possible answer while the enclosing op has not sealed; `nested` at a top-level prompt is
+  a leaked `BALLS_PLUGIN_DEPTH` (§6), costing nothing — the next clean op publishes. The dump and the
   per-key path agree on the key set, the dump's being a subset (bl-03a1): a per-key op accepts the
   three scalars, a live dispatch SLOT to *create* (`<op>.<pre|post>` for a current verb, bare
   `show`/`list`), AND any key the effective schedule already WIRES — so every key the dump surfaces
@@ -2060,6 +2066,25 @@ REPORTS this whole ladder, `origin` tier included, via a local `git remote get-u
 remote is a local config fact; *contacting* one stays the tracker's alone (§0), and the resolution
 the dump shows is exactly the one the tracker will act on.
 
+**AN OP PUBLISHES ONLY IF IT IS THE OUTERMOST `bl` IN ITS INVOCATION TREE** (bl-1266) — the one rung
+above every tier above, because it decides whether the ladder is consulted at all. A plugin may shell
+`bl` (the shipped case: bl-chore's `claim.post` mint), and that nested op runs its own hook chain
+including the tracker's `*/post` push; without this rule that push publishes the PARENT's not-yet-final
+seal, which core's §14 un-seal — `git reset --hard`, purely local — cannot chase, so the next `bl sync`
+fast-forwards a repudiated op straight back in. The general form is *an op does not publish an anvil
+an enclosing op holds open*; the shipped predicate is the §6 recursion depth, which core already sets
+and already propagates (`BALLS_PLUGIN_DEPTH`: a tracker spawned by a top-level `bl` sees `1`, one
+spawned by a `bl` a plugin shelled sees `2`+), so the rule costs no new env, no wire field and no core
+change. Nothing is deferred forever: a push publishes a branch TIP, so the nested seal rides the
+enclosing op's own trailing push — one push per op TREE, still sorted last (§14). TWO KNOWN EDGES.
+(a) A leaked `BALLS_PLUGIN_DEPTH` makes a top-level op read nested and skip its push; accepted, and
+made visible rather than silent — `bl conf` reads `task-remote (none) nested` (§4), and the store
+publishes on the next clean op. (b) A nested op addressing a DIFFERENT store (`bl -C`) is suppressed
+by a depth predicate although no enclosing push covers its anvil — a debt nobody pays. Nothing shipped
+shells `bl -C`, so it is deferred, NOT solved: the fill is a held-store export the tracker compares
+its binding against, and whoever writes the first such plugin owes it (design record
+`docs/design/bl-1266-nested-op-publication.md`).
+
 **prime WARNS when its remote is ephemeral.** When prime founds/joins on an explicit
 `--remote` that the durable ladder (landing > binding > XDG > `origin`) does not reproduce, the
 tracker warns
@@ -2237,9 +2262,12 @@ not a consent breach, because consent governs config + executable plugins, never
   `git -C <store> reset --hard FETCH_HEAD` to discard them. **balls never merges the two histories**:
   the ff-only contract IS the store's one-line-of-history invariant, so an automatic merge or rebase
   would be core deciding an outcome only the operator can weigh (whose ops those commits are, whether
-  they still apply). Which side owns that reconciliation is the open question bl-1266 carries for the
-  mirror state (local rolled back what the remote already took); today both answers are the
-  operator's, and these two sentences must move together with whatever it converges on.
+  they still apply). The MIRROR state — local rolled back what the remote already took — is no longer
+  a second case to answer: since bl-1266 an op publishes only if it is the outermost `bl` in its
+  invocation tree (§12), so a push either succeeds (remote == local) or aborts the op (nothing
+  published), and the remote is behind-or-equal BY CONSTRUCTION. The one residual divergence is
+  local-ahead-unpublished — a crash between seal and push — and its remedy is forward-only: publish,
+  never revert. Reconciliation is therefore the operator's on ONE side only.
 - **Where the integration sits.** With no core commit, sync's pre/post boundary IS the tracker's
   fetch+ff: the tracker is wired into **`sync/pre`** so it imports remote store state first;
   **`sync/post`** plugins (e.g. cache rebuild) react to the now-current store. A
@@ -2354,7 +2382,11 @@ no-change-worktree (sync/prime) case.
    point and core handles it itself: a PRE-phase abort discards the un-sealed change worktree
    (nothing reached the branch); a POST-phase abort `git reset`s the target branch back one commit
    (local and reversible — core never pushes, so there is nothing remote to chase). **No plugin
-   rollback for tier 1.**
+   rollback for tier 1.** That sentence is TRUE OF CORE but its force comes from a publisher rule:
+   nothing remote to chase requires that nothing published inside the window, and a plugin that
+   shells `bl` inserts a whole op — seal AND push — into the middle of the parent's post phase. So an
+   op publishes only if it is the OUTERMOST `bl` in its invocation tree (§12, bl-1266); with that,
+   the un-seal is a complete undo again by construction rather than by hook order.
 2. **Commits/refs on ANOTHER local git repo** (the delivery plugin's squash onto the project
    integration branch, its `work/<id>` branch). The un-seal never touches a second repo — and no
    rollback does either: the squash is BINDING and STANDS (the retried close detects it and skips,
@@ -2440,6 +2472,14 @@ so it sorts last; delivery `close.post` teardown removes the worktree DIRECTORY 
 `close.pre` and the seal preceded every `post` hook, so neither holds a copy of anything the target
 lacks, and the retried close converges on an absent branch.
 
+Since bl-1266 the recommendation also carries a SECOND cost, and it is the one that bites a
+misordered list. A nested op's seal rides the enclosing op's trailing push (§12's outermost-publishes
+rule), so a `bl`-shelling plugin wired AFTER the publisher seals a commit that this op will not push
+— a DEFERRED push, not a lost one: the store sits local-ahead until the next op publishes it, which
+is the forward-only residual §12/§13 already treat as the only surviving divergence. Still not
+enforced, for the same §0 reason as before (core reads no plugin semantics, so it cannot know which
+hook is the publisher); the sort is now load-bearing for completeness rather than for hygiene alone.
+
 **THE APPENDIX — rollback for external effects** (the non-derivable counterpart to §11's derived
 example, and the one place rollback is load-bearing): a plugin mirroring the ball to an external
 tracker that assigns its OWN id. The binding artifact (the remote issue) lives in an external system
@@ -2492,7 +2532,30 @@ or the new HEAD, never wedged — re-running converges.
 
 ## §15 Open topics (epic bl-b465)
 
-Each becomes a § edit here when settled. **None open** — every topic is resolved into the body.
+Each becomes a § edit here when settled. **One open** (bl-1266's RESIDUE — the publication rule itself
+is settled into §12/§14/§4, but the bl-chore fold and cross-repo nesting are unbuilt); every other
+topic resolved into the body.
+
+OPEN:
+- **nesting's RESIDUE: bl-chore should not nest at all, and cross-repo nesting has no payer
+  (2026-08-06, bl-1266, from the bl-ffbf landing; design record
+  `docs/design/bl-1266-nested-op-publication.md`, status OPEN).** The topic's CORE is SETTLED and
+  written into the body: an op publishes only if it is the outermost `bl` in its invocation tree
+  (§12, with the two known edges), §14's tier-1 sentence now says why it holds, and §4 carries the
+  fourth `(none)` readout. Compensating rollback was REJECTED (it costs tier 1 its infallibility,
+  needs a per-verb inverse, and re-admits half-states as a class), as was sync-side convergence (an
+  aborted claim commit is byte-identical to one that stuck). TWO pieces remain unbuilt and unballed.
+  (a) **The fold.** The record argues §14 filed nesting under the WRONG heading — the appendix is for
+  effects binding an EXTERNAL system, and balls is not external to itself — so `bl-chore`'s mint
+  belongs in `claim.pre` writing files into the shared change worktree, which deletes the nested
+  `create`, `src/chore_scratch.rs` and bl-chore's rollback outright. It costs a doctrine call ("may a
+  `pre` plugin MINT a new id" — nothing gates it today, the id scheme is public and the live set is
+  in the worktree the plugin stands in) and nothing else; §5's one-act-per-commit journal objection
+  dissolved (a child born in a `claim <parent>` commit WAS born of that act). (b) **H1's fill**, if a
+  `bl -C` plugin ever exists: a held-store export the tracker compares its binding against, replacing
+  the depth predicate with the true rule. Also settles bl-4945's *"which side owns reconciliation"*:
+  the remote is behind-or-equal by construction, so the only residual divergence is
+  local-ahead-unpublished and its remedy is forward-only.
 
 RESOLVED (folded into the body, no longer open):
 - **atomicity is a CORE GUARANTEE, with four obligations — and two shipped commit points violate it

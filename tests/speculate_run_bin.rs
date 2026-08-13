@@ -64,7 +64,11 @@ fn speculate(e: &Env) -> Command {
         .env("XDG_STATE_HOME", e.tmp.path().join("state"))
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("BALLS_SPECULATE_EAGERNESS")
-        .env_remove("BALLS_POWER_SYS");
+        // PIN the power state, never scrub it: scrubbing lets the ladder read the
+        // REAL /sys/class/power_supply, so the whole file passes on AC and fails
+        // on battery (one build per pass ⇒ the second entry defers). An absent
+        // path is the ladder's "no evidence at all" rung — build everything.
+        .env("BALLS_POWER_SYS", e.tmp.path().join("no-power-supplies"));
     fs::create_dir_all(e.tmp.path().join("home")).unwrap();
     cmd
 }

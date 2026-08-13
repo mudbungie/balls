@@ -10,6 +10,7 @@
 
 use super::git::git;
 use super::payload::Binding;
+use super::Env;
 use crate::safegit::reject_option_like;
 use std::io;
 use std::path::Path;
@@ -153,7 +154,22 @@ pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::R
 /// the §16 migration window — warn and keep the work local; the legacy ref is
 /// never rewritten (cutover is the runbook's explicit history join, published
 /// as an ordinary fast-forward).
-pub fn push(b: &Binding) -> io::Result<()> {
+///
+/// **A NESTED op does not publish (bl-1266).** An op publishes only if it is the
+/// OUTERMOST `bl` in its invocation tree ([`Env::nested`]). A plugin that shells
+/// `bl` (the shipped case: bl-chore's `claim.post` mint) inserts a whole op —
+/// seal AND push — into the middle of its parent's post phase, so without this
+/// the nested push publishes the PARENT's not-yet-final commit; a later
+/// `claim.post` failure then un-seals only the LOCAL store (`git reset --hard`),
+/// and the next `bl sync` fast-forwards the repudiated op straight back. Nothing
+/// is lost by waiting: a push publishes a branch TIP, so the nested seal rides
+/// the parent's own trailing push (the tracker sorts LAST, §14) — one push per op
+/// TREE, still last, and §14's *"core never pushes, so there is nothing remote to
+/// chase"* becomes a theorem instead of an accident of hook order.
+pub fn push(b: &Binding, env: &Env) -> io::Result<()> {
+    if env.nested() {
+        return Ok(()); // the enclosing op holds this anvil open — it publishes
+    }
     let Some(remote) = b.remote.as_deref() else {
         return Ok(());
     };
@@ -220,3 +236,7 @@ pub fn fetch_config(b: &Binding) -> io::Result<()> {
 #[cfg(test)]
 #[path = "remote_ops_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "remote_ops_push_tests.rs"]
+mod push_tests;

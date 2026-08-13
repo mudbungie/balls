@@ -4,9 +4,9 @@
 
 use super::*;
 use crate::tracker::fixtures::{
-    binding, checkout, commit, default_binding, empty_remote, env, landing_repo, legacy_remote,
-    local_unpushed, remote_with_branch, remote_with_config, store_clone, tip, tracked,
-    unpushable_remote, BRANCH,
+    binding, checkout, commit, default_binding, empty_remote, env, env_at, landing_repo,
+    legacy_remote, local_unpushed, remote_with_branch, remote_with_config, store_clone, tip,
+    tracked, unpushable_remote, BRANCH,
 };
 use std::fs;
 use tempfile::TempDir;
@@ -80,7 +80,7 @@ fn prime_post_over_a_legacy_remote_converges_without_touching_it() {
     let remote = legacy_remote(tmp.path());
     let store = local_unpushed(tmp.path()); // the freshly-founded greenfield store
     let before = tip(&remote, BRANCH);
-    prime_post(&binding(Some(&remote), &store)).unwrap();
+    prime_post(&binding(Some(&remote), &store), &env_at(1)).unwrap();
     assert_eq!(tip(&remote, BRANCH), before); // the legacy ref was not rewritten
 }
 
@@ -100,7 +100,7 @@ fn prime_post_founds_an_absent_remote_by_pushing() {
     let tmp = TempDir::new().unwrap();
     let remote = empty_remote(tmp.path());
     let store = local_unpushed(tmp.path());
-    prime_post(&binding(Some(&remote), &store)).unwrap();
+    prime_post(&binding(Some(&remote), &store), &env_at(1)).unwrap();
     assert_eq!(tip(&remote, BRANCH), tip(&store, "HEAD")); // the push created the branch
 }
 
@@ -110,7 +110,7 @@ fn prime_post_brings_current_then_publishes_to_an_established_remote() {
     let remote = remote_with_branch(tmp.path());
     let store = store_clone(tmp.path(), &remote);
     let landed = commit(&store, "landed.txt", "landed"); // local work ahead of the remote
-    prime_post(&binding(Some(&remote), &store)).unwrap();
+    prime_post(&binding(Some(&remote), &store), &env_at(1)).unwrap();
     assert_eq!(tip(&remote, BRANCH), landed); // fetch-ff is a no-op, the push publishes
 }
 
@@ -121,7 +121,7 @@ fn prime_post_founding_reject_degrades_silently_and_persists_nothing() {
     let tmp = TempDir::new().unwrap();
     let remote = unpushable_remote(tmp.path());
     let store = local_unpushed(tmp.path());
-    prime_post(&binding(Some(&remote), &store)).unwrap(); // denied founding push → silent
+    prime_post(&binding(Some(&remote), &store), &env_at(1)).unwrap(); // denied founding push → silent
     assert!(git(&remote, &["rev-parse", BRANCH]).is_err()); // nothing was founded
 }
 
@@ -136,14 +136,14 @@ fn prime_post_established_push_reject_errors_never_degrades() {
     commit(&other, "remote.txt", "remote");
     git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
     commit(&store, "local.txt", "local");
-    assert!(prime_post(&binding(Some(&remote), &store)).is_err());
+    assert!(prime_post(&binding(Some(&remote), &store), &env_at(1)).is_err());
 }
 
 #[test]
 fn prime_post_in_stealth_is_a_no_op() {
     let tmp = TempDir::new().unwrap();
     let store = local_unpushed(tmp.path());
-    prime_post(&binding(None, &store)).unwrap(); // no remote → nothing
+    prime_post(&binding(None, &store), &env_at(1)).unwrap(); // no remote → nothing
 }
 
 #[test]
