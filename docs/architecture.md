@@ -2492,10 +2492,9 @@ or the new HEAD, never wedged — re-running converges.
 
 ## §15 Open topics (epic bl-b465)
 
-Each becomes a § edit here when settled. **One open** (bl-ea55, atomicity — the guarantee is recorded
-in §0; the starvation half is not settled); every other topic resolved into the body.
+Each becomes a § edit here when settled. **None open** — every topic is resolved into the body.
 
-OPEN:
+RESOLVED (folded into the body, no longer open):
 - **atomicity is a CORE GUARANTEE, with four obligations — and two shipped commit points violate it
   (2026-07-25, bl-ea55, from the bl-cdec report; design record
   `docs/design/bl-cdec-atomicity.md`).** balls had every component atomicity needs — inert change
@@ -2518,19 +2517,23 @@ OPEN:
   one changed task file, found 0` plus a FAILED ROLLBACK report over a state that is actually fine;
   FIXED (bl-a5f3) by obligation (4) — the ball rides `command.id` on EVERY wire and `resolve_id`'s
   changed-file fallback plus `delivery_repo::changed_task_paths` are DELETED, which retires §7's
-  "the id is NOT on the pre wire" clause and subtracts a code path rather than adding one. Still OPEN and NOT
-  recorded in §0: whether a mid-gate loser deserves more than a clean rejection — a delivery lease
-  (`update-ref refs/balls/delivery/<integration> <sha> ''`, atomic create-if-absent, stale = prime
-  debris) serializes the gate and costs no throughput on a saturated box, but it is the one option
-  that adds mechanism. The three lower-severity gaps are CLOSED (bl-ffbf, folded into the body):
+  "the id is NOT on the pre wire" clause and subtracts a code path rather than adding one. The last open
+  half — whether a mid-gate LOSER deserves more than a clean rejection — is RESOLVED (2026-08-12,
+  bl-9042 closed as a duplicate): it does not, and the delivery lease is REJECTED. The lease rationed
+  a cost this document treated as fixed; `docs/design/bl-24e7-speculative-merge-queue.md` removes the
+  cost instead — the gate verdict is a pure function of the tree, so pre-gated prefix trees make an
+  in-order close a cache hit that lands in seconds, and a window too narrow to ration is not worth a
+  lock. Note the shape it dodges: a lease fails to a BRICK (a dead holder refuses every close until an
+  operator clears the ref), where bl-24e7's `merging` tag fails to a CACHE MISS (an out-of-order close
+  pays the stock gate) — same coordination, no staleness story, and nothing stored, since tag-time IS
+  the queue position. Nothing lands in §0: G1 already discharges the guarantee, and speculation is
+  cache-warming beside the core, not a change to any commit point. The three lower-severity gaps are CLOSED (bl-ffbf, folded into the body):
   `binding.toml` is replaced by rename with the lost update named as accepted (§1), the founding
   predicate is a COMMIT on the landing branch so a crashed founding is re-runnable debris rather than
   a permanent brick (§12), and `bl-chore`'s nested `create` is unwound by its rollback as the
   first-party instance of the §14 appendix. The store seal's raw-git contention voice is FIXED
   (bl-fa89 — one balls sentence for every spelling of the loss, §8; an in-core retry loop was
   considered and REFUSED). Touched §0 (the new principle), §1/§12/§14 (the bl-ffbf fixes), §15 (this entry).
-
-RESOLVED (folded into the body, no longer open):
 - **`close.post` deletes `work/<id>`; the deferral to prime was written broader than its own argument
   (2026-08-06, bl-ce3b).** §11/§14 said branch deletion is "deferred, non-transactional cleanup
   (`prime`)". The reason was real — until the squash lands, a close can abort (gate failure,
