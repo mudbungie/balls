@@ -1,7 +1,8 @@
 +++
 title = "bl-chore should not nest at all: fold the mint into claim.pre as file writes, deleting the nested op, the scratch record and the rollback"
 created = 1786597914
-updated = 1786597914
+updated = 1786597915
+claimant = "Enthused"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 +++
 The fold §4 of docs/design/bl-1266-nested-op-publication.md argues for, now that
