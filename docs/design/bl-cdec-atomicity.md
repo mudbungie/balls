@@ -195,12 +195,46 @@ scratch state. *Also rejected as unnecessary:* making `seal()` restore the chang
 worktree on ff failure (A3 literally). Once nothing reads that worktree, its
 state is unobservable — the rollback discards it either way.
 
-## 6. OPEN — starvation is not solved by G1
+## 6. RESOLVED — starvation is not this document's to solve
 
-Tracked as **bl-9042** now that bl-cdec (the umbrella this document was filed
-from) is closed with every other mode fixed; the dialogue converges there, and
-the evidence to gather first is the observed loss rate under traffic *now that
-aborts are clean* — the 3x-per-agent count predates bl-8b89's pin.
+**Option (1) stands: nothing beyond G1. The lease is REJECTED.** bl-9042 (the
+ball this section opened) is closed as a DUPLICATE of
+`docs/design/bl-24e7-speculative-merge-queue.md`, which owns the problem whole
+and attacks it one level up.
+
+The reasoning below asks the wrong question. It takes the gate's cost as fixed
+and shops for a way to ration the losses — and every option that rations is a
+lock, which is the mechanism `ensure_target_incorporated` deleted on purpose
+(*"no state, no lease, no queue"*, `src/delivery_fold.rs`). bl-24e7 makes the
+gate cost nothing instead: the verdict is a pure function of the tree, so
+speculators pre-gate the queue's prefix trees and a close in queue order is a
+cache hit that lands in seconds. A window that used to be 10-13 minutes wide is
+then too narrow to be worth serializing, and the option-(3) lease is not merely
+unbuilt but pointless — a lock over a window whose cost was the only argument
+for it.
+
+Note what that also does to the lease's shape. A lease is a lock whose failure
+mode is a BRICK: a holder dies mid-gate and every close refuses until an
+operator clears the ref. bl-24e7's `merging` tag is an ORDERING whose failure
+mode is a CACHE MISS — an out-of-order close simply pays the stock gate. Same
+coordination, no staleness story to write, and nothing new to store: tag-time
+IS the position (status is derived, never stored).
+
+**The residue, recorded and accepted, not filed.** bl-24e7 makes the expensive
+path rare, not cheap, and it concentrates what remains: with a fast lane (cache
+hit, seconds) beside a slow one (miss — an evicted predecessor, a conflicted
+`merge-tree` candidate, a moved toolchain fingerprint), the slow-lane closer no
+longer loses a mid-gate race half the time, it loses EVERY time, because every
+sibling now lands inside its gate window. The lever, if that ever bites, is
+already in bl-24e7's vocabulary and not in a new mechanism: `merging`-tag order
+is deliberately **advisory** (that is how its open question 1 dissolved), and
+making it binding at the ref move would end the starvation at the price of
+turning a query back into a lock. That trade belongs in bl-5c5f's queue
+semantics, not here. This document's scope is the atomicity guarantee, and G1
+already discharges it: a mid-gate advance is one clean, correctly-voiced CAS
+rejection that overwrites nothing.
+
+The original reasoning is kept below as the record of what was attacked.
 
 G1 converts a wasted gate into a *clean, immediate* rejection at the flip, but the
 gate is still re-run on every retry, and under sustained traffic an unlucky close
@@ -223,6 +257,10 @@ lease. Three options, stated maximal-subtraction first:
 Leaning (3), but it is the one place here that adds mechanism, and a lease wants a
 staleness story (a holder that dies mid-gate). Worth attacking before building:
 option (1) plus G1 may be enough, and is free.
+
+*(Resolved as above: option (1), and option (2) is dead twice over — bl-a1a4
+removed the automatic fold from `deliver` entirely, so an internal re-fold loop
+is exactly the merge-queue-inside-close that refusal exists to prevent.)*
 
 Separately: whether the store seal's contention deserves an in-core bounded
 retry. RESOLVED **no** (bl-fa89) — converge-on-retry is the rule and the retry is
