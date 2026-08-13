@@ -74,10 +74,9 @@ has and the next push is rejected non-fast-forward (recoverable: `bl sync` then
 retry, but surprising).
 
 `bl-chore` (opt-in) mints one close-gate child per configured chore at
-`claim.post` — a forcing-function checklist, not CI. Opt in with `bl conf prepend
-claim.post bl-chore` AND `bl conf prepend close.post bl-chore`, then write
-`config/plugins/bl-chore/chores.toml`. The second wiring mints nothing: it is
-where bl-chore deletes the rollback record the claim wrote, since closing the
-ball ends every claim of it (§14). Wire only the first and that record outlives
-its op forever — one dead directory per claim. Binding a plugin's binary between
-branches is `bl install --skill`.
+`claim.pre` — a forcing-function checklist, not CI. Opt in with `bl conf prepend
+claim.pre bl-chore`, then write `config/plugins/bl-chore/chores.toml`. ONE
+wiring, and it must be `pre`: the mint is a file write into the claim's own
+change worktree, so the chores are part of that claim's commit. An aborted claim
+takes them with it, which is why there is no rollback and no `close.post` record
+to sweep. Binding a plugin's binary between branches is `bl install --skill`.

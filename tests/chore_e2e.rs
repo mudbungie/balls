@@ -1,14 +1,15 @@
 //! End-to-end harness for `bl-chore` (epic bl-6ee9): wire the real plugin into a
 //! throwaway repo (freshly-built binaries, isolated XDG, /tmp repo — the E2E
 //! demo-artifact convention) and prove the whole lifecycle balls drives, which
-//! the src/ unit tests (fake `bl`) cannot reach. tarpaulin counts src/ only, so
+//! the src/ unit tests (a temp change worktree) cannot reach. tarpaulin counts src/ only, so
 //! this file is coverage-neutral.
 //!
 //! Each test stands up its own isolated substrate (own HOME/XDG/repo), so they
 //! run in parallel without sharing state. The plugin's binary is found beside
 //! `bl` via a `config/plugins/bin/bl-chore` symlink we drop BEFORE wiring the
-//! schedule (an unbound hooked name aborts the op); `bl-chore` shells `bl` on
-//! `$PATH`, so we put the cargo bin dir on the child's PATH.
+//! schedule (an unbound hooked name aborts the op). Since bl-1da3 bl-chore shells
+//! nothing — it writes into the change worktree balls invokes it in — but the
+//! cargo bin dir stays on the child's PATH for the `bl` calls this harness makes.
 
 #![cfg(unix)]
 
@@ -103,12 +104,12 @@ fn setup(chores_toml: &str) -> (TempDir, Env) {
 
     // Bind the plugin binary beside the others (the gitignored symlink balls
     // resolves a hooked name to), THEN wire the schedule — order matters: an
-    // unbound name in claim.post would abort the claim.
+    // unbound name in claim.pre would abort the claim.
     let landing = fs::read_dir(e.state.join("balls/clones")).unwrap().next().unwrap().unwrap().path().join("config");
     let bin = landing.join("config/plugins/bin");
     fs::create_dir_all(&bin).unwrap();
     std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_bl-chore"), bin.join("bl-chore")).unwrap();
-    bl_ok(&e, &["conf", "prepend", "claim.post", "bl-chore"]);
+    bl_ok(&e, &["conf", "prepend", "claim.pre", "bl-chore"]);
 
     let cfg = landing.join("config/plugins/bl-chore");
     fs::create_dir_all(&cfg).unwrap();
@@ -258,7 +259,7 @@ fn claiming_a_chore_does_not_recurse() {
     bl_ok(&e, &["claim", &x, "--as", "e2e"]);
     let chore = chores_of(&e, &x)[0]["id"].as_str().unwrap().to_string();
 
-    // Claiming a chore fires claim.post again; tag-skip must bail (a chore is a
+    // Claiming a chore fires claim.pre again; tag-skip must bail (a chore is a
     // leaf, so the epic-skip has-children check could not catch it).
     bl_ok(&e, &["claim", &chore, "--as", "e2e"]);
     assert!(chores_of(&e, &chore).is_empty(), "no chore-of-a-chore");

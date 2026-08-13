@@ -152,7 +152,6 @@ pub mod brief;
 pub mod change;
 pub mod checkout;
 pub mod chore;
-pub mod chore_cli;
 pub mod civil;
 pub mod clock;
 pub mod conf;
