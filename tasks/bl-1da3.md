@@ -4,6 +4,10 @@ created = 1786597914
 updated = 1786597915
 claimant = "Enthused"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-8961"
+on = "close"
 +++
 The fold §4 of docs/design/bl-1266-nested-op-publication.md argues for, now that
 the outermost-publishes rule (main 9f3d1bf4) has closed the class.
