@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.10](https://github.com/mudbungie/balls/compare/v0.5.9...v0.5.10) - 2026-08-13
+
+### Changes
+
+- The bl-1266 design record still says the fold is unbuilt: correct it to the one thing actually left [bl-a824]
+- bl-chore should not nest at all: fold the mint into claim.pre as file writes, deleting the nested op, the scratch record and the rollback [bl-1da3]
+- An aborted claim's commit is already pushed by nested ops: core's local-only un-seal cannot chase it, and the next sync resurrects the aborted op [bl-1266]
+- GH Actions remote builder [bl-6312]
+- merge-tree prefix builds + eagerness scheduling [bl-d0c2]
+- mid-gate starvation — a close that keeps losing the delivery CAS re-runs the full gate each time (refold loop vs delivery lease vs accept) [bl-9042]
+- Merging queue: seal-by-tag ordering + monotone landing [bl-5c5f]
+- Verdict cache: tree-keyed gate memoization [bl-1263]
+- Speculative merge queue: pre-gated prefix landing (design) [bl-24e7]
+- run_git turns a fast-failing git into 'Broken pipe' — the bl-dede error voice is lost to a stdin-write race [bl-2695]
+- ensure_no_resurrection compares two rename-detected path sets that can disagree, aborting an innocent close [bl-4235]
+- bl-chore's claim scratch is never swept on the success path: one dead directory per claim, forever [bl-f88b]
+- expose recursive project-delivery attempts without manufacturing balls tasks [bl-4eac]
+- close.post should delete the delivered branch: deferring it to prime leaks one branch per nested ball, forever [bl-ce3b]
+- push E5's advertised recovery dead-ends on a sealed-but-unpublished store [bl-4945]
+- a close in flight is indistinguishable from a close abandoned — bl gives the operator no way to tell done from done-but-not-delivered [bl-8750]
+- should bl import shape-validate parent and blockers ids, or stay verbatim per §9 [bl-6c19]
+- rename detection can swallow a deletion: a closed ball vanishes from show and list -s closed entirely [bl-ae74]
+- comment attribution: derive the byline from git blame, never store it [bl-236c]
+- bl comment <id> TEXT — append to the body, the one note that renders in both views [bl-d136]
+- This repo tells you to write an AGENTS.md and does not have one: dogfood the bootstrap [bl-d688]
+- bl show --skill sends agents to --json by default, hiding the journal from the next agent [bl-0c50]
+- a bootstrap section — how to configure a repo so agents find balls (AGENTS.md points, PRIME.md briefs, the harness names) [bl-5d8b]
+- §3's pure-metadata links are a spec promise nothing implements: state the rejection instead [bl-3067]
+- Tone down the beads section and the dead-set reframe: docs, not a rebuttal [bl-7392]
+- Docs sweep: closed-work recall is invisible, and the beads section concedes ground we do not owe [bl-0f20]
+- prime dumps the landing's repo brief (agent context bootstrap) [bl-c84f]
+- dead_balls re-derives per ball what one walk already knew: batch the reconstruction [bl-4c08]
+- delete the reopen verb: restoring a dead ball is show --json | import, and always was [bl-40f5]
+- bl reopen: restore a dead ball's task file, the write half of a read path that already exists [bl-3628]
+- close can deliver to main and then lose the task-file seal, leaving the ball claimed over landed code [bl-739b]
+- close rejects an unincorporated target: the source owner integrates before delivery [bl-a1a4]
+- delivery gate test fixture resolves the operator's global core.hooksPath, not the hook it installs — pin hooksPath in install_hook for hermeticity [bl-6b46]
+- Make delivery Git environment unable to bypass the repository hook [bl-1ec6]
+- bl close exits 1 on a fully successful close: mutate_report.rs:73 panics after the delivery, seal and retire have all landed [bl-dede]
+- bl close tears down the work worktree while the caller's shell is still inside it: 'fatal: Unable to read current working directory' [bl-4787]
+- bl list renders flat: parent containment is stored frontmatter but the human view discards it — render the live set as a tree [bl-61e0]
+
 ## [0.5.9](https://github.com/mudbungie/balls/compare/v0.5.8...v0.5.9) - 2026-07-27
 
 ### Changes
