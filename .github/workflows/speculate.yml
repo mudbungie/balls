@@ -1,0 +1,46 @@
+# Remote builder for the bl-24e7 speculative merge queue (bl-6312, design
+# docs/design/bl-24e7-speculative-merge-queue.md).
+#
+# The contract is the verdict store's own file format — no workflow-specific
+# protocol exists. Push a candidate commit to a `speculation/**` branch and
+# this job runs the STOCK gate on it; the gate's hook records the verdict into
+# the runner's local store exactly as it would on a laptop, and the store dir
+# ships home as an artifact. Retrieval is symmetric and manual by design (a
+# remote builder must never become a close dependency):
+#
+#     gh run download -n verdicts -D /tmp/verdicts
+#     bl-speculate import /tmp/verdicts/*.toml
+#     git push origin --delete speculation/<name>   # the TTL sweep is you
+#
+# Two honesty notes. (1) The gate fingerprint hashes `rustc -V`: a verdict
+# recorded here HITS locally only when the runner's toolchain matches yours —
+# a mismatch is not a bug, it is the fingerprint refusing to vouch across
+# toolchains. Pin versions on both sides when you want remote verdicts to
+# land. (2) Public-repo standard runners are free with no minutes quota; the
+# real caps are 20 concurrent jobs (Free plan) and 6 h per job.
+name: speculate
+on:
+  push:
+    branches:
+      - 'speculation/**'
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: toolchain half of the fingerprint (compare with local rustc -V)
+        run: rustc -V
+      - name: the gate's own tooling
+        run: cargo install cargo-tarpaulin --locked
+      - name: build the recorder the hook consults
+        run: cargo build --release --bin bl-speculate
+      - name: run the stock gate (its hook records the verdict on pass)
+        run: PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions scripts/pre-commit
+      - name: record the failure the aborting hook cannot
+        if: failure()
+        run: PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions bl-speculate record fail
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verdicts
+          path: ~/.local/state/balls/plugins/bl-speculate/verdicts/

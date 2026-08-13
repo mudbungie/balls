@@ -123,3 +123,27 @@ fn verdict_path_is_the_key() {
     let p = verdict_path(Path::new("/t"), "abc", "def");
     assert_eq!(p, Path::new("/t/verdicts/abc-def.toml"));
 }
+
+#[test]
+fn import_adopts_a_foreign_store_file_and_refuses_malformation() {
+    let tmp = TempDir::new().unwrap();
+    let remote = tmp.path().join("remote");
+    let local = tmp.path().join("local");
+    let tree = "a".repeat(40);
+    let gate = "b".repeat(40);
+    let v = Verdict { pass: true, builder: "github-actions".into() };
+    write(&remote, &tree, &gate, &v).unwrap();
+    let file = verdict_path(&remote, &tree, &gate);
+    let key = super::import(&local, &file).unwrap();
+    assert_eq!(key, (tree.clone(), gate.clone()));
+    assert_eq!(read(&local, &tree, &gate).unwrap(), Some(v), "the record crossed whole");
+    for bad in ["short-name.toml", "nosuffix", &format!("{tree}-{gate}.json")] {
+        let p = tmp.path().join(bad);
+        fs::write(&p, "pass = true\nbuilder = \"x\"\n").unwrap();
+        assert!(super::import(&local, &p).is_err(), "{bad} must be refused");
+    }
+    let corrupt = tmp.path().join(format!("{tree}-{gate}.toml"));
+    fs::write(&corrupt, "not a verdict").unwrap();
+    assert!(super::import(&local, &corrupt).is_err(), "a malformed body is refused");
+    assert!(super::import(&local, Path::new("/")).is_err(), "no filename at all");
+}

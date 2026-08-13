@@ -112,6 +112,25 @@ fn broken_rustc_fails_open_as_an_error() {
 }
 
 #[test]
+fn import_adopts_foreign_verdicts_by_file() {
+    let e = env();
+    let tree = "a".repeat(40);
+    let gate = "b".repeat(40);
+    let foreign = e.home.join(format!("{tree}-{gate}.toml"));
+    fs::write(&foreign, "pass = true\nbuilder = \"github-actions\"\n").unwrap();
+    let out = speculate(&e).arg("import").arg(&foreign).assert().success();
+    let spoken = String::from_utf8_lossy(&out.get_output().stdout).into_owned();
+    assert!(spoken.contains(&format!("imported {tree} {gate}")), "{spoken}");
+    let adopted = e.state.join("balls/plugins/bl-speculate/verdicts").join(format!("{tree}-{gate}.toml"));
+    let body = fs::read_to_string(&adopted).unwrap();
+    assert!(body.contains("github-actions"), "the builder identity crossed: {body}");
+    speculate(&e).arg("import").assert().code(1);
+    let bogus = e.home.join("bogus.toml");
+    fs::write(&bogus, "pass = true\nbuilder = \"x\"\n").unwrap();
+    speculate(&e).arg("import").arg(&bogus).assert().code(1);
+}
+
+#[test]
 fn territory_lands_under_the_plugin_namespace() {
     let e = env();
     speculate(&e).arg("record").arg("pass").assert().success();
