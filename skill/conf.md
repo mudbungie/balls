@@ -13,8 +13,9 @@ syncs.
 - `bl conf` (no args) — dump every resolved value, the **layer** it came from
   (`cli`/`binding`/`xdg`/`landing`/`origin`/`default`), and the paths of the
   files behind them. After the hook rows: one `unbound` row per plugin the
-  schedule references but no `bin/<name>` resolves, with its `[source]`
-  acquisition hint or `(no source given)`; all bound ⇒ no rows.
+  schedule references but nothing resolves — no `bin/<name>`, and (for an
+  XDG-layer name) nothing beside `bl` or on `$PATH` either — with its
+  `[source]` acquisition hint or `(no source given)`; all bound ⇒ no rows.
 - `bl conf <key>` — print one value (stdout) with its provenance (stderr). A
   checkout with no durable remote shows `task-remote (none)` — that checkout is
   stealth. **One `(none)` is NOT stealth: layer `nested`.** It means an
@@ -63,6 +64,14 @@ Naming a plugin whose binary isn't installed beside `bl` leaves a dangling entry
 the schedule, never a binary. Those refusals name the plugin's `[source]`
 acquisition hint when the schedule's owner authored one (see `bl install
 --skill`); the dump's `unbound` rows show the same hints.
+
+**The machine layer needs no bind (bl-053a).** A name contributed by the
+per-machine XDG `plugins.toml` (`~/.config/balls/plugins.toml` `[hooks]`, the
+`_prepend`/`_append`/`_ban` compose over every landing) resolves at dispatch
+like `clock-provider` does: `bin/<name>` if bound, else beside `bl`, then
+`$PATH`. One XDG entry + one binary on `$PATH` = wired in every checkout on
+this box, present and future. Landing-committed names never get the `$PATH`
+fallback — a traveling schedule must not silently run a same-named binary.
 
 **Order is yours, and it matters.** Plugins run in list order; on abort, whatever
 ran rolls back in reverse. Nothing enforces the seeded order. When wiring your

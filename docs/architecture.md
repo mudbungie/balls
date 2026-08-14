@@ -642,6 +642,17 @@ Schedule (committed text) and binary (local symlink) split cleanly:
   machine's binary. Installing a plugin drops this symlink; dispatch resolves a hooked NAME to it. A
   dangling/absent `bin/<name>` = a clean "plugin referenced but not installed here" error.
 
+**Locality of the naming layer decides the resolution surface (bl-053a).** The registry rule above
+binds names the LANDING committed — a traveling schedule must never silently run a same-named `$PATH`
+binary, so those names resolve ONLY through the explicit local bind. A name the machine's own XDG
+`plugins.toml` contributed never travels, exactly like `clock_provider` (bl-cfe3), so at dispatch it
+falls back to the same "this machine" lookup the clock gets: `bin/<name>` first if bound, else beside
+`bl`, then `$PATH` — no per-landing bind, because the layer that named it IS this box's own trust
+statement. A `_ban` contributes nothing (a ban removes, it must not grant). The seed and `install`
+still read the committed landing schedule alone; a machine name no dir holds still refuses at
+dispatch. This is what makes a box-wide plugin (a leak gate before every `bl-tracker` push) ONE XDG
+entry instead of one `bl install --bin` per landing, forever.
+
 **The `[source]` hint — the owner's note at the refusal (bl-5b09).** `plugins.toml` may carry a
 `[source]` table: per-name FREE TEXT (`adversary = "git clone https://github.com/mudbungie/balls-adversary && make install"`) suggesting
 where a missing binary comes from. Distribution stays the package manager's job — balls ships a

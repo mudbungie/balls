@@ -32,6 +32,10 @@ use std::path::{Path, PathBuf};
 
 use crate::registry::{PluginRef, Registry};
 
+// §6 machine-layer resolution (bl-053a): the XDG-layer names' PATH fallback.
+#[path = "hooks_machine.rs"]
+mod machine;
+
 /// The parsed `[hooks]` table: `"<op>.<phase>"` → its ordered plugin-name list.
 /// A [`BTreeMap`] so the schedule (and its [`Hooks::referenced`] projection) has
 /// a deterministic order — the seed re-serializes it after pruning (§12).
@@ -41,6 +45,11 @@ use crate::registry::{PluginRef, Registry};
 pub struct Hooks {
     table: BTreeMap<String, Vec<String>>,
     source: BTreeMap<String, String>,
+    /// The [`Hooks::bound`] fallback's two inputs (bl-053a): the XDG layer's
+    /// contributed names + this box's lookup dirs. Both empty except off
+    /// [`Hooks::effective`] — a parse/load read carries no machine trust.
+    machine_names: BTreeSet<String>,
+    machine_dirs: Vec<PathBuf>,
 }
 
 impl Hooks {
@@ -74,7 +83,7 @@ impl Hooks {
                 .collect();
             table.insert(key.clone(), names);
         }
-        Hooks { table, source: BTreeMap::new() }
+        Hooks { table, ..Hooks::default() }
     }
 
     /// The EFFECTIVE dispatch schedule (§4/§6, bl-8540): the landing's `[hooks]`
@@ -87,14 +96,20 @@ impl Hooks {
     /// read; the seed and `install` read the committed landing schedule alone via
     /// [`Hooks::load`]/[`Hooks::load_from`] (the XDG overlay is dispatch-only — it
     /// must not redirect what the seed prunes or `install` binds).
-    pub fn effective(landing: &Path, user_config: &Path) -> io::Result<Hooks> {
+    pub fn effective(landing: &Path, user_config: &Path, machine_dirs: &[PathBuf]) -> io::Result<Hooks> {
         let mut merged = toml::value::Table::new();
         let mut source = BTreeMap::new();
-        for path in [plugins_toml(landing), user_config.with_file_name("plugins.toml")] {
+        let mut machine_names = BTreeSet::new();
+        let layers = [(plugins_toml(landing), false), (user_config.with_file_name("plugins.toml"), true)];
+        for (path, is_machine) in layers {
             let Some(root) = crate::config::read_layer(&path)? else {
                 continue; // absent layer contributes nothing
             };
             if let Some(toml::Value::Table(hooks)) = root.get("hooks") {
+                // Recorded BEFORE the merge folds the layers together (§6).
+                if is_machine {
+                    machine_names = machine::contributed(hooks);
+                }
                 crate::config::layer_over(&mut merged, hooks.clone());
             }
             // [source] layers as per-name scalars, innermost (XDG) winning —
@@ -103,7 +118,18 @@ impl Hooks {
         }
         let mut hooks = Hooks::from_hooks_table(&merged);
         hooks.source = source;
+        hooks.machine_names = machine_names;
+        hooks.machine_dirs = machine_dirs.to_vec();
         Ok(hooks)
+    }
+
+    /// The binary `name` dispatches to here: the landing registry's
+    /// `bin/<name>` first (§6), else — for an XDG-layer name only — the
+    /// machine lookup ([`mod@machine`], bl-053a). Dispatch ([`Hooks::refs`])
+    /// and the `bl conf` `unbound` filter both read this — one authority.
+    #[must_use]
+    pub fn bound(&self, registry: &Registry, name: &str) -> Option<PathBuf> {
+        registry.resolve_bin(name).or_else(|| machine::fallback(&self.machine_names, &self.machine_dirs, name))
     }
 
     /// Load the `[hooks]` schedule from `plugins.toml` at `path`. An absent file
@@ -175,7 +201,7 @@ impl Hooks {
             .iter()
             .map(|name| PluginRef {
                 name: name.clone(),
-                bin: registry.resolve_bin(name),
+                bin: self.bound(registry, name),
                 source: self
                     .source(name)
                     .or_else(|| crate::renames::renamed_to(name).and_then(|current| self.source(current))),
