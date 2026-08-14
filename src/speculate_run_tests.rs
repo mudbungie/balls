@@ -100,9 +100,10 @@ fn builds_head_first_then_hits_and_the_second_pass_spends_nothing() {
     enqueue(&f.root, "a", Some("2026-01-01T10:00:00Z")).unwrap();
     enqueue(&f.root, "b", Some("2026-01-01T11:00:00Z")).unwrap();
     let report = pass(&f, 10);
-    assert_eq!(report.len(), 2, "{report:?}");
+    assert_eq!(report.len(), 3, "{report:?}");
     assert!(report[0].starts_with("built a ") && report[0].ends_with(" pass"), "{report:?}");
     assert!(report[1].starts_with("built b "), "{report:?}");
+    assert!(report[2].starts_with("adopted hostile "), "the stray tip is adopted: {report:?}");
     assert_eq!(gate_runs(&f), 2);
     let again = pass(&f, 10);
     assert!(again[0].starts_with("hit a ") && again[1].starts_with("hit b "), "{again:?}");
@@ -117,10 +118,11 @@ fn budget_defers_and_a_failing_gate_stops_the_chain() {
     enqueue(&f.root, "a", Some("2026-01-01T10:00:00Z")).unwrap();
     enqueue(&f.root, "b", Some("2026-01-01T11:00:00Z")).unwrap();
     let report = pass(&f, 0);
-    assert_eq!(report, vec!["deferred a (builds spent)"], "builds=0 is plan-only");
+    assert_eq!(report[0], "deferred a (builds spent)", "builds=0 is plan-only: {report:?}");
+    assert!(report[1].starts_with("adopted hostile "), "{report:?}");
     let report = pass(&f, 10);
     assert!(report[0].starts_with("built a ") && report[0].contains("FAIL"), "{report:?}");
-    assert_eq!(report.len(), 1, "a failing prefix ends the pass: {report:?}");
+    assert_eq!(report.len(), 1, "a failing prefix ends the pass, nothing left to adopt: {report:?}");
     let report = pass(&f, 10);
     assert!(report[0].starts_with("fail a "), "the recorded FAIL stops later passes too");
     assert_eq!(gate_runs(&f), 1, "the fail was built once, never again");
@@ -133,12 +135,48 @@ fn conflicts_stop_the_chain_and_the_unsealed_are_swept() {
     enqueue(&f.root, "a", Some("2026-01-01T11:00:00Z")).unwrap();
     let report = pass(&f, 10);
     assert!(report[0].starts_with("conflict hostile"), "{report:?}");
-    assert_eq!(report.len(), 1, "nothing builds past a conflict");
+    assert!(report[1].starts_with("adopted b "), "nothing BUILDS past a conflict: {report:?}");
+    assert_eq!(report.len(), 2, "{report:?}");
     git(&f.root, &["branch", "-D", "work/hostile"]);
     let report = pass(&f, 10);
     assert_eq!(report[0], "swept hostile (unsealed)", "{report:?}");
     assert!(report[1].starts_with("built a "), "the queue heals past the swept: {report:?}");
-    assert_eq!(queue(&f.root).unwrap().len(), 1, "the stale tag is gone");
+    assert!(report[2].starts_with("built b "), "the adopted entry builds in turn: {report:?}");
+    assert_eq!(queue(&f.root).unwrap().len(), 2, "the stale tag is gone");
+}
+
+#[test]
+fn adoption_is_the_paved_path_and_is_idempotent() {
+    let f = fx("0");
+    let report = pass(&f, 10);
+    assert_eq!(report.len(), 3, "every stray tip is adopted, none built yet: {report:?}");
+    for (line, id) in report.iter().zip(["a", "b", "hostile"]) {
+        let tip = git(&f.root, &["rev-parse", &format!("refs/heads/work/{id}")]);
+        assert_eq!(line, &format!("adopted {id} {tip}"), "{report:?}");
+    }
+    assert_eq!(gate_runs(&f), 0, "a fresh seal must survive one full pass before it builds");
+    let report = pass(&f, 10);
+    assert!(report[0].starts_with("built a ") && report[1].starts_with("built b "), "{report:?}");
+    assert!(report[2].starts_with("conflict hostile"), "{report:?}");
+    assert_eq!(report.len(), 3, "standing seals are not re-adopted: {report:?}");
+}
+
+#[test]
+fn a_moved_tip_requeues_at_the_bottom_via_sweep_plus_adopt() {
+    let f = fx("0");
+    enqueue(&f.root, "a", Some("2026-01-01T10:00:00Z")).unwrap();
+    enqueue(&f.root, "b", Some("2026-01-01T11:00:00Z")).unwrap();
+    git(&f.root, &["checkout", "-q", "work/a"]);
+    fs::write(f.root.join("fa"), "moved").unwrap();
+    git(&f.root, &["add", "-A"]);
+    git(&f.root, &["commit", "-q", "-m", "moved"]);
+    git(&f.root, &["checkout", "-q", "main"]);
+    let report = pass(&f, 10);
+    assert_eq!(report[0], "swept a (unsealed)", "{report:?}");
+    assert!(report[1].starts_with("built b "), "{report:?}");
+    assert!(report[2].starts_with("adopted a "), "the moved tip re-seals at the bottom: {report:?}");
+    let report = pass(&f, 10);
+    assert!(report[0].starts_with("hit b ") && report[1].starts_with("built a "), "{report:?}");
 }
 
 #[test]
