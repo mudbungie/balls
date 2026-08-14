@@ -51,15 +51,59 @@ pub fn enqueue(repo: &Path, id: &str, date: Option<&str>) -> io::Result<String> 
     let mut resolve = safegit::at(repo);
     resolve.args(["rev-parse", "--verify"]).arg(format!("refs/heads/work/{id}"));
     let tip = ok_stdout(&resolve.output()?, "git rev-parse work branch")?;
+    seal(repo, id, &tip, date)?;
+    Ok(tip)
+}
+
+/// Plant `merging/<id>` on `target` — the tag-write half of [`enqueue`],
+/// shared with [`adopt`], which seals a LISTED sha rather than re-resolving
+/// the branch (so a branch a concurrent close deletes mid-pass yields a tag
+/// that derives unsealed and is swept next pass, not an error).
+fn seal(repo: &Path, id: &str, target: &str, date: Option<&str>) -> io::Result<()> {
     let mut tag = safegit::at(repo);
     tag.args(["-c", "user.name=bl-speculate", "-c", "user.email=speculate@balls"]);
     tag.args(["tag", "--force", "-a", "-m", "sealed for the merge queue (bl-24e7)"]);
-    tag.arg(format!("merging/{id}")).arg(&tip);
+    tag.arg(format!("merging/{id}")).arg(target);
     if let Some(d) = date {
         tag.env("GIT_COMMITTER_DATE", d);
     }
-    ok_stdout(&tag.output()?, "git tag")?;
-    Ok(tip)
+    ok_stdout(&tag.output()?, "git tag").map(|_| ())
+}
+
+/// Adopt every quiet `work/<id>` tip into the queue (bl-b761): seal each
+/// branch not already sealed AT its tip, in for-each-ref (refname) order, and
+/// return `(id, tip)` per seal planted. The paved path: an agent that only
+/// ever commits and closes still rides the queue, because the speculator
+/// seals on its behalf — nobody needs to know which commit was the last one,
+/// the last one's seal is simply the one that survives. Idempotent by the
+/// skip: a tip already sealed is not re-sealed, so standing entries keep
+/// their position. Called at pass END ([`crate::speculate_run`]) so a fresh
+/// seal must survive one full inter-pass interval before it is built —
+/// quiescence measured in passes, no clock consulted.
+pub fn adopt(repo: &Path, date: Option<&str>) -> io::Result<Vec<(String, String)>> {
+    let sealed: Vec<(String, String)> =
+        queue(repo)?.into_iter().filter(|e| e.sealed).map(|e| (e.id, e.tip)).collect();
+    let mut cmd = safegit::at(repo);
+    cmd.args(["for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/work/"]);
+    let listing = ok_stdout(&cmd.output()?, "git for-each-ref work branches")?;
+    let mut adopted = Vec::new();
+    for line in listing.lines() {
+        let (id, tip) = work_tip(line)?;
+        if sealed.iter().any(|(sid, stip)| sid == id && stip == tip) {
+            continue;
+        }
+        seal(repo, id, tip, date)?;
+        adopted.push((id.to_string(), tip.to_string()));
+    }
+    Ok(adopted)
+}
+
+/// Parse one `for-each-ref` line from [`adopt`]'s listing into `(id, tip)`.
+fn work_tip(line: &str) -> io::Result<(&str, &str)> {
+    let (name, tip) = line
+        .split_once(' ')
+        .ok_or_else(|| io::Error::other(format!("unparseable for-each-ref line: {line:?}")))?;
+    Ok((name.strip_prefix("work/").unwrap_or(name), tip))
 }
 
 /// Leave the queue: delete `merging/<id>`. Landing, abandoning, and eviction

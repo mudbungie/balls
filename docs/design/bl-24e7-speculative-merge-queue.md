@@ -53,6 +53,22 @@ So a gate-failing culprit cannot fix in place: fixing means committing, which
 means retagging, which means bottom of the queue. Eviction has no mechanism of
 its own.
 
+**Entering the queue is not an agent's job (bl-b761, 2026-08-13).** A day of
+live downstream traffic showed why: 29 of 30 closes paid the full local gate,
+because joining was a conscious act — the agent had to know the queue existed,
+know its current commit was the last one, and forgo an immediately-available
+close to wait on a builder. Every incentive pointed at skipping it, and
+fail-open made skipping invisible. The reframe: nobody needs to know which
+commit is the last one. The speculator pass **adopts** every `work/<id>` tip
+not already sealed at its tip — sealing is the pass's closing act, so a fresh
+seal must survive one full inter-pass interval untouched before the next
+pass's walk will build it. Quiescence is measured in passes, never against a
+clock (an operator's commit-date policy — smearing included — cannot break
+it). Sweep-then-adopt across one pass IS requeue-at-bottom for a moved tip,
+and an explicit `enqueue` still works and still outranks adoption: its
+taggerdate predates the pass that would have adopted it. The invariant above
+is untouched — adoption only changes WHO plants the tag.
+
 ### Candidates = queue prefixes, computed by merge-tree
 
 Queue [A,B,C,D] yields exactly the candidates A, A+B, A+B+C, A+B+C+D — N
@@ -128,9 +144,11 @@ untouched. Delete the speculator and you have stock balls, just slower
   a conflict or a FAIL verdict ends the buildable chain, and eagerness
   degenerates to **builds-per-pass** — how many gates one speculator pass may
   spend. There is no cross-agent machine cap in v1 (subtracted): passes build
-  one candidate at a time under `nice -n19`, and agents invoke a pass when
-  idle, which self-limits; the close-time gate on a miss runs unniced and so
-  always preempts.
+  one candidate at a time under `nice -n19`; the close-time gate on a miss
+  runs unniced and so always preempts. Since adoption (bl-b761) the natural
+  invoker is an **ambient driver** — a timer or a resident host process
+  running passes on a cadence, the cadence being the de-facto debounce — with
+  an idle agent's own invocation still lawful and still self-limiting.
 - **One declared knob: eagerness.** The metric is computed; *where the
   threshold sits* is a preference the system cannot derive — it encodes the
   owner's watts-vs-wall-time tradeoff. A server with idle cores should burn
@@ -162,8 +180,9 @@ What to build, in value order, given capacity:
    through heat, which no scheduler priority prevents. Locally: prefixes only.
    Remotely (GH minutes, sibling box): hedging becomes defensible, since the
    only cost is money and the local thermal budget is untouched.
-3. Nothing else. Unsealed branches are stale snapshots; do not speculate on
-   them.
+3. Nothing else. Unsealed branches are stale snapshots; do not BUILD on
+   them. (Adoption — bl-b761 — may SEAL a quiet unsealed tip at pass end;
+   the walk still only ever builds what held a seal for a full pass.)
 
 ### Cleanup invariants (testable)
 

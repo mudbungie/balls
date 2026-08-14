@@ -4,8 +4,11 @@
 //!
 //! One pass, in order: SWEEP unsealed queue entries (their branch moved — a
 //! landed close deleted it, or a fix is coming and will re-tag; either way the
-//! stale tag holds no position), then walk the SEALED entries head-first,
-//! chaining candidates with [`crate::speculate_candidate`] and consulting the
+//! stale tag holds no position), then walk the SEALED entries head-first, then
+//! ADOPT every quiet `work/<id>` tip not already sealed
+//! ([`crate::speculate_queue::adopt`], bl-b761) — the paved path by which an
+//! agent that never learns the queue exists still rides it. The walk chains
+//! candidates with [`crate::speculate_candidate`], consulting the
 //! verdict cache before ever building. Strict head-first order is the whole
 //! scheduling theory: a candidate is only built when every shallower prefix
 //! already holds a PASS, so the depth-risk the design worried about — building
@@ -93,6 +96,16 @@ pub fn run(
             }
         }
         base = candidate;
+    }
+    // ADOPT, last (bl-b761): seal every quiet `work/<id>` tip not already
+    // sealed, so agents that only ever commit and close still ride the queue.
+    // Pass-END placement is the debounce — a fresh seal must survive one full
+    // inter-pass interval before the walk above will build it, so quiescence
+    // is measured in passes and no clock (least of all a smeared commit
+    // date) is consulted. Sweep + adopt across one pass IS requeue-at-bottom
+    // for a moved tip.
+    for (id, tip) in speculate_queue::adopt(repo, None)? {
+        report.push(format!("adopted {id} {tip}"));
     }
     Ok(report)
 }

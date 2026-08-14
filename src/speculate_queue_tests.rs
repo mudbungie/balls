@@ -7,7 +7,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use super::{dequeue, enqueue, entry, queue};
+use super::{adopt, dequeue, enqueue, entry, queue, work_tip};
 
 /// `git -C <repo> <args>` with pinned identity, asserting success.
 fn git(repo: &Path, args: &[&str]) -> String {
@@ -105,4 +105,35 @@ fn empty_queue_reads_empty_and_unparseable_lines_are_loud() {
     let (_tmp, root, _, _) = repo();
     assert!(queue(&root).unwrap().is_empty());
     assert!(entry(&root, "nospace").is_err());
+    assert!(work_tip("nospace").is_err());
+}
+
+#[test]
+fn adopt_seals_every_stray_tip_and_respects_standing_seals() {
+    let (_tmp, root, c1, c2) = repo();
+    enqueue(&root, "a", Some("2026-01-01T10:00:00Z")).unwrap();
+    let adopted = adopt(&root, Some("2026-01-01T11:00:00Z")).unwrap();
+    assert_eq!(adopted, vec![("b".to_string(), c1.clone())], "only the unsealed tip is sealed");
+    assert_eq!(ids(&queue(&root).unwrap()), vec![("a", true), ("b", true)], "a keeps its position");
+    assert!(adopt(&root, Some("2026-01-01T12:00:00Z")).unwrap().is_empty(), "idempotent");
+    git(&root, &["branch", "-f", "work/a", &c2]);
+    let adopted = adopt(&root, Some("2026-01-01T13:00:00Z")).unwrap();
+    assert_eq!(adopted, vec![("a".to_string(), c2.clone())], "a moved tip re-seals");
+    assert_eq!(
+        ids(&queue(&root).unwrap()),
+        vec![("b", true), ("a", true)],
+        "the re-seal is a requeue at the bottom"
+    );
+}
+
+#[test]
+fn adopt_on_a_repo_with_no_work_branches_is_a_no_op() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("repo");
+    std::fs::create_dir_all(&root).unwrap();
+    git(&root, &["init", "-q"]);
+    std::fs::write(root.join("f"), "one").unwrap();
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "-q", "-m", "c1"]);
+    assert!(adopt(&root, None).unwrap().is_empty());
 }
