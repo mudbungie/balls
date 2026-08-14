@@ -64,7 +64,7 @@ fn fetch_config(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: 
     let cfg = EffectiveConfig::resolve(landing, &edge.xdg.user_config())?;
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let binding = checkout::binding(landing, store, &edge.invocation_path, Some(center.to_string()), false, LANDING_BRANCH.to_string());
-    let pre = Hooks::effective(landing, &edge.xdg.user_config())?
+    let pre = Hooks::effective(landing, &edge.xdg.user_config(), &edge.machine_dirs())?
         .resolve(&Registry::at(landing), Verb::Install.token(), "pre");
     if pre.is_empty() {
         return Err(io::Error::other(

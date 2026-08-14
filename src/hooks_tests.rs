@@ -83,7 +83,7 @@ fn layered(landing_body: &str, xdg: Option<&str>) -> (TempDir, PathBuf) {
 #[test]
 fn effective_with_no_xdg_layer_is_the_landing_schedule() {
     let (tmp, user_config) = layered(SAMPLE, None);
-    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    let hooks = Hooks::effective(tmp.path(), &user_config, &[]).unwrap();
     assert_eq!(hooks.names("close", "post"), ["bl-delivery", "tracker"]);
 }
 
@@ -99,7 +99,7 @@ fn effective_xdg_bare_key_replaces_and_directives_compose() {
 "close.pre_prepend" = ["lint"]
 "#;
     let (tmp, user_config) = layered(SAMPLE, Some(xdg));
-    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    let hooks = Hooks::effective(tmp.path(), &user_config, &[]).unwrap();
     assert_eq!(hooks.names("close", "post"), ["only-me"], "bare key replaces");
     assert_eq!(hooks.names("create", "post"), ["tracker", "mirror"], "_append composes");
     assert_eq!(hooks.names("close", "pre"), ["lint", "bl-delivery"], "_prepend composes");
@@ -109,7 +109,7 @@ fn effective_xdg_bare_key_replaces_and_directives_compose() {
 fn effective_xdg_ban_removes_a_landing_entry() {
     let xdg = "[hooks]\n\"close.post_ban\" = [\"bl-delivery\"]\n";
     let (tmp, user_config) = layered(SAMPLE, Some(xdg));
-    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    let hooks = Hooks::effective(tmp.path(), &user_config, &[]).unwrap();
     assert_eq!(hooks.names("close", "post"), ["tracker"], "_ban drops the named entry");
 }
 
@@ -120,7 +120,7 @@ fn effective_seeds_from_xdg_when_the_landing_has_none() {
     let xdg_dir = tmp.path().join("xdg");
     fs::create_dir_all(&xdg_dir).unwrap();
     fs::write(xdg_dir.join("plugins.toml"), "[hooks]\n\"sync.pre\" = [\"tracker\"]\n").unwrap();
-    let hooks = Hooks::effective(tmp.path(), &xdg_dir.join("config.toml")).unwrap();
+    let hooks = Hooks::effective(tmp.path(), &xdg_dir.join("config.toml"), &[]).unwrap();
     assert_eq!(hooks.names("sync", "pre"), ["tracker"]);
 }
 
@@ -129,7 +129,7 @@ fn effective_treats_a_layer_without_a_hooks_table_as_empty() {
     // A present landing plugins.toml with no [hooks] contributes nothing (the
     // present-but-empty branch, distinct from an absent file); the XDG schedule stands.
     let (tmp, user_config) = layered("# nothing wired here\n", Some("[hooks]\n\"sync.pre\" = [\"tracker\"]\n"));
-    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    let hooks = Hooks::effective(tmp.path(), &user_config, &[]).unwrap();
     assert_eq!(hooks.names("sync", "pre"), ["tracker"]);
     assert!(hooks.names("close", "post").is_empty());
 }
@@ -137,7 +137,7 @@ fn effective_treats_a_layer_without_a_hooks_table_as_empty() {
 #[test]
 fn effective_rejects_a_malformed_layer() {
     let (tmp, user_config) = layered("[hooks", None);
-    assert!(Hooks::effective(tmp.path(), &user_config).is_err());
+    assert!(Hooks::effective(tmp.path(), &user_config, &[]).is_err());
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn effective_propagates_a_non_not_found_read_error() {
     // NotFound — surfaced, not swallowed (only an absent file is the empty case).
     let tmp = TempDir::new().unwrap();
     fs::create_dir_all(tmp.path().join("config").join("plugins.toml")).unwrap();
-    assert!(Hooks::effective(tmp.path(), &tmp.path().join("xdg").join("config.toml")).is_err());
+    assert!(Hooks::effective(tmp.path(), &tmp.path().join("xdg").join("config.toml"), &[]).is_err());
 }
 
 #[test]
@@ -245,7 +245,7 @@ fn effective_layers_source_per_name_innermost_wins() {
     let landing = "[hooks]\n\"close.pre\" = [\"a\", \"b\"]\n[source]\na = \"center says\"\nb = \"center b\"\n";
     let xdg = "[source]\na = \"my box says\"\nc = \"mine only\"\n";
     let (tmp, user_config) = layered(landing, Some(xdg));
-    let hooks = Hooks::effective(tmp.path(), &user_config).unwrap();
+    let hooks = Hooks::effective(tmp.path(), &user_config, &[]).unwrap();
     assert_eq!(hooks.source("a").as_deref(), Some("my box says"), "XDG (innermost) wins per name");
     assert_eq!(hooks.source("b").as_deref(), Some("center b"), "an un-overridden hint stands");
     assert_eq!(hooks.source("c").as_deref(), Some("mine only"), "a layer can add a hint");

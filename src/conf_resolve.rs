@@ -29,7 +29,7 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
         Key::LogLevel => scalar(edge, &landing, "log_level", "info", edge.log_level.as_deref()),
         Key::ClockProvider => Ok(clock_provider(edge, &clone.binding())),
         Key::Hook(k) => {
-            let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
+            let hooks = Hooks::effective(&landing, &edge.xdg.user_config(), &edge.machine_dirs())?;
             let names = hooks
                 .entries()
                 .find(|(key, _)| *key == k)

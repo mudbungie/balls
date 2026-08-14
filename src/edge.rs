@@ -78,6 +78,14 @@ impl Edge {
             balls_clock: balls_clock.and_then(|c| c.trim().parse().ok()),
         }
     }
+
+    /// This box's binary-lookup dirs in trust order — beside `bl` first (the
+    /// seed sibling rule), then `$PATH`. The one "this machine" surface the
+    /// clock (bl-cfe3) and the machine-layer hook fallback (bl-053a) share.
+    #[must_use]
+    pub fn machine_dirs(&self) -> Vec<PathBuf> {
+        self.exe_dir.iter().chain(self.path_dirs.iter()).cloned().collect()
+    }
 }
 
 #[cfg(test)]
@@ -99,6 +107,16 @@ mod tests {
             true,
             None,
         )
+    }
+
+    #[test]
+    fn machine_dirs_are_exe_dir_then_path_dirs() {
+        let mut e = resolve(None, None, None);
+        e.exe_dir = Some(PathBuf::from("/exe"));
+        e.path_dirs = vec![PathBuf::from("/p1"), PathBuf::from("/p2")];
+        assert_eq!(e.machine_dirs(), [PathBuf::from("/exe"), PathBuf::from("/p1"), PathBuf::from("/p2")]);
+        e.exe_dir = None;
+        assert_eq!(e.machine_dirs(), [PathBuf::from("/p1"), PathBuf::from("/p2")]);
     }
 
     /// Build an edge varying only the two colour inputs.

@@ -88,7 +88,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
             binding.tasks_branch
         )));
     }
-    let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
+    let hooks = Hooks::effective(&landing, &edge.xdg.user_config(), &edge.machine_dirs())?;
     let reg = Registry::at(&landing);
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
     // bl-cfe3: `--bin` with neither an explicit `<path>` nor `--from` is
@@ -251,7 +251,7 @@ pub(crate) fn bind_referenced(landing: &Path, edge: &Edge, bins: &BTreeMap<Strin
             "install: --bin {name}: the landed schedule does not reference that plugin"
         )));
     }
-    let hints = Hooks::effective(landing, &edge.xdg.user_config())?;
+    let hints = Hooks::effective(landing, &edge.xdg.user_config(), &edge.machine_dirs())?;
     let registry = Registry::at(landing);
     for (name, ops) in worklist {
         let source = hints.source(&name).map(|h| format!(" — source: {h}")).unwrap_or_default();

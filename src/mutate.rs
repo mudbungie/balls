@@ -165,7 +165,7 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
         before,
     };
 
-    let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
+    let hooks = Hooks::effective(&landing, &edge.xdg.user_config(), &edge.machine_dirs())?;
     let reg = Registry::at(&landing);
     let pre = hooks.resolve(&reg, verb.token(), "pre");
     let post = hooks.resolve(&reg, verb.token(), "post");

@@ -174,7 +174,7 @@ fn prime_chain(
 ) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let user_config = edge.xdg.user_config();
-    let hooks = Hooks::effective(landing, &user_config)?;
+    let hooks = Hooks::effective(landing, &user_config, &edge.machine_dirs())?;
     let reg = Registry::at(landing);
     let pre = hooks.resolve(&reg, Verb::Prime.token(), "pre");
     let post = hooks.resolve(&reg, Verb::Prime.token(), "post");
@@ -253,7 +253,7 @@ pub(crate) fn bind(edge: &Edge, landing: &Path, store: &Path, cli_remote: Option
 /// cwd = the STORE checkout and the anvil bracketing the store-branch HEAD.
 fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, binding: Binding, level: Level) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
-    let hooks = Hooks::effective(landing, &edge.xdg.user_config())?;
+    let hooks = Hooks::effective(landing, &edge.xdg.user_config(), &edge.machine_dirs())?;
     let reg = Registry::at(landing);
     let pre = hooks.resolve(&reg, op.token(), "pre");
     let post = hooks.resolve(&reg, op.token(), "post");

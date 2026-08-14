@@ -41,7 +41,7 @@ pub(crate) fn fold(edge: &Edge, store: &Path, verb: Verb, id: Option<&str>, cfg:
         return String::new();
     }
     let landing = edge.xdg.clone_dir(&edge.invocation_path).landing();
-    let Ok(hooks) = Hooks::effective(&landing, &edge.xdg.user_config()) else {
+    let Ok(hooks) = Hooks::effective(&landing, &edge.xdg.user_config(), &edge.machine_dirs()) else {
         return String::new();
     };
     let refs = hooks.resolve_read(&Registry::at(&landing), verb.token());

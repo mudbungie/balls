@@ -120,7 +120,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
 
 /// `bl conf <key>`: the one resolved value on stdout, its provenance on stderr.
 fn read_one(edge: &Edge, clone: &CloneDir, key: &str) -> io::Result<()> {
-    let present = Hooks::effective(&clone.landing(), &edge.xdg.user_config())?;
+    let present = Hooks::effective(&clone.landing(), &edge.xdg.user_config(), &edge.machine_dirs())?;
     let r = prov::resolve(edge, clone, &Key::parse(key, &present)?)?;
     println!("{}", r.value);
     eprintln!("conf: {key} from {}", r.layer);
@@ -135,7 +135,7 @@ fn read_one(edge: &Edge, clone: &CloneDir, key: &str) -> io::Result<()> {
 /// a field — and all-bound means NO rows: the general path with empty inputs.
 fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
     let landing = clone.landing();
-    let hooks = Hooks::effective(&landing, &edge.xdg.user_config())?;
+    let hooks = Hooks::effective(&landing, &edge.xdg.user_config(), &edge.machine_dirs())?;
     let mut rows = Vec::new();
     for key in ["task-remote", "task-branch", "log-level", "clock-provider"] {
         rows.push((key.to_string(), prov::resolve(edge, clone, &Key::parse(key, &hooks)?)?));
@@ -145,7 +145,7 @@ fn dump(edge: &Edge, clone: &CloneDir) -> io::Result<()> {
         rows.push((key.clone(), prov::Resolved { value, layer: prov::hook_layer(edge, clone, key)? }));
     }
     let registry = crate::registry::Registry::at(&landing);
-    for name in hooks.referenced().keys().filter(|n| registry.resolve_bin(n).is_none()) {
+    for name in hooks.referenced().keys().filter(|n| hooks.bound(&registry, n).is_none()) {
         let hint = hooks.source(name).unwrap_or_else(|| "(no source given)".into());
         rows.push(("unbound".into(), prov::Resolved { value: name.clone(), layer: hint }));
     }
