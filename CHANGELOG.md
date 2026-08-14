@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.11](https://github.com/mudbungie/balls/compare/v0.5.10...v0.5.11) - 2026-08-14
+
+### Changes
+
+- the speculator pass adopts quiet work/<id> tips itself: auto-seal at pass end, so agents ride the merge queue without knowing it exists [bl-b761]
+- Machine-layer [hooks] names resolve at dispatch beside bl then PATH (no per-landing bind) [bl-053a]
+
 ## [0.5.10](https://github.com/mudbungie/balls/compare/v0.5.9...v0.5.10) - 2026-08-13
 
 ### Changes
