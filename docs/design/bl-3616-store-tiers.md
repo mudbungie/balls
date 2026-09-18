@@ -12,6 +12,8 @@ various obnoxiousness levels, explicit opt-in sync. This document states the
 maximally-subtracted design first and asks the maintainer to argue it up. §6 is
 the part that is NOT settled.
 
+**Amended 2026-09-17 (bl-5af5): Q3/Q4/Q5 closed by the maintainer; Q7 (bl-1266 H1 now reachable) opened. All of §6 is closed except Q7, which is an implementation prerequisite, not a design question. Ready to mint §8.**
+
 **Amended (2026-09-06, Inflate, bl-22c5).** The maintainer attacked §2 claim 1:
 *"locally I will have a bunch of agents running with subagents, so balls is a
 multi-writer blast radius, even at the local scale. It's never single-writer."*
@@ -178,25 +180,30 @@ URL or a branch of the current repo (`up:balls/team#bl-12ab`,
 store qualifier is load-bearing; within one store the id alone is the pointer.
 Implementation check: tag validation charset must admit `:`, `/`, `@`, `#`.
 
-## 5. The shared bl store as a plugin (`bl-upstream`, not built)
+## 5. The shared bl store as a plugin (`bl-upstream`, not built) — rewritten under Q3
 
 The one genuinely new thing is a plugin that treats another bl store the way
-github-issues treats GitHub. Sketch, same four hooks:
+github-issues treats GitHub — with the difference that the other store is a
+**founded checkout** it operates only through `bl -C`. Same four hooks:
 
-- `create/update/close .post` — for a ball carrying an `up:` tag, write the
-  counterpart: `git show <store>:tasks/<id>.md`, apply this ball's frontmatter
-  + body, commit on the upstream branch, push. No `bl` shelling (bl-1266's rule).
-- `sync` — for every live ball with an `up:` tag, read the counterpart; if its
-  `updated` is newer than the local one, fold it in (or refuse with the diff,
-  the way close refuses an unseen task file — same seen-token discipline).
-- `show`/`list` — render `up: balls/team#bl-12ab (behind 2h)` from the two
-  `updated` stamps. Derived; nothing stored.
-- **Check-out** (pulling a shared ball down to work on it) is already
-  `bl -C <shared-checkout> show <id> --json | bl import` plus the tag; the
-  plugin's `sync` is the same import, addressed by tag instead of by hand.
+- **founding** (once, at `install`/`prime`): `bl -C <territory>/<remote>/
+  prime --remote <shared>` — the shared store lives in the plugin's §1
+  territory like any other keyed checkout. Nothing is invented: it is a
+  checkout keyed by a path.
+- `create/update/close .post` — for a ball carrying an `up:` tag, mirror the
+  op through the shared store's own verbs: `bl show <id> --json | bl -C <dir>
+  import` for content, `bl -C <dir> close <counterpart>` when the plugin's
+  policy says a close propagates (mirror) — every seal CAS, seen-token and hook
+  the shared store has wired applies, because it IS a store.
+- `sync` — `bl -C <dir> sync`, then for each `up:`-tagged ball whose
+  counterpart is newer, `bl -C <dir> show <id> --json | bl import` (or refuse
+  with the diff — the same seen-token discipline close uses).
+- `show`/`list` — the drift render of Q5, from the two `updated` stamps.
 
 Wired on `*.post` it is mandatory replication; wired on `sync.pre` alone it is
-check-in on demand. The ladder is the schedule, again.
+check-in on demand. The ladder is the schedule, again. The cost this shape
+carries is Q7: a nested `bl -C` on a different store must publish, and today
+it does not.
 
 ## 6. Not settled — the maintainer's attack wanted here
 
@@ -206,20 +213,47 @@ check-in on demand. The ladder is the schedule, again.
 2. ~~Does deferred publication need a merge, not an ff?~~ **CLOSED with (1):**
    yes — a rebase of local seals, refusing on same-ball conflict and naming
    the ball. Residue (sha pinning) audited and CLOSED in §6.1.
-3. **Addressing a second store of the same project.** A store is keyed on the
-   invocation directory; a shared `balls/team` branch of the SAME repo has no
-   directory to be `-C`'d from. `bl sync [BRANCH]` already takes a branch name
-   — is that precedent enough for the plugin to speak git to a branch directly,
-   or does the shared tier want its own clone directory (the center model)?
-   Position: git-direct; a store is a branch, the plugin needs no checkout.
-4. **Tag namespace as protocol.** `up:`, `jira:`, `gh:` are conventions with
-   no registry. Position: that is correct — a plugin's tag prefix is its name,
-   the same way its `[hooks]` name is; a collision is two plugins claiming one
-   name, already refused at install.
-5. **Does the drift line belong on `list` or on `conf`?** Drift is a property
-   of the checkout, not a ball. `bl conf` already shows the resolved remote and
-   branch. Position: `list` header, because `list` is the read every session
-   starts with and `conf` is consulted only when something is wrong.
+3. ~~Addressing a second store of the same project.~~ **CLOSED by the
+   maintainer (2026-09-17), against my position:** *"clone it in. We already
+   have the mechanisms to have local checkouts safely stored alongside each
+   other, and this keeps all operations along the same path, reduces the code
+   forks. Doing plumbing like that is exactly how we introduce bugs by shimming
+   in under the existence of other controls."* So the shared store is a
+   **founded checkout**, not a branch the plugin writes by plumbing: the plugin
+   founds it once in its own territory (`bl -C $XDG_STATE_HOME/balls/plugins/
+   bl-upstream/<remote>/ prime --remote <shared>` — the §1 keyed-by-path layout
+   IS the "mechanism to store checkouts alongside each other"), and every
+   operation on it is a `bl -C <that-dir> <verb>`: check-in is `bl show <id>
+   --json | bl -C <dir> import`, check-out is the same pipe reversed, sync is
+   `bl -C <dir> sync`. Seal CAS, seen-tokens, chore minting, the tracker's own
+   reconcile — all of it applies to the shared store because it is a store,
+   not a branch the plugin pretends is one. §5 is rewritten below. **This
+   reaches bl-1266's H1** — see Q7.
+4. ~~Tag namespace as protocol.~~ **CLOSED (2026-09-17, maintainer: "I agree,
+   that's fine").** A plugin's tag prefix is its name; no registry. Residue,
+   accepted: a hand-typed `jira:whatever` with no plugin is free text until a
+   plugin reads it.
+5. ~~Does the drift line belong on `list` or on `conf`?~~ **CLOSED by the
+   maintainer (2026-09-17):** *"drift should be detected, though not
+   necessarily reconciled, at every op, in the scope of the op. A list is
+   gonna get everything, but drift at the ball level would be shown at bl
+   show."* So three surfaces, one derivation, nothing stored:
+   - **every mutating op**, on stderr (the confirmation channel), for the op's
+     own ball: `bl-3616: 2 seals unpublished` — the tracker's `*.post` computes
+     it whether or not it is wired to push (with mandatory wiring it reads 0
+     after the push).
+   - **`bl show <id>`**: a per-ball line, `published: behind by 2 seals (last
+     fetch 3h ago)` for tier 0→1 (`git log <remote>/<branch>..<branch> --
+     tasks/<id>.md`), and the plugin's `updated`-stamp comparison for tier 1→2
+     (`up: balls/team#bl-12ab, counterpart newer by 2h`).
+   - **`bl list`**: the store-level header (ahead/behind counts) — list gets
+     everything, so it gets the aggregate, not a column.
+   **The one caveat, held:** "detected at every op" is free for *ahead*
+   (local, no network) and only as fresh as the last fetch for *behind*. §12's
+   refusal of a per-op pre-pull stands (*"it would add a remote round-trip to
+   every op"*), so behind-drift is reported against the tracking ref and
+   stamped with the fetch age, never fetched per op. Detection is honest about
+   its own staleness rather than paying a round-trip to hide it.
 6. ~~Should occupancy be eager by default in opt-in wiring?~~ **CLOSED by the
    maintainer (2026-09-17): it is configurable.** *"Users will often want to
    check things out aggressively, but not always. They may also want to use
@@ -233,6 +267,29 @@ check-in on demand. The ladder is the schedule, again.
    store, `Inflate` locally — as its own config, not a core field. The
    agent→user relation is therefore a plugin's rendering of the actor trailer,
    never stored on the ball (§0: don't store what you can compute).
+
+7. **Q3 makes bl-1266's H1 real — nested-op non-publication must become
+   store-scoped.** bl-1266's rule is *"an op publishes only if it is the
+   outermost `bl` in its invocation tree"*, enforced by `BALLS_PLUGIN_DEPTH`
+   (`Env::nested()` = depth ≥ 2 → `push` no-ops). Its own record already names
+   the hole: *"A plugin that shells `bl -C otherrepo create` publishes to a
+   DIFFERENT store with a different remote. Depth suppresses that too, leaving
+   the far store sealed-but-unpublished … a debt nobody pays … a real hole, not
+   a rounding error — it is just an unreachable one today."* A `bl-upstream`
+   that shells `bl -C <shared> import` is exactly that plugin, so H1 is now
+   reachable. bl-1266 wrote the fill: *"core exports the store path it holds
+   into every plugin spawn (inherited through the shelling plugin, exactly as
+   depth is), and the tracker suppresses iff `binding.store` matches it —
+   failing OPEN when unset."* Its stated cost: one new env, which §6 of the
+   architecture calls a smell. Position: pay it — the true rule (*"an op does
+   not publish an anvil an enclosing op holds open"*) is store-scoped, depth
+   was only ever a proxy that happened to coincide while every nested op was
+   in-store, and the maintainer's Q3 answer chose "same path, no plumbing" at
+   the price of nesting. The alternative — the plugin scrubbing the depth env
+   before shelling — is precisely the "shimming in under the existence of
+   other controls" Q3 rejected. Implementation belongs to bl-1266's residue,
+   not here; this doc only records that the condition it was waiting on has
+   arrived.
 
 ## 6.1 Audit — what pins a sha, what pins a ref (bl-eb3e, 2026-09-17)
 
@@ -283,5 +340,7 @@ evidence for this op, not a handle to keep. The residue in §6 Q2 is CLOSED.
 - bl-tracker: the reconcile (fetch + rebase local seals + push), called once-on-reject from `*.post` and over N seals from `sync`; transport failure fails open; drift line on `list`/`show`.
 - Audit DONE (§6.1): the reconcile must `git rebase` in the store checkout (bl-057a); state the pinning rule in `src/seen.rs`'s header and §7's wire description.
 - Tag charset: admit `:` `/` `@` `#`.
-- `bl-upstream` plugin (sibling repo, like balls-github-plugin).
+- `bl-upstream` plugin (sibling repo, like balls-github-plugin) — founds its shared store as a `bl -C` checkout in its territory; no plumbing writes.
+- bl-1266 H1 fill (store-scoped nested-op publication: core exports the held store path, tracker suppresses only on match) — a PREREQUISITE of bl-upstream, filed against bl-1266's residue.
+- Drift: tracker `*.post` prints the op-ball's unpublished count to stderr; `show` per-ball line with fetch age; `list` header aggregate.
 - Seed comment in `[hooks]` documenting the opt-in wiring.
