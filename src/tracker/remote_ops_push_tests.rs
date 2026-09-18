@@ -140,9 +140,12 @@ fn a_rejected_push_refuses_a_same_ball_race_naming_the_ball() {
     assert!(err.contains("push rejected"), "{err}");
     assert!(err.contains("bl-c0de changed on both sides"), "{err}");
     assert!(err.contains("nothing was published and nothing local was changed"), "{err}");
-    assert!(err.contains("run `bl sync`, then re-run the command"), "{err}");
-    assert!(err.contains(&format!("git -C {} rebase FETCH_HEAD", store.display())), "{err}");
-    assert!(!err.contains("CONFLICT (content)"), "raw git leaked: {err}");
+    assert!(err.contains("run `bl sync`, then re-run it"), "{err}");
+    assert!(err.contains(&format!("the store checkout, {}:", store.display())), "{err}");
+    assert!(err.contains("`git rebase FETCH_HEAD`"), "{err}");
+    for raw in ["CONFLICT", "hint:", "could not apply", "Could not apply"] {
+        assert!(!err.contains(raw), "raw git leaked ({raw}): {err}");
+    }
     assert_eq!(tip(&store, "HEAD"), sealed, "the seal stays for core to un-seal");
     assert_eq!(tip(&remote, BRANCH), published, "the remote is untouched");
     assert!(git(&store, &["rev-parse", "--verify", "-q", "REBASE_HEAD"]).is_err(), "the rebase was aborted");

@@ -120,7 +120,7 @@ fn a_rejected_close_post_push_leaves_delivered_plus_open_never_done_plus_leftove
         .args(["close", &tid, "--as", "alice"])
         .assert()
         .failure()
-        .stderr(contains(format!("{tid} changed on both sides")).and(contains("run `bl sync`, then re-run the command")));
+        .stderr(contains(format!("{tid} changed on both sides")).and(contains("run `bl sync`, then re-run it")));
 
     // DELIVERED: the irreversible squash stands on local main, carrying the tag.
     assert!(git_out(&project, &["log", "-1", "--format=%s", "main"]).contains(&format!("[{tid}]")));

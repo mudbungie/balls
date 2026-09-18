@@ -15,17 +15,20 @@ use std::path::Path;
 /// contention, and the later claim loses; a close over a remote update is a
 /// human's call); for `sync`, the seals stay local and the operator resolves
 /// them in the store checkout, after which `bl sync` publishes — or discards
-/// them to the remote's version. balls never merges a ball field-wise.
-pub(super) fn conflict(store: &str, remote: &str, branch: &str, contended: &[String], e: &io::Error) -> io::Error {
+/// them to the remote's version. balls never merges a ball field-wise. Git's
+/// own rebase text is NOT appended: the conflict is positively identified (the
+/// unmerged index named the ball), so its seven `hint:` lines carry nothing
+/// (bl-ce2d — the bl-3129 rule, raw git only for non-contention failures).
+pub(super) fn conflict(store: &str, remote: &str, branch: &str, contended: &[String]) -> io::Error {
     let who = if contended.is_empty() { "a ball".to_string() } else { contended.join(", ") };
     io::Error::other(format!(
-        "push rejected: `{remote}`'s `{branch}` moved and {who} changed on both sides, so the rebase of \
-         this store's unpublished seals was aborted — nothing was published and nothing local was \
-         changed. For an op: it aborts and un-seals — run `bl sync`, then re-run the command (a claim of \
-         a ball someone else already claimed is contention, and the later claim loses). For seals this \
-         store still holds (`git -C {store} log FETCH_HEAD..{branch}`): reconcile them yourself — `git \
-         -C {store} rebase FETCH_HEAD`, resolve, then `bl sync` publishes — or `git -C {store} reset \
-         --hard FETCH_HEAD` to take the remote's version ({e})"
+        "push rejected: `{remote}`'s `{branch}` moved and {who} changed on both sides — the rebase of this \
+         store's unpublished seals was aborted; nothing was published and nothing local was changed. If \
+         this was an op it has un-sealed: run `bl sync`, then re-run it (a ball someone else already \
+         claimed is contention — the later claim loses). If this store still holds seals of its own, \
+         reconcile them in the store checkout, {store}: `git log FETCH_HEAD..{branch}` lists them; `git \
+         rebase FETCH_HEAD`, resolve the named file, then `bl sync` publishes — or `git reset --hard \
+         FETCH_HEAD` to take the remote's version"
     ))
 }
 

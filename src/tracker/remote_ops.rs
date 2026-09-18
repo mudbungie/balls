@@ -145,10 +145,10 @@ fn reconcile(b: &Binding, env: &Env, remote: &str) -> io::Result<()> {
         }
         Ok(true) => {}
     }
-    if let Err(e) = git(store, &["rebase", "FETCH_HEAD"]) {
+    if git(store, &["rebase", "FETCH_HEAD"]).is_err() {
         let contended = unmerged_balls(store);
         let _ = git(store, &["rebase", "--abort"]);
-        return Err(conflict(&b.store, remote, branch, &contended, &e));
+        return Err(conflict(&b.store, remote, branch, &contended));
     }
     if env.nested(&b.store) {
         return Ok(());

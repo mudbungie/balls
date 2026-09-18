@@ -122,10 +122,10 @@ fn sync_refuses_a_same_ball_conflict_by_name_and_leaves_every_seal_local() {
     let err = sync(&binding(Some(&remote), &store), &env_top()).unwrap_err().to_string();
     assert!(err.contains(&format!("`{BRANCH}` moved and bl-5555 changed on both sides")), "{err}");
     assert!(err.contains("nothing was published and nothing local was changed"), "{err}");
-    assert!(err.contains(&format!("git -C {} log FETCH_HEAD..{BRANCH}", store.display())), "{err}");
-    assert!(err.contains("rebase FETCH_HEAD`, resolve, then `bl sync` publishes"), "{err}");
+    assert!(err.contains(&format!("the store checkout, {}: `git log FETCH_HEAD..{BRANCH}` lists them", store.display())), "{err}");
+    assert!(err.contains("rebase FETCH_HEAD`, resolve the named file, then `bl sync` publishes"), "{err}");
     assert!(err.contains("reset --hard FETCH_HEAD"), "{err}");
-    assert!(!err.contains("CONFLICT"), "raw git leaked: {err}");
+    assert!(!err.contains("CONFLICT") && !err.contains("hint:"), "raw git leaked: {err}");
     assert_eq!(tip(&store, "HEAD"), held, "every local seal stays local");
     assert_eq!(tip(&remote, BRANCH), published);
     assert!(git(&store, &["rev-parse", "--verify", "-q", "REBASE_HEAD"]).is_err(), "aborted, not wedged");

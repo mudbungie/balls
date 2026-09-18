@@ -135,7 +135,7 @@ fn a_stale_claim_push_is_rejected_non_ff_and_leaves_b_clean() {
     bob.bl(&["claim", &xid, "--as", "bob"])
         .assert()
         .failure()
-        .stderr(contains(format!("{xid} changed on both sides")).and(contains("run `bl sync`, then re-run the command")));
+        .stderr(contains(format!("{xid} changed on both sides")).and(contains("run `bl sync`, then re-run it")));
 
     // FINDING (behaves-as-designed): the rejected `claim.post` push UN-SEALS Bob.
     // He is left with NO local claim, NO worktree, NO `work/<id>` branch — the
