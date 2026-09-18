@@ -55,6 +55,8 @@ pub(super) fn unmerged_balls(store: &Path) -> Vec<String> {
 /// publishes. The op is NOT aborted: an unreachable hub must not stop local
 /// work, and a rejected op would un-seal work that is perfectly good.
 pub(super) fn fail_open(remote: &str, e: &io::Error) {
-    eprintln!("tracker: `{remote}` is unreachable — this store stays ahead of it, unpublished; the next op or `bl sync` publishes once it is reachable ({e})");
+    // Git's FIRST line names the cause; the rest is boilerplate advice.
+    let cause = e.to_string().lines().next().unwrap_or_default().to_string();
+    eprintln!("tracker: `{remote}` is unreachable — this store stays ahead of it, unpublished; the next op or `bl sync` publishes once it is reachable ({cause})");
 }
 
