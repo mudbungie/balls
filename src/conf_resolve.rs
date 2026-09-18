@@ -24,7 +24,7 @@ pub(super) struct Resolved {
 pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Resolved> {
     let landing = clone.landing();
     match key {
-        Key::TaskRemote => task_remote(edge, &landing, &clone.binding()),
+        Key::TaskRemote => task_remote(edge, &landing, &clone.binding(), &clone.store()),
         Key::TaskBranch => scalar(edge, &landing, "tasks_branch", crate::DEFAULT_TASKS_BRANCH, None),
         Key::LogLevel => scalar(edge, &landing, "log_level", "info", edge.log_level.as_deref()),
         Key::ClockProvider => Ok(clock_provider(edge, &clone.binding())),
@@ -45,8 +45,9 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
 
 /// The store remote per the §12 ladder's DURABLE tiers (`conf` takes no
 /// `--remote`), through the SAME [`config::remote_ladder`] the ops bind with:
-/// a NESTED invocation reads `(none)` from `nested` (bl-1266) and PREEMPTS every
-/// durable tier, else the landing `task_remote` policy (declared stealth reads
+/// a NESTED invocation — one whose store an ENCLOSING `bl` holds open, read
+/// from the held chain (`$BALLS_HELD_STORES`, bl-1266/bl-aac7) — reads `(none)`
+/// from `nested` and PREEMPTS every durable tier, else the landing `task_remote` policy (declared stealth reads
 /// `(none)` from `landing` — bl-9df0), else this clone's `binding` remote, else
 /// the legacy global XDG remote, else the project repo's `origin` (a local `git
 /// remote get-url` — naming, not contacting, §12), else `(none)` from `stealth`
@@ -62,11 +63,13 @@ pub(super) fn resolve(edge: &Edge, clone: &CloneDir, key: &Key) -> io::Result<Re
 /// this invocation tree pays it. It preempts the URL tiers deliberately, because
 /// the question the line answers is *"will this op publish?"* and a perfectly
 /// configured remote is the most misleading possible answer when the enclosing
-/// op holds the anvil open. Reading `nested` at top level means a
-/// `BALLS_PLUGIN_DEPTH` leaked into the shell (§6) — nothing is lost, the store
-/// publishes on the next clean op.
-fn task_remote(edge: &Edge, landing: &Path, binding: &Path) -> io::Result<Resolved> {
-    if edge.depth > 0 {
+/// op holds the anvil open. The predicate is STORE-SCOPED (bl-aac7): a nested
+/// `bl -C` on a different store is not nested for this purpose and publishes.
+/// Reading `nested` at top level means a `BALLS_HELD_STORES` naming this store
+/// leaked into the shell (§6) — nothing is lost, the store publishes on the
+/// next clean op.
+fn task_remote(edge: &Edge, landing: &Path, binding: &Path, store: &Path) -> io::Result<Resolved> {
+    if edge.held.iter().any(|h| h == store) {
         return Ok(Resolved { value: "(none)".into(), layer: "nested".into() });
     }
     let (remote, declared) = config::remote_ladder(None, landing, binding, &edge.xdg.user_config())?;

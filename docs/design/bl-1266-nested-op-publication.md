@@ -10,10 +10,20 @@ toward. §7 is the part that is NOT settled and wants the maintainer's attack.
 
 **Status: the RULE (§3) is IMPLEMENTED and closed bl-1266 (2026-08-12, main
 `9f3d1bf4`); the FOLD (§4) is IMPLEMENTED and closed bl-1da3 (2026-08-12, main
-`b45c37ba`).** The record stays OPEN for exactly one thing, and it is the one
-nothing can currently reach: H1's cross-repo fill (§3.1). The fold's own
-by-product is that no shipped plugin shells `bl` at all any more, so the hole is
-now unreachable by construction rather than merely unexercised.
+`b45c37ba`); H1 is FILLED (bl-aac7, 2026-09-18) — the record is CLOSED.** The
+condition H1 waited on arrived with bl-3616 Q3 (a `bl-upstream` plugin that
+shells `bl -C <shared-store>`), and the fill shipped as written in §3.1: core
+exports `BALLS_HELD_STORES` — the chain of store checkouts every `bl` in the
+invocation tree holds open, outermost first, its own store appended LAST — into
+every plugin spawn (`crate::plugin::held_chain`, mutating and read dispatch
+alike); a shelling plugin inherits it untouched; a nested `bl` reads it at its
+edge (`Edge::held`) and re-exports it with its own store appended; the tracker
+suppresses iff `binding.store` appears ABOVE the final entry (`Env::nested`),
+failing OPEN when unset. `BALLS_PLUGIN_DEPTH` is now the §6 recursion cap alone.
+`bl conf`'s `nested` rung is store-scoped the same way. The maintainer ratified
+paying the one env on 2026-09-17: *"Variables are a smell, but not banned. They
+do exist for reasons."* H2 shrinks with it: a leaked depth no longer stops a
+push; only a leaked chain naming this store does, and `bl conf` still shows it.
 
 **Second pass (2026-08-11, Enthused).** Every premise above re-verified against
 `main`: the wiring still reads `claim.post = bl-chore, bl-delivery, bl-tracker`
@@ -135,10 +145,10 @@ far store stays sealed-and-unpublished, and no later op in *this* repo will ever
 cover it. So H1 is a real hole, not a rounding error — it is just an
 unreachable one today.
 
-**Still not proposed now.** Nothing shipped shells `bl` except bl-chore, which
-shells it in-store. The fill is written down (§3, above) so that whoever first
-writes a `bl -C` plugin finds the answer rather than the bug; the cost of
-carrying it early is a new env §6 calls a smell.
+**FILLED (bl-aac7, 2026-09-18).** bl-3616 Q3 made the shared store a founded
+checkout operated only via `bl -C`, so the first `bl -C` plugin (bl-upstream,
+bl-5273) arrived and the fill above shipped exactly as written — see the status
+block at the top for the as-built shape.
 
 ### H2 — a leaked `BALLS_PLUGIN_DEPTH` silently stops publishing
 
@@ -351,7 +361,7 @@ questions.
    footnote cannot extend, and one (`skill/conf.md:19`) goes from incomplete to
    FALSE. *"For now"* is load-bearing too: the rung is honest only while H1
    stays unreachable, so whoever makes `bl -C` nesting real reopens this.
-2. **H1 — cross-repo nesting. POSITION: defer, with the fill written down.**
+2. **H1 — cross-repo nesting. FILLED 2026-09-18 (bl-aac7) — was: defer, with the fill written down.**
    Verified 2026-08-11: no shipped plugin shells `bl` at all. It is a debt
    nobody pays rather than a coarse predicate (§3.1), so it is a real hole —
    but an unconstructible one, and closing it costs a new env §6 calls a smell.
@@ -424,4 +434,5 @@ rules now live in `remote_ops_push_tests.rs`.
    the parent's freshly-staged `updated` and its `root_commit` is the parent's —
    neither fact is derived twice. Verified live: one commit carries both the
    claim's edit and the child's birth.
-3. **H1's fill** (§3.1): only if a `bl -C` plugin ever appears.
+3. **H1's fill** (§3.1): **BUILT (2026-09-18, bl-aac7)** — the `bl -C` plugin
+   appeared (bl-upstream, bl-3616 §5).

@@ -26,8 +26,9 @@
 //! plugins on a nested call — that would let a runaway defeat its own backstop.
 //! `rollback` cannot spawn at the cap either, so it no-ops (best-effort, §14).
 
+use std::ffi::OsString;
 use std::io::{self, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::lifecycle::{Plugins, Sealed};
@@ -61,18 +62,35 @@ pub struct Subprocess<'a> {
     ctx: OpContext,
     log: &'a Log,
     depth: u32,
+    held: Vec<PathBuf>,
     date: Option<i64>,
+}
+
+/// The `BALLS_HELD_STORES` value a spawn exports (§6/§12, bl-aac7): the chain of
+/// store checkouts every `bl` in this invocation tree holds open, outermost
+/// first — what this `bl` inherited (`held`, read at its edge) plus its OWN
+/// `store`, last. A plugin that shells `bl` inherits the variable untouched, so
+/// the nested `bl` reads exactly the anvils enclosing it; the tracker it spawns
+/// then reads the enclosing set as everything BEFORE the final entry (which is
+/// its spawner's, the wire's `binding.store`). One rule falls out: *an op does
+/// not publish an anvil an enclosing op holds open* — store-scoped, so a nested
+/// `bl -C` on a DIFFERENT store still publishes (bl-1266 H1). `None` when a path
+/// cannot join (a `:` in it — impossible under the §1 percent-encoded layout):
+/// the variable is then left unset and every reader fails OPEN.
+pub(crate) fn held_chain(held: &[PathBuf], store: &str) -> Option<OsString> {
+    std::env::join_paths(held.iter().map(PathBuf::as_path).chain([Path::new(store)])).ok()
 }
 
 impl<'a> Subprocess<'a> {
     /// Build the dispatcher for one op: the §7 op-constant `ctx`, the op's `log`
     /// sink (shared with core's lifecycle records), and the recursion `depth`
     /// balls is running at (read from `BALLS_PLUGIN_DEPTH` by the binary edge; `0`
-    /// at the top level). Un-dated: a read/diffless op (§13) authors no commit, so
+    /// at the top level), and the `held` store chain it inherited (`$BALLS_HELD_STORES`,
+    /// [`held_chain`]). Un-dated: a read/diffless op (§13) authors no commit, so
     /// its plugin spawns carry no `GIT_*_DATE` and stay byte-identical.
     #[must_use]
-    pub fn new(ctx: OpContext, log: &'a Log, depth: u32) -> Self {
-        Self { ctx, log, depth, date: None }
+    pub fn new(ctx: OpContext, log: &'a Log, depth: u32, held: Vec<PathBuf>) -> Self {
+        Self { ctx, log, depth, held, date: None }
     }
 
     /// Export the op instant `t` as `GIT_*_DATE` into every plugin's spawn env
@@ -172,7 +190,8 @@ impl<'a> Subprocess<'a> {
         Err(io::Error::other(msg))
     }
 
-    /// Spawn `<bin> <op> <phase>`: cwd `dir`, §6 env, `payload` on stdin, stdout
+    /// Spawn `<bin> <op> <phase>`: cwd `dir`, §6 env (+ the held-store chain,
+    /// [`held_chain`]), `payload` on stdin, stdout
     /// INHERITED — forwarded to the invoker's stdout verbatim (§6, the plugin's
     /// user-facing channel: "claim prints the worktree path" is the plugin
     /// printing here); core PARSES NOTHING back (no return channel, §7). stderr is
@@ -199,6 +218,9 @@ impl<'a> Subprocess<'a> {
                 .env("BALLS_PROTOCOL", PROTOCOL.to_string())
                 .env("BALLS_PLUGIN_NAME", name)
                 .env("BALLS_PLUGIN_DEPTH", &depth);
+            if let Some(chain) = held_chain(&self.held, &self.ctx.binding.store) {
+                cmd.env("BALLS_HELD_STORES", chain);
+            }
             // The op instant, parent→child (§8): the delivery squash inherits it.
             if let Some(t) = self.date {
                 cmd.envs(crate::clock::git_date_env(t));

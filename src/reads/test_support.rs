@@ -28,6 +28,7 @@ pub(crate) fn edge(tmp: &Path, depth: u32) -> Edge {
         invocation_path: tmp.join("proj"),
         default_actor: "me".into(),
         depth,
+        held: Vec::new(),
         exe_dir: None,
         path_dirs: Vec::new(),
         color: false,

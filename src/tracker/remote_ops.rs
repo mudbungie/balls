@@ -155,9 +155,9 @@ pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::R
 /// never rewritten (cutover is the runbook's explicit history join, published
 /// as an ordinary fast-forward).
 ///
-/// **A NESTED op does not publish (bl-1266).** An op publishes only if it is the
-/// OUTERMOST `bl` in its invocation tree ([`Env::nested`]). A plugin that shells
-/// `bl` (the shipped case: bl-chore's `claim.post` mint) inserts a whole op —
+/// **An op does not publish an anvil an enclosing op holds open (bl-1266,
+/// store-scoped since bl-aac7).** A plugin that shells `bl` on THIS store
+/// (bl-chore's `claim.post` mint was the shipped case) inserts a whole op —
 /// seal AND push — into the middle of its parent's post phase, so without this
 /// the nested push publishes the PARENT's not-yet-final commit; a later
 /// `claim.post` failure then un-seals only the LOCAL store (`git reset --hard`),
@@ -165,9 +165,11 @@ pub(super) fn remote_has_branch(cwd: &Path, remote: &str, branch: &str) -> io::R
 /// is lost by waiting: a push publishes a branch TIP, so the nested seal rides
 /// the parent's own trailing push (the tracker sorts LAST, §14) — one push per op
 /// TREE, still last, and §14's *"core never pushes, so there is nothing remote to
-/// chase"* becomes a theorem instead of an accident of hook order.
+/// chase"* becomes a theorem instead of an accident of hook order. The predicate
+/// is the held-store chain, not depth ([`Env::nested`]): a nested `bl -C` on a
+/// store no enclosing op holds has no parent push to ride, so it publishes.
 pub fn push(b: &Binding, env: &Env) -> io::Result<()> {
-    if env.nested() {
+    if env.nested(&b.store) {
         return Ok(()); // the enclosing op holds this anvil open — it publishes
     }
     let Some(remote) = b.remote.as_deref() else {

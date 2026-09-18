@@ -339,7 +339,7 @@ evidence for this op, not a handle to keep. The residue in §6 Q2 is CLOSED.
 
 - **bl-21ab** — bl-tracker reconcile: fetch + rebase local seals IN the store checkout + push; once-on-reject from `*.post`, over N seals from `sync`; transport fails open; pinning rule stated in `src/seen.rs` + §7.
 - **bl-439d** — drift render: `*.post` stderr count for the op's ball, `show` per-ball line with fetch age, `list` header aggregate.
-- **bl-331a** — tag charset admits `:` `/` `@` `#`; pointer convention documented.
-- **bl-aac7** — bl-1266 H1 fill: store-scoped nested-op publication (core exports the held store path; tracker suppresses only on match, fail open when unset).
+- **bl-331a** — tag charset admits `:` `/` `@` `#`; pointer convention documented. **BUILT 2026-09-18.**
+- **bl-aac7** — bl-1266 H1 fill: store-scoped nested-op publication (core exports the held store path; tracker suppresses only on match, fail open when unset). **BUILT 2026-09-18.**
 - **bl-260e** — seed `[hooks]` comment: the wiring shapes (mandatory / opt-in / occupancy-eager), no default; identity shims noted.
 - **bl-5273** — `bl-upstream` plugin, sibling repo; a founded `bl -C` checkout, never plumbing. Needs bl-aac7 and bl-331a.

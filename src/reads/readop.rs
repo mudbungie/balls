@@ -24,7 +24,7 @@ use crate::edge::Edge;
 use crate::hooks::Hooks;
 use crate::log::{Level, Log};
 use crate::message::{Metadata, PROTOCOL};
-use crate::plugin::{retry_busy, DEPTH_CAP};
+use crate::plugin::{held_chain, retry_busy, DEPTH_CAP};
 use crate::registry::Registry;
 use crate::verb::Verb;
 use crate::wire::OpContext;
@@ -65,7 +65,7 @@ pub(crate) fn fold(edge: &Edge, store: &Path, verb: Verb, id: Option<&str>, cfg:
         let payload = ctx.read_wire(&plugin.name, verb.token(), &metadata);
         let line = serde_json::to_string(&payload)
             .map_err(io::Error::other)
-            .and_then(|json| capture(&bin, &plugin.name, verb.token(), edge.depth, store, &json, log));
+            .and_then(|json| capture(&bin, &plugin.name, verb.token(), edge, store, &json, log));
         match line {
             Ok(line) => out.push_str(&line),
             // Non-fatal, but never silent: the failure locus outranks every
@@ -84,16 +84,21 @@ pub(crate) fn fold(edge: &Edge, store: &Path, verb: Verb, id: Option<&str>, cfg:
 /// `invoke` first, at `debug` like all core narration (§4). A spawn failure
 /// or non-zero exit is an error the caller logs and treats as "no line" (§6 —
 /// non-fatal).
-fn capture(bin: &Path, name: &str, op: &str, depth: u32, store: &Path, payload: &str, log: &Log) -> io::Result<String> {
+fn capture(bin: &Path, name: &str, op: &str, edge: &Edge, store: &Path, payload: &str, log: &Log) -> io::Result<String> {
     log.record(Level::Debug, "core", None, &format!("invoke {name}"));
     let mut child = retry_busy(|| {
-        Command::new(bin)
-            .args([op, "read"])
+        let mut cmd = Command::new(bin);
+        cmd.args([op, "read"])
             .current_dir(store)
             .env("BALLS_PROTOCOL", PROTOCOL.to_string())
             .env("BALLS_PLUGIN_NAME", name)
-            .env("BALLS_PLUGIN_DEPTH", (depth + 1).to_string())
-            .stdin(Stdio::piped())
+            .env("BALLS_PLUGIN_DEPTH", (edge.depth + 1).to_string());
+        // The same held-store chain a mutating spawn exports (bl-aac7): a read
+        // plugin may shell `bl` too, and the nested op must know what is held.
+        if let Some(chain) = held_chain(&edge.held, &store.to_string_lossy()) {
+            cmd.env("BALLS_HELD_STORES", chain);
+        }
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()

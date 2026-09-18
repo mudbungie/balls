@@ -14,6 +14,7 @@ fn edge(tmp: &TempDir) -> Edge {
         invocation_path: tmp.path().join("proj"),
         default_actor: "tester".into(),
         depth: 0,
+        held: Vec::new(),
         exe_dir: None,
         path_dirs: Vec::new(),
         color: false,
@@ -146,7 +147,11 @@ fn task_remote_reads_nested_when_an_enclosing_bl_holds_the_store_open() {
     fs::write(clone.binding(), "remote = \"git@hub:b\"\n").unwrap();
     assert_eq!(res(&e, &clone, "task-remote"), ("git@hub:b".into(), "binding".into()));
 
-    let nested = Edge { depth: 1, ..e };
+    // bl-aac7: nesting is STORE-SCOPED — an enclosing op holding a DIFFERENT
+    // store leaves this one free to publish; holding THIS store is the rung.
+    let elsewhere = Edge { depth: 1, held: vec![tmp.path().join("other/tasks")], ..e.clone() };
+    assert_eq!(res(&elsewhere, &clone, "task-remote"), ("git@hub:b".into(), "binding".into()));
+    let nested = Edge { depth: 1, held: vec![clone.store()], ..e };
     assert_eq!(res(&nested, &clone, "task-remote"), ("(none)".into(), "nested".into()));
 }
 

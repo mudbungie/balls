@@ -25,6 +25,7 @@ fn main() {
         env::var("NO_COLOR").ok(),
         std::io::stdout().is_terminal(),
         env::var("BALLS_CLOCK").ok(),
+        env::var_os("BALLS_HELD_STORES"),
     );
     exit(balls::run(&edge, &args));
 }

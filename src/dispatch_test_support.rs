@@ -15,6 +15,7 @@ pub(crate) fn edge(tmp: &TempDir) -> Edge {
         invocation_path: tmp.path().join("proj"),
         default_actor: "tester".into(),
         depth: 0,
+        held: Vec::new(),
         exe_dir: None,
         path_dirs: Vec::new(),
         color: false,

@@ -239,24 +239,26 @@ fn dispatch_discovers_the_project_origin_when_no_explicit_remote() {
     assert_eq!(super::fixtures::tip(&store, "HEAD"), moved); // discovered origin → ff'd
 }
 
-/// bl-1266 — the depth parse lives in the lib (the bl-bfa8 rule) and FAILS OPEN:
-/// a tracker run by hand, or by a core too old to set the variable, must publish
-/// rather than silently stop federating. `1` is the ordinary top-level spawn.
+/// bl-1266/bl-aac7 — the held-chain parse lives in the lib (the bl-bfa8 rule)
+/// and FAILS OPEN: a tracker run by hand, or by a core too old to set the
+/// variable, must publish rather than silently stop federating.
 #[test]
-fn env_resolve_parses_the_depth_and_fails_open() {
+fn env_resolve_parses_the_held_chain_and_fails_open() {
     let xdg = || crate::layout::Xdg::with(Path::new("/h"), None, None);
-    assert_eq!(Env::resolve(xdg(), None).depth, 0); // unset ⇒ publishes
-    assert_eq!(Env::resolve(xdg(), Some("nonsense".into())).depth, 0); // garbage ⇒ publishes
-    assert_eq!(Env::resolve(xdg(), Some("2".into())).depth, 2);
+    assert!(Env::resolve(xdg(), None).held.is_empty()); // unset ⇒ publishes
+    let held = Env::resolve(xdg(), Some("/a/tasks:/b/tasks".into())).held;
+    assert_eq!(held, [Path::new("/a/tasks"), Path::new("/b/tasks")]);
 }
 
-/// The §12 rung itself: a plugin spawned by a top-level `bl` sees `1` and
-/// publishes; one spawned by a `bl` that a plugin shelled sees `2`+ and does not.
+/// The §12 rung itself, store-scoped: the chain ends with the spawner's own
+/// store, so "nested" reads as that store appearing ABOVE the spawner — and a
+/// different store above it is somebody else's anvil, not this op's parent.
 #[test]
-fn only_the_outermost_bl_in_the_invocation_tree_publishes() {
-    let nested = |d| super::fixtures::env_at(d).nested();
-    assert!(!nested(0), "a hand-run tracker fails open");
-    assert!(!nested(1), "spawned by a top-level bl — this op's push is its own");
-    assert!(nested(2), "spawned by a bl a plugin shelled — the parent publishes");
-    assert!(nested(3));
+fn an_op_publishes_unless_an_enclosing_bl_holds_its_store() {
+    let nested = |chain: &[&str], store| super::fixtures::env_held(&chain.iter().map(Path::new).collect::<Vec<_>>()).nested(store);
+    assert!(!nested(&[], "/s"), "a hand-run tracker fails open");
+    assert!(!nested(&["/s"], "/s"), "spawned by a top-level bl — this op's push is its own");
+    assert!(nested(&["/s", "/s"], "/s"), "spawned by a bl a plugin shelled on the same store — the parent publishes");
+    assert!(!nested(&["/s", "/t"], "/t"), "a nested bl -C on an unheld store publishes (H1)");
+    assert!(nested(&["/s", "/t", "/s"], "/s"), "held two levels up is still held");
 }

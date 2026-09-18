@@ -172,7 +172,7 @@ pub(crate) fn seal_op(edge: &Edge, verb: Verb, op: &Op, base: &dyn BaseChange, b
     let change_dir = clone.change(&change_token());
     // The op instant dates the store seal (core's own commit) and rides into every
     // plugin's spawn env so the delivery squash inherits it (§8) — three-to-one.
-    let plugins = Subprocess::new(ctx, &log, edge.depth).dated(instant.t);
+    let plugins = Subprocess::new(ctx, &log, edge.depth, edge.held.clone()).dated(instant.t);
     let anvil = Git::at(&store).dated(instant.t);
     Engine::new(&anvil, &plugins, &log)
         .seal(base, verb, &change_dir, &pre, &post)

@@ -192,7 +192,7 @@ fn prime_chain(
     for note in seed_notes {
         log.record(Level::Info, "core", None, note);
     }
-    let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth);
+    let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth, edge.held.clone());
     let anvil = git::Git::at(store);
     Engine::new(&anvil, &plugins, &log)
         .prime(landing, store, &pre, &post, &mut step)
@@ -259,7 +259,7 @@ fn run_chain(edge: &Edge, landing: &Path, store: &Path, op: Verb, actor: &str, b
     let post = hooks.resolve(&reg, op.token(), "post");
     let ctx = OpContext::diffless(actor.to_string(), binding);
     let log = Log::new(clone.op_log(), level, op, log::wall);
-    let plugins = Subprocess::new(ctx, &log, edge.depth);
+    let plugins = Subprocess::new(ctx, &log, edge.depth, edge.held.clone());
     let anvil = git::Git::at(store);
     Engine::new(&anvil, &plugins, &log)
         .diffless(op, store, &pre, &post)

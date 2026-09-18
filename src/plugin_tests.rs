@@ -77,7 +77,7 @@ impl Env {
         self.home.path().join("log")
     }
     fn dispatcher(&self, depth: u32) -> Subprocess<'_> {
-        Subprocess::new(ctx(), &self.log, depth)
+        Subprocess::new(ctx(), &self.log, depth, vec![PathBuf::from("/outer")])
     }
 }
 
@@ -92,6 +92,8 @@ fn run_delivers_the_env_stdin_and_cwd() {
     assert!(env.contains("BALLS_PROTOCOL=1"));
     assert!(env.contains("BALLS_PLUGIN_NAME=tracker"));
     assert!(env.contains("BALLS_PLUGIN_DEPTH=1")); // top level 0, child +1
+    // bl-aac7: the held-store chain — what this bl inherited, then its own store, last.
+    assert!(env.contains("BALLS_HELD_STORES=/outer:/store"), "{env}");
     let stdin = fs::read_to_string(e.at("cwd").join("stdin.txt")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&stdin).unwrap();
     assert_eq!(v["op"], "close");
@@ -243,3 +245,12 @@ fn rollback_tags_the_payload_and_ignores_the_exit() {
 
 // The `describe` self-describe and `capped_lines` stderr-relay primitives — the
 // §6 helpers beneath dispatch — are exercised in the sibling `describe_tests`.
+
+#[test]
+fn held_chain_appends_the_own_store_last_and_fails_open_on_an_unjoinable_path() {
+    // bl-aac7: the exported chain is inherited + own (last); a path that cannot
+    // join `$PATH`-style leaves the variable unset, and every reader fails OPEN.
+    let chain = held_chain(&[PathBuf::from("/a/tasks")], "/b/tasks").unwrap();
+    assert_eq!(chain, std::ffi::OsString::from("/a/tasks:/b/tasks"));
+    assert!(held_chain(&[PathBuf::from("/has:colon")], "/b/tasks").is_none());
+}

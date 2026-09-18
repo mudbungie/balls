@@ -100,7 +100,7 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
     let summary = if bind_only {
         Summary::default()
     } else {
-        let plugins = Subprocess::new(OpContext::diffless(opts.actor.clone(), binding), &log, edge.depth);
+        let plugins = Subprocess::new(OpContext::diffless(opts.actor.clone(), binding), &log, edge.depth, edge.held.clone());
         let pre = hooks.resolve(&reg, Verb::Install.token(), "pre");
         let (pre, from) = match opts.from {
             Some(ref f) => (pre, f.clone()),

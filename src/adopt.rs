@@ -72,7 +72,7 @@ fn fetch_config(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: 
         ));
     }
     let log = Log::new(edge.xdg.clone_dir(&edge.invocation_path).op_log(), level, Verb::Install, log::wall);
-    let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth);
+    let plugins = Subprocess::new(OpContext::diffless(actor.to_string(), binding), &log, edge.depth, edge.held.clone());
     for plugin in &pre {
         plugins.run(plugin, Verb::Install, Phase::Pre, landing, None)?;
     }
@@ -89,7 +89,7 @@ pub(crate) fn install_local(edge: &Edge, landing: &Path) -> io::Result<()> {
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (binding, level) = checkout::bind(edge, landing, &clone.store(), None, None)?;
     let log = Log::new(clone.op_log(), level, Verb::Install, log::wall);
-    let plugins = Subprocess::new(OpContext::diffless(edge.default_actor.clone(), binding), &log, edge.depth);
+    let plugins = Subprocess::new(OpContext::diffless(edge.default_actor.clone(), binding), &log, edge.depth, edge.held.clone());
     let chain = install::Chain { plugins: &plugins, log: &log, pre: Vec::new(), post: Vec::new() };
     // Canonicalize a stale center's retired plugin names as they land (§12.1): the
     // copy-in rewrite makes `prime --install`/`--center` converge to the no-op

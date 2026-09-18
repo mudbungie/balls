@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::tracker::fixtures::{
-    binding, checkout, commit, empty_remote, env_at, legacy_remote, local_unpushed,
+    binding, checkout, commit, empty_remote, env_held, env_top, legacy_remote, local_unpushed,
     remote_with_branch, store_clone, tip, BRANCH,
 };
 use tempfile::TempDir;
@@ -22,7 +22,7 @@ fn push_keeps_work_local_when_the_remote_tip_is_not_a_store() {
     let remote = legacy_remote(tmp.path());
     let store = local_unpushed(tmp.path());
     let before = tip(&remote, BRANCH);
-    push(&binding(Some(&remote), &store), &env_at(1)).unwrap();
+    push(&binding(Some(&remote), &store), &env_top()).unwrap();
     assert_eq!(tip(&remote, BRANCH), before); // the legacy ref was not rewritten
 }
 
@@ -37,7 +37,7 @@ fn push_to_an_unreachable_remote_stays_the_original_error() {
     let gone = tmp.path().join("no-such-remote.git");
     let mut b = binding(Some(&gone), &store);
     b.remote = Some(gone.to_string_lossy().into_owned());
-    let err = push(&b, &env_at(1)).unwrap_err().to_string();
+    let err = push(&b, &env_top()).unwrap_err().to_string();
     assert!(err.contains("git push"), "{err}");
     assert!(!err.contains("bl sync"), "{err}");
 }
@@ -49,16 +49,17 @@ fn push_publishes_the_local_balls_branch_to_the_remote() {
     let store = store_clone(tmp.path(), &remote);
     let landed = commit(&store, "landed.txt", "landed");
 
-    push(&binding(Some(&remote), &store), &env_at(1)).unwrap();
+    push(&binding(Some(&remote), &store), &env_top()).unwrap();
     assert_eq!(tip(&remote, BRANCH), landed);
 }
 
-/// bl-1266: an op that is NOT the outermost `bl` in its invocation tree does not
-/// publish — the enclosing op's own trailing push carries the seal, so a parent
-/// that aborts afterwards is un-sealed by a purely local `git reset` with nothing
-/// left on the remote to chase. Identical to the test above but at depth 2.
+/// bl-1266: an op whose store an ENCLOSING `bl` holds open does not publish —
+/// the enclosing op's own trailing push carries the seal, so a parent that
+/// aborts afterwards is un-sealed by a purely local `git reset` with nothing
+/// left on the remote to chase. Identical to the test above, but the held chain
+/// says a `bl` above the spawner holds this same store.
 #[test]
-fn push_from_a_nested_op_publishes_nothing() {
+fn push_from_a_nested_op_on_a_held_store_publishes_nothing() {
     let tmp = TempDir::new().unwrap();
     let remote = remote_with_branch(tmp.path());
     let store = store_clone(tmp.path(), &remote);
@@ -66,9 +67,26 @@ fn push_from_a_nested_op_publishes_nothing() {
     let landed = commit(&store, "landed.txt", "landed");
     assert_ne!(landed, before, "the fixture must leave something worth publishing");
 
-    push(&binding(Some(&remote), &store), &env_at(2)).unwrap();
+    push(&binding(Some(&remote), &store), &env_held(&[&store, &store])).unwrap();
 
-    assert_eq!(tip(&remote, BRANCH), before, "a nested op must not publish");
+    assert_eq!(tip(&remote, BRANCH), before, "a nested op must not publish a held anvil");
+}
+
+/// bl-aac7 (bl-1266's H1 fill): nesting is STORE-scoped. A `bl -C` shelled by a
+/// plugin addresses a DIFFERENT store — no enclosing op holds it, so no parent
+/// push will ever carry its seal; suppressing it (as the old depth predicate
+/// did) left the far store sealed-but-unpublished forever. It publishes.
+#[test]
+fn push_from_a_nested_op_on_an_unheld_store_publishes() {
+    let tmp = TempDir::new().unwrap();
+    let remote = remote_with_branch(tmp.path());
+    let store = store_clone(tmp.path(), &remote);
+    let landed = commit(&store, "landed.txt", "landed");
+    let other = tmp.path().join("elsewhere/tasks");
+
+    push(&binding(Some(&remote), &store), &env_held(&[&other, &store])).unwrap();
+
+    assert_eq!(tip(&remote, BRANCH), landed, "an unheld anvil is this op's to publish");
 }
 
 #[test]
@@ -76,7 +94,7 @@ fn push_in_stealth_is_a_no_op() {
     let tmp = TempDir::new().unwrap();
     let remote = empty_remote(tmp.path());
     let store = local_unpushed(tmp.path());
-    push(&binding(None, &store), &env_at(1)).unwrap();
+    push(&binding(None, &store), &env_top()).unwrap();
     // The empty remote still has no balls branch.
     assert!(git(&remote, &["rev-parse", BRANCH]).is_err());
 }
@@ -96,7 +114,7 @@ fn push_fails_when_the_remote_rejects_a_non_fast_forward() {
     // never a raw non-ff dump alone. The remedy is the two-step recovery
     // (bl-547f) — `bl sync`, then re-run — so the half-close reads recoverable,
     // but it FORWARDS to sync's verdict rather than promising it (bl-4945).
-    let err = push(&binding(Some(&remote), &store), &env_at(1)).unwrap_err().to_string();
+    let err = push(&binding(Some(&remote), &store), &env_top()).unwrap_err().to_string();
     assert!(err.contains("push rejected: the remote store moved ahead"), "{err}");
     assert!(err.contains("run `bl sync`"), "{err}");
     assert!(err.contains("or refuses and names what this store holds"), "{err}");
@@ -121,7 +139,7 @@ fn the_recovery_e5_advertises_exits_a_sealed_but_unpublished_store() {
     git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
 
     // E5 promises no convergence — it hands the operator to sync…
-    let e5 = push(&binding(Some(&remote), &store), &env_at(1)).unwrap_err().to_string();
+    let e5 = push(&binding(Some(&remote), &store), &env_top()).unwrap_err().to_string();
     assert!(e5.contains("or refuses and names what this store holds"), "{e5}");
     // …which refuses, and names the unpublished set plus both ways out.
     let refusal = sync(&binding(Some(&remote), &store)).unwrap_err().to_string();
@@ -136,7 +154,7 @@ fn the_recovery_e5_advertises_exits_a_sealed_but_unpublished_store() {
     let unpublished = git(&store, &["log", "--format=%H", &format!("FETCH_HEAD..{BRANCH}")]).unwrap();
     assert_eq!(unpublished, stranded);
     git(&store, &["rebase", "FETCH_HEAD"]).unwrap();
-    push(&binding(Some(&remote), &store), &env_at(1)).unwrap();
+    push(&binding(Some(&remote), &store), &env_top()).unwrap();
     sync(&binding(Some(&remote), &store)).unwrap(); // converged: a clean no-op
 }
 

@@ -40,40 +40,45 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 
 /// The host-resolved environment the binary edge hands the tracker: the XDG
-/// roots that locate this checkout's clone bundle (§1), and the §6 recursion
-/// depth this plugin was spawned at. No env reads in the lib — the edge resolves
-/// them once (the bl-bfa8 rule) and passes them in.
+/// roots that locate this checkout's clone bundle (§1), and the chain of store
+/// checkouts the `bl`s in this invocation tree hold open (`$BALLS_HELD_STORES`,
+/// §6). No env reads in the lib — the edge resolves them once (the bl-bfa8
+/// rule) and passes them in.
 pub struct Env {
     pub xdg: crate::layout::Xdg,
-    /// `$BALLS_PLUGIN_DEPTH`, as seen by THIS plugin process — see
-    /// [`Env::nested`] for the arithmetic that turns it into a publish decision.
-    pub depth: u32,
+    /// `$BALLS_HELD_STORES` split like `$PATH`: every `bl` in the invocation
+    /// tree, outermost first, ending with the one that spawned this plugin —
+    /// see [`Env::nested`] for the read that turns it into a publish decision.
+    pub held: Vec<std::path::PathBuf>,
 }
 
 impl Env {
-    /// Assemble from the raw boundary values, so the depth PARSE lives in the
+    /// Assemble from the raw boundary values, so the chain PARSE lives in the
     /// library where unit tests reach every branch (the bl-bfa8 rule, as
-    /// [`crate::edge::Edge::resolve`] does it for core). An absent or
-    /// unparseable depth is `0` — it FAILS OPEN, publishing: a plugin run by
-    /// hand, or by a core too old to set the variable, must not silently stop
-    /// federating.
+    /// [`crate::edge::Edge::resolve`] does it for core). An absent variable is
+    /// an empty chain — it FAILS OPEN, publishing: a plugin run by hand, or by a
+    /// core too old to set the variable, must not silently stop federating.
     #[must_use]
-    pub fn resolve(xdg: crate::layout::Xdg, depth: Option<String>) -> Self {
-        Self { xdg, depth: depth.and_then(|d| d.parse().ok()).unwrap_or(0) }
+    pub fn resolve(xdg: crate::layout::Xdg, held: Option<std::ffi::OsString>) -> Self {
+        Self { xdg, held: held.map(|h| std::env::split_paths(&h).collect()).unwrap_or_default() }
     }
 
-    /// Whether an enclosing `bl` holds this store open — the §12 rung that
-    /// decides [`remote_ops::push`] (bl-1266).
+    /// Whether an ENCLOSING `bl` holds `store` open — the §12 rung that decides
+    /// [`remote_ops::push`] (bl-1266), store-scoped since bl-aac7.
     ///
-    /// The arithmetic, stated once: core spawns every plugin at its OWN depth
-    /// `+ 1` (`crate::plugin`'s `spawn`), so a tracker run by a TOP-LEVEL `bl`
-    /// sees `1`, and one run by a `bl` that a plugin itself shelled sees `2` or
-    /// more. `>= 2` therefore reads exactly "the `bl` that invoked me is not the
-    /// outermost one", which is the condition under which its seal is not yet
-    /// the op tree's to publish.
+    /// The read, stated once: core exports the chain with its OWN store appended
+    /// LAST (`crate::plugin::held_chain`), so the final entry is always the
+    /// spawning op's — the wire's `binding.store` — and the enclosing set is
+    /// everything before it. `store` in that prefix reads exactly "an op above
+    /// the one that invoked me has this anvil open", which is the condition
+    /// under which its seal is not yet this op's to publish; a nested `bl -C`
+    /// on a store nobody above holds is NOT nested here and publishes (the
+    /// bl-1266 H1 fill). Depth is no longer consulted — it is the §6 recursion
+    /// cap alone.
     #[must_use]
-    pub fn nested(&self) -> bool {
-        self.depth >= 2
+    pub fn nested(&self, store: &str) -> bool {
+        let enclosing = &self.held[..self.held.len().saturating_sub(1)];
+        enclosing.iter().any(|h| h == Path::new(store))
     }
 }
 

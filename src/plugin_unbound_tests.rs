@@ -39,7 +39,7 @@ fn ctx() -> OpContext {
 fn a_missing_third_party_plugin_aborts_and_names_bl_install() {
     let tmp = TempDir::new().unwrap();
     let log = Log::new(tmp.path().join("log"), Level::Debug, Verb::Close, clk);
-    let err = Subprocess::new(ctx(), &log, 0)
+    let err = Subprocess::new(ctx(), &log, 0, Vec::new())
         .run(&pref("ghost", None), Verb::Close, Phase::Pre, tmp.path(), None)
         .unwrap_err();
     assert!(err.to_string().contains("ghost referenced but bin/ghost missing — run bl install"));
@@ -52,7 +52,7 @@ fn a_missing_plugin_with_a_source_hint_names_the_acquisition() {
     let tmp = TempDir::new().unwrap();
     let log = Log::new(tmp.path().join("log"), Level::Debug, Verb::Close, clk);
     let hinted = PluginRef { name: "ghost".into(), bin: None, source: Some("cargo install ghost".into()) };
-    let err = Subprocess::new(ctx(), &log, 0)
+    let err = Subprocess::new(ctx(), &log, 0, Vec::new())
         .run(&hinted, Verb::Close, Phase::Pre, tmp.path(), None)
         .unwrap_err();
     assert!(
@@ -71,7 +71,7 @@ fn a_renamed_plugins_notice_carries_the_new_names_hint_when_authored() {
     let log_path = tmp.path().join("log");
     let log = Log::new(log_path.clone(), Level::Debug, Verb::Sync, clk);
     let hinted = PluginRef { name: "tracker".into(), bin: None, source: Some("make install".into()) };
-    Subprocess::new(ctx(), &log, 0).run(&hinted, Verb::Sync, Phase::Pre, tmp.path(), None).unwrap();
+    Subprocess::new(ctx(), &log, 0, Vec::new()).run(&hinted, Verb::Sync, Phase::Pre, tmp.path(), None).unwrap();
     let log_body = fs::read_to_string(&log_path).unwrap();
     assert!(
         log_body.contains("then prime to resume — source: make install"),
@@ -88,7 +88,7 @@ fn a_missing_renamed_first_party_plugin_is_skipped_with_a_notice() {
     let tmp = TempDir::new().unwrap();
     let log_path = tmp.path().join("log");
     let log = Log::new(log_path.clone(), Level::Debug, Verb::Sync, clk);
-    Subprocess::new(ctx(), &log, 0)
+    Subprocess::new(ctx(), &log, 0, Vec::new())
         .run(&pref("tracker", None), Verb::Sync, Phase::Pre, tmp.path(), None)
         .unwrap(); // Ok — skipped, not an error
     let rec = fs::read_to_string(&log_path)

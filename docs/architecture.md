@@ -466,8 +466,10 @@ percent-encoded XDG clone dirs, with no way to even *see* what remote or branch 
   will be published*, while `nested` says the push is OWED and the outermost `bl` in this invocation
   tree pays it — an enclosing op holds this anvil open (§12). It PREEMPTS the URL tiers, because the
   question the row answers is "will this op publish?" and a correctly configured remote is the most
-  misleading possible answer while the enclosing op has not sealed; `nested` at a top-level prompt is
-  a leaked `BALLS_PLUGIN_DEPTH` (§6), costing nothing — the next clean op publishes. The dump and the
+  misleading possible answer while the enclosing op has not sealed. The rung is STORE-SCOPED
+  (bl-aac7): it reads `nested` iff the held-store chain (`BALLS_HELD_STORES`, §6) names THIS store,
+  so `nested` at a top-level prompt is a leaked chain naming it, costing nothing — the next clean op
+  publishes. The dump and the
   per-key path agree on the key set, the dump's being a subset (bl-03a1): a per-key op accepts the
   three scalars, a live dispatch SLOT to *create* (`<op>.<pre|post>` for a current verb, bare
   `show`/`list`), AND any key the effective schedule already WIRES — so every key the dump surfaces
@@ -570,7 +572,10 @@ running the binary by hand with the same argv.
 
 <bin> <op> <phase>
   cwd:    the CHANGE worktree (mutating ops) or the relevant checkout (reads: store / landing)
-  env:    BALLS_PROTOCOL=1, BALLS_PLUGIN_NAME=<name>, BALLS_PLUGIN_DEPTH=<n>
+  env:    BALLS_PROTOCOL=1, BALLS_PLUGIN_NAME=<name>, BALLS_PLUGIN_DEPTH=<n>,
+          BALLS_HELD_STORES=<store>[:<store>…]   # the anvils this invocation tree holds open, outermost
+                                                 # first, ending with the spawning op's own (§12, bl-aac7);
+                                                 # $PATH-shaped; a shelling plugin passes it through untouched
   stdin:  payload (§7)
   stdout: the plugin's USER-FACING channel — balls forwards it to the invoker's stdout verbatim
           and PARSES NOTHING back into state (no return channel; see §7). A plugin that produces a
@@ -2114,19 +2119,23 @@ above every tier above, because it decides whether the ladder is consulted at al
 that nested op runs its own hook chain
 including the tracker's `*/post` push; without this rule that push publishes the PARENT's not-yet-final
 seal, which core's §14 un-seal — `git reset --hard`, purely local — cannot chase, so the next `bl sync`
-fast-forwards a repudiated op straight back in. The general form is *an op does not publish an anvil
-an enclosing op holds open*; the shipped predicate is the §6 recursion depth, which core already sets
-and already propagates (`BALLS_PLUGIN_DEPTH`: a tracker spawned by a top-level `bl` sees `1`, one
-spawned by a `bl` a plugin shelled sees `2`+), so the rule costs no new env, no wire field and no core
-change. Nothing is deferred forever: a push publishes a branch TIP, so the nested seal rides the
-enclosing op's own trailing push — one push per op TREE, still sorted last (§14). TWO KNOWN EDGES.
-(a) A leaked `BALLS_PLUGIN_DEPTH` makes a top-level op read nested and skip its push; accepted, and
-made visible rather than silent — `bl conf` reads `task-remote (none) nested` (§4), and the store
-publishes on the next clean op. (b) A nested op addressing a DIFFERENT store (`bl -C`) is suppressed
-by a depth predicate although no enclosing push covers its anvil — a debt nobody pays. Nothing shipped
-shells `bl -C`, so it is deferred, NOT solved: the fill is a held-store export the tracker compares
-its binding against, and whoever writes the first such plugin owes it (design record
-`docs/design/bl-1266-nested-op-publication.md`).
+fast-forwards a repudiated op straight back in. The rule is exactly *an op does not publish an anvil
+an enclosing op holds open* — STORE-scoped (bl-aac7, filling bl-1266's H1). The predicate is the
+held-store chain: core exports `BALLS_HELD_STORES` into every plugin spawn (§6) — what it inherited
+plus its own store, last — a shelling plugin inherits it untouched, the nested `bl` reads it at its
+edge, and the tracker suppresses iff its `binding.store` appears ABOVE the final entry (the spawner's
+own). `BALLS_PLUGIN_DEPTH` was the shipped proxy until bl-aac7 and coincided only while every nested
+op was in-store; it is now the §6 recursion cap alone. Nothing is deferred forever: a push publishes
+a branch TIP, so the nested seal rides the enclosing op's own trailing push — one push per op TREE,
+still sorted last (§14) — and a nested `bl -C` on a store nobody above holds has no such push to ride,
+so it publishes its own (bl-upstream's shape, bl-5273). The one env is paid knowingly (§6 calls a new
+env a smell; the maintainer, 2026-09-17: *"Variables are a smell, but not banned. They do exist for
+reasons."*) because the alternative — a plugin scrubbing the depth env before shelling — is shimming
+in under an existing control. ONE KNOWN EDGE: a leaked `BALLS_HELD_STORES` naming this store makes a
+top-level op read nested and skip its push; accepted, and made visible rather than silent — `bl conf`
+reads `task-remote (none) nested` (§4), and the store publishes on the next clean op. A chain that
+cannot be joined (a `:` in a store path — impossible under the §1 percent-encoded layout) is left
+unset, and every reader fails OPEN (design record `docs/design/bl-1266-nested-op-publication.md`).
 
 **prime WARNS when its remote is ephemeral.** When prime founds/joins on an explicit
 `--remote` that the durable ladder (landing > binding > XDG > `origin`) does not reproduce, the
@@ -2372,7 +2381,8 @@ converging predicate.
 `binding`, not from a command:
 
 - **argv:** `<op> <phase>` (`sync|prime` / `pre|post`). **env:** `BALLS_PROTOCOL=1`,
-  `BALLS_PLUGIN_NAME`, `BALLS_PLUGIN_DEPTH` (the §6 set). **cwd:** the store checkout (`tasks/`).
+  `BALLS_PLUGIN_NAME`, `BALLS_PLUGIN_DEPTH`, `BALLS_HELD_STORES` (the §6 set). **cwd:** the store
+  checkout (`tasks/`).
 - **pre stdin:** `{ protocol, op, phase, plugin_name, actor, binding }`. `binding =
   { remote, tasks_branch, store, landing, invocation_path }` is the load-bearing payload — exactly
   what a fetcher needs (`remote` + `tasks_branch` + the `store` checkout path). **Absent:** `command`

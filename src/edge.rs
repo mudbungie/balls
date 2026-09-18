@@ -30,12 +30,19 @@ use std::path::PathBuf;
 /// seconds — the §8 op-clock TEST seam ([`crate::clock`]), one rung below the
 /// `clock_provider` bin: an env fact, so it is read here at the edge (the bl-bfa8
 /// rule) and `None`/unparseable falls straight through to the system clock.
+/// `held` is `$BALLS_HELD_STORES` split like `$PATH`: the store checkouts every
+/// ENCLOSING `bl` in this invocation tree holds open, outermost first (§6/§12,
+/// bl-aac7) — core exports it to each plugin spawn with its own store appended,
+/// a shelling plugin inherits it untouched, and a nested `bl` reads it here.
+/// Unset ⇒ empty ⇒ nothing is held: a top-level op, or a hand-run one, fails
+/// OPEN and publishes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Edge {
     pub xdg: Xdg,
     pub invocation_path: PathBuf,
     pub default_actor: String,
     pub depth: u32,
+    pub held: Vec<PathBuf>,
     pub exe_dir: Option<PathBuf>,
     pub path_dirs: Vec<PathBuf>,
     pub color: bool,
@@ -65,12 +72,14 @@ impl Edge {
         no_color: Option<String>,
         stdout_tty: bool,
         balls_clock: Option<String>,
+        held: Option<std::ffi::OsString>,
     ) -> Self {
         Self {
             xdg: Xdg::with(&home, config_home.as_deref(), state_home.as_deref()),
             invocation_path,
             default_actor: user.unwrap_or_else(|| "unknown".into()),
             depth: depth.and_then(|d| d.parse().ok()).unwrap_or(0),
+            held: held.map(|h| std::env::split_paths(&h).collect()).unwrap_or_default(),
             exe_dir: current_exe.and_then(|e| e.parent().map(std::path::Path::to_path_buf)),
             path_dirs: path.map(|p| std::env::split_paths(&p).collect()).unwrap_or_default(),
             color: stdout_tty && no_color.is_none(),
@@ -106,6 +115,7 @@ mod tests {
             None,
             true,
             None,
+            None,
         )
     }
 
@@ -133,6 +143,7 @@ mod tests {
             no_color.map(str::to_string),
             stdout_tty,
             None,
+            None,
         )
         .color
     }
@@ -151,9 +162,35 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         assert_eq!(e.path_dirs, [PathBuf::from("/usr/bin"), PathBuf::from("/opt/bl")]);
         assert!(resolve(None, None, None).path_dirs.is_empty()); // no $PATH ⇒ no lookup dirs
+    }
+
+    #[test]
+    fn held_stores_split_like_path_and_default_empty() {
+        // bl-aac7: the chain of anvils enclosing ops hold open rides one env,
+        // `$PATH`-shaped; unset ⇒ nothing held (fail open — a top-level op).
+        let held = |h: Option<&str>| {
+            Edge::resolve(
+                PathBuf::from("/h"),
+                None,
+                None,
+                PathBuf::from("/p"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                true,
+                None,
+                h.map(Into::into),
+            )
+            .held
+        };
+        assert_eq!(held(Some("/s/a/tasks:/s/b/tasks")), [PathBuf::from("/s/a/tasks"), PathBuf::from("/s/b/tasks")]);
+        assert!(held(None).is_empty());
     }
 
     #[test]
@@ -171,6 +208,7 @@ mod tests {
                 None,
                 true,
                 c.map(str::to_string),
+                None,
             )
             .balls_clock
         };
