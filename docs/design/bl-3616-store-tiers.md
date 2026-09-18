@@ -1,6 +1,6 @@
 # bl-3616 — store tiers: publication is a verb, boundaries are plugins, pointers are tags
 
-**PROPOSED (2026-09-04, Inflate).** Filed from the maintainer's reframe of how
+**CONVERGED (2026-09-17, maintainer dialogue; bl-d40a).** Every §6 question closed by dialogue, Q7's position ratified (*"Variables are a smell, but not banned. They do exist for reasons."*). Implementation minted in §8. Originally **PROPOSED (2026-09-04, Inflate).** Filed from the maintainer's reframe of how
 balls meets a team: *balls should lifecycle at high velocity locally and under
 the user's name; shared stores exist but get deliberately mirrored work; the
 next tier up is the corporate tracker (jira / GitHub issues — tasks for humans,
@@ -205,7 +205,7 @@ check-in on demand. The ladder is the schedule, again. The cost this shape
 carries is Q7: a nested `bl -C` on a different store must publish, and today
 it does not.
 
-## 6. Not settled — the maintainer's attack wanted here
+## 6. Ledger — every question, how it closed (was: not settled)
 
 1. ~~Is the personal tier really single-writer?~~ **CLOSED by the maintainer
    (2026-09-06): it is never single-writer.** Resolved by §2.1/§3 — the
@@ -335,12 +335,11 @@ evidence for this op, not a handle to keep. The residue in §6 Q2 is CLOSED.
 - Nothing here changes tier-2 plugins: github-issues already has the shape.
   A jira plugin is a port, not a design.
 
-## 8. Implementation balls (mint on convergence, not before)
+## 8. Implementation balls (minted 2026-09-17 on convergence)
 
-- bl-tracker: the reconcile (fetch + rebase local seals + push), called once-on-reject from `*.post` and over N seals from `sync`; transport failure fails open; drift line on `list`/`show`.
-- Audit DONE (§6.1): the reconcile must `git rebase` in the store checkout (bl-057a); state the pinning rule in `src/seen.rs`'s header and §7's wire description.
-- Tag charset: admit `:` `/` `@` `#`.
-- `bl-upstream` plugin (sibling repo, like balls-github-plugin) — founds its shared store as a `bl -C` checkout in its territory; no plumbing writes.
-- bl-1266 H1 fill (store-scoped nested-op publication: core exports the held store path, tracker suppresses only on match) — a PREREQUISITE of bl-upstream, filed against bl-1266's residue.
-- Drift: tracker `*.post` prints the op-ball's unpublished count to stderr; `show` per-ball line with fetch age; `list` header aggregate.
-- Seed comment in `[hooks]` documenting the opt-in wiring.
+- **bl-21ab** — bl-tracker reconcile: fetch + rebase local seals IN the store checkout + push; once-on-reject from `*.post`, over N seals from `sync`; transport fails open; pinning rule stated in `src/seen.rs` + §7.
+- **bl-439d** — drift render: `*.post` stderr count for the op's ball, `show` per-ball line with fetch age, `list` header aggregate.
+- **bl-331a** — tag charset admits `:` `/` `@` `#`; pointer convention documented.
+- **bl-aac7** — bl-1266 H1 fill: store-scoped nested-op publication (core exports the held store path; tracker suppresses only on match, fail open when unset).
+- **bl-260e** — seed `[hooks]` comment: the wiring shapes (mandatory / opt-in / occupancy-eager), no default; identity shims noted.
+- **bl-5273** — `bl-upstream` plugin, sibling repo; a founded `bl -C` checkout, never plumbing. Needs bl-aac7 and bl-331a.
