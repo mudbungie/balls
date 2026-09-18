@@ -650,7 +650,8 @@ a list property, not an `NN-` filename convention faking one.
 "prime.post"   = ["bl-delivery", "bl-tracker"]   # BACKSTOP prune of settled work/<id> branches (close.post deletes its own; worktrees materialize at claim only), then settle store content (fetch-ff + push)
 "claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
-"show"         = ["bl-delivery"]                 # read-op (single phase): fold the worktree path into the human render (§11)
+"show"         = ["bl-delivery", "bl-tracker"]  # read-op (single phase): fold the worktree path (§11) + the `published` drift line (§13) into the human render
+"list"         = ["bl-tracker"]                  # read-op: the store-level `store: N ahead, M behind` header (§13)
 "close.pre"    = ["bl-delivery"]                 # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
@@ -782,9 +783,10 @@ merge-vs-replace logic** — install is path-copy, and the path's *shape* decide
 - **Snapshot:** an op reads the effective `[hooks]` schedule at op-start and uses that frozen set;
   an install landing mid-op affects only the next op.
 - **Reads are not special-cased.** Every op (incl. `show`/`list`) has a hook key, and the default
-  schedule USES one: `show` lists the delivery plugin (the §11 worktree-path fold into the human
-  render — the bl-0af4 read-op dispatch). The other read (`list`) stays plugin-free in PRACTICE only
-  because nothing is listed for it by default.
+  schedule USES both: `show` lists the delivery plugin (the §11 worktree-path fold into the human
+  render — the bl-0af4 read-op dispatch) and the tracker (the per-ball `published` drift line, §13);
+  `list` lists the tracker (the store-level drift HEADER — the list fold leads the rows, where the
+  show fold sits inside the field block; bl-439d).
 
 ## §7 Plugin wire payloads
 
@@ -2332,6 +2334,22 @@ not a consent breach, because consent governs config + executable plugins, never
   contention (the later loses), a close against a remote update is a human's call — so auto-resolving
   it would be core deciding an outcome only the operator can weigh. An unreachable remote fails OPEN
   (warn; the store stays ahead; drift renders it). Still no retry in core (§14).
+- **Drift is detected at every op, in the op's scope, and reconciled by none of them** (bl-3616 Q5,
+  bl-439d — the maintainer: *"drift should be detected, though not necessarily reconciled, at every
+  op, in the scope of the op"*). Three surfaces, one derivation, nothing stored on any ball: every
+  mutating op's tracker `*.post` prints the op-ball's count on stderr (`bl-xxxx: 2 seals unpublished`
+  — silent at zero, which is what a mandatory push leaves; nothing when an enclosing op will publish);
+  `bl show <id>` folds a `published` field line (`current` / `2 seals unpublished` / `1 seal to
+  sync`, each stamped `(last fetch <age> ago)`); `bl list` leads with the store-level header
+  (`store: 3 ahead, 0 behind `<remote>` <branch> (last fetch 3h ago)`). The derivation is
+  `git rev-list --count` between the store branch and the tracker's PUBLICATION MARK — the last
+  remote tip this store positively knew, set to `FETCH_HEAD` after every fetch and to `HEAD` after
+  every successful push; git's remote-tracking ref would be that mark, but a URL remote (§12) is
+  tracked nowhere, so the tracker keeps the one file itself in the store's per-worktree gitdir
+  (bl-owned territory, the seen-token precedent), sha as content, mtime as the fetch age. So *ahead*
+  is free and exact, *behind* is only as fresh as the last fetch and SAYS SO — §12's refusal of a
+  per-op pre-pull stands; detection is honest about its own staleness rather than paying a
+  round-trip to hide it. Never in `--json` (a read dispatch never runs there); absent in stealth.
   The MIRROR state — local rolled back what the remote already took — is no longer
   a second case to answer: since bl-1266 an op publishes only if it is the outermost `bl` in its
   invocation tree (§12), so a push either succeeds (remote == local) or aborts the op (nothing

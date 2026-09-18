@@ -3,12 +3,14 @@
 //! [`crate::wire`] is output-only: balls serializes a payload to a plugin's
 //! stdin and never deserializes one (the §7 no-return-channel rule). The
 //! tracker is the SEPARATE binary on the receiving end, so it owns its own
-//! input type — and it needs exactly the `binding`, "exactly what a fetcher
-//! needs" (§7). The op and phase arrive on argv (§6 `<bin> <op> <phase>`), so
-//! the payload contributes only the binding; every other wire field is ignored
-//! by serde, which keeps this type stable as the wire grows.
+//! input type — the `binding`, "exactly what a fetcher needs" (§7), plus the
+//! op's BALL for the drift render (bl-439d): `command.id` on a mutating wire,
+//! `metadata.bl-id` on a read wire (§6 — a read carries no `command`). The op
+//! and phase arrive on argv (§6 `<bin> <op> <phase>`); every other wire field
+//! is ignored by serde, which keeps this type stable as the wire grows.
 
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::io::{self, Read};
 
 /// §7 binding — where the op is happening, from the tracker's seat. `remote` is
@@ -36,20 +38,41 @@ pub struct Binding {
     pub invocation_path: String,
 }
 
-/// Just enough of the §7 envelope to reach the `binding`; serde drops the rest.
+/// What the tracker reads off one payload: the binding, and the ball the op is
+/// about when it is about one (`None` on `sync`/`prime`/`install`, the bulk
+/// `import`, and `list`).
+pub struct Input {
+    pub binding: Binding,
+    pub id: Option<String>,
+}
+
+/// Just enough of the §7 envelope to reach the `binding` and the ball id;
+/// serde drops the rest.
 #[derive(Deserialize)]
 struct Envelope {
     binding: Binding,
+    #[serde(default)]
+    command: Option<Command>,
+    #[serde(default)]
+    metadata: Option<BTreeMap<String, Vec<String>>>,
 }
 
-/// Read the §7 payload JSON from `input` and return its [`Binding`]. Unparseable
-/// JSON (or a payload with no `binding`) is an [`io::Error`] — the plugin aborts
-/// the op, exactly as a non-zero exit does for any other failure (§6).
-pub fn read_binding(input: &mut impl Read) -> io::Result<Binding> {
+/// The one `command` field the tracker reads: the ball (§7, carried not derived).
+#[derive(Deserialize)]
+struct Command {
+    #[serde(default)]
+    id: Option<String>,
+}
+
+/// Read the §7 payload JSON from `input`. Unparseable JSON (or a payload with
+/// no `binding`) is an [`io::Error`] — the plugin aborts the op, exactly as a
+/// non-zero exit does for any other failure (§6).
+pub fn read_input(input: &mut impl Read) -> io::Result<Input> {
     let mut buf = String::new();
     input.read_to_string(&mut buf)?;
-    let envelope: Envelope = serde_json::from_str(&buf).map_err(io::Error::other)?;
-    Ok(envelope.binding)
+    let e: Envelope = serde_json::from_str(&buf).map_err(io::Error::other)?;
+    let from_trailer = e.metadata.and_then(|m| m.get("bl-id").and_then(|v| v.first().cloned()));
+    Ok(Input { binding: e.binding, id: e.command.and_then(|c| c.id).or(from_trailer) })
 }
 
 #[cfg(test)]
@@ -57,7 +80,21 @@ mod tests {
     use super::*;
 
     fn read(json: &str) -> io::Result<Binding> {
-        read_binding(&mut json.as_bytes())
+        read_input(&mut json.as_bytes()).map(|i| i.binding)
+    }
+
+    #[test]
+    fn the_op_ball_comes_from_command_id_or_the_read_wires_trailer() {
+        // bl-439d: a mutating wire names the ball in `command.id`; a §6 read
+        // wire has no command and names it in `metadata.bl-id`; a diffless op
+        // names none.
+        let b = r#""binding":{"tasks_branch":"b","store":"/s","invocation_path":"/p"}"#;
+        let with_cmd = format!(r#"{{{b},"command":{{"op":"claim","id":"bl-0001"}}}}"#);
+        assert_eq!(read_input(&mut with_cmd.as_bytes()).unwrap().id.as_deref(), Some("bl-0001"));
+        let read_wire = format!(r#"{{{b},"metadata":{{"bl-id":["bl-0002"]}}}}"#);
+        assert_eq!(read_input(&mut read_wire.as_bytes()).unwrap().id.as_deref(), Some("bl-0002"));
+        let diffless = format!("{{{b}}}");
+        assert!(read_input(&mut diffless.as_bytes()).unwrap().id.is_none());
     }
 
     #[test]

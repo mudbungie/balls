@@ -148,7 +148,7 @@ fn the_folded_line_lands_in_the_human_render() {
     let (cfg, log) = (EffectiveConfig::default(), test_support::log_at(tmp.path(), Level::Debug, Verb::List));
     let flags = parse(Verb::List, &[]).unwrap();
     let out = render(&edge, Verb::List, &flags, &store, &cfg, &log).unwrap();
-    assert!(out.contains("bl-1") && out.ends_with("folded-line\n"), "{out}");
+    assert!(out.starts_with("folded-line\n") && out.contains("bl-1"), "the fold heads the list:\n{out}");
 }
 
 #[test]

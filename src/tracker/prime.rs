@@ -123,7 +123,11 @@ pub fn prime_post(b: &Binding, env: &Env) -> io::Result<()> {
     // construction and a later op's push fails LOUDLY instead of never publishing
     // (bl-9df0); contrast the established push above, whose rejection is
     // split-brain.
-    let _ = git(store, &["push", &remote, &b.tasks_branch]);
+    if git(store, &["push", &remote, &b.tasks_branch]).is_ok() {
+        if let Ok(head) = git(store, &["rev-parse", "HEAD"]) {
+            super::drift::mark(store, &head); // founded: the remote tip is this head (bl-439d)
+        }
+    }
     Ok(())
 }
 

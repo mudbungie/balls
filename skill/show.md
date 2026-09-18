@@ -31,8 +31,9 @@ everything the bedrock record cannot, and it is exactly what a handoff needs —
 the **journal** (the prior agent's `-m` notes, oldest-first), the derived
 **claim-age** line (how stale the holder's claim is), the machine-local
 **`worktree`** line (where the code actually is), the **`delivers <id>`** line
-(where its work goes), and a **byline** under each comment in the body (who wrote
-it, when). All five are derived, so `--json` carries none of them: an agent that
+(where its work goes), the **`published`** line (whether this ball's seals have
+reached the remote), and a **byline** under each comment in the body (who wrote
+it, when). All six are derived, so `--json` carries none of them: an agent that
 parses `--json` by reflex never sees a journal entry in its life, and every `-m`
 note ever written is written for a reader that never looks.
 
@@ -48,6 +49,22 @@ claimed ball — a derived `claimed <ISO> (<age> ago)` line under the `claimant`
 field. Both are human-only and store-derived: `--json` carries neither, nor the
 journal (derived history). See `bl update --skill` for how the journal is written
 (`-m`) and `bl list --skill` for how status and claim-age are derived.
+
+A federated ball (a remote resolves — `bl conf`) also gets a `published` line:
+
+    published current (last fetch 3h ago)
+    published 2 seals unpublished (last fetch 3h ago)
+    published 1 seal to sync (last fetch 3h ago)
+
+It is this ball's file measured against the last remote tip the tracker
+positively knew (set by every fetch and every successful push): *unpublished*
+seals are here and not there, *to sync* seals are there and not here. Ahead is
+exact; behind is only as fresh as the stamp says, because no op pre-pulls (`bl
+sync` refreshes it). `unknown — never synced` means nothing has been fetched or
+pushed from this checkout yet. Absent in stealth. The same tracker prints a
+per-op count on stderr after every mutating op whose seal stayed local
+(`bl-xxxx: 1 seal unpublished`), and `bl list` leads with the store-level
+aggregate — see `bl list --skill`.
 
 A nested ball also gets a `delivers <id>` line under `parent`: its work forks
 from and folds back into `work/<id>`, not the integration branch. It appears

@@ -27,6 +27,7 @@
 //! `task_remote` sentinel, written by `bl prime --stealth` and re-derived by core
 //! on every op, bl-9df0) — the structural opt-out (§12).
 
+mod drift;
 mod git;
 mod payload;
 mod prime;
@@ -86,10 +87,11 @@ impl Env {
 
 /// The ops the tracker handles, for the §6 `protocol` self-description: the
 /// deliverable verbs plus `import` (it pushes on their `post` — imported
-/// records sync like any mutate, §16), `sync`/`prime`, and `install`
-/// (it fetches the center's config on `install/pre`, §13).
+/// records sync like any mutate, §16), `sync`/`prime`, `install` (it fetches
+/// the center's config on `install/pre`, §13), and the reads `show`/`list`
+/// (the drift render, bl-439d).
 const OPS: &[&str] = &[
-    "create", "claim", "unclaim", "update", "close", "import", "sync", "prime", "install",
+    "create", "claim", "unclaim", "update", "close", "import", "sync", "prime", "install", "show", "list",
 ];
 
 /// The §6 self-description emitted by `tracker protocol`. balls never persists
@@ -119,7 +121,7 @@ fn dispatch(args: &[String], input: &mut impl Read, out: &mut impl Write, env: &
         // sibling states its own version and no other's ([`crate::version`]).
         ["--version" | "-V"] => writeln!(out, "{}", crate::version::plugin_line("bl-tracker")),
         ["protocol"] => protocol(out),
-        [op, phase] => handle(op, phase, input, env),
+        [op, phase] => handle(op, phase, input, out, env),
         _ => Err(io::Error::other("usage: tracker --version | tracker protocol | tracker <op> <phase>")),
     }
 }
@@ -131,18 +133,19 @@ fn protocol(out: &mut impl Write) -> io::Result<()> {
     out.write_all(b"\n")
 }
 
-/// Route one `<op> <phase>` to its handler. The tracker acts in five slots —
+/// Route one `<op> <phase>` to its handler. The tracker acts in six slots —
 /// `sync/pre`, `prime/pre` (settle name + clone-in), `prime/post` (settle content
-/// — fetch-ff + push, bl-0a23), `install/pre` (the §13 config fetch), and any
-/// deliverable verb's `post` (the push) — and no-ops everywhere else (reads, the
-/// other phases). `prime/post` is matched out explicitly BEFORE the
-/// `sync`/`prime`/`install` catch-all so it reaches its own content handler; that
-/// catch-all then keeps `sync`/`install` from triggering the generic `post` push:
-/// in particular `install` adopts config INTO the local landing (a fetch), and
-/// must NEVER push the landing back out (publishing is a separate direction,
+/// — the reconcile, bl-0a23/bl-21ab), `install/pre` (the §13 config fetch), any
+/// deliverable verb's `post` (the push, then the op-ball drift line on stderr,
+/// bl-439d), and the `show`/`list` reads (the drift line folded into the render)
+/// — and no-ops everywhere else. `prime/post` is matched out explicitly BEFORE
+/// the `sync`/`prime`/`install` catch-all so it reaches its own content handler;
+/// that catch-all then keeps `sync`/`install` from triggering the generic `post`
+/// push: in particular `install` adopts config INTO the local landing (a fetch),
+/// and must NEVER push the landing back out (publishing is a separate direction,
 /// §6/§13).
-fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result<()> {
-    let mut binding = payload::read_binding(input)?;
+fn handle(op: &str, phase: &str, input: &mut impl Read, out: &mut impl Write, env: &Env) -> io::Result<()> {
+    let payload::Input { mut binding, id } = payload::read_input(input)?;
     binding.remote = effective_remote(&binding);
     match (op, phase) {
         ("sync", "pre") => remote_ops::sync(&binding, env),
@@ -150,7 +153,20 @@ fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result
         ("prime", "post") => prime::prime_post(&binding, env),
         ("install", "pre") => remote_ops::fetch_config(&binding),
         ("sync" | "prime" | "install", _) => Ok(()),
-        (_, "post") => remote_ops::push(&binding, env),
+        ("show" | "list", "read") => drift::render(op, &binding, id.as_deref(), out),
+        (_, "post") => {
+            remote_ops::push(&binding, env)?;
+            // The op's own drift, in the op's scope (bl-3616 Q5): quiet at zero
+            // (a mandatory push), a count when the seal stayed local (opt-in
+            // wiring, an unreachable remote), nothing in stealth or when an
+            // enclosing op will publish for this one (the count would be its).
+            if binding.remote.is_some() && !env.nested(&binding.store) {
+                if let Some(line) = drift::op_line(Path::new(&binding.store), id.as_deref()) {
+                    eprintln!("tracker: {line}");
+                }
+            }
+            Ok(())
+        }
         _ => Ok(()),
     }
 }

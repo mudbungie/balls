@@ -21,6 +21,12 @@ use crate::safegit::reject_option_like;
 use std::io;
 use std::path::Path;
 
+// The reconcile's spoken outcomes — the same-ball refusal and the fail-open
+// warning — live in a sibling so this file stays under the 300-line cap.
+#[path = "remote_voice.rs"]
+mod voice;
+use voice::{conflict, fail_open, unmerged_balls};
+
 /// §13 `sync/pre`: the general rule — fetch the branch's UPSTREAM, **if any**,
 /// then reconcile THAT branch. "If any" is read from the remote
 /// ([`remote_has_branch`], the same ls-remote that decides prime's
@@ -92,8 +98,12 @@ pub fn push(b: &Binding, env: &Env) -> io::Result<()> {
     };
     reject_option_like(remote)?;
     reject_option_like(&b.tasks_branch)?;
-    match git(Path::new(&b.store), &["push", remote, &b.tasks_branch]) {
-        Ok(_) => Ok(()),
+    let store = Path::new(&b.store);
+    match git(store, &["push", remote, &b.tasks_branch]) {
+        Ok(_) => {
+            published(store);
+            Ok(())
+        }
         Err(_) => reconcile(b, env, remote),
     }
 }
@@ -143,7 +153,7 @@ fn reconcile(b: &Binding, env: &Env, remote: &str) -> io::Result<()> {
     if env.nested(&b.store) {
         return Ok(());
     }
-    git(store, &["push", remote, branch]).map(drop).map_err(|e| {
+    git(store, &["push", remote, branch]).map(|_| published(store)).map_err(|e| {
         io::Error::other(format!(
             "push rejected by `{remote}` even after reconciling this store onto its `{branch}` tip — not a \
              same-ball conflict (the rebase was clean): either the remote moved again mid-op (re-run \
@@ -153,53 +163,12 @@ fn reconcile(b: &Binding, env: &Env, remote: &str) -> io::Result<()> {
     })
 }
 
-/// A SAME-BALL CONFLICT, in balls' voice (bl-3129's precedent, one layer out at
-/// the remote) — E5 sharpened to name the ball (bl-21ab). The rebase stopped
-/// on a `tasks/<id>.md` both sides changed and was aborted, so the two facts
-/// are: nothing was published, and nothing local was changed. The exits are
-/// the operator's, stated as a choice: for an OP, core's abort un-seals it —
-/// `bl sync` then re-run (a claim of a ball someone else already claimed is
-/// contention, and the later claim loses; a close over a remote update is a
-/// human's call); for `sync`, the seals stay local and the operator resolves
-/// them in the store checkout, after which `bl sync` publishes — or discards
-/// them to the remote's version. balls never merges a ball field-wise.
-fn conflict(store: &str, remote: &str, branch: &str, contended: &[String], e: &io::Error) -> io::Error {
-    let who = if contended.is_empty() { "a ball".to_string() } else { contended.join(", ") };
-    io::Error::other(format!(
-        "push rejected: `{remote}`'s `{branch}` moved and {who} changed on both sides, so the rebase of \
-         this store's unpublished seals was aborted — nothing was published and nothing local was \
-         changed. For an op: it aborts and un-seals — run `bl sync`, then re-run the command (a claim of \
-         a ball someone else already claimed is contention, and the later claim loses). For seals this \
-         store still holds (`git -C {store} log FETCH_HEAD..{branch}`): reconcile them yourself — `git \
-         -C {store} rebase FETCH_HEAD`, resolve, then `bl sync` publishes — or `git -C {store} reset \
-         --hard FETCH_HEAD` to take the remote's version ({e})"
-    ))
-}
-
-/// The ball ids whose files are UNMERGED in a stopped rebase (`git ls-files
-/// -u`: one line per stage, `<mode> <sha> <stage>\t<path>`) — a `tasks/<id>.md`
-/// reads as its id, anything else as its path. Modify/modify and modify/delete
-/// (a close against an update) both list here.
-fn unmerged_balls(store: &Path) -> Vec<String> {
-    let mut ids: Vec<String> = git(store, &["ls-files", "-u"])
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|l| l.split('\t').nth(1))
-        .map(|p| p.strip_prefix("tasks/").and_then(|f| f.strip_suffix(".md")).unwrap_or(p).to_string())
-        .collect();
-    ids.sort();
-    ids.dedup();
-    ids
-}
-
-/// Transport failure FAILS OPEN (bl-3616 §3, the line github-issues drew in
-/// bl-a95c, moved into the tracker): warn on stderr and return `Ok` — the store
-/// stays ahead of a remote it cannot reach, nothing is lost, and the drift
-/// render (`bl show`/`bl list`) keeps saying so until a reachable op or `sync`
-/// publishes. The op is NOT aborted: an unreachable hub must not stop local
-/// work, and a rejected op would un-seal work that is perfectly good.
-fn fail_open(remote: &str, e: &io::Error) {
-    eprintln!("tracker: `{remote}` is unreachable — this store stays ahead of it, unpublished; the next op or `bl sync` publishes once it is reachable ({e})");
+/// A push just landed: the remote tip IS this head — set the publication mark
+/// (bl-439d) so the drift render reads current.
+fn published(store: &Path) {
+    if let Ok(head) = git(store, &["rev-parse", "HEAD"]) {
+        super::drift::mark(store, &head);
+    }
 }
 
 /// Is `remote`'s `branch` tip NOT a store — no `tasks/` tree at its root? That
@@ -243,6 +212,9 @@ fn tip_is_store(repo: &Path, remote: &str, branch: &str) -> Option<bool> {
 /// shared by every reject-interpretation site.
 fn fetch_tip(repo: &Path, remote: &str, branch: &str) -> io::Result<bool> {
     git(repo, &["fetch", remote, branch])?;
+    if let Ok(tip) = git(repo, &["rev-parse", "FETCH_HEAD"]) {
+        super::drift::mark(repo, &tip); // the remote tip, positively known as of now (bl-439d)
+    }
     Ok(git(repo, &["cat-file", "-e", "FETCH_HEAD:tasks"]).is_ok())
 }
 

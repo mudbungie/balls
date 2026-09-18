@@ -207,6 +207,10 @@ fn concurrent_creates_from_two_clones_both_land_with_no_human_in_the_loop() {
     let mut both = vec![id_a.clone(), id_b.clone()];
     both.sort();
     assert_eq!(got, both, "B's create reconciled A's ball in and landed its own");
+    // The drift render (bl-439d) through the real CLI: B is published and
+    // current, and says so — a field line on show, a header on list.
+    b.bl().args(["show", &id_b]).assert().success().stdout(predicates::str::contains("  published current (last fetch 0m ago)"));
+    b.bl().arg("list").assert().success().stdout(predicates::str::starts_with("store: 0 ahead, 0 behind `"));
 
     // Mutual sync: A pulls B's ball in. Both balls now stand in BOTH live lists —
     // the concurrent writes converged with no lost update.

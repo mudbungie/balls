@@ -52,7 +52,9 @@ fn seed_uses_the_embedded_default_without_materializing_the_xdg_override() {
     // does wire the `show` read-op under its bare key (§6 read dispatch).
     assert!(hooks.names("claim", "pre").is_empty());
     assert!(hooks.names("unclaim", "pre").is_empty());
-    assert_eq!(hooks.resolve_read(&crate::registry::Registry::at(&landing), "show").len(), 1);
+    let registry = crate::registry::Registry::at(&landing);
+    assert_eq!(hooks.resolve_read(&registry, "show").len(), 2); // delivery's worktree line + the tracker's drift line
+    assert_eq!(hooks.resolve_read(&registry, "list").len(), 1); // the tracker's store header (bl-439d)
 }
 
 #[test]

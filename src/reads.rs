@@ -30,7 +30,7 @@ use crate::verb::Verb;
 
 mod attribution;
 mod catalog;
-mod claim_age;
+pub(crate) mod claim_age;
 mod filter;
 mod flags;
 mod history;
@@ -196,7 +196,10 @@ fn render(edge: &Edge, verb: Verb, flags: &Flags, store: &Path, cfg: &EffectiveC
             // The invocation path + XDG layout feed the root-aware scope and the
             // fleet-view labels (bl-0161); both git reads stay lazy inside `list`.
             let ctx = list::Ctx { store, now: log::wall(), invocation: &edge.invocation_path, xdg: &edge.xdg };
-            Ok(list::render_list(&cat, &dead, flags, &style, &ctx)? + &fold(None))
+            // The read-dispatch fold is a HEADER on list (bl-3616 Q5: the
+            // store-level drift line leads, so the aggregate is read before the
+            // rows) where on show it is a field line inside the block.
+            Ok(fold(None) + &list::render_list(&cat, &dead, flags, &style, &ctx)?)
         }
         other => Err(io::Error::other(format!("{}: not a read verb", other.token()))),
     }

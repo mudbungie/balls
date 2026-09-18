@@ -338,7 +338,7 @@ evidence for this op, not a handle to keep. The residue in §6 Q2 is CLOSED.
 ## 8. Implementation balls (minted 2026-09-17 on convergence)
 
 - **bl-21ab** — bl-tracker reconcile: fetch + rebase local seals IN the store checkout + push; once-on-reject from `*.post`, over N seals from `sync`; transport fails open; pinning rule stated in `src/seen.rs` + §7. **BUILT 2026-09-18.**
-- **bl-439d** — drift render: `*.post` stderr count for the op's ball, `show` per-ball line with fetch age, `list` header aggregate.
+- **bl-439d** — drift render: `*.post` stderr count for the op's ball, `show` per-ball line with fetch age, `list` header aggregate. **BUILT 2026-09-18** (the mark is a file in the store's gitdir — a URL remote has no remote-tracking ref to read).
 - **bl-331a** — tag charset admits `:` `/` `@` `#`; pointer convention documented. **BUILT 2026-09-18.**
 - **bl-aac7** — bl-1266 H1 fill: store-scoped nested-op publication (core exports the held store path; tracker suppresses only on match, fail open when unset). **BUILT 2026-09-18.**
 - **bl-260e** — seed `[hooks]` comment: the wiring shapes (mandatory / opt-in / occupancy-eager), no default; identity shims noted.

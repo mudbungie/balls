@@ -44,6 +44,21 @@ below). Filters COMPOSE (AND).
     bl list retry --all                  # RECALL: needle over title+body, live AND closed
                                          #   — "has this been tried before?"
 
+## The header line: store drift
+
+A federated checkout (a remote resolves — `bl conf`) leads every human `list`
+with one line from the tracker:
+
+    store: 3 ahead, 0 behind `git@host:hub.git` balls/tasks (last fetch 3h ago)
+
+*Ahead* = seals here the remote has not taken (publish with `bl sync`, or they
+ride the next op's push); *behind* = seals the remote had at the last fetch that
+are not here yet (`bl sync` rebases you onto them). The stamp is the honesty:
+nothing pre-pulls, so *behind* is as old as the last fetch. `publication
+unknown — never synced` means this checkout has neither fetched nor pushed yet.
+Absent in stealth and under `--json`. Per-ball drift is `bl show`'s `published`
+line (`bl show --skill`).
+
 ## The human view is a containment tree
 
 Rows nest under their `--parent`, two spaces per level:
