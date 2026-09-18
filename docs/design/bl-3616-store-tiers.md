@@ -202,8 +202,10 @@ github-issues treats GitHub — with the difference that the other store is a
 
 Wired on `*.post` it is mandatory replication; wired on `sync.pre` alone it is
 check-in on demand. The ladder is the schedule, again. The cost this shape
-carries is Q7: a nested `bl -C` on a different store must publish, and today
-it does not.
+carries is Q7: a nested `bl -C` on a different store must publish — paid by
+bl-aac7. **Built as `~/dev/balls-upstream` (bl-5273)**; its `docs/design.md`
+records the implementation choices inside this frame (content-keyed marks,
+`prime --remote` founding, delivery detached on the shared landing).
 
 ## 6. Ledger — every question, how it closed (was: not settled)
 
@@ -342,4 +344,6 @@ evidence for this op, not a handle to keep. The residue in §6 Q2 is CLOSED.
 - **bl-331a** — tag charset admits `:` `/` `@` `#`; pointer convention documented. **BUILT 2026-09-18.**
 - **bl-aac7** — bl-1266 H1 fill: store-scoped nested-op publication (core exports the held store path; tracker suppresses only on match, fail open when unset). **BUILT 2026-09-18.**
 - **bl-260e** — seed `[hooks]` comment: the wiring shapes (mandatory / opt-in / occupancy-eager), no default; identity shims noted. **BUILT 2026-09-18** (seed header, architecture §6 listing, `bl conf --skill`, `bl prime --skill`; note `Hooks::to_toml` regenerates the landing copy without comments — the seed file is the reference).
-- **bl-5273** — `bl-upstream` plugin, sibling repo; a founded `bl -C` checkout, never plumbing. Needs bl-aac7 and bl-331a.
+- **bl-5273** — `bl-upstream` plugin, sibling repo; a founded `bl -C` checkout, never plumbing. Needs bl-aac7 and bl-331a. **BUILT 2026-09-18** — `~/dev/balls-upstream` (not yet pushed to GitHub): four hooks + `prime.post` founding + `show`; pointers `up:<store>#<id>`; marks are the CONTENT both sides last agreed on (stamps fail on same-second edits); founding is `prime --remote` + `conf set task-remote` + detaching `bl-delivery` (`prime --center` fails at the adopt against a hub with no `balls/config`); 100% coverage via a real-`bl` e2e. Every upstream act fails open except `sync`'s refusal of a two-sided change, which names the ball and prints both sides.
+
+**All six shipped (2026-09-18).** The epic is closed at the code: mandatory/opt-in/occupancy-eager are `bl conf` edits (bl-260e), a rejected push reconciles instead of aborting (bl-21ab), drift renders on every op (bl-439d), pointers validate (bl-331a), a nested `bl -C` publishes (bl-aac7), and the shared-store tier is a plugin (bl-5273). Residue, as §7 states it: no field-wise merge; dangling pointers are reported, not repaired.
