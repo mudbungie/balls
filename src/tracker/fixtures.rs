@@ -104,6 +104,20 @@ pub fn remote_with_branch(tmp: &Path) -> PathBuf {
     remote
 }
 
+/// An ESTABLISHED remote (one store-shaped commit on `balls`) that then denies
+/// every push (`pre-receive` exits 1) — a box whose write access was revoked
+/// mid-life: the fetch works, the rebase is clean, and the push still fails,
+/// which is the one reject the reconcile must leave fail-CLOSED (bl-21ab).
+#[cfg(unix)]
+pub fn revoked_remote(tmp: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let remote = remote_with_branch(tmp);
+    let hook = remote.join("hooks").join("pre-receive");
+    fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+    remote
+}
+
 /// A bare remote whose `balls` branch is a LEGACY store (§16): pre-greenfield
 /// task JSON under `.balls/tasks/`, NO `tasks/` tree at the tip — the shape a
 /// shared hub still carries before the one-time cutover (bl-868d).

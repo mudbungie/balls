@@ -819,7 +819,13 @@ is the authority afterwards.
 
 **post payload (stdin):** same plus `commit`/`previous_commit`, the final `command`, `metadata`
 (parsed from the §5 trailer block, incl. the now-sealed `bl-id`), and `previous_state` (the op-start
-ball — what `pre` saw as `current_state`; `null` on create). There is **no post `current_state`**: a
+ball — what `pre` saw as `current_state`; `null` on create). `commit` is EVIDENCE for this op, not a
+handle to keep (bl-3616 §6.1): it names an UNPUBLISHED seal, and the tracker's reconcile (bl-21ab)
+rebases unpublished seals onto the remote tip, so the id does not survive publication — a sha may be
+pinned only if it is content-addressed (a blob, a tree) or already published; a plugin that must find
+this seal again walks `git log -- tasks/<id>.md` by path (the seen-token and the journal both do). The
+tracker sorts LAST (§14), so no plugin ever sees a pre-rebase `commit` after the reconcile has run.
+There is **no post `current_state`**: a
 `post` reactor MUST NOT mutate the sealed ball (§14) and derives the LANDED ball from git — the
 `commit` it is handed plus `git show` — never the wire (derive-don't-store, §14; bl-667e, §15). So the
 after-state is a read, not a payload field; `current_state` exists on the `pre` wire alone.
@@ -2040,21 +2046,27 @@ adopt-vs-found:
   consent — so the re-attempt promise holds by construction, and a LATER op's push against the
   still-absent branch fails loudly (E5-shaped) rather than silently never publishing; the silent
   degrade is founding-prime's alone.
-- **Rejected push to an ESTABLISHED remote** (branch PRESENT — non-ff, perms revoked mid-life, a
-  server-hook reject): this is the opposite and is an **ERROR (E5)**. Your mutation did NOT land while
-  you believe you are federated; silently degrading to stealth here is a split-brain (the local store
-  diverges from the remote everyone else reads). The non-zero exit aborts the op — the push IS the
-  contention check (optimistic mutate → push, above; bl-336a), re-run after `bl sync` — surfaced,
-  never swallowed. `prime/post`'s OWN established publish (fetch-ff + push,
-  bl-0a23) takes this same E5 path — it is exactly every op's `*/post` publish (the tracker's
-  `remote_ops::push`); only the founding push, where nothing existed to land on, degrades silently.
-  **"re-run after `bl sync`" is a forward, not a promise** (bl-4945). It converges because the abort
-  UN-SEALS: the store drops back behind the remote and sync's ff-only runs. A store that ALREADY
-  carried an unpublished commit — a crash between seal and push, the bl-547f half-close shape — stays
-  diverged past the un-seal, so sync refuses (correctly) and an unconditional two-step would loop.
-  E5 therefore hands the operator to sync's VERDICT ("run `bl sync` (it converges the contention, or
-  refuses and names what this store holds that the remote never took), then re-run the command"), and
-  §13's refusal owns the state and the way out — one sentence, one place, so the two cannot drift.
+- **Rejected push to an ESTABLISHED remote** (branch PRESENT): the push IS the contention check
+  (optimistic mutate → push, above; bl-336a), and a non-ff reject is answered by **the ONE reconcile**
+  (bl-3616 §3, bl-21ab): fetch, `git rebase` the in-flight seal onto the remote tip IN the store
+  checkout (never `update-ref` plumbing behind it, §8/bl-057a), push once more. Every seal is one
+  commit touching one `tasks/<id>.md`, so a race on a DIFFERENT ball rebases clean and the op LANDS
+  with no human in the loop — the common case with many agents — and the happy path still pays no
+  round-trip (the post-reject pull runs on the contended path only; "deliberately NO pre-pull" stands).
+  What remains **an ERROR (E5)** is exactly what should not be auto-resolved: the SAME ball changed on
+  both sides (two claims of one ball IS claim contention — the later loses; a close over a remote
+  update is a human's call). The rebase is aborted (the local seals untouched, nothing published), the
+  non-zero exit aborts the op — core un-seals — and the sentence NAMES the ball: *"push rejected:
+  `<remote>`'s `<branch>` moved and bl-xxxx changed on both sides … run `bl sync`, then re-run the
+  command"*. A push still denied after a CLEAN rebase (permissions revoked mid-life, a server hook, or
+  the remote moving again mid-op) is the other fail-closed case; silently degrading either to stealth
+  would be split-brain. **Transport failure fails OPEN**: an unreachable remote warns and the store
+  stays AHEAD — nothing is lost, the drift render (§13) says so, and the next reachable op or `bl
+  sync` publishes; aborting there would un-seal perfectly good work over a hub that is merely down.
+  `prime/post`'s OWN established publish takes this same reconcile — it is exactly `bl sync`; only the
+  founding push, where nothing existed to land on, degrades silently. **"re-run after `bl sync`" is a
+  forward, not a promise** (bl-4945): the abort un-seals, `sync` reconciles whatever the store still
+  holds (or refuses the same conflict by name), and the re-run meets the remote's version of the ball.
 
 **Federation = many landings, ONE store branch.** There is no trail, no terminus, no transitive
 discovery, no `operating/` symlink (all retired with config-shadowing — §4). A center is not a special
@@ -2198,8 +2210,10 @@ never does, so a center can never make your box run a binary you didn't opt into
 **Sync is two-tier (bl-62bc revised; verb mechanics → §13).**
 - **The store** (`tasks_branch`) publishes **every op, default ON** — every mutation (claim/close)
   pushes to the remote store branch. Currency is OPTIMISTIC (mutate → push, bl-336a §15): an op seals
-  against the local store, and a stale store surfaces ATOMICALLY at the push — the non-ff reject (E5)
-  is the one-step detect-and-act contention check, recovery is `bl sync` + retry. There is
+  against the local store, and a stale store surfaces ATOMICALLY at the push — the non-ff reject is
+  the one-step detect-and-act contention check, answered by the reconcile (rebase the seal onto the
+  remote tip, push again; bl-21ab) and an ERROR (E5) only when the same ball changed on both sides,
+  recovery `bl sync` + retry. There is
   deliberately NO pre-pull: it would add a remote round-trip to every op plus a TOCTOU window the
   ff-push reject closes anyway (the same one-step argument §13 makes against a separate sync
   contention probe), and the losing mutation never reaches the remote.
@@ -2218,10 +2232,12 @@ physical realization is §1 (`config/` and `tasks/` are two checkouts; the store
 
 Error/notice catalog (verbatim, ownership in brackets): E1 [tracker] no store remote resolved
 (stealth/no-tracker is fine — this fires only when a remote was named but unresolvable); E4 [tracker]
-remote unreachable (refusing to bootstrap); E5 [tracker] push rejected by an ESTABLISHED remote store
-(non-ff / perms revoked / server-hook reject — the mutation did not land; the op aborts — the push is
-the contention check, re-run after `bl sync`, whose verdict E5 forwards to rather than promises
-(bl-336a, bl-4945) — NEVER a silent stealth degrade — bl-9857); E7 [balls] plugin failed during
+remote unreachable (refusing to bootstrap — a plain op's transport failure fails OPEN instead, bl-21ab);
+E5 [tracker] push rejected by an ESTABLISHED remote store AFTER the reconcile: the same ball changed on
+both sides (named), or the push is denied (perms revoked / server hook) — the mutation did not land;
+the op aborts and un-seals — re-run after `bl sync`, whose verdict E5 forwards to rather than promises
+(bl-336a, bl-4945, bl-21ab) — NEVER a silent stealth degrade — bl-9857; a different-ball non-ff is not
+E5 any more, the reconcile lands it); E7 [balls] plugin failed during
 prime, rolled back K prior; W2 [tracker]
 prime ran on an ephemeral explicit remote the durable ladder (binding > XDG > origin) does not reproduce —
 plain commands will not use it (bl-c2de). (Retired by idempotent prime: E2
@@ -2294,27 +2310,29 @@ not a consent breach, because consent governs config + executable plugins, never
   `tasks_branch`). The general rule "fetch a branch's upstream, if any" yields nothing on an
   upstream-less branch, and the landing is upstream-less by construction (§4 — it is never a sync
   target). The landing changes only by `install` or your own `bl conf` edit (§4), never by sync.
-- **No separate contention probe.** The tracker's hook is a single `git fetch` + **fast-forward-only**
-  integration; that one operation is atomically detect-and-act — a non-ff IS the contention signal,
-  surfaced as the tracker's non-zero exit ("remote wins, re-run"). A distinct `sync/pre` "has the
-  remote moved?" check is rejected: it adds a round-trip and a TOCTOU window and duplicates what
-  ff-only already decides in one step (contention is the ff-failure path, not a phase of its own).
-  That exit SPEAKS (bl-3129, the bl-fa89 seal precedent one layer in) — "`<remote>`'s `<branch>` moved
-  and this store could not take the fast-forward — nothing was imported and nothing local was changed.
-  Re-run `bl sync`…" — never git's `Not possible to fast-forward`. Unlike the seal's, the refusal is not
-  always transient, so the sentence names both readings: the optimistic §12 cycle un-seals a rejected
-  push, so the ordinary cause is a concurrent `bl` whose seal was in flight across the fetch and a
-  re-run converges, while a store that really holds an unpublished commit keeps refusing until the
-  operator reconciles it. Still no retry in core (§14) and still no union: the ff-only stands.
-  **This refusal is also the one place that spells the EXIT** (bl-4945) — naming the second reading
-  without naming a way out is still a loop, and it is the sentence the operator lands on (§12's E5
-  sends them here). It states the exit as the operator's CHOICE, never a fix balls applies:
-  `git -C <store> log FETCH_HEAD..<branch>` lists the unpublished commits (the failed fetch left
-  `FETCH_HEAD` at the moved remote tip), then either rebase them onto `FETCH_HEAD` and push, or
-  `git -C <store> reset --hard FETCH_HEAD` to discard them. **balls never merges the two histories**:
-  the ff-only contract IS the store's one-line-of-history invariant, so an automatic merge or rebase
-  would be core deciding an outcome only the operator can weigh (whose ops those commits are, whether
-  they still apply). The MIRROR state — local rolled back what the remote already took — is no longer
+- **No separate contention probe — and `sync` is the reconcile.** The tracker's `sync/pre` is ONE
+  operation: `git fetch`, then `git rebase FETCH_HEAD` of every unpublished local seal, run IN the
+  store checkout (the checkout IS the branch, §8/bl-057a — never plumbing behind it), then push
+  (bl-3616 §3, bl-21ab). That is atomically detect-and-act: a behind store fast-forwards, an ahead
+  store publishes (`sync` IS publication when the tracker is not wired on `*.post` — the opt-in tier
+  of the store ladder), a diverged store rebases — seals touch one `tasks/<id>.md` each, so seals on
+  different balls never conflict — and only a SAME-ball conflict is the contention signal, surfaced as
+  the tracker's non-zero exit with the rebase aborted and every local seal exactly where it was. A
+  distinct `sync/pre` "has the remote moved?" check is rejected: it adds a round-trip and a TOCTOU
+  window and duplicates what the rebase already decides in one step. That exit SPEAKS (bl-3129, the
+  bl-fa89 seal precedent one layer in) — "`<remote>`'s `<branch>` moved and bl-xxxx changed on both
+  sides, so the rebase of this store's unpublished seals was aborted — nothing was published and
+  nothing local was changed…" — never git's `CONFLICT (content)`, and it NAMES the ball (read from the
+  unmerged index, so a close-over-update names it too). **The refusal spells the EXIT** (bl-4945) as
+  the operator's CHOICE, never a fix balls applies: `git -C <store> log FETCH_HEAD..<branch>` lists the
+  unpublished seals (`FETCH_HEAD` is the moved remote tip), then `git -C <store> rebase FETCH_HEAD`,
+  resolve the named file, and `bl sync` publishes the result — or `git -C <store> reset --hard
+  FETCH_HEAD` to take the remote's version. **balls never merges a ball field-wise** (§7): the
+  same-ball conflict is semantically meaningful in every case — two claims of one ball IS claim
+  contention (the later loses), a close against a remote update is a human's call — so auto-resolving
+  it would be core deciding an outcome only the operator can weigh. An unreachable remote fails OPEN
+  (warn; the store stays ahead; drift renders it). Still no retry in core (§14).
+  The MIRROR state — local rolled back what the remote already took — is no longer
   a second case to answer: since bl-1266 an op publishes only if it is the outermost `bl` in its
   invocation tree (§12), so a push either succeeds (remote == local) or aborts the op (nothing
   published), and the remote is behind-or-equal BY CONSTRUCTION. The one residual divergence is

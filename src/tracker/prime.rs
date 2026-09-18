@@ -17,8 +17,9 @@
 //!   branch that already exists is left for `sync` to fast-forward; an absent
 //!   remote branch is the bootstrap, left for core to found + `prime/post` to push.
 //! - **`prime/post` settles the CONTENT** ([`prime_post`]). Established remote →
-//!   fetch-ff (bring current) then push (publish); a rejected push to an
-//!   ESTABLISHED store is split-brain and ERRORS (E5), never degrades. Absent
+//!   the one reconcile (fetch, rebase local seals onto the tip, publish —
+//!   bl-21ab); a same-ball conflict on an ESTABLISHED store ERRORS (E5), never
+//!   degrades, and an unreachable remote fails open. Absent
 //!   remote branch → the founding push CREATES it; a rejection there (no create
 //!   perm) falls back to stealth-local SILENTLY — nothing existed to land on, so
 //!   the founding-miss is harmless and once-per-clone (§12) — and persists
@@ -88,8 +89,8 @@ fn ephemeral_gap(b: &Binding, env: &Env, remote: &str) -> Option<String> {
 }
 
 /// `prime/post`: settle the store CONTENT (§12). An ESTABLISHED remote branch is
-/// brought current ([`super::remote_ops::sync`] — fetch + ff-only) then published
-/// ([`super::remote_ops::push`] — a rejection is E5, the op aborts). An ABSENT
+/// reconciled ([`super::remote_ops::sync`] — fetch, rebase the local seals onto
+/// the remote tip, publish; a same-ball conflict is E5, the op aborts). An ABSENT
 /// branch is FOUNDED by this push; a rejection there is the once-per-clone
 /// founding-miss (no create perm) and degrades to stealth-local SILENTLY, the
 /// fallback that is founding's ALONE (nothing existed to land on). Stealth (no
@@ -102,9 +103,17 @@ pub fn prime_post(b: &Binding, env: &Env) -> io::Result<()> {
         return Ok(());
     };
     let store = Path::new(&b.store);
-    if remote_has_branch(store, &remote, &b.tasks_branch)? {
-        super::remote_ops::sync(b)?; // established → bring current (fetch + ff-only)
-        return super::remote_ops::push(b, env); // → publish; a reject is split-brain (E5)
+    match remote_has_branch(store, &remote, &b.tasks_branch) {
+        // Established → the one reconcile: fetch, rebase, publish (bl-21ab); a
+        // same-ball conflict is E5, an unreachable remote fails open inside.
+        Ok(true) => return super::remote_ops::sync(b, env),
+        Ok(false) => {}
+        // Unreachable: fail OPEN like every reconcile caller — prime must not
+        // abort a session over a hub that is down; the store stays local-ahead.
+        Err(e) => {
+            eprintln!("tracker: `{remote}` is unreachable — priming local-only this session; the next reachable op or `bl sync` publishes ({e})");
+            return Ok(());
+        }
     }
     // FOUNDING-MISS: the branch is absent, so this push CREATES it. A rejection is
     // the once-per-clone founding attempt failing for lack of a create permission

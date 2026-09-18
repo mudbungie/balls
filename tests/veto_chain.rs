@@ -221,13 +221,16 @@ fn append_after_tracker_publishes_then_unseals_and_the_next_push_rejects() {
     assert_ne!(local_tip, remote_tip, "local store diverged behind remote");
 
     // The next mutate seals on the behind tip and its push is rejected non-ff —
-    // the same message the half-close recovery names.
+    // and the reconcile (bl-21ab) answers it: the new seal is rebased onto the
+    // remote tip, which brings the published archival back in, and the op
+    // lands. The footgun self-heals at the next op: the remote is the
+    // linearization point, so the local un-seal was the transient side.
     let next = e.bl(&["create", "follow up", "--as", "a"]);
-    assert!(!next.status.success(), "the next push is rejected non-ff");
-    let err = String::from_utf8_lossy(&next.stderr);
-    assert!(err.contains("push rejected: the remote store moved ahead"), "{err}");
-    assert!(err.contains("run `bl sync`"), "{err}");
-    assert!(err.contains("then re-run the command"), "{err}");
+    assert!(next.status.success(), "the next op reconciles and lands: {}", String::from_utf8_lossy(&next.stderr));
+    assert!(none_with_id(&e.live(), &id), "the archival the remote already had is back in the local store");
+    let local_tip = git_out(&e.store_dir(), &["rev-parse", "HEAD"]);
+    let remote_tip = git_out(&origin, &["rev-parse", "balls/tasks"]);
+    assert_eq!(local_tip, remote_tip, "converged");
 }
 
 /// No live row carries `id` — the archived predicate (used post-close).

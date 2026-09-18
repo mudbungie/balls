@@ -121,8 +121,10 @@ fn a_stale_claim_push_is_rejected_non_ff_and_leaves_b_clean() {
     // Both clones hold X unclaimed at their own head. Alice claims + publishes;
     // Bob (primed BEFORE the claim, so he has X but not the claim) then claims —
     // local occupancy passes, delivery mints his worktree, and the tracker push
-    // hits the non-ff wall. The sharpened message names the `bl sync` + retry
-    // recovery, and the abort un-seals Bob back to CLEAN.
+    // hits the non-ff wall. The reconcile (bl-21ab) rebases his seal onto the
+    // remote tip and STOPS: the same ball changed on both sides, which IS claim
+    // contention, so E5 names X, names the `bl sync` + retry recovery, and the
+    // abort un-seals Bob back to CLEAN.
     let (tmp, origin, alice, xid) = published_task("Contended X");
     let bob = Clone::new(tmp.path(), &origin, "bob"); // has X, not yet Alice's claim
     assert_eq!(bob.claimant(&xid), serde_json::Value::Null, "Bob sees X unclaimed");
@@ -133,7 +135,7 @@ fn a_stale_claim_push_is_rejected_non_ff_and_leaves_b_clean() {
     bob.bl(&["claim", &xid, "--as", "bob"])
         .assert()
         .failure()
-        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`")).and(contains("then re-run the command")));
+        .stderr(contains(format!("{xid} changed on both sides")).and(contains("run `bl sync`, then re-run the command")));
 
     // FINDING (behaves-as-designed): the rejected `claim.post` push UN-SEALS Bob.
     // He is left with NO local claim, NO worktree, NO `work/<id>` branch — the

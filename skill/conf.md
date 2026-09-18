@@ -81,8 +81,9 @@ own plugin, **prepend** to post phases (`bl conf prepend <op>.post <name>`) or
 `conf set` the full order; only the irreversible belongs last (tracker pushes,
 delivery squashes). The natural gesture `conf append <op>.post` lands your plugin
 AFTER tracker — if it fails there, the un-seal resets a commit the remote already
-has and the next push is rejected non-fast-forward (recoverable: `bl sync` then
-retry, but surprising).
+has; the next op's push is rejected non-fast-forward and its reconcile brings the
+published seal straight back in (the op lands, the un-seal turns out to have
+been the transient side — self-healing, but surprising).
 
 `bl-chore` (opt-in) mints one close-gate child per configured chore at
 `claim.pre` — a forcing-function checklist, not CI. Opt in with `bl conf prepend

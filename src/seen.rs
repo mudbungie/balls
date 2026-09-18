@@ -28,6 +28,18 @@
 //! deletes the tokens it consumed, and `bl prime` sweeps store tokens naming
 //! absent task files ([`sweep`] — absence is the closed-record, so a dead token
 //! is self-identifying debris).
+//!
+//! **What may pin a sha (bl-3616 §6.1).** The token pins a BLOB sha — content-
+//! addressed, stable across any rebase — and its "closer's last touch" anchor
+//! is found by walking `git log -- tasks/<id>.md` for a `bl-actor` trailer,
+//! fresh per call, never stored. That is the rule every pinning site obeys: a
+//! sha may be pinned only if it is content-addressed (a blob, a tree) or
+//! PUBLISHED (on the remote store branch, which only ever advances by
+//! fast-forward). A COMMIT sha of an unpublished local seal is scratch — the
+//! tracker's reconcile (bl-21ab) rebases unpublished seals onto the remote
+//! tip, so their commit ids do not survive; read one within the op that
+//! observes it, never persist it. Everything else is a ref (a branch, a path),
+//! re-resolved on every read.
 
 use std::fs;
 use std::io;

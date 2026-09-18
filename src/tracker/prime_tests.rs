@@ -126,17 +126,31 @@ fn prime_post_founding_reject_degrades_silently_and_persists_nothing() {
 }
 
 #[test]
-fn prime_post_established_push_reject_errors_never_degrades() {
+fn prime_post_over_a_diverged_established_store_reconciles_and_publishes() {
     let tmp = TempDir::new().unwrap();
     let remote = remote_with_branch(tmp.path());
     let store = store_clone(tmp.path(), &remote);
-    // Remote and store diverge: fetch-ff onto an ESTABLISHED store can't ff, so
-    // the op aborts (E5) rather than silently degrading to stealth.
+    // Remote and store diverge on DIFFERENT balls: the reconcile (bl-21ab)
+    // rebases the local seal onto the remote tip and publishes — no abort, no
+    // stealth degrade. (A SAME-ball divergence is the E5 the remote_ops tests
+    // pin; prime takes the identical path.)
     let other = checkout(tmp.path(), &remote, "other");
-    commit(&other, "remote.txt", "remote");
+    commit(&other, "tasks/bl-aaaa.md", "remote");
     git(&other, &["push", "-q", "origin", BRANCH]).unwrap();
-    commit(&store, "local.txt", "local");
-    assert!(prime_post(&binding(Some(&remote), &store), &env_top()).is_err());
+    commit(&store, "tasks/bl-bbbb.md", "local");
+    prime_post(&binding(Some(&remote), &store), &env_top()).unwrap();
+    assert_eq!(tip(&remote, BRANCH), tip(&store, "HEAD"));
+    assert!(git(&store, &["cat-file", "-e", "HEAD:tasks/bl-aaaa.md"]).is_ok());
+}
+
+#[test]
+fn prime_post_over_an_unreachable_remote_fails_open() {
+    // A hub that is down must not abort a session: prime settles local-only and
+    // the next reachable op publishes (bl-21ab).
+    let tmp = TempDir::new().unwrap();
+    let store = local_unpushed(tmp.path());
+    let gone = tmp.path().join("no-such-remote.git");
+    prime_post(&binding(Some(&gone), &store), &env_top()).unwrap();
 }
 
 #[test]

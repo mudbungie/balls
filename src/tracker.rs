@@ -7,9 +7,11 @@
 //! no return channel — in-repo only as a default capability + reference impl.
 //!
 //! Its whole job is git acts on the state branch:
-//! - [`remote_ops::sync`] — `sync/pre`: fetch + fast-forward-only import; a
-//!   non-ff is the contention signal (§13).
-//! - [`remote_ops::push`] — `*/post`: publish the sealed balls branch (§12).
+//! - [`remote_ops::sync`] — `sync/pre`: the reconcile over every unpublished
+//!   seal — fetch, rebase the store checkout onto the remote tip, push (§13;
+//!   bl-3616 §3). A same-ball conflict is the contention signal, named.
+//! - [`remote_ops::push`] — `*/post`: publish the sealed balls branch (§12); a
+//!   non-ff reject runs the same reconcile once, over the one in-flight seal.
 //! - [`prime::prime`] — `prime/pre`: settle the store name, clone an established
 //!   remote branch into a local ref, or stop SILENTLY when stealth (§12).
 //! - [`prime::prime_post`] — `prime/post`: settle content — fetch-ff an
@@ -143,7 +145,7 @@ fn handle(op: &str, phase: &str, input: &mut impl Read, env: &Env) -> io::Result
     let mut binding = payload::read_binding(input)?;
     binding.remote = effective_remote(&binding);
     match (op, phase) {
-        ("sync", "pre") => remote_ops::sync(&binding),
+        ("sync", "pre") => remote_ops::sync(&binding, env),
         ("prime", "pre") => prime::prime(&binding, env),
         ("prime", "post") => prime::prime_post(&binding, env),
         ("install", "pre") => remote_ops::fetch_config(&binding),

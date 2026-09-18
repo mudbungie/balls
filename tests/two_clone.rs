@@ -26,8 +26,6 @@
 
 use assert_cmd::assert::Assert;
 use assert_cmd::Command;
-use predicates::prelude::PredicateBooleanExt;
-use predicates::str::contains;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -189,33 +187,26 @@ fn two_clones_sharing_one_origin_converge_a_full_lifecycle_and_prime_prunes_the_
 }
 
 #[test]
-fn concurrent_creates_from_two_clones_both_land_after_the_lagging_side_syncs() {
+fn concurrent_creates_from_two_clones_both_land_with_no_human_in_the_loop() {
     // Both developers create off one synced base. A publishes first, so B's
-    // optimistic create.post push is rejected non-ff (§13 contention). The rejected
-    // create leaves NO local leftover; B `bl sync`s the winner in and re-creates,
-    // and after a final mutual sync BOTH balls stand in BOTH clones' live lists.
+    // optimistic create.post push is rejected non-ff (§13 contention) — and the
+    // reconcile (bl-21ab) answers it: B's seal is rebased onto A's tip and
+    // published in the same op, because seals on DIFFERENT balls never conflict.
+    // B ends with both balls; a final sync gives A both too.
     let tmp = TempDir::new().unwrap();
     let (a, b) = two_devs(tmp.path());
 
     // A creates and wins the publish race to origin.
     let id_a = stdout(a.bl().args(["create", "Ship A", "--as", "alice"]).assert().success());
 
-    // B, still on the pre-A base, creates too — its create.post push is rejected
-    // because origin moved ahead; the documented recovery names `bl sync` + retry.
-    b.bl()
-        .args(["create", "Ship B", "--as", "bob"])
-        .assert()
-        .failure()
-        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`")).and(contains("then re-run the command")));
-
-    // The rejected create rolled back cleanly: B carries no phantom ball, so the
-    // recovery sync fast-forwards instead of hitting a self-inflicted divergence.
-    assert!(b.live_ids().is_empty(), "rejected create left no local leftover: {:?}", b.live_ids());
-
-    // B syncs A's ball in, then re-creates its own — now on top, the push lands.
-    b.bl().arg("sync").assert().success();
-    assert_eq!(b.live_ids(), vec![id_a.clone()], "B synced A's winner in");
+    // B, still on the pre-A base, creates too — the rejected push reconciles and
+    // the create LANDS, with A's winner rebased under it.
     let id_b = stdout(b.bl().args(["create", "Ship B", "--as", "bob"]).assert().success());
+    let mut got = b.live_ids();
+    got.sort();
+    let mut both = vec![id_a.clone(), id_b.clone()];
+    both.sort();
+    assert_eq!(got, both, "B's create reconciled A's ball in and landed its own");
 
     // Mutual sync: A pulls B's ball in. Both balls now stand in BOTH live lists —
     // the concurrent writes converged with no lost update.

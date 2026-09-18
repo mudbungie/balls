@@ -94,26 +94,33 @@ fn a_rejected_close_post_push_leaves_delivered_plus_open_never_done_plus_leftove
     git(Path::new(&worktree), &["add", "-A"]);
     git(Path::new(&worktree), &["commit", "-qm", &format!("add feature [{tid}]")]);
 
-    // A sibling lands a commit on the shared store, so Alice is now LAGGING:
-    // her optimistic close.post push will be rejected non-ff.
+    // A sibling edits THIS ball on the shared store, so Alice is now LAGGING on
+    // the very file her close deletes: the optimistic close.post push is rejected
+    // non-ff and the reconcile (bl-21ab) stops on a modify/delete of
+    // tasks/<tid>.md — a same-ball conflict, the one contention balls refuses
+    // to auto-resolve (a sibling's write on a different ball would have rebased
+    // clean and the close would simply have landed).
     let scratch = tmp.path().join("scratch");
     git(tmp.path(), &["clone", "-q", &origin.to_string_lossy(), &scratch.to_string_lossy()]);
     git(&scratch, &["config", "user.name", "bob"]);
     git(&scratch, &["config", "user.email", "bob@b"]);
     git(&scratch, &["checkout", "-q", "balls/tasks"]);
-    std::fs::write(scratch.join("contention.txt"), "x\n").unwrap();
+    let task_file = scratch.join("tasks").join(format!("{tid}.md"));
+    let mut task = std::fs::read_to_string(&task_file).unwrap();
+    task.push_str("\nbob was here\n");
+    std::fs::write(&task_file, task).unwrap();
     git(&scratch, &["add", "-A"]);
-    git(&scratch, &["commit", "-qm", "another writer"]);
+    git(&scratch, &["commit", "-qm", "another writer, same ball"]);
     git(&scratch, &["push", "-q", "origin", "balls/tasks"]);
 
     // THE HALF-CLOSE: the squash lands locally, then the store push is rejected
-    // — and the sharpened message (Fix 3 (2)) names the `bl sync` + retry
-    // recovery, forwarding to sync's verdict rather than promising it (bl-4945).
+    // — and the sharpened message names the BALL and the `bl sync` + retry
+    // recovery (bl-21ab), forwarding to sync's verdict rather than promising it.
     bl(&project, &home, &state)
         .args(["close", &tid, "--as", "alice"])
         .assert()
         .failure()
-        .stderr(contains("push rejected: the remote store moved ahead").and(contains("run `bl sync`")).and(contains("then re-run the command")));
+        .stderr(contains(format!("{tid} changed on both sides")).and(contains("run `bl sync`, then re-run the command")));
 
     // DELIVERED: the irreversible squash stands on local main, carrying the tag.
     assert!(git_out(&project, &["log", "-1", "--format=%s", "main"]).contains(&format!("[{tid}]")));
@@ -147,6 +154,10 @@ fn a_rejected_close_post_push_leaves_delivered_plus_open_never_done_plus_leftove
     // would deliver NOTHING, silently. This is the assertion that stands in for
     // the blanket deferral bl-ce3b cancelled.
     bl(&project, &home, &state).arg("sync").assert().success();
+    // The sync brought bob's edit in: the file changed since Alice's last touch,
+    // so close would refuse once with the unseen diff (bl-9f1d). `bl show` is
+    // the acknowledgment — she reads it, and the retry seals what she saw.
+    bl(&project, &home, &state).args(["show", &tid]).assert().success().stdout(contains("bob was here"));
     bl(&project, &home, &state).args(["close", &tid, "--as", "alice"]).assert().success();
     let json = stdout(bl(&project, &home, &state).args(["list", "--json"]).assert().success());
     assert!(live(&json).as_array().unwrap().iter().all(|t| t["id"] != tid.as_str()), "retry close archived T");
