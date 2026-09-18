@@ -13,6 +13,8 @@ captures it clean).
   as the state changes).
 - `-p, --priority N` — priority; higher sorts first in `bl list`.
 - `-t, --tag TAG` — add a tag (repeatable; the flag is `--tag`, not `--tags`).
+  Any string-safe token: no whitespace, control characters or commas; `:` `/`
+  `@` `#` are fine (they spell pointer tags, below).
 - `--parent ID` — containment only: builds the display tree, **gates nothing**.
 - `--subtask-of ID` — child of ID *and* gate ITS close (the everyday subtask
   spelling; it also nests delivery — see below). Mutually exclusive with
@@ -113,3 +115,23 @@ never only in a design doc or commit note.
 
 To edit a task's own blockers after create, see `bl update --skill`
 (`--needs` / `--no-needs`). Reciprocal `--blocks` stays create-only.
+
+## Pointer tags — a counterpart one tier up
+
+A ball that mirrors, or is a component of, a record in another tier (a shared
+bl store, a Jira issue, a GitHub issue) points UP with a tag in that tier's
+plugin namespace, stored once, on the LOWER ball:
+
+    bl create "port the parser" -t up:balls/team#bl-12ab
+    bl create "flaky login"     -t jira:PROJ-123
+    bl update bl-1a2b           -t gh:owner/repo#42
+
+The prefix is the plugin's name; there is no registry, and a tag no plugin
+reads is free text. `up:<store>#<id>` names another bl store — `<store>` is a
+branch of this repo or a git URL, because ids are four hex digits and collide
+across repos, so the qualifier is load-bearing. The upper side stores no
+back-pointer: it *queries*. `bl list --tag jira:PROJ-123 --all` returns every
+local ball, live or dead, that is a component of PROJ-123 — bidirectional means
+navigable both ways, not stored in both places. Whether a close propagates
+upward (a mirror closes its counterpart; a component only annotates it) is the
+plugin's policy at `close.post`, never a kind of tag.

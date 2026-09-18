@@ -92,3 +92,20 @@ fn parse_rejects_a_non_integer_priority() {
     let err = parse(&strs(&["-p", "high"]), "me").unwrap_err();
     assert!(err.to_string().contains("not an integer"));
 }
+
+#[test]
+fn parse_admits_pointer_tags_and_refuses_unsafe_ones() {
+    // bl-3616 §4 / bl-331a: a pointer to a counterpart one tier up is a tag in
+    // the plugin's namespace, so the charset must admit `:` `/` `@` `#`; the
+    // only refusals are the string-safety ones (whitespace, control, comma).
+    let pointers = ["up:balls/team#bl-12ab", "up:git@host:hub.git#bl-12ab", "jira:PROJ-123", "gh:owner/repo#42"];
+    for t in pointers {
+        assert_eq!(parse(&strs(&["-t", t]), "me").unwrap().tags, [t], "{t}");
+    }
+    for bad in ["", "a b", "a,b", "tab\there", "nl\n"] {
+        let err = parse(&strs(&["-t", bad]), "me").unwrap_err().to_string();
+        assert!(err.contains("is not a tag"), "{bad:?}: {err}");
+    }
+    // Dropping is never refused: a tag stored before the guard stays removable.
+    assert_eq!(parse(&strs(&["--no-tag", "a b"]), "me").unwrap().no_tags, ["a b"]);
+}

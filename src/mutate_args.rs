@@ -115,7 +115,7 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
                 f.priority = Some(v.parse().map_err(|_| usage(format!("-p: '{v}' is not an integer")))?);
             }
             "--no-priority" => f.no_priority = true,
-            "-t" | "--tag" => f.tags.push(value(args, &mut i, "-t")?),
+            "-t" | "--tag" => f.tags.push(tag(value(args, &mut i, "-t")?)?),
             "--no-tag" => f.no_tags.push(value(args, &mut i, "--no-tag")?),
             "--edit" => f.edit = true,
             // The per-op store-remote override, shared verbatim with prime/sync/import.
@@ -126,6 +126,21 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
         i += 1;
     }
     Ok(f)
+}
+
+/// A tag is a string-safe token in the spirit of the id charset (§3): it names
+/// a class `list --tag` queries and renders comma-joined in a row, so it may
+/// carry no whitespace, control character or comma — and nothing else is
+/// refused. Punctuation is deliberately admitted, because a tag is also the
+/// one home of a POINTER (bl-3616 §4): a plugin-namespaced `up:<store>#<id>`,
+/// `jira:KEY` or `gh:owner/repo#42` needs `:` `/` `@` `#`. Adding only —
+/// `--no-tag` drops whatever is stored, so a tag filed before this guard stays
+/// removable.
+fn tag(v: String) -> io::Result<String> {
+    let safe = !v.is_empty() && !v.chars().any(|c| c.is_whitespace() || c.is_control() || c == ',');
+    safe.then_some(v.clone()).ok_or_else(|| {
+        usage(format!("-t: '{v}' is not a tag — no whitespace, control characters or commas (':' '/' '@' '#' are fine: up:<store>#<id>, jira:KEY, gh:owner/repo#42)"))
+    })
 }
 
 /// The value following a `--flag`, advancing the cursor; a missing value errors.

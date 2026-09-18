@@ -328,7 +328,12 @@ comments).
     journal. Storing it would store what git computes (§0).
   - `relates_to` — relatedness is an equivalence CLASS, not a pairwise edge, and `tags` names the
     class: `list --tag` returns the whole cluster in one query where a pairwise graph needs an edge
-    per pair and a traversal for the same answer.
+    per pair and a traversal for the same answer. The same home holds a POINTER to a counterpart one
+    tier up (bl-3616 §4): a plugin-namespaced tag — `up:<store>#<id>` for another bl store,
+    `jira:KEY`, `gh:owner/repo#42` — stored ONCE, on the lower ball; the upper tier queries
+    `list --tag`, never stores a back-pointer. So the tag charset is string-safety only (no
+    whitespace, control characters or commas — the row render joins on `, `), and `:` `/` `@` `#`
+    are admitted on purpose; the prefix is the plugin's name and there is no registry (bl-331a).
   The residue is stated, not hidden: a genuinely pairwise live-to-live annotation is prose-only and
   not machine-reachable. No verb would consume one, so it buys no query; a team wanting it anyway
   has the `extra` seam below — an unknown key round-tripped untouched, severable, zero core.
