@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.12](https://github.com/mudbungie/balls/compare/v0.5.11...v0.5.12) - 2026-09-18
+
+### Changes
+
+- bl-speculate's gate fingerprint is a compiled-in file list, so a repo that adds a gate file gets stale verdicts [bl-6a84]
+- bl prime --center against a hub with no balls/config fails at the adopt (install-src FETCH_HEAD: invalid reference) — bl-45fd fixed only install.pre's fetch, the adopt still materializes FETCH_HEAD [bl-3b82]
+- Adopt the leak-scan stack from rust-bootstrap [bl-816b]
+- honor a reserved gate exit code (75/EX_TEMPFAIL) as 'no verdict — record nothing' [bl-1643]
+- release-binaries resolves its tag with git describe, so it races the tag it is supposed to build and uploads to the PREVIOUS release [bl-e8ed]
+- Unreachable-remote fail-open warning dumps git's whole multi-line fetch failure, twice per op [bl-fd23]
+- Same-ball E5 leaks git's rebase hint dump: the conflict sentence appends the raw 'git rebase FETCH_HEAD' error (7 hint: lines), and repeats the store path three times [bl-ce2d]
+- bl-upstream plugin (sibling repo): a shared bl store as a FOUNDED checkout in the plugin's territory, operated only via bl -C; up:<store>#<id> tags; four hooks [bl-5273]
+- Seed [hooks] comment: document the two tracker wiring shapes (mandatory *.post vs opt-in sync.pre, occupancy-eager variant) — balls picks no default [bl-260e]
+- Drift render: tracker *.post prints the op-ball's unpublished seal count to stderr; bl show per-ball published-behind line with fetch age; bl list header aggregate [bl-439d]
+- bl-tracker reconcile: fetch + rebase local seals IN the store checkout + push; once-on-reject from *.post, over N seals from sync; transport fails open [bl-21ab]
+- bl-1266 H1 fill: nested-op non-publication becomes store-scoped — core exports the held store path into plugin spawns, tracker suppresses push only on match (fail open when unset) [bl-aac7]
+- Tag charset admits : / @ # so plugin-namespaced pointer tags (up:<store>#<id>, jira:KEY, gh:owner/repo#42) validate [bl-331a]
+- bl-3616 CONVERGED (maintainer 2026-09-17): mark the doc, retire §6 as a ledger, mint §8 [bl-d40a]
+- close Q3/Q4/Q5 — shared store is a founded checkout operated via bl -C; drift detected per op in op scope, ball-level at show [bl-5af5]
+- sha-vs-ref audit of store-seal pinning + Q6 reframed as plugin-config injection (occupancy eagerness, identity shims) [bl-eb3e]
+- bl answers no --version and has no reconciler, so a box cannot ask whether its balls binary is stale: ship --version and a make deploy-local timer like the rest of the suite [bl-4316]
+- bl-3616 amendment: the store is never single-writer — reconcile is a rebase of local seals, one mechanism for per-op reject and deferred publication [bl-22c5]
+- Store tiers: publication is a verb, tier boundaries are plugins, pointers are tags — dissolve fail-closed sync into schedule wiring [bl-3616]
+
 ## [0.5.11](https://github.com/mudbungie/balls/compare/v0.5.10...v0.5.11) - 2026-08-14
 
 ### Changes
