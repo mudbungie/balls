@@ -205,11 +205,7 @@ check-in on demand. The ladder is the schedule, again.
    rebase reconcile does not need the premise.
 2. ~~Does deferred publication need a merge, not an ff?~~ **CLOSED with (1):**
    yes — a rebase of local seals, refusing on same-ball conflict and naming
-   the ball. Residue worth an attack: the rebase is of the STORE branch, whose
-   seals carry op-log metadata (seen-tokens, `updated` stamps). A rebased seal
-   keeps its content but gets a new sha — verify nothing downstream (the
-   seen-token that lets close refuse an unseen edit; the verdict cache keyed by
-   the merge queue) pins a seal by sha rather than by content.
+   the ball. Residue (sha pinning) audited and CLOSED in §6.1.
 3. **Addressing a second store of the same project.** A store is keyed on the
    invocation directory; a shared `balls/team` branch of the SAME repo has no
    directory to be `-C`'d from. `bl sync [BRANCH]` already takes a branch name
@@ -224,10 +220,54 @@ check-in on demand. The ladder is the schedule, again.
    of the checkout, not a ball. `bl conf` already shows the resolved remote and
    branch. Position: `list` header, because `list` is the read every session
    starts with and `conf` is consulted only when something is wrong.
-6. **Should occupancy be eager by default in opt-in wiring?** §3 lets
-   `claim.post` keep the tracker while content defers. Position: yes, as the
-   seed's documented opt-in shape — the cost of a stale claim is a wasted
-   agent, the cost of a stale body is nothing.
+6. ~~Should occupancy be eager by default in opt-in wiring?~~ **CLOSED by the
+   maintainer (2026-09-17): it is configurable.** *"Users will often want to
+   check things out aggressively, but not always. They may also want to use
+   identity shims to indicate agent/user relationship. It's an injection point
+   for plugin configuration."* So balls picks no default: which hooks carry the
+   tracker is the per-checkout `[hooks]` schedule (already plugin configuration,
+   §6 of the architecture), and the seed documents the two shapes (§3) without
+   choosing. **Identity shims** ride the same seam: `--as ID` is the one identity
+   injection point (every seal carries a `bl-actor` trailer), and a plugin that
+   publishes upward may rewrite or qualify it — `mark/Inflate` on the shared
+   store, `Inflate` locally — as its own config, not a core field. The
+   agent→user relation is therefore a plugin's rendering of the actor trailer,
+   never stored on the ball (§0: don't store what you can compute).
+
+## 6.1 Audit — what pins a sha, what pins a ref (bl-eb3e, 2026-09-17)
+
+The bl-22c5 reconcile rebases local, unpublished store seals: content, trailers,
+timestamps and order survive; commit shas do not. The maintainer asked for a
+clear line on what should pin a hash versus a ref. **The rule:**
+
+> A sha may be pinned only if it is **content-addressed** (a blob or tree —
+> stable across any rebase) or **published** (on the remote store branch, which
+> only ever advances by fast-forward and is never rewritten). A commit sha of an
+> **unpublished local seal** is scratch: it may be read within the op that
+> observes it, never persisted. Everything else is a **ref** (a branch name, a
+> tag, a path), re-resolved on every read.
+
+Every pinning site on `main` (93a0ab7f), checked against that rule:
+
+| Site | Pins today | Kind | Under rebase |
+|---|---|---|---|
+| seen-token (`src/seen.rs`, bl-9f1d) | `balls-seen/<id>` = the task file's **blob** sha; the "closer's last touch" anchor is found by walking `git log -- tasks/<id>.md` for a `bl-actor` trailer, fresh per call | content + transient | **safe** — blob unchanged, trailer walk re-resolves |
+| verdict cache (`src/speculate.rs`, bl-1263) | `(tree OID, gate fingerprint)` of the CODE worktree | content | **unaffected** — code repo, not the store |
+| merge queue `merging/<id>` (`src/speculate_queue.rs`) | the `work/<id>` CODE tip commit | published-side code sha | **unaffected** — code repo; work branches are not rebased by the reconcile |
+| delivery base / moved-target refusal (`bl close`, bl-a1a4) | the target ref's pinned CODE sha, one op | transient | **unaffected** — code repo |
+| `root_commit` (task field, bl-1ce7) | the project's root commit (`rev-list --max-parents=0`) | content-stable identity | **unaffected** — the code repo's root, immutable by definition |
+| wire payload `commit` / `previous_commit` (`src/wire.rs` post facts, §7) | the seal just made, threaded to `*.post` plugins | transient (unpublished) | **rule applies** — a plugin may act on it within the op; none persists it today (tracker, delivery, chore, github-plugin, adversary all checked). The reconcile itself runs in `*.post`, so a plugin ordered AFTER the tracker would see a sha that no longer exists — the tracker already sorts LAST (§14), which is what makes this a theorem, not a hazard |
+| journal (`src/reads/journal.rs`), closed-id resolution (`show` fallthrough), claim-age | store history walked by PATH and ORDER; renders timestamps and trailers, never a sha | ref | **safe** — rebase preserves order and content |
+| op-log liveness (bl-8750) | the op log's tail timestamp | content | **safe** |
+| §8 one-HEAD-per-op invariant (bl-057a) | *"the SEAL's `merge --ff-only` advances the CHECKOUT itself … nothing advances the store branch by plumbing behind it. Any future op that does advance `balls/tasks` without moving the checkout breaks this, and breaks it silently."* | ref (the checkout IS the branch) | **CONSTRAINT** — the reconcile must be a `git rebase` run IN the store checkout (the tracker's cwd), never `update-ref` plumbing. That is the same shape as today's `merge --ff-only` import, so no new mechanism, but the implementation ball must state it |
+| a sibling op in flight during the reconcile | its change worktree forked from the old tip; its seal is a `merge --ff-only` onto the checkout | §0 CAS | **safe by design** — the ff loses (old tip is no longer an ancestor), the seal CAS fails, converge-on-retry re-authors against the new tip. The reconcile is just another writer to the local branch |
+| remote store branch | the linearization point | ref, ff-only, never rewritten | **the invariant** — only unpublished seals are ever rebased; the nested-op rule (bl-1266, no push from a nested op) is what guarantees "local ahead of remote" is exactly the rebasable set |
+
+**Findings.** Nothing on `main` pins an unpublished store-seal sha. Two things
+the implementation must carry: (1) the reconcile rebases the checkout, not the
+ref (§8 bl-057a); (2) the seen-token doc comment and §7's wire description
+should state the rule above, so the next plugin author knows `commit` is
+evidence for this op, not a handle to keep. The residue in §6 Q2 is CLOSED.
 
 ## 7. What this does NOT solve, stated
 
@@ -241,7 +281,7 @@ check-in on demand. The ladder is the schedule, again.
 ## 8. Implementation balls (mint on convergence, not before)
 
 - bl-tracker: the reconcile (fetch + rebase local seals + push), called once-on-reject from `*.post` and over N seals from `sync`; transport failure fails open; drift line on `list`/`show`.
-- Audit: nothing pins a store seal by sha (seen-tokens, verdict cache) — §6 Q2 residue.
+- Audit DONE (§6.1): the reconcile must `git rebase` in the store checkout (bl-057a); state the pinning rule in `src/seen.rs`'s header and §7's wire description.
 - Tag charset: admit `:` `/` `@` `#`.
 - `bl-upstream` plugin (sibling repo, like balls-github-plugin).
 - Seed comment in `[hooks]` documenting the opt-in wiring.
