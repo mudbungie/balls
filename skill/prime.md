@@ -106,5 +106,8 @@ every session, shorten the file.
 
 A plugin whose binary is not installed beside `bl` is pruned at prime, so a
 remote-less or plugin-less box still works. `bl-tracker` is the component that
-talks to the remote (fetch + ff on sync, push after each op, found/adopt on
-prime); see `bl conf --skill` for the plugin schedule.
+talks to the remote (the reconcile on sync and prime, a push after each op it is
+wired on, found/adopt on prime). **How eagerly a checkout publishes is which
+hooks carry the tracker** — mandatory (every `*.post`, the seed), opt-in (`bl
+sync` only), or occupancy-eager (claims now, content at `bl sync`) — a `bl conf`
+edit, no mode; see `bl conf --skill`, "the plugin schedule".

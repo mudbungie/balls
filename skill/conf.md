@@ -85,6 +85,29 @@ has; the next op's push is rejected non-fast-forward and its reconcile brings th
 published seal straight back in (the op lands, the un-seal turns out to have
 been the transient side — self-healing, but surprising).
 
+**Which hooks carry `bl-tracker` is the publication policy.** balls picks no
+default beyond the seed; the ladder is the schedule, and a rung is a `conf`
+edit — never a mode, a field or a flag (the seed file documents the same three
+shapes in its header comment):
+
+- **mandatory replication** (the seed): `bl-tracker` on every mutating
+  `*.post` — each seal publishes as its op lands. A non-ff reject reconciles
+  once (rebase onto the remote tip, push again); only a same-ball race aborts.
+- **opt-in publication**: `bl conf remove create.post bl-tracker` (and
+  `update`/`claim`/`unclaim`/`close`/`import`.post), leaving `sync.pre`,
+  `prime.*`, `install.pre`. Seals stay local until `bl sync` — which IS the
+  reconcile + push (`bl sync --skill`) — and `bl list`'s header / `bl show`'s
+  `published` line keep saying how far ahead you are.
+- **occupancy-eager**: keep the tracker on `claim.post` and `unclaim.post`,
+  drop it from `create/update/close.post`. Claims publish now, so two boxes
+  never claim one ball unknowingly; content publishes at `bl sync`.
+
+Identity shims ride the same seam. `--as ID` is the one identity injection
+point (every seal carries a `bl-actor` trailer); a plugin that publishes
+upward may rewrite or qualify it — `mark/Inflate` on a shared store, `Inflate`
+locally — as its own config. The agent→user relation is a plugin's rendering
+of the trailer, never a field on the ball.
+
 `bl-chore` (opt-in) mints one close-gate child per configured chore at
 `claim.pre` — a forcing-function checklist, not CI. Opt in with `bl conf prepend
 claim.pre bl-chore`, then write `config/plugins/bl-chore/chores.toml`. ONE

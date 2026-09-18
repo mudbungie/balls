@@ -658,6 +658,16 @@ a list property, not an `NN-` filename convention faking one.
 "update.post"  = ["bl-tracker"]
 # bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.pre bl-chore`
 # (ONE hook: the mint is a write into the claim's own change worktree, §14/bl-1da3)
+#
+# Which hooks carry bl-tracker is the PUBLICATION POLICY (bl-3616 §3, Q6 — "it's an
+# injection point for plugin configuration"; balls picks no default beyond this seed):
+#   (a) mandatory replication — this seed: the tracker on every mutating *.post;
+#   (b) opt-in publication — tracker on sync.pre/prime.*/install.pre only (`bl conf remove
+#       <op>.post bl-tracker`): seals stay local until `bl sync`, drift renders say how far;
+#   (c) occupancy-eager — keep claim.post/unclaim.post, drop create/update/close.post: claims
+#       publish now, content at `bl sync`.
+# Identity shims ride the same seam: `--as` is the one identity injection point (the bl-actor
+# trailer), and a plugin publishing upward renders/qualifies it as ITS config (bl-260e).
 # (shipped ≠ scheduled: default-wiring would mint chore gates for every claim, system-wide).
 ```
 

@@ -12,6 +12,28 @@
 # not installed beside `bl`, so a tracker-less or test box never aborts. Replace
 # this file (or the whole `$XDG_CONFIG_HOME/balls/default-config/` folder) to
 # ship an org's own default capability set without touching core (§1/§12).
+#
+# WHICH HOOKS CARRY `bl-tracker` IS THE PUBLICATION POLICY (bl-3616 §3/§6 Q6).
+# balls picks no default beyond this file — the ladder is the schedule, and moving
+# between rungs is a `bl conf` edit, never a mode, a field, or a flag:
+#
+#   (a) MANDATORY replication — this seed: the tracker on every mutating `*.post`,
+#       so each seal publishes as the op lands (a non-ff reject reconciles once —
+#       rebase onto the remote tip, push again — and only a same-ball race aborts).
+#   (b) OPT-IN publication — tracker on `sync.pre` / `prime.*` / `install.pre`
+#       only: `bl conf remove <op>.post bl-tracker` for create/update/claim/
+#       unclaim/close/import. Seals stay local until `bl sync` (which IS the
+#       reconcile + push); `bl list`'s header and `bl show`'s `published` line
+#       keep saying how far ahead you are.
+#   (c) OCCUPANCY-EAGER — keep the tracker on `claim.post` + `unclaim.post`, drop
+#       it from `create/update/close.post`: claims publish now (two boxes never
+#       claim one ball unknowingly), content publishes at `bl sync`.
+#
+# Identity shims ride the same seam: `--as ID` is the one identity injection
+# point (every seal carries a `bl-actor` trailer), and a plugin that publishes
+# upward may rewrite or qualify it (`mark/Inflate` on a shared store, `Inflate`
+# here) as ITS config — the agent→user relation is a plugin's rendering of the
+# trailer, never a field on the ball.
 
 [hooks]
 "sync.pre"     = ["bl-tracker"]                  # import remote state first
