@@ -104,9 +104,16 @@ jobs:
     concurrency:
       group: release-plz-release
       cancel-in-progress: false
-    # Tell the binaries job whether a release actually happened.
+    # Tell the binaries job whether a release actually happened, and WHICH tag
+    # it cut. `releases` is release-plz's own JSON: an array of
+    # {package_name, version, tag, prs}, one entry per released package
+    # (`[]` when nothing was released), so `[0].tag` is the tag for this
+    # single-package workspace. The tag comes from here and nowhere else — the
+    # job that pushed it is the one authority; re-deriving it from the git
+    # graph (`git describe`) raced that push and built the PREVIOUS release.
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
+      tag: ${{ fromJSON(steps.release.outputs.releases)[0].tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,19 +144,18 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.binaries_tag != '')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # The tag to build: the manual backfill input, else the tag the release
+      # job just cut. Nothing is inferred from the checkout.
+      TAG: ${{ github.event.inputs.binaries_tag || needs.release-plz-release.outputs.tag }}
     steps:
+      # Build the tagged (released) code, not whatever main's tip is now.
+      # Checking out the tag ref directly fetches exactly that tag, so a tag
+      # that does not exist fails here, loudly, instead of building something
+      # else.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: Resolve + check out the release tag
-        id: tag
-        shell: bash
-        run: |
-          tag="${{ github.event.inputs.binaries_tag }}"
-          [ -n "$tag" ] || tag="$(git describe --tags --abbrev=0)"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          # Build the tagged (released) code, not whatever main's tip is now.
-          git checkout "$tag"
+          ref: refs/tags/${{ env.TAG }}
       - uses: dtolnay/rust-toolchain@stable
       # Builds `cargo build --release`, archives the binaries as
       # balls-x86_64-unknown-linux-gnu.tar.gz and uploads it to the Release
@@ -161,7 +167,7 @@ jobs:
           bin: bl,bl-delivery,bl-chore
           target: x86_64-unknown-linux-gnu
           archive: balls-$target
-          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          ref: refs/tags/${{ env.TAG }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   prune-release-branches:
