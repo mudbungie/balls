@@ -19,6 +19,18 @@
 //! verdict ends the buildable prefix (deeper candidates contain the same
 //! problem), and the queue's end ends the pass.
 //!
+//! The gate has THREE answers, not two (bl-1643): exit `0` is a PASS, exit
+//! [`NO_VERDICT`] (75, BSD `EX_TEMPFAIL`) is "no verdict" — the gate died for
+//! a reason that is not a judgement of the tree (a runner signaling tarpaulin
+//! mid-suite, an OOM kill the gate classified), so NOTHING is recorded, the
+//! candidate stays unbuilt and the pass ends there for the next pass to
+//! rebuild — and every other exit is a FAIL. The distinction matters because a
+//! recorded FAIL is permanent: the walk stops at it on every later pass
+//! without rebuilding, so an infrastructure death stored as FAIL would be a
+//! permanently false-negative tree. Classifying the death is the GATE's job
+//! (it knows which of its stages died how); the speculator only honors the
+//! reserved code.
+//!
 //! The gate subprocess runs under `nice` in a detached build worktree,
 //! removed before the pass reports — a close-time gate on cache miss runs
 //! unniced by construction, so the real merge path always preempts. On a pass
@@ -84,7 +96,13 @@ pub fn run(
             }
             None => {
                 spent += 1;
-                let pass = build(repo, scratch, &candidate, gate)?;
+                let Some(pass) = build(repo, scratch, &candidate, gate)? else {
+                    report.push(format!(
+                        "no verdict {} {tree} (gate exit {NO_VERDICT}) — unbuilt, pass ends",
+                        entry.id
+                    ));
+                    break;
+                };
                 let verdict = speculate::Verdict { pass, builder: "bl-speculate".to_string() };
                 speculate::write(territory, &tree, &gate_fp, &verdict)?;
                 if pass {
@@ -125,15 +143,24 @@ fn base_commit(repo: &Path, onto: &str) -> io::Result<String> {
     }
 }
 
+/// The gate exit code reserved as "no verdict" — BSD `EX_TEMPFAIL`, the
+/// sysexits code for "try again later". A gate exits it when its run died of
+/// something that is not a judgement of the tree.
+pub const NO_VERDICT: i32 = 75;
+
 /// Materialize the candidate, run the gate under `nice` inside it, tear the
-/// worktree down whatever the outcome. Only the gate's exit code speaks.
-fn build(repo: &Path, scratch: &Path, candidate: &str, gate: &str) -> io::Result<bool> {
+/// worktree down whatever the outcome. Only the gate's exit code speaks:
+/// `Some(true)` on 0, `None` on [`NO_VERDICT`], `Some(false)` on anything
+/// else — a signal death included, since the gate had no chance to classify
+/// it and every non-verdict it CAN name is the reserved code.
+fn build(repo: &Path, scratch: &Path, candidate: &str, gate: &str) -> io::Result<Option<bool>> {
     std::fs::create_dir_all(scratch)?;
     let dir = scratch.join(format!("build-{candidate}"));
     speculate_candidate::build_dir(repo, candidate, &dir)?;
     let status = Command::new("nice").arg("-n19").arg(gate).current_dir(&dir).status();
     speculate_candidate::remove_build_dir(repo, &dir)?;
-    Ok(status?.success())
+    let status = status?;
+    Ok((status.code() != Some(NO_VERDICT)).then(|| status.success()))
 }
 
 #[cfg(test)]

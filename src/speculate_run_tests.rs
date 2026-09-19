@@ -1,7 +1,7 @@
 //! Unit tests for [`crate::speculate_run`] — the whole pass against fixture
 //! repos with a stub gate, proving the chain rules the design states: strict
-//! head-first order, stop on conflict/fail/spent, sweep of the unsealed, and
-//! the no-leftover invariants.
+//! head-first order, stop on conflict/fail/spent, no-verdict (exit 75) records
+//! nothing, sweep of the unsealed, and the no-leftover invariants.
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -63,18 +63,26 @@ fn fx(gate_exit: &str) -> Fx {
     fs::write(root.join("shared"), "moved\n").unwrap();
     git(&root, &["add", "-A"]);
     git(&root, &["commit", "-q", "-m", "moved"]);
-    let log = tmp.path().join("gate.log");
-    let gate = tmp.path().join("gate.sh");
-    fs::write(&gate, format!("#!/bin/sh\npwd >> {}\nexit {gate_exit}\n", log.display())).unwrap();
-    fs::set_permissions(&gate, fs::Permissions::from_mode(0o755)).unwrap();
-    Fx {
+    let f = Fx {
         scratch: tmp.path().join("scratch"),
         territory: tmp.path().join("territory"),
+        gate: tmp.path().join("gate.sh"),
+        log: tmp.path().join("gate.log"),
         _tmp: tmp,
         root,
-        gate,
-        log,
-    }
+    };
+    set_gate(&f, gate_exit);
+    f
+}
+
+/// (Re)write the stub gate: log the build dir it ran in, then exit `code`.
+fn set_gate(f: &Fx, code: &str) {
+    fs::write(&f.gate, format!("#!/bin/sh\npwd >> {}\nexit {code}\n", f.log.display())).unwrap();
+    fs::set_permissions(&f.gate, fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+fn verdicts(f: &Fx) -> usize {
+    fs::read_dir(f.territory.join("verdicts")).map_or(0, Iterator::count)
 }
 
 fn pass(f: &Fx, builds: usize) -> Vec<String> {
@@ -126,6 +134,26 @@ fn budget_defers_and_a_failing_gate_stops_the_chain() {
     let report = pass(&f, 10);
     assert!(report[0].starts_with("fail a "), "the recorded FAIL stops later passes too");
     assert_eq!(gate_runs(&f), 1, "the fail was built once, never again");
+}
+
+#[test]
+fn a_tempfail_gate_records_nothing_and_the_next_pass_rebuilds() {
+    let f = fx("75");
+    enqueue(&f.root, "a", Some("2026-01-01T10:00:00Z")).unwrap();
+    enqueue(&f.root, "b", Some("2026-01-01T11:00:00Z")).unwrap();
+    let report = pass(&f, 10);
+    assert!(report[0].starts_with("no verdict a "), "{report:?}");
+    assert!(report[0].ends_with("(gate exit 75) — unbuilt, pass ends"), "{report:?}");
+    assert!(report[1].starts_with("adopted hostile "), "nothing builds past the unbuilt: {report:?}");
+    assert_eq!(report.len(), 2, "{report:?}");
+    assert_eq!(gate_runs(&f), 1);
+    assert_eq!(verdicts(&f), 0, "a no-verdict writes no verdict file");
+    set_gate(&f, "0");
+    let report = pass(&f, 10);
+    assert!(report[0].starts_with("built a ") && report[0].ends_with(" pass"), "{report:?}");
+    assert!(report[1].starts_with("built b "), "the chain resumes past the rebuilt head: {report:?}");
+    assert_eq!(gate_runs(&f), 3, "the unbuilt head was rebuilt, not remembered");
+    assert_eq!(verdicts(&f), 2);
 }
 
 #[test]

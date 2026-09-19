@@ -105,6 +105,18 @@ The whole contract between speculators and close is one record:
 - The builder is therefore swappable policy: a local speculator loop, a
   sibling box, or GitHub Actions all satisfy the same record. Offline degrades
   to today's behavior, never blocks a close.
+- **The gate has three answers, not two (bl-1643, from yog bl-673a).** A
+  stored FAIL is permanent — the speculator stops the chain at it on every
+  later pass without rebuilding — so a gate that dies of something that is
+  not a judgement of the tree (a runner signaling tarpaulin mid-suite, five
+  sightings on yog) must be able to say "no verdict". Exit `75` (BSD
+  `EX_TEMPFAIL`) is reserved for exactly that: `speculate_run` records
+  nothing, leaves the candidate unbuilt and ends the pass there, and the next
+  pass rebuilds it. Exit `0` is PASS; every other exit is FAIL, a signal
+  death included — classifying a death is the gate's job (it knows which
+  stage died how), the speculator only honors the reserved code. The stock
+  `scripts/pre-commit` never exits 75 itself; a gate wrapper that retries the
+  signaled class and exits 75 on a second death is the yog pattern.
 
 ### Landing
 
@@ -141,7 +153,8 @@ untouched. Delete the speculator and you have stock balls, just slower
   (what remains is out-of-order landings and external main movement, both of
   which degrade to an honest cache miss). The slack arithmetic above is kept
   as the reasoning that *led* here, but the implementation needs none of it:
-  a conflict or a FAIL verdict ends the buildable chain, and eagerness
+  a conflict or a FAIL verdict ends the buildable chain (a no-verdict exit,
+  below, ends only the pass), and eagerness
   degenerates to **builds-per-pass** — how many gates one speculator pass may
   spend. There is no cross-agent machine cap in v1 (subtracted): passes build
   one candidate at a time under `nice -n19`; the close-time gate on a miss

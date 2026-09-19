@@ -116,7 +116,9 @@ fn run(args: &[String]) -> io::Result<bool> {
 }
 
 /// `run`'s flags: `--gate CMD` (default the stock gate), `--onto BRANCH`
-/// (default `main`), `--builds N` (default the eagerness ladder).
+/// (default `main`), `--builds N` (default the eagerness ladder). The gate's
+/// exit is the verdict — `0` PASS, [`speculate_run::NO_VERDICT`] (75) records
+/// nothing, anything else FAIL.
 fn run_flags(args: &[String]) -> io::Result<(String, String, Option<usize>)> {
     let (mut gate, mut onto, mut builds) = ("scripts/pre-commit".to_string(), "main".to_string(), None);
     let mut it = args.iter();
