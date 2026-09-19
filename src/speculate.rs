@@ -3,7 +3,14 @@
 //!
 //! The pre-commit gate's verdict is a pure function of two content-addressed
 //! inputs: the TREE it tests (the worktree exactly as `git add -A` would stage
-//! it) and the GATE that tests it (the toolchain plus the gate scripts). So a
+//! it) and the GATE that tests it (the toolchain). The gate SCRIPTS are not a
+//! third input: every file the repo's gate is made of — `scripts/pre-commit`,
+//! its helpers, the Makefile, a leak scanner a repo adds tomorrow — is tracked,
+//! so it is already inside the tree oid, and editing one is a different tree
+//! before it is a different gate. An earlier fingerprint also hashed a
+//! compiled-in list of four gate files (bl-6a84): pure redundancy, and a list
+//! the binary could not keep honest for repos whose gate grew past it. What
+//! the tree cannot see is what the fingerprint carries: the toolchain. So a
 //! verdict is one file per `(tree, gate)` pair under the `bl-speculate` plugin
 //! territory (§1), and "the stated build matches the merge" is inherent in the
 //! key rather than checked — trust reduces to whoever may write the territory,
@@ -43,28 +50,15 @@ pub struct Verdict {
     pub builder: String,
 }
 
-/// The files whose content (with the toolchain string) IS the gate identity:
-/// change any of them and every stored verdict silently stops matching, which
-/// is exactly the invalidation a gate upgrade must cause.
-const GATE_FILES: &[&str] = &[
-    "scripts/pre-commit",
-    "scripts/check-line-lengths.sh",
-    "scripts/check-coverage.sh",
-    "Makefile",
-];
-
-/// Content-address the gate itself: `toolchain` (the edge passes `rustc -V`)
-/// concatenated with each [`GATE_FILES`] body, NUL-separated, hashed by git —
-/// the content hasher this system already trusts, so no hash dependency.
+/// Content-address the gate: `toolchain` (the edge passes `rustc -V`) hashed
+/// by git — the content hasher this system already trusts, so no hash
+/// dependency. A toolchain bump invalidates every stored verdict, which is
+/// exactly what a clippy upgrade must do; a gate-script edit needs nothing
+/// here, because it moves the tree oid (module docs).
 pub fn gate_fingerprint(root: &Path, scratch: &Path, toolchain: &str) -> io::Result<String> {
-    let mut blob = toolchain.as_bytes().to_vec();
-    for rel in GATE_FILES {
-        blob.push(0);
-        blob.extend_from_slice(&fs::read(root.join(rel))?);
-    }
     fs::create_dir_all(scratch)?;
     let file = scratch.join("gate-blob");
-    fs::write(&file, blob)?;
+    fs::write(&file, toolchain)?;
     let mut cmd = safegit::at(root);
     cmd.arg("hash-object").arg(&file);
     let out = cmd.output()?;

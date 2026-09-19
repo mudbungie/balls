@@ -25,8 +25,8 @@ fn git(repo: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
-/// A repo whose gate files exist (the fingerprint reads them), with two
-/// cleanly-stacking work branches and one that conflicts with main.
+/// A repo with two cleanly-stacking work branches and one that conflicts
+/// with main; the gate is a stub outside the repo.
 struct Fx {
     _tmp: TempDir,
     root: PathBuf,
@@ -39,11 +39,7 @@ struct Fx {
 fn fx(gate_exit: &str) -> Fx {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("repo");
-    fs::create_dir_all(root.join("scripts")).unwrap();
-    for rel in ["scripts/pre-commit", "scripts/check-line-lengths.sh", "scripts/check-coverage.sh"] {
-        fs::write(root.join(rel), "#!/bin/sh\n").unwrap();
-    }
-    fs::write(root.join("Makefile"), "all:\n").unwrap();
+    fs::create_dir_all(&root).unwrap();
     git(&root, &["init", "-q", "-b", "main"]);
     fs::write(root.join("shared"), "line\n").unwrap();
     git(&root, &["add", "-A"]);

@@ -9,15 +9,13 @@ use tempfile::TempDir;
 
 use super::{check, gate_fingerprint, read, record, verdict_path, worktree_oid, write, Verdict};
 
-/// A throwaway git repo carrying the gate files the fingerprint reads.
+/// A throwaway git repo: one gate script and one source file, both tracked
+/// once `git add -A` stages them — which is how the tree oid sees the gate.
 fn repo() -> (TempDir, PathBuf) {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("repo");
     fs::create_dir_all(root.join("scripts")).unwrap();
-    for rel in ["scripts/pre-commit", "scripts/check-line-lengths.sh", "scripts/check-coverage.sh"] {
-        fs::write(root.join(rel), format!("#!/bin/sh\n# {rel}\n")).unwrap();
-    }
-    fs::write(root.join("Makefile"), "all:\n").unwrap();
+    fs::write(root.join("scripts/pre-commit"), "#!/bin/sh\ncargo test\n").unwrap();
     fs::write(root.join("code.rs"), "fn main() {}\n").unwrap();
     assert!(Command::new("git").arg("-C").arg(&root).arg("init").arg("-q").status().unwrap().success());
     (tmp, root)
@@ -46,23 +44,19 @@ fn worktree_oid_outside_a_repo_reports_gits_voice() {
     assert!(err.to_string().contains("git add -A"), "names the failing act: {err}");
 }
 
+/// The fingerprint is the toolchain and nothing else (bl-6a84): a gate-script
+/// edit leaves it alone, because the TREE already moved — see the check test.
 #[test]
-fn fingerprint_binds_toolchain_and_gate_files() {
+fn fingerprint_is_the_toolchain_alone() {
     let (tmp, root) = repo();
     let a = gate_fingerprint(&root, &scratch(&tmp), "rustc 1.0").unwrap();
     assert_eq!(a, gate_fingerprint(&root, &scratch(&tmp), "rustc 1.0").unwrap());
+    assert_eq!(a.len(), 40, "a git object id, importable as a verdict key");
     let b = gate_fingerprint(&root, &scratch(&tmp), "rustc 2.0").unwrap();
     assert_ne!(a, b, "a toolchain bump is a different gate");
-    fs::write(root.join("Makefile"), "all: extra\n").unwrap();
+    fs::write(root.join("scripts/pre-commit"), "#!/bin/sh\ncargo test && leak-scan\n").unwrap();
     let c = gate_fingerprint(&root, &scratch(&tmp), "rustc 1.0").unwrap();
-    assert_ne!(a, c, "an edited gate file is a different gate");
-}
-
-#[test]
-fn fingerprint_requires_every_gate_file() {
-    let (tmp, root) = repo();
-    fs::remove_file(root.join("Makefile")).unwrap();
-    assert!(gate_fingerprint(&root, &scratch(&tmp), "rustc 1.0").is_err());
+    assert_eq!(a, c, "the gate scripts are the tree's business, not the fingerprint's");
 }
 
 #[test]
@@ -92,6 +86,11 @@ fn check_sees_only_a_pass_on_the_exact_tree() {
     assert!(!check(&root, &s, &territory, "rustc 2.0").unwrap(), "another gate misses");
     fs::write(root.join("code.rs"), "fn main() { let _ = 2; }\n").unwrap();
     assert!(!check(&root, &s, &territory, "rustc 1.0").unwrap(), "another tree misses");
+    // bl-6a84: a gate that grew a step is a different tree, whatever the
+    // binary knows about the repo's gate files — nothing, now.
+    record(&root, &s, &territory, "rustc 1.0", true, "Gushed").unwrap();
+    fs::write(root.join("scripts/pre-commit"), "#!/bin/sh\ncargo test && leak-scan\n").unwrap();
+    assert!(!check(&root, &s, &territory, "rustc 1.0").unwrap(), "an edited gate script misses");
 }
 
 #[test]

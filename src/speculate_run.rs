@@ -65,9 +65,9 @@ pub fn run(
 ) -> io::Result<Report> {
     let mut report = Vec::new();
     let mut base = base_commit(repo, onto)?;
-    // Keyed by the gate as THIS checkout sees it — deliberately. The verdict a
-    // close will look up is keyed by the closer's gate; a candidate that edits
-    // the gate files changes the fingerprint for everyone only once it lands.
+    // One fingerprint for the whole pass: the toolchain is the same for every
+    // candidate, and a candidate that edits the gate scripts is simply a
+    // different tree — the key the closer's hook will look up too.
     let gate_fp = speculate::gate_fingerprint(repo, scratch, toolchain)?;
     let mut spent = 0;
     for entry in speculate_queue::queue(repo)? {

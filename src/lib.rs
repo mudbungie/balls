@@ -93,7 +93,8 @@
 //!
 //! [`speculate`] is tree-keyed gate memoization (bl-1263): the pre-commit
 //! gate's verdict is a pure function of the worktree TREE and the GATE
-//! fingerprint (toolchain + gate scripts), so `scripts/pre-commit` consults a
+//! fingerprint (the toolchain — the gate scripts are tracked, so the tree oid
+//! already carries them, bl-6a84), so `scripts/pre-commit` consults a
 //! per-`(tree, gate)` record under the `bl-speculate` §1 territory and skips a
 //! re-execution of a known pass, recording fresh passes for whoever folds to
 //! the same tree next. The `bl-speculate` SIBLING binary is the env-reading

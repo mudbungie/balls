@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: toolchain half of the fingerprint (compare with local rustc -V)
+      - name: the gate fingerprint (compare with local rustc -V)
         run: rustc -V
       - name: the gate's own tooling
         run: cargo install cargo-tarpaulin --locked

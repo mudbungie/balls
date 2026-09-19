@@ -90,8 +90,15 @@ The whole contract between speculators and close is one record:
 
     { tree_oid, gate_fingerprint, verdict, builder }
 
-- `gate_fingerprint` = hash of toolchain + gate config, so a clippy upgrade or
-  rubric change silently invalidates stale verdicts.
+- `gate_fingerprint` = hash of the toolchain (`rustc -V`), so a clippy upgrade
+  silently invalidates stale verdicts. A gate-config change (a tightened lint,
+  a new gate script, an edited `scripts/pre-commit`) needs no place here: the
+  gate's files are tracked, so they are inside `tree_oid` and editing one is a
+  different tree. (Corrected 2026-09-19, bl-6a84: the fingerprint once ALSO
+  hashed a compiled-in list of four gate files — redundant with the tree for
+  every one of them, and a list the binary could not keep honest for a repo
+  whose gate grew a fifth file. Deleted; the tree is the repo's own statement
+  of what its gate is made of.)
 - The gate consulted at close hashes the worktree tree and looks it up.
   **Hit → skip the gate. Miss → build locally, exactly stock behavior.**
   "Stated build matches the merge" is inherent in the content-addressed key;
@@ -262,9 +269,9 @@ Fits the verdict interface as-is. Caveats to resolve before wiring:
    artifact; `bl-speculate import` is validate-and-copy, the trust seam.
    `.github/workflows/speculate.yml` triggers on `speculation/**` pushes;
    retrieval (`gh run download` + import) and the branch sweep are manual by
-   design — a remote builder must never become a close dependency. Toolchain
-   fingerprints do not vouch across versions: a remote verdict hits only when
-   `rustc -V` matches, which is the fingerprint working, not failing. Live
+   design — a remote builder must never become a close dependency. The
+   fingerprint does not vouch across toolchains: a remote verdict hits only
+   when `rustc -V` matches, which is the fingerprint working, not failing. Live
    wiring is UNVERIFIED from this box (no network); the workflow is a
    reference implementation.
 

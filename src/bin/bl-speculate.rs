@@ -9,7 +9,8 @@
 //! sibling-binary convention all the same — gather the boundary inputs here
 //! (cwd as the repo root; for the cache verbs the XDG bases behind the §1
 //! `bl-speculate` territory, `BALLS_IDENTITY` as the builder and `rustc -V`
-//! as the toolchain half of the gate fingerprint) and hand every decision to
+//! as the gate fingerprint — the one gate input the tree oid cannot see, the
+//! gate scripts being tracked files inside it, bl-6a84) and hand every decision to
 //! the library. The queue verbs deliberately read no environment at all: a
 //! queue query must not fail for a cache-side reason.
 //!
@@ -178,8 +179,8 @@ fn territory() -> io::Result<(PathBuf, PathBuf)> {
     Ok((territory, scratch))
 }
 
-/// `rustc -V` — the toolchain half of the gate fingerprint. Shelled here, not
-/// in the library, so the library stays deterministic under test.
+/// `rustc -V` — the gate fingerprint. Shelled here, not in the library, so
+/// the library stays deterministic under test.
 fn toolchain() -> io::Result<String> {
     let out = Command::new("rustc").arg("-V").output()?;
     if out.status.success() {
