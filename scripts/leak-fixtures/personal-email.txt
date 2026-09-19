@@ -1,0 +1,5 @@
+# addresses at real domains, under notreal local parts
+jane.notreal@gmail.com
+notreal-person@protonmail.com
+j.notreal@somecompany.co.uk
+"identity_last_used": "notreal@fastmail.com"

@@ -1,4 +1,4 @@
-.PHONY: build test check doc \
+.PHONY: build test check doc leak-scan \
 	install install-core install-tracker install-delivery install-chore \
 	install-speculate uninstall clean hooks \
 	deploy-local deploy-status deploy-selftest
@@ -17,6 +17,17 @@ check: test doc
 	scripts/check-line-lengths.sh
 	scripts/deploy/update-selftest.sh
 	scripts/check-coverage.sh
+
+# The disclosure scan (bl-816b, from the rust-bootstrap template):
+# scripts/leak-rules.sh is the table, leak-scan.sh the mechanism. --self-test
+# first, because a leak gate dies by silently matching nothing. Not yet a step
+# of `check` or the pre-commit chain: main carries findings the scan must be
+# clean of first — run this target to see them. The machine-global balls plugin
+# bl-leak-gate runs this same scanner over the TASK STORE before every publish,
+# and .github/workflows/store-scan.yml re-judges the published balls/tasks ref.
+leak-scan:
+	@scripts/leak-scan.sh --self-test
+	@scripts/leak-scan.sh
 
 # THE blessed doc build (bl-3d09) — the only invocation this repo's docs are
 # guaranteed warning-clean under, so it is the one to run and the one to trust.

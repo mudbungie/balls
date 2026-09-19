@@ -1,0 +1,9 @@
+# Linux, macOS and Windows home roots, under account names that are notreal.
+# Judged with no reference to the scanning account: CI catches these too.
+/home/notrealoperator/.local/state/balls/clones
+"/Users/notrealoperator/dev/balls"
+C:\Users\notrealoperator\AppData\Roaming\balls
+c:/Users/notrealoperator/AppData/Roaming/balls
+the run's cwd was /home/notrealoperator
+clones/%2Fhome%2Fnotrealoperator%2Fdev%2Fballs
+%2fUsers%2fnotrealoperator%2fdev

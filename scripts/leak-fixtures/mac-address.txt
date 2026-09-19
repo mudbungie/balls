@@ -1,0 +1,3 @@
+# two vendor prefixes, both cases
+00:1b:44:11:3a:b7 notreal
+AA:BB:CC:DD:EE:FF notreal

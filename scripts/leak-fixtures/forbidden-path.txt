@@ -1,0 +1,21 @@
+# these are PATHS, not content — read as if each were a tracked file
+.env
+config/.env.local
+src/.netrc
+tools/.npmrc
+tools/.pypirc
+credentials.json
+home/.ssh/id_rsa
+home/.ssh/id_ed25519.pub
+vault/.aws/config
+.claude/settings.json
+etc/.gnupg/pubring.kbx
+etc/.config/brazen/credentials.toml
+certs/server.pem
+keys/private.key
+keys/bundle.p12
+keys/bundle.pfx
+keys/store.jks
+keys/store.keystore
+docs/session.jsonl
+vault/passwords.kdbx

@@ -1,0 +1,26 @@
+# one near-miss per rule. Judged with no HOME override: the rules read this
+# file the same way on every account, which is the point of bl-167d.
+127.0.0.1 localhost
+0.0.0.0 and 255.255.255.255
+192.0.2.10 and 198.51.100.4 and 203.0.113.9
+2001:0db8:0000:0000:0000:0000:0000:0001
+-----BEGIN CERTIFICATE-----
+use std::vec::Vec;
+recorded at 2026-08-12T12:34:56Z
+let p = Path::new("/home/u/dev/balls");
+let q = Path::new("/home/op/x/../y");
+let r = Path::new("/Users/x/dev/balls");
+the delivery mirror plugins/bl-delivery/home/u/dev/balls is not anyone's home directory
+"toolu_01" and "msg_1" are the house test ids
+password = "<redacted>"
+api_key: "${ANTHROPIC_API_KEY}"
+token = "test-token"
+let sk = "sk-short";
+{"auth":"none","credential":"not required","name":"local"}
+"authorization": "Bearer <token>"
+git commit --author "u <u@example.com>" -m x
+let addr = "t@t.local";
+let other = "t@balls.invalid";
+the assistant replied, and Claude Code wrote the transcript
+Note: a colon after a word is not a speaker label
+clones/%2Fhome%2Fu%2Fdev%2Fballs and clones/%2Fhome%2Fop%2Fx

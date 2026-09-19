@@ -1,0 +1,7 @@
+# every PEM banner shape, plus PuTTY's. All markers, no keys: `notreal`.
+-----BEGIN RSA PRIVATE KEY----- notreal
+-----BEGIN OPENSSH PRIVATE KEY----- notreal
+-----BEGIN PRIVATE KEY----- notreal
+-----BEGIN EC PRIVATE KEY----- notreal
+-----BEGIN DSA PRIVATE KEY----- notreal
+PuTTY-User-Key-File-3: ssh-rsa notreal

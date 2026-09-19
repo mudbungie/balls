@@ -1,0 +1,9 @@
+# the shapes pasted conversation arrives in. Every line is notreal prose.
+Human: can you look at the notreal branch for me
+Assistant: I read it — here is what the notreal diff does
+> Claude: the notreal run finished, nothing to report
+- ChatGPT: a notreal answer, pasted from somewhere else
+**Assistant**: a notreal reply, bolded by a chat exporter
+Codex: a notreal completion
+Copilot: a notreal suggestion
+Gemini: a notreal response

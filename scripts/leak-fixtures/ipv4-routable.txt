@@ -1,0 +1,7 @@
+# public, and all three RFC1918 blocks — internal topology is a disclosure too.
+# The addresses are notreal in the sense that matters: nothing here is ours.
+8.8.8.8 notreal
+203.0.114.7 notreal
+192.168.1.42 notreal
+10.0.0.5 notreal
+172.16.9.1 notreal

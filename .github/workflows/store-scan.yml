@@ -1,0 +1,49 @@
+name: store-scan
+
+# This repo's own task store, judged by its own rule table (pattern from yog
+# bl-1043, via the rust-bootstrap template; ported under bl-816b). `bl`
+# publishes balls' balls on `balls/tasks` — a separate ref on THIS remote —
+# and CI never otherwise reads it. The local write path is gated (the
+# machine-global bl-leak-gate runs scripts/leak-scan.sh over the store before
+# every push), but the local gate is one config edit away and a raw `git push`
+# in the store clone skips it entirely; both land here. This job is DETECTION,
+# not prevention: by the time it runs the material is on the remote and the
+# remedy is a history rewrite.
+on:
+  schedule:
+    # Daily. GitHub disables cron after 60 idle days; workflow_dispatch is the
+    # hand path — run it once before making the repo public.
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+  # And whenever the JUDGEMENT changes: a new rule re-judges an unmoved store.
+  push:
+    branches: [main]
+    paths:
+      - scripts/leak-rules.sh
+      - scripts/leak-scan.sh
+      - .github/workflows/store-scan.yml
+
+permissions:
+  contents: read
+
+jobs:
+  tasks:
+    runs-on: ubuntu-latest
+    steps:
+      # The scanner and its rule table, from the source ref.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      # The store beside it. `balls/tasks` is the configured task-branch; a
+      # re-pointed branch must be renamed here too — the scan failing loudly on
+      # a missing ref is the signal.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: balls/tasks
+          path: store
+          persist-credentials: false
+      # Findings are truncated by the scanner itself: an Actions log outlives
+      # the run and is public the moment the repo is.
+      - name: Scan the task store
+        working-directory: store
+        run: "$GITHUB_WORKSPACE/scripts/leak-scan.sh"

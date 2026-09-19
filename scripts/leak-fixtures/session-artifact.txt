@@ -1,0 +1,12 @@
+# vendor resource ids at real length, then the Claude Code transcript keys
+msg_01notrealfghijKLMNOpqrst
+toolu_01notrealfghijKLMNOpqrst
+asst_01notrealfghijKLMNOpqrst
+thread_01notrealfghijKLMNOpqrst
+run_01notrealfghijKLMNOpqrst
+req_01notrealfghijKLMNOpqrst
+chatcmpl-01notrealfghijKLMNOpqrst
+{"parentUuid":"notreal-0d1c"}
+{"sessionId":"notreal-0d1c"}
+{"leafUuid":"notreal-0d1c"}
+{"isSidechain":false,"why":"notreal"}

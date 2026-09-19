@@ -1,0 +1,8 @@
+# paths that LOOK like the forbidden shapes and are not
+src/env.rs
+tests/support/env.rs
+docs/key-bindings.md
+src/keymap/mod.rs
+scripts/environment.sh
+src/config_edit/mod.rs
+default-config/plugins.toml

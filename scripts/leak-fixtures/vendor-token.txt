@@ -1,0 +1,12 @@
+# one line per alternative in the vendor-token pattern; every body fabricated
+sk-ant-api03-AAAAbbbbCCCCddddEEEEffff-notreal
+sk-proj-notrealAAAAbbbbCCCCddddEEEEffffGGGG
+sk-notrealAAAAbbbbCCCCddddEEEEffffGGGGhhhh
+ghp_notrealAAAAbbbbCCCCddddEEEEffffGGGGhh
+github_pat_notrealAAAAbbbbCCCCddddEEEEffff
+AKIANOTREAL000000000
+ASIANOTREAL000000000
+AIzanotrealAAAAbbbbCCCCddddEEEEffffGGGGhhh
+xoxb-notrealAAAA-bbbbCCCC
+glpat-notrealAAAAbbbbCCCCd
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJub3RyZWFsIn0.notrealAAAAbbbb
