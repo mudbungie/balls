@@ -1,9 +1,14 @@
 +++
 title = "release-binaries resolves its tag with git describe, so it races the tag it is supposed to build and uploads to the PREVIOUS release"
 created = 1786599852
-updated = 1786599852
+updated = 1789792252
+claimant = "Proudest"
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["bug"]
+
+[[blockers]]
+id = "bl-189d"
+on = "close"
 +++
 Found while cutting 0.5.10 (see bl-97b4).
 
