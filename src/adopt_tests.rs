@@ -182,19 +182,24 @@ fn adopt_without_an_install_pre_plugin_is_an_error() {
 }
 
 #[test]
-fn adopt_runs_the_install_pre_chain_then_the_local_copy() {
-    // A fake tracker is wired on install.pre (by the seed) and bound, so the
-    // chain RUNS — but this fake exits without fetching, so the local materialize
-    // finds no FETCH_HEAD and adopt surfaces that. This exercises the fetch_config
-    // chain loop + the adopt glue; the real fetch is covered in tests/dispatch.rs.
+fn adopt_with_nothing_fetched_is_a_no_op_not_a_fatal() {
+    // bl-3b82: a fake tracker is wired on install.pre (by the seed) and bound, so
+    // the chain RUNS — but this fake exits without fetching, exactly what the real
+    // tracker does against a hub carrying no `balls/config` (bl-45fd: its §13
+    // "upstream, if any" fetch is a no-op). No FETCH_HEAD ⇒ nothing to adopt: the
+    // landing keeps its seeded config and its tip, and prime --center goes on to
+    // bind + prime instead of dying on `worktree add FETCH_HEAD`. The real fetch
+    // is covered in tests/enrollment.rs.
     let tmp = TempDir::new().unwrap();
     let bin = tmp.path().join("bin");
     fs::create_dir_all(&bin).unwrap();
     plugin(&bin, "bl-tracker", "[\"install\"]");
     let e = edge(&tmp, Some(bin));
     let (landing, store) = found(&e);
+    let before = head(&landing);
     let c = center(tmp.path(), "balls/shared", NO_HOOKS);
-    let err = adopt(&e, &landing, &store, "me", &c).unwrap_err();
-    // The chain ran (no install.pre error); the missing FETCH_HEAD is what failed.
-    assert!(!err.to_string().contains("install.pre"), "the chain ran: {err}");
+    adopt(&e, &landing, &store, "me", &c).unwrap();
+    assert_eq!(before, head(&landing), "nothing sealed");
+    let cfg = fs::read_to_string(landing.join("config/balls.toml")).unwrap();
+    assert!(!cfg.contains("balls/shared"), "the seeded config stands: {cfg}");
 }

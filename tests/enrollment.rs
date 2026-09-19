@@ -208,3 +208,30 @@ fn prime_center_enrolls_a_satellite_into_a_local_bare_center() {
     // because the durable binding now routes it.
     bl_primed(&project, &home, &state).arg("prime").assert().success();
 }
+
+#[test]
+fn prime_center_on_a_config_less_hub_binds_and_primes_without_adopting() {
+    // bl-3b82: a STOCK bare hub carries no `balls/config` (bl never publishes the
+    // landing, §4 single-owner), so the tracker's install.pre fetch is the §13
+    // "upstream, if any" no-op (bl-45fd) — and the adopt must follow it: nothing
+    // fetched ⇒ nothing to adopt, NOT `worktree add FETCH_HEAD: invalid reference`.
+    // Enrollment still binds durably and primes, and later ops just work.
+    let tmp = TempDir::new().unwrap();
+    let (home, state, project) = (tmp.path().join("h"), tmp.path().join("s"), tmp.path().join("p"));
+    std::fs::create_dir_all(&project).unwrap();
+    let hub = tmp.path().join("hub.git");
+    git(tmp.path(), &["init", "--bare", "-q", &hub.to_string_lossy()]);
+
+    bl_primed(&project, &home, &state)
+        .args(["prime", "--center", &hub.to_string_lossy(), "--as", "x"])
+        .assert()
+        .success()
+        .stderr(contains("nothing to adopt"));
+
+    let clone = clone_dir(&state, &project);
+    let binding = std::fs::read_to_string(clone.binding()).unwrap();
+    assert!(binding.contains(&*hub.to_string_lossy()), "durable binding to the hub: {binding}");
+    bl_primed(&project, &home, &state).args(["create", "t", "--as", "x"]).assert().success();
+    bl_primed(&project, &home, &state).arg("list").assert().success().stdout(contains("t"));
+    assert!(git_out(&hub, &["for-each-ref"]).contains("balls/tasks"), "the store founded on the hub");
+}

@@ -168,7 +168,7 @@ pub fn resolve_and_bind(
 #[path = "install_run.rs"]
 mod wiring;
 pub use wiring::run;
-pub(crate) use wiring::{bind_referenced, seal_copy, Chain};
+pub(crate) use wiring::{bind_referenced, fetched, seal_copy, Chain};
 
 #[cfg(test)]
 #[path = "install_tests.rs"]

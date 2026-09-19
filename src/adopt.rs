@@ -17,6 +17,10 @@
 //!    EMPTY here: the `install.pre` chain already ran in step 1 (the staging
 //!    reads the `FETCH_HEAD` it leaves, so the fetch cannot ride the engine's own
 //!    `pre`) — that fetch leg is the one piece still outside the §14 trace.
+//!    Nothing fetched ⇒ nothing to adopt (bl-3b82): a stock hub carries no
+//!    `balls/config` (bl never publishes the landing, §4 single-owner), so the
+//!    tracker's §13 "upstream, if any" fetch leaves no `FETCH_HEAD` and the
+//!    adopt is a no-op — `--center` still binds and primes, never a git fatal.
 //!
 //! Config "crosses into a landing only by the explicit copy `install` performs"
 //! (§0); here that copy is local and the read that feeds it is the tracker's. The
@@ -45,10 +49,15 @@ use std::io;
 use std::path::Path;
 
 /// Adopt `center`'s committed `config/` into `landing` (§6/§13): the tracker
-/// fetches (remote), then core copies (local). `store` is the sibling store
-/// checkout the §7 binding names; `actor` rides the wire.
+/// fetches (remote), then core copies (local) — or, when the fetch left nothing
+/// (a hub with no `balls/config`), notes that and adopts nothing. `store` is the
+/// sibling store checkout the §7 binding names; `actor` rides the wire.
 pub fn adopt(edge: &Edge, landing: &Path, store: &Path, actor: &str, center: &str) -> io::Result<()> {
     fetch_config(edge, landing, store, actor, center)?;
+    if !install::fetched(landing) {
+        eprintln!("install: {center} carries no {LANDING_BRANCH} — nothing to adopt");
+        return Ok(());
+    }
     install_local(edge, landing)
 }
 

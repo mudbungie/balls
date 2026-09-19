@@ -130,20 +130,24 @@ pub fn run(edge: &Edge, args: &[String]) -> io::Result<()> {
 /// landing's `FETCH_HEAD`, and the copy stages from that git-standard ref —
 /// the same fetch-then-local-copy split as `prime --install`
 /// ([`crate::adopt`]). The chain runs HERE, before the engine stages (see the
-/// module doc); the caller then runs the engine's pre chain EMPTY. A
-/// `FETCH_HEAD` that still does not resolve (a stealth box, a hub carrying no
-/// `balls/config`, no fetch plugin installed) is refused naming the remedy —
-/// never a raw git fatal at materialize.
+/// module doc); the caller then runs the engine's pre chain EMPTY. Nothing
+/// [`fetched`] is refused naming the remedy — never a raw git fatal at materialize.
 fn upstream(plugins: &Subprocess, pre: &[PluginRef], landing: &Path) -> io::Result<String> {
     for plugin in pre {
         plugins.run(plugin, Verb::Install, Phase::Pre, landing, None)?;
     }
-    if git::run(landing, &["rev-parse", "--verify", "--quiet", "FETCH_HEAD"], None).is_err() {
+    if !fetched(landing) {
         return Err(io::Error::other(
             "install: no --from given and no configured upstream offers a balls/config to adopt — pass --from <ref>",
         ));
     }
     Ok("FETCH_HEAD".to_string())
+}
+
+/// Did the `install.pre` chain leave a `FETCH_HEAD` to adopt from? False on a stealth box, a hub
+/// with no `balls/config` (§13 "upstream, if any", bl-45fd) or no fetch plugin; `install` refuses.
+pub(crate) fn fetched(landing: &Path) -> bool {
+    git::run(landing, &["rev-parse", "--verify", "--quiet", "FETCH_HEAD"], None).is_ok()
 }
 
 /// The resolved §8 pieces a sealing install runs with: the subprocess chain,

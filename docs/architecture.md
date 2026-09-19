@@ -2413,7 +2413,11 @@ converging predicate.
   `FETCH_HEAD` (a git-standard ref, no invented core↔plugin convention), where the install path-copy
   reads it. A READ only — never a push to the center (a center's config is published by its owner's
   raw `git push`, §6/bl-b8d6); stealth (no
-  remote) is a no-op. Remote-talk stays plugin-exclusive (§0) even inside the fused verb. It is a
+  remote) is a no-op, and so is a hub that carries no `balls/config` (bl-45fd: bl never publishes the
+  landing, so a stock bare hub has none) — nothing fetched ⇒ nothing to adopt (bl-3b82): core probes
+  the landing's `FETCH_HEAD` once at point-of-use, and `prime --install`/`--center` skip the copy
+  (noted on stderr) and go on to bind + prime, while a bare `bl install` refuses naming `--from`.
+  Remote-talk stays plugin-exclusive (§0) even inside the fused verb. It is a
   SINGLE hop, not a walk: a center's config is self-contained — it names its own `tasks_branch` (the one config→store
   indirection, §4), never another config to chase — so there is no chain to recurse. (The older
   recursive multi-hop form was a config-*trail* artifact, retired with config-shadowing: §4/§12 —

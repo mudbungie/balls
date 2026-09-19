@@ -62,7 +62,11 @@ To **enroll** a checkout with no such `origin` into a shared project (a
 per-clone binding, adopts that center's committed `config/`, and primes — one
 command, no half-enrolled window. A filesystem path is a legitimate `<hub>` (two
 repos on one box share through a local bare repo, the same code path as a hosted
-center). The rule: **`--remote` shapes one op; `--center` enrolls a checkout** —
+center). A hub carrying no `balls/config` (a stock `git init --bare`) adopts
+nothing — `install: <hub> carries no balls/config — nothing to adopt` on stderr —
+and the bind + prime proceed; the hub's config is adopted whenever its owner
+later publishes one and you re-run. The rule: **`--remote` shapes one op;
+`--center` enrolls a checkout** —
 `--center` is prime-only, and on any other verb it bounces as an unknown flag.
 `--center` subsumes `--install` (pass one or the other, mutually exclusive at
 parse); `--install <hub>` adopts config *without* the durable bind. A bare
