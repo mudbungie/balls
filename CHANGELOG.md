@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.13](https://github.com/mudbungie/balls/compare/v0.5.12...v0.5.13) - 2026-09-25
+
+### Changes
+
+- README seed [hooks] block drifted from default-config/plugins.toml: show lacks bl-tracker, no list row, stale prime.post comment [bl-bedb]
+- bl comment never publishes on its own: it dispatches hooks under comment.post, which no seed wires and the tracker's OPS list omits — comments ride the next op's push [bl-cca0]
+- Clean main of leak-scan findings, then wire make leak-scan into pre-commit and ci.yml [bl-4423]
+
 ## [0.5.12](https://github.com/mudbungie/balls/compare/v0.5.11...v0.5.12) - 2026-09-18
 
 ### Changes
