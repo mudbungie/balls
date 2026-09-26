@@ -1,7 +1,7 @@
 use super::*;
 
 fn home() -> &'static Path {
-    Path::new("/home/mark")
+    Path::new("/home/u")
 }
 
 #[test]
@@ -15,8 +15,8 @@ fn xdg_variables_when_set_override_the_home_defaults() {
 fn absent_or_empty_variables_fall_back_under_home() {
     // `None` and `Some("")` both take the default branch.
     let x = Xdg::with(home(), None, Some(""));
-    assert_eq!(x.user_config(), Path::new("/home/mark/.config/balls/config.toml"));
-    assert_eq!(x.state_dir(), Path::new("/home/mark/.local/state/balls"));
+    assert_eq!(x.user_config(), Path::new("/home/u/.config/balls/config.toml"));
+    assert_eq!(x.state_dir(), Path::new("/home/u/.local/state/balls"));
 }
 
 #[test]
@@ -24,17 +24,17 @@ fn a_plugin_gets_a_territory_root_under_state() {
     let x = Xdg::with(home(), None, None);
     assert_eq!(
         x.plugin_territory("tracker"),
-        Path::new("/home/mark/.local/state/balls/plugins/tracker")
+        Path::new("/home/u/.local/state/balls/plugins/tracker")
     );
 }
 
 #[test]
 fn the_clone_bundle_encodes_the_invocation_path_to_one_component() {
     let x = Xdg::with(home(), None, Some("/st"));
-    let c = x.clone_dir(Path::new("/home/mark/dev/balls"));
+    let c = x.clone_dir(Path::new("/home/u/dev/balls"));
     assert_eq!(
         c.root(),
-        Path::new("/st/balls/clones/%2Fhome%2Fmark%2Fdev%2Fballs")
+        Path::new("/st/balls/clones/%2Fhome%2Fu%2Fdev%2Fballs")
     );
     // Every bundle sits directly under the shared `clones/` parent (the fleet
     // view enumerates it).

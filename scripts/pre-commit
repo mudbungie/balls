@@ -7,6 +7,7 @@
 #   3. Has failing tests
 #   4. Drops line coverage below 100%, or breaks the deploy reconciler
 #   5. Has any rustdoc warning — a broken intra-doc link included
+#   6. Discloses something (scripts/leak-rules.sh: home paths, addresses, keys...)
 #
 # To install: scripts/install-hooks.sh
 
@@ -34,6 +35,13 @@ if command -v bl-speculate >/dev/null 2>&1 && bl-speculate check 2>/dev/null; th
     echo "pre-commit: verdict cache hit — this exact tree already passed this exact gate."
     exit 0
 fi
+
+# The disclosure scan (bl-816b/bl-4423): sub-second, and it reads the INDEX
+# blobs — the bytes this commit would carry — so it goes first, before anything
+# that compiles. `make leak-scan` is the one home of the invocation (self-test
+# first, then the tree).
+echo "pre-commit: leak scan..."
+make leak-scan
 
 echo "pre-commit: clippy..."
 cargo clippy --all-targets -- -D warnings 2>&1

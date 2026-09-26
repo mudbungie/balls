@@ -19,7 +19,7 @@ The cast: a project with two tasks — a backend the frontend depends on.
 ```console
 $ git init -q -b main && git commit -qm "Initial commit"   # README.md as the seed file
 $ command -v bl
-/home/.../.local/bin/bl
+/home/u/.local/bin/bl
 ```
 
 No `bl init`, no `.balls/` directory, no daemon. State will live outside the repo
@@ -112,7 +112,7 @@ with `git worktree list` — the `work/<id>` line.
 ```console
 $ bl claim bl-9f1b --as alice          # prints "claim bl-9f1b" on stderr
 $ git worktree list | grep work/bl-9f1b
-/home/.../.local/state/balls/plugins/bl-delivery/tmp/.../bl-9f1b  d0a637d [work/bl-9f1b]
+/home/u/.local/state/balls/plugins/bl-delivery/tmp/.../bl-9f1b  d0a637d [work/bl-9f1b]
 ```
 
 The project path is **mirrored** into the worktree dir, not percent-encoded (a

@@ -65,7 +65,7 @@ is written into it and not committed until Seal. Live, on this box, while this
 was written:
 
 ```
-$ git -C …/clones/%2Fhome%2Fmark%2Fdev%2Flernie/changes/a071a48f… status --porcelain
+$ git -C …/clones/%2Fhome%2Fu%2Fdev%2Flernie/changes/a071a48f… status --porcelain
  D tasks/bl-3361.md
 ```
 
@@ -220,9 +220,9 @@ C3, Q1). The entire cost is that the operator must know three XDG paths that
 already dumps exactly this kind of path:
 
 ```
-xdg      /home/mark/.config/balls/config.toml
-landing  …/clones/%2Fhome%2Fmark%2Fdev%2Fballs/config
-store    …/clones/%2Fhome%2Fmark%2Fdev%2Fballs/tasks
+xdg      /home/u/.config/balls/config.toml
+landing  …/clones/%2Fhome%2Fu%2Fdev%2Fballs/config
+store    …/clones/%2Fhome%2Fu%2Fdev%2Fballs/tasks
 ```
 
 Two more lines in a dump that exists. No verb, no flag, no field, no store

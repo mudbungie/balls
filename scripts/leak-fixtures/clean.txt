@@ -21,6 +21,7 @@ let sk = "sk-short";
 git commit --author "u <u@example.com>" -m x
 let addr = "t@t.local";
 let other = "t@balls.invalid";
+let url = "git@github.com:o/r.git";
 the assistant replied, and Claude Code wrote the transcript
 Note: a colon after a word is not a speaker label
 clones/%2Fhome%2Fu%2Fdev%2Fballs and clones/%2Fhome%2Fop%2Fx

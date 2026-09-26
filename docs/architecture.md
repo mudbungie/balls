@@ -243,7 +243,7 @@ canonical serializer form: scalars first, each blocker a `[[blockers]]` table la
 title = "Refactor the foo system"
 created = 1748357520                        # unix seconds; storage/transit is ALWAYS unix-time
 updated = 1748443920                        # only display renders ISO-8601 (§9), never storage
-claimant = "mudbungie@gmail.com"           # occupancy: present ⇒ claimed, absent ⇒ unclaimed. NO status field
+claimant = "u@example.com"           # occupancy: present ⇒ claimed, absent ⇒ unclaimed. NO status field
 parent = "bl-1000"
 priority = 2                                # optional; lower = higher priority; absent sorts LAST
 tags = ["refactor", "infra"]
@@ -525,7 +525,7 @@ parsed via `git interpret-trailers --parse` — no hand-rolled parser; coexists 
 bl-protocol: 1
 bl-op: close
 bl-id: bl-1234
-bl-actor: mudbungie@gmail.com
+bl-actor: u@example.com
 ```
 
 - Tokens are lower-kebab (`[a-z0-9-]`, git's trailer grammar). The subject is ALWAYS the ball title

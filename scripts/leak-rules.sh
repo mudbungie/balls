@@ -100,7 +100,12 @@ WHY[home-path]='an absolute path under a home directory — it names an account,
 # "ball contributors", so there is no authorship declaration to carry, and the
 # template's one such escape (rust-bootstrap) was dropped in the port.
 PATTERN[personal-email]='[A-Za-z0-9._%+-]+@[A-Za-z0-9._-]+\.[A-Za-z]{2,}'
-EXCEPT[personal-email]='.*@([A-Za-z0-9-]+\.)*(example\.(com|org|net)|invalid|test|local|localhost|localdomain)$'
+# The second alternative is the git user at any host (bl-4423): an SSH clone
+# URL, `git@<host>:owner/repo`, is a transport address, not a person, and
+# this crate's tests and its option-guard name several. It is anchored at
+# the END of the match like the reserved domains, and admits ONLY the
+# literal user `git` — any other local part at the same host is a person.
+EXCEPT[personal-email]='.*@([A-Za-z0-9-]+\.)*(example\.(com|org|net)|invalid|test|local|localhost|localdomain)$|git@[A-Za-z0-9._-]+\.[A-Za-z]{2,}$'
 WHY[personal-email]='an email address. Use a documentation address (u@example.com) or a reserved TLD (t@t.local, t@test.invalid).'
 
 # Pasted conversation. A transcript is content somebody said, and the shape it

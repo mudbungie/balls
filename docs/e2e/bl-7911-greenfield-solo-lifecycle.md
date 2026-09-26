@@ -37,7 +37,7 @@ $ git init -q -b main
 $ git commit -q --allow-empty -m "Initial commit"
 
 $ command -v bl
-/home/mark/.local/state/balls/plugins/bl-delivery/home/mark/dev/balls/bl-7911/target/release/bl
+/home/u/.local/state/balls/plugins/bl-delivery/home/u/dev/balls/bl-7911/target/release/bl
 
 $ ls -a
 .

@@ -9,7 +9,7 @@ const FULL: &str = concat!(
     "title = \"Refactor the foo system\"\n",
     "created = 1748357520\n",
     "updated = 1748443920\n",
-    "claimant = \"mudbungie@gmail.com\"\n",
+    "claimant = \"u@example.com\"\n",
     "parent = \"bl-1000\"\n",
     "priority = 2\n",
     "tags = [\"refactor\", \"infra\"]\n",
@@ -35,7 +35,7 @@ fn parses_every_field_and_the_body() {
     assert_eq!(task.title, "Refactor the foo system");
     assert_eq!(task.created, 1_748_357_520);
     assert_eq!(task.updated, 1_748_443_920);
-    assert_eq!(task.claimant.as_deref(), Some("mudbungie@gmail.com"));
+    assert_eq!(task.claimant.as_deref(), Some("u@example.com"));
     assert_eq!(task.parent.as_deref(), Some("bl-1000"));
     assert_eq!(task.priority, Some(2));
     assert_eq!(

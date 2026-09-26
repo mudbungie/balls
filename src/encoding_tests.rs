@@ -7,8 +7,8 @@ fn unreserved_bytes_pass_through_untouched() {
 
 #[test]
 fn a_path_encodes_to_one_slash_free_component() {
-    let enc = percent_encode("/home/mark/dev/balls");
-    assert_eq!(enc, "%2Fhome%2Fmark%2Fdev%2Fballs");
+    let enc = percent_encode("/home/u/dev/balls");
+    assert_eq!(enc, "%2Fhome%2Fu%2Fdev%2Fballs");
     assert!(!enc.contains('/'));
 }
 
@@ -44,7 +44,7 @@ fn multibyte_utf8_encodes_every_continuation_byte() {
 fn decode_is_the_exact_inverse_of_encode() {
     // A path, a URL, and a multibyte string all round-trip — every `%XX` the
     // encoder emits (both hex-nibble arms, continuation bytes) decodes back.
-    for s in ["/home/mark/dev/balls", "git@github.com:mudbungie/balls.git", "é", "aZ09-._~"] {
+    for s in ["/home/u/dev/balls", "git@github.com:mudbungie/balls.git", "é", "aZ09-._~"] {
         assert_eq!(percent_decode(&percent_encode(s)).as_deref(), Some(s));
     }
 }

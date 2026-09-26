@@ -93,7 +93,7 @@ fn a_multi_root_checkout_admits_a_ball_recorded_against_any_of_its_roots() {
     let g = |args: &[&str]| Project::run(&repo, args).unwrap();
     g(&["init", "-q", "-b", "main"]);
     g(&["config", "user.name", "t"]);
-    g(&["config", "user.email", "t@e.com"]);
+    g(&["config", "user.email", "t@e.test"]);
     fs::write(repo.join("a.txt"), "A").unwrap();
     g(&["add", "-A"]);
     g(&["commit", "-q", "-m", "root A"]);

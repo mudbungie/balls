@@ -46,7 +46,7 @@ pub(crate) fn git_root(tmp: &TempDir, seed: &str) -> String {
     let g = |args: &[&str]| Project::run(&proj, args).unwrap();
     g(&["init", "-q", "-b", "main"]);
     g(&["config", "user.name", "t"]);
-    g(&["config", "user.email", "t@e.com"]);
+    g(&["config", "user.email", "t@e.test"]);
     std::fs::write(proj.join("f.txt"), seed).unwrap();
     g(&["add", "-A"]);
     g(&["commit", "-q", "-m", "seed"]);

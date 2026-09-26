@@ -12,7 +12,7 @@ build:
 test:
 	cargo test
 
-check: test doc
+check: leak-scan test doc
 	cargo clippy --all-targets -- -D warnings
 	scripts/check-line-lengths.sh
 	scripts/deploy/update-selftest.sh
@@ -20,9 +20,9 @@ check: test doc
 
 # The disclosure scan (bl-816b, from the rust-bootstrap template):
 # scripts/leak-rules.sh is the table, leak-scan.sh the mechanism. --self-test
-# first, because a leak gate dies by silently matching nothing. Not yet a step
-# of `check` or the pre-commit chain: main carries findings the scan must be
-# clean of first — run this target to see them. The machine-global balls plugin
+# first, because a leak gate dies by silently matching nothing. A step of
+# `check`, of the pre-commit chain and of ci.yml (bl-4423), and sub-second, so
+# it runs before anything that compiles. The machine-global balls plugin
 # bl-leak-gate runs this same scanner over the TASK STORE before every publish,
 # and .github/workflows/store-scan.yml re-judges the published balls/tasks ref.
 leak-scan:

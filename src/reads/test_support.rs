@@ -98,7 +98,7 @@ pub(crate) fn git_checkout(dir: &Path, seed: &str) -> String {
     let g = |args: &[&str]| Project::run(dir, args).unwrap();
     g(&["init", "-q", "-b", "main"]);
     g(&["config", "user.name", "t"]);
-    g(&["config", "user.email", "t@e.com"]);
+    g(&["config", "user.email", "t@e.test"]);
     fs::write(dir.join("f.txt"), seed).unwrap();
     g(&["add", "-A"]);
     g(&["commit", "-q", "-m", "seed"]);

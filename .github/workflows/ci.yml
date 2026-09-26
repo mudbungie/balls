@@ -17,6 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The disclosure scan (bl-816b/bl-4423): shell only, sub-second, so it
+      # runs before the toolchain is even installed. The same scanner judges
+      # the task store in store-scan.yml.
+      - name: leak scan
+        run: make leak-scan
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
