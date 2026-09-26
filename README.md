@@ -247,6 +247,7 @@ The shipped seed (`default-config/plugins.toml`):
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
+"comment.post" = ["bl-tracker"]
 "import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
 ```
 

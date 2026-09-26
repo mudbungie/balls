@@ -225,6 +225,18 @@ fn concurrent_creates_from_two_clones_both_land_with_no_human_in_the_loop() {
     assert_eq!(b_ids, want, "B sees both concurrent balls");
 }
 
+#[test]
+fn a_comment_publishes_as_it_lands() {
+    // bl-cca0: the seed wires `comment.post` to the tracker, so A's comment is
+    // on origin the moment it seals — B's sync sees it with no later A op.
+    let tmp = TempDir::new().unwrap();
+    let (a, b) = two_devs(tmp.path());
+    let id = stdout(a.bl().args(["create", "Note me", "--as", "alice"]).assert().success());
+    a.bl().args(["comment", &id, "seen on the far clone", "--as", "alice"]).assert().success();
+    b.bl().arg("sync").assert().success();
+    b.bl().args(["show", &id]).assert().success().stdout(predicates::str::contains("seen on the far clone"));
+}
+
 /// `git -C <repo> log -1 --format=%s <rev>` — a delivery/seed commit subject.
 fn git_subject(repo: &Path, rev: &str) -> String {
     git_out(repo, &["log", "-1", "--format=%s", rev])

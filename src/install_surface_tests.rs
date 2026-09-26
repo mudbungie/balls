@@ -72,7 +72,7 @@ fn the_default_from_fetch_rides_the_install_pre_chain() {
     // and the bare install stages FROM the ref that fetch leaves — so the
     // chain demonstrably runs BEFORE the engine stages.
     let tmp = TempDir::new().unwrap();
-    let all_ops = r#"["sync","prime","install","claim","unclaim","close","create","update","import","show","list"]"#;
+    let all_ops = r#"["sync","prime","install","claim","unclaim","close","create","update","comment","import","show","list"]"#;
     let fetcher = "if [ \"$1\" = install ] && [ \"$2\" = pre ]; then git fetch -q . side; fi";
     fake_plugin(&tmp.path().join("bin"), "bl-tracker", all_ops, fetcher);
     let e = edge(&tmp, Some(tmp.path().join("bin")));

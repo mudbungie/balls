@@ -4,7 +4,12 @@
 
 Appends TEXT to the task's markdown body under a horizontal rule, and seals it
 exactly as `bl update` seals a `--body` rewrite. It is sugar over `update`,
-nothing more: read the stored body, append, seal.
+nothing more: read the stored body, append, seal. The one thing it does not
+share is the hook key: it dispatches `comment.pre`/`comment.post`, never
+`update.*`. The seed wires `comment.post` to `bl-tracker`, so a comment
+publishes as it lands; a plugin that wants every body edit wires both keys. A
+landing seeded before this row existed needs it once:
+`bl conf append comment.post bl-tracker`.
 
     $ bl comment bl-1a2b "single-clone runs pass; needs a second clone"
     $ bl show bl-1a2b

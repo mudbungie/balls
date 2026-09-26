@@ -94,12 +94,12 @@ shapes in its header comment):
   `*.post` — each seal publishes as its op lands. A non-ff reject reconciles
   once (rebase onto the remote tip, push again); only a same-ball race aborts.
 - **opt-in publication**: `bl conf remove create.post bl-tracker` (and
-  `update`/`claim`/`unclaim`/`close`/`import`.post), leaving `sync.pre`,
+  `update`/`comment`/`claim`/`unclaim`/`close`/`import`.post), leaving `sync.pre`,
   `prime.*`, `install.pre`. Seals stay local until `bl sync` — which IS the
   reconcile + push (`bl sync --skill`) — and `bl list`'s header / `bl show`'s
   `published` line keep saying how far ahead you are.
 - **occupancy-eager**: keep the tracker on `claim.post` and `unclaim.post`,
-  drop it from `create/update/close.post`. Claims publish now, so two boxes
+  drop it from `create/update/comment/close.post`. Claims publish now, so two boxes
   never claim one ball unknowingly; content publishes at `bl sync`.
 
 Identity shims ride the same seam. `--as ID` is the one identity injection

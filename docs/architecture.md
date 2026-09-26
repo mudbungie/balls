@@ -656,6 +656,8 @@ a list property, not an `NN-` filename convention faking one.
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
+"comment.post" = ["bl-tracker"]                  # its own hook key, so its own row (bl-cca0)
+"import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
 # bl-chore ships but is NOT wired here — opt in with `bl conf prepend claim.pre bl-chore`
 # (ONE hook: the mint is a write into the claim's own change worktree, §14/bl-1da3)
 #
@@ -663,8 +665,9 @@ a list property, not an `NN-` filename convention faking one.
 # injection point for plugin configuration"; balls picks no default beyond this seed):
 #   (a) mandatory replication — this seed: the tracker on every mutating *.post;
 #   (b) opt-in publication — tracker on sync.pre/prime.*/install.pre only (`bl conf remove
-#       <op>.post bl-tracker`): seals stay local until `bl sync`, drift renders say how far;
-#   (c) occupancy-eager — keep claim.post/unclaim.post, drop create/update/close.post: claims
+#       <op>.post bl-tracker` for create/update/comment/claim/unclaim/close/import): seals stay
+#       local until `bl sync`, drift renders say how far;
+#   (c) occupancy-eager — keep claim.post/unclaim.post, drop create/update/comment/close.post: claims
 #       publish now, content at `bl sync`.
 # Identity shims ride the same seam: `--as` is the one identity injection point (the bl-actor
 # trailer), and a plugin publishing upward renders/qualifies it as ITS config (bl-260e).
@@ -1182,7 +1185,10 @@ rather than sniffing "an update that set `claimant`."
 **`comment`** (`bl comment <id> "TEXT"`, bl-d136): append TEXT to the ball's markdown body under a
 horizontal rule (blank line, `---`, blank line), then seal through the update path unchanged — the
 same base change carrying one body edit, under its own verb so the §5 trailer, the §6 hook key
-(`comment.pre`/`comment.post`) and the §10 op-keyed gate all name the op that ran. It exists for ONE
+(`comment.pre`/`comment.post`) and the §10 op-keyed gate all name the op that ran. The hook key is
+NOT aliased to `update`'s: the seed wires `comment.post` to the tracker beside `update.post` (and the
+tracker's `protocol` lists `comment`), a plugin that wants every body edit wires both, and a landing
+seeded before bl-cca0 adds the row by hand (`bl conf append comment.post bl-tracker`). It exists for ONE
 reason: the body is STORED and the journal is DERIVED, so a body-append is the only note that renders
 in `bl show` AND in bedrock `bl show --json` (§3 — the record is total, `body` included). The append
 is the LITERAL text and nothing else — no timestamp, no attribution, no id — because the commit

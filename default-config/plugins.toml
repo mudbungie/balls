@@ -21,13 +21,13 @@
 #       so each seal publishes as the op lands (a non-ff reject reconciles once —
 #       rebase onto the remote tip, push again — and only a same-ball race aborts).
 #   (b) OPT-IN publication — tracker on `sync.pre` / `prime.*` / `install.pre`
-#       only: `bl conf remove <op>.post bl-tracker` for create/update/claim/
-#       unclaim/close/import. Seals stay local until `bl sync` (which IS the
+#       only: `bl conf remove <op>.post bl-tracker` for create/update/comment/
+#       claim/unclaim/close/import. Seals stay local until `bl sync` (which IS the
 #       reconcile + push); `bl list`'s header and `bl show`'s `published` line
 #       keep saying how far ahead you are.
 #   (c) OCCUPANCY-EAGER — keep the tracker on `claim.post` + `unclaim.post`, drop
-#       it from `create/update/close.post`: claims publish now (two boxes never
-#       claim one ball unknowingly), content publishes at `bl sync`.
+#       it from `create/update/comment/close.post`: claims publish now (two
+#       boxes never claim one ball unknowingly), content publishes at `bl sync`.
 #
 # Identity shims ride the same seam: `--as ID` is the one identity injection
 # point (every seal carries a `bl-actor` trailer), and a plugin that publishes
@@ -48,4 +48,5 @@
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
+"comment.post" = ["bl-tracker"]                  # comment is an update with its own hook key (bl-cca0)
 "import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)

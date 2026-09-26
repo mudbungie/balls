@@ -31,6 +31,7 @@ fn protocol_self_describes_version_and_ops() {
     assert_eq!(v["protocol"], 1);
     let ops = v["ops"].as_array().unwrap();
     assert!(ops.iter().any(|o| o == "sync") && ops.iter().any(|o| o == "claim"));
+    assert!(ops.iter().any(|o| o == "comment"), "comment.post must be wireable (bl-cca0)");
 }
 
 #[test]
@@ -151,6 +152,27 @@ fn sync_and_install_post_never_push_a_tracked_store() {
     for op in ["sync", "install"] {
         assert_eq!(invoke(op, "post", &payload, &env), 0, "{op} post");
         assert_eq!(super::fixtures::tip(&remote, super::fixtures::BRANCH), before, "{op} post pushed");
+    }
+}
+
+#[test]
+fn update_and_comment_post_publish_a_tracked_store() {
+    // bl-cca0: `comment` is an `update` specialization with its own hook key —
+    // its `post` takes the same generic push arm, so a comment wired to the
+    // tracker publishes as it lands instead of riding the next op.
+    for op in ["update", "comment"] {
+        let (tmp, env) = env();
+        let remote = super::fixtures::remote_with_branch(tmp.path());
+        let store = super::fixtures::store_clone(tmp.path(), &remote);
+        let sealed = super::fixtures::commit(&store, "c.txt", op);
+        let payload = format!(
+            r#"{{"binding":{{"remote":"{}","tasks_branch":"{}","store":"{}","invocation_path":"/p"}}}}"#,
+            remote.display(),
+            super::fixtures::BRANCH,
+            store.display(),
+        );
+        assert_eq!(invoke(op, "post", &payload, &env), 0, "{op} post");
+        assert_eq!(super::fixtures::tip(&remote, super::fixtures::BRANCH), sealed, "{op} post published");
     }
 }
 

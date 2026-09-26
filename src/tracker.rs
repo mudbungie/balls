@@ -86,12 +86,14 @@ impl Env {
 }
 
 /// The ops the tracker handles, for the §6 `protocol` self-description: the
-/// deliverable verbs plus `import` (it pushes on their `post` — imported
-/// records sync like any mutate, §16), `sync`/`prime`, `install` (it fetches
+/// deliverable verbs — `comment` among them: an `update` specialization with
+/// its own hook key, so wiring `comment.post` must be admitted (bl-cca0) —
+/// plus `import` (it pushes on their `post` — imported records sync like any
+/// mutate, §16), `sync`/`prime`, `install` (it fetches
 /// the center's config on `install/pre`, §13), and the reads `show`/`list`
 /// (the drift render, bl-439d).
 const OPS: &[&str] = &[
-    "create", "claim", "unclaim", "update", "close", "import", "sync", "prime", "install", "show", "list",
+    "create", "claim", "unclaim", "update", "comment", "close", "import", "sync", "prime", "install", "show", "list",
 ];
 
 /// The §6 self-description emitted by `tracker protocol`. balls never persists
