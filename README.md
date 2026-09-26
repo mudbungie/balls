@@ -239,21 +239,22 @@ The shipped seed (`default-config/plugins.toml`):
 "sync.pre"     = ["bl-tracker"]                  # import remote state first
 "prime.pre"    = ["bl-tracker"]
 "install.pre"  = ["bl-tracker"]                  # fetch the center's config to adopt (§13 prime --install)
-"prime.post"   = ["bl-delivery", "bl-tracker"]   # re-materialize still-claimed worktrees + print their paths, then settle store content (fetch-ff + push)
+"prime.post"   = ["bl-delivery", "bl-tracker"]   # backstop prune of settled work/<id> branches (worktrees materialize at claim only), then settle store content (fetch-ff + push)
 "claim.post"   = ["bl-delivery", "bl-tracker"]   # worktree (prints its path), then the push (tracker last)
 "unclaim.post" = ["bl-delivery", "bl-tracker"]
-"show"         = ["bl-delivery"]              # read-op (single phase): fold the worktree path into the human render
+"show"         = ["bl-delivery", "bl-tracker"]  # read-op (§6, single phase): fold the worktree path (§11) + the ball's `published` drift line (§13) into the human render
+"list"         = ["bl-tracker"]                  # read-op: the store-level `store: N ahead, M behind` header (§13)
 "close.pre"    = ["bl-delivery"]              # deliver (squash) before the seal
 "close.post"   = ["bl-delivery", "bl-tracker"]   # teardown (worktree + the work/<id> branch), then push
 "create.post"  = ["bl-tracker"]
 "update.post"  = ["bl-tracker"]
-"comment.post" = ["bl-tracker"]
+"comment.post" = ["bl-tracker"]                  # comment is an update with its own hook key (bl-cca0)
 "import.post"  = ["bl-tracker"]                  # imported records sync like any mutate (§16)
 ```
 
 Two plugins ship by default and are wired by the seed config:
 
-- **bl-tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
+- **bl-tracker** — the only component that talks to a remote: fetch + fast-forward on sync, push after each op, found/adopt on prime, and the unpublished-drift lines on `show` and `list`. Strip it (or configure no remote) and the store stays local-only — "stealth" is not a mode, just a `tasks_branch` with no remote behind it.
 - **bl-delivery** — owns the `work/<id>` code worktree and branch: materialize on claim, squash-deliver on close then delete both (the squash and the seal have already landed, so the delete is provably lossless); `unclaim` releases the worktree but keeps the branch, since a handoff delivered nothing. It is **kind-blind** (never branches on task type) and stateless across ops (the worktree path is a pure function of the binding and id). Base balls never opens the project repo, so "nothing in the project tree" is structural — only this plugin touches your code.
 
 A third, **bl-chore**, ships but is **opt-in** (not in the seed schedule): wire it with `bl conf prepend claim.pre bl-chore` and it mints one tagged close-gate child per configured chore at claim, so the claiming agent must discharge them before `bl close` — a forcing-function checklist, not enforcement. One hook is the whole wiring: the chores are written into the claim's own change worktree, so they land in the claim's commit and a claim that aborts mints nothing.
