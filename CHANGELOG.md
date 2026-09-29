@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.14](https://github.com/mudbungie/balls/compare/v0.5.13...v0.5.14) - 2026-09-29
+
+### Changes
+
+- Collapse the pre-commit gate to exec bl-gate: scripts/check carries the three-word exit, make check is the whole gate, speculate.yml records its own verdict (ops bl-3166) [bl-b650]
+
 ## [0.5.13](https://github.com/mudbungie/balls/compare/v0.5.12...v0.5.13) - 2026-09-29
 
 ### Changes
