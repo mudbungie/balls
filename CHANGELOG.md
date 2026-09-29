@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.13](https://github.com/mudbungie/balls/compare/v0.5.12...v0.5.13) - 2026-09-29
+
+### Changes
+
+- the gate supplies the toolchain half of the verdict key via env; drop the internal rustc -V shell-out (ops bl-6124) [bl-e856]
+- Delivery reconcile skips any checkout with a local edit: widen bl-22dd's resync to git's two-way checkout merge so unrelated edits are carried forward [bl-b69e]
+- Port yog's tempfail gate (bl-673a): retry a signaled tarpaulin once, exit 75 = no verdict, speculate.yml records nothing on 75 [bl-988d]
+- README seed [hooks] block drifted from default-config/plugins.toml: show lacks bl-tracker, no list row, stale prime.post comment [bl-bedb]
+- bl comment never publishes on its own: it dispatches hooks under comment.post, which no seed wires and the tracker's OPS list omits — comments ride the next op's push [bl-cca0]
+- Clean main of leak-scan findings, then wire make leak-scan into pre-commit and ci.yml [bl-4423]
+
 ## [0.5.12](https://github.com/mudbungie/balls/compare/v0.5.11...v0.5.12) - 2026-09-18
 
 ### Changes
