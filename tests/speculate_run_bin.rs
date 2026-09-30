@@ -64,6 +64,10 @@ fn speculate(e: &Env) -> Command {
         .env("XDG_STATE_HOME", e.tmp.path().join("state"))
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("BALLS_SPECULATE_EAGERNESS")
+        // The gate's declared toolchain (bl-e856): pinned here, not inherited —
+        // the repo's own pre-commit exports one, which is how CI (bare `cargo
+        // test`) went red while the local gate stayed green (bl-7d4e).
+        .env("BALLS_TOOLCHAIN", "rustc 1.0 (e2e)")
         // PIN the power state, never scrub it: scrubbing lets the ladder read the
         // REAL /sys/class/power_supply, so the whole file passes on AC and fails
         // on battery (one build per pass ⇒ the second entry defers). An absent
