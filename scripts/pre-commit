@@ -32,7 +32,12 @@ unset $(git rev-parse --local-env-vars)
 
 # Verdict cache (bl-1263, design docs/design/bl-24e7-speculative-merge-queue.md):
 # the gate verdict is a pure function of the tree it tests and the gate that
-# tests it. If this exact worktree tree already passed this exact gate — an
+# tests it. The tree is the worktree; the gate is this tracked script plus the
+# one thing the tree cannot see, the toolchain — which THIS gate declares
+# (bl-speculate derives nothing; ops bl-6124). Exported once, so `check` and
+# `record` below key identically.
+export BALLS_TOOLCHAIN="$(rustc -V)"
+# If this exact worktree tree already passed this exact gate — an
 # earlier run here, or a trusted speculator ahead of the merge queue — the run
 # below would re-execute a known result, so skip it. An absent binary, an
 # absent verdict, or any error all fall through to the stock gate (fail-open):

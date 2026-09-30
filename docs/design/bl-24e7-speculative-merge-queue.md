@@ -90,7 +90,9 @@ The whole contract between speculators and close is one record:
 
     { tree_oid, gate_fingerprint, verdict, builder }
 
-- `gate_fingerprint` = hash of the toolchain (`rustc -V`), so a clippy upgrade
+- `gate_fingerprint` = hash of the toolchain as the GATE declares it
+  (`BALLS_TOOLCHAIN`, `"$(rustc -V)"` in a Rust repo; bl-speculate derives
+  nothing, so a JVM repo names its JDK — ops bl-6124), so a clippy upgrade
   silently invalidates stale verdicts. A gate-config change (a tightened lint,
   a new gate script, an edited `scripts/pre-commit`) needs no place here: the
   gate's files are tracked, so they are inside `tree_oid` and editing one is a
@@ -280,7 +282,8 @@ Fits the verdict interface as-is. Caveats to resolve before wiring:
    retrieval (`gh run download` + import) and the branch sweep are manual by
    design — a remote builder must never become a close dependency. The
    fingerprint does not vouch across toolchains: a remote verdict hits only
-   when `rustc -V` matches, which is the fingerprint working, not failing. Live
+   when the exported toolchain matches, which is the fingerprint working, not
+   failing. Live
    wiring is UNVERIFIED from this box (no network); the workflow is a
    reference implementation.
 

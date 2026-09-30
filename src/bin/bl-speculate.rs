@@ -8,10 +8,13 @@
 //! and queue-driving agents (`enqueue`/`dequeue`/`queue`). It follows the
 //! sibling-binary convention all the same — gather the boundary inputs here
 //! (cwd as the repo root; for the cache verbs the XDG bases behind the §1
-//! `bl-speculate` territory, `BALLS_IDENTITY` as the builder and `rustc -V`
-//! as the gate fingerprint — the one gate input the tree oid cannot see, the
-//! gate scripts being tracked files inside it, bl-6a84) and hand every decision to
-//! the library. The queue verbs deliberately read no environment at all: a
+//! `bl-speculate` territory, `BALLS_IDENTITY` as the builder and
+//! `BALLS_TOOLCHAIN` as the gate fingerprint — the one gate input the tree oid
+//! cannot see, the gate scripts being tracked files inside it (bl-6a84). The
+//! GATE exports it (`BALLS_TOOLCHAIN="$(rustc -V)"` in a Rust repo; a JVM repo
+//! names its JDK): this binary knows no language, so it derives nothing and
+//! defaults to nothing — unset is an error, and the hook's fail-open runs the
+//! stock gate (ops bl-6124)) and hand every decision to the library. The queue verbs deliberately read no environment at all: a
 //! queue query must not fail for a cache-side reason.
 //!
 //! Exit codes are the interface: `0` check-hit / verb-ok, `3` an honest check
@@ -21,7 +24,7 @@
 use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command};
+use std::process::exit;
 
 use balls::layout::Xdg;
 use balls::{speculate, speculate_queue, speculate_run, version};
@@ -179,13 +182,15 @@ fn territory() -> io::Result<(PathBuf, PathBuf)> {
     Ok((territory, scratch))
 }
 
-/// `rustc -V` — the gate fingerprint. Shelled here, not in the library, so
-/// the library stays deterministic under test.
+/// The gate fingerprint, as the gate declared it: `BALLS_TOOLCHAIN`, trimmed
+/// (so `"$(rustc -V)"` and a stray trailing newline key identically, and the
+/// key equals what shelling `rustc -V` used to derive). Unset or blank is an
+/// error — there is no default a language-agnostic cache could honestly pick.
 fn toolchain() -> io::Result<String> {
-    let out = Command::new("rustc").arg("-V").output()?;
-    if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
-    } else {
-        Err(io::Error::other("rustc -V failed"))
+    match env::var("BALLS_TOOLCHAIN") {
+        Ok(v) if !v.trim().is_empty() => Ok(v.trim().to_string()),
+        _ => Err(io::Error::other(
+            "BALLS_TOOLCHAIN is unset: the gate must export its toolchain (e.g. \"$(rustc -V)\")",
+        )),
     }
 }

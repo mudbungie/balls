@@ -45,7 +45,8 @@ fn speculate(e: &Env) -> Command {
         .env("HOME", &e.home)
         .env("XDG_STATE_HOME", &e.state)
         .env_remove("XDG_CONFIG_HOME")
-        .env("BALLS_IDENTITY", "e2e");
+        .env("BALLS_IDENTITY", "e2e")
+        .env("BALLS_TOOLCHAIN", "rustc 1.0 (e2e)");
     cmd
 }
 
@@ -92,23 +93,38 @@ fn unset_home_is_an_error_not_a_panic() {
 }
 
 #[test]
-fn missing_rustc_fails_open_as_an_error() {
+fn unset_toolchain_fails_open_as_an_error_naming_the_variable() {
     let e = env();
-    let mut cmd = speculate(&e);
-    cmd.env("PATH", "").arg("check").assert().code(1);
+    for blank in [None, Some(""), Some("  \n")] {
+        let mut cmd = speculate(&e);
+        match blank {
+            None => cmd.env_remove("BALLS_TOOLCHAIN"),
+            Some(v) => cmd.env("BALLS_TOOLCHAIN", v),
+        };
+        let out = cmd.arg("check").assert().code(1).get_output().clone();
+        assert!(String::from_utf8_lossy(&out.stderr).contains("BALLS_TOOLCHAIN"), "{blank:?} must name the variable");
+    }
 }
 
+/// The key is what the 0.5.12 shell-out derived: git's hash of the trimmed
+/// `rustc -V` line. A gate exporting `"$(rustc -V)"` — newline or not — keeps
+/// every verdict recorded before the gate owned its fingerprint (ops bl-6124).
 #[test]
-fn broken_rustc_fails_open_as_an_error() {
+fn the_gate_half_is_the_git_hash_of_the_trimmed_toolchain() {
     let e = env();
-    let bin = e.home.join("bin");
-    fs::create_dir_all(&bin).unwrap();
-    fs::write(bin.join("rustc"), "#!/bin/sh\nexit 1\n").unwrap();
-    let mut perms = fs::metadata(bin.join("rustc")).unwrap().permissions();
-    std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
-    fs::set_permissions(bin.join("rustc"), perms).unwrap();
-    let mut cmd = speculate(&e);
-    cmd.env("PATH", &bin).arg("check").assert().code(1);
+    let line = "rustc 1.95.0 (59807616e 2026-04-14)";
+    speculate(&e).env("BALLS_TOOLCHAIN", format!("{line}\n")).arg("record").arg("pass").assert().success();
+    speculate(&e).env("BALLS_TOOLCHAIN", line).arg("check").assert().success();
+    let mut hash = Sys::new("git");
+    hash.arg("-C").arg(&e.repo).args(["hash-object", "--stdin"]).stdin(std::process::Stdio::piped());
+    let mut child = hash.stdout(std::process::Stdio::piped()).spawn().unwrap();
+    std::io::Write::write_all(child.stdin.as_mut().unwrap(), line.as_bytes()).unwrap();
+    let expected = String::from_utf8(child.wait_with_output().unwrap().stdout).unwrap().trim().to_string();
+    let verdicts = e.state.join("balls/plugins/bl-speculate/verdicts");
+    let names: Vec<String> =
+        fs::read_dir(&verdicts).unwrap().map(|d| d.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(names.len(), 1, "one key for both spellings: {names:?}");
+    assert!(names[0].ends_with(&format!("-{expected}.toml")), "{} vs {expected}", names[0]);
 }
 
 #[test]
