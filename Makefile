@@ -16,6 +16,7 @@ check: leak-scan test doc
 	cargo clippy --all-targets -- -D warnings
 	scripts/check-line-lengths.sh
 	scripts/deploy/update-selftest.sh
+	scripts/coverage-selftest.sh
 	scripts/check-coverage.sh
 
 # The disclosure scan (bl-816b, from the rust-bootstrap template):

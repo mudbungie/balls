@@ -121,9 +121,18 @@ The whole contract between speculators and close is one record:
   nothing, leaves the candidate unbuilt and ends the pass there, and the next
   pass rebuilds it. Exit `0` is PASS; every other exit is FAIL, a signal
   death included — classifying a death is the gate's job (it knows which
-  stage died how), the speculator only honors the reserved code. The stock
-  `scripts/pre-commit` never exits 75 itself; a gate wrapper that retries the
-  signaled class and exits 75 on a second death is the yog pattern.
+  stage died how), the speculator only honors the reserved code. Since
+  bl-988d this repo's own gate emits it: `scripts/check-coverage.sh` retries
+  tarpaulin once when its output carries `Attempting to handle tarpaulin being
+  signaled`, and exits 75 if the retry dies the same way (an INT/TERM/HUP to
+  the script is 75 too, never retried); `scripts/pre-commit` carries the code
+  out unchanged under `set -e`. `.github/workflows/speculate.yml` records a
+  FAIL only on a non-zero other than 75, so a no-verdict run ships an empty
+  `verdicts` artifact — which the importer reads as "rebuild", not an answer.
+  Every pass/fail caller (git's commit, `bl close`'s delivery gate, which
+  takes `status.success()`) still blocks on 75. `scripts/coverage-selftest.sh`
+  pins the contract under a fake cargo: signaled-then-pass → 0 after two runs,
+  signaled twice → 75, a real failure → its own code after ONE run.
 
 ### Landing
 

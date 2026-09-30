@@ -64,6 +64,9 @@ jobs:
       - name: deploy selftest
         run: sh scripts/deploy/update-selftest.sh
 
+      - name: coverage selftest
+        run: sh scripts/coverage-selftest.sh
+
       - name: coverage (100%)
         run: bash scripts/check-coverage.sh
 

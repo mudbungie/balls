@@ -9,7 +9,7 @@
 # remote builder must never become a close dependency):
 #
 #     gh run download -n verdicts -D /tmp/verdicts
-#     bl-speculate import /tmp/verdicts/*.toml
+#     bl-speculate import /tmp/verdicts/*.toml   # an empty artifact = no verdict: rebuild
 #     git push origin --delete speculation/<name>   # the TTL sweep is you
 #
 # Two honesty notes. (1) The gate fingerprint hashes `rustc -V`: a verdict
@@ -34,10 +34,26 @@ jobs:
         run: cargo install cargo-tarpaulin --locked
       - name: build the recorder the hook consults
         run: cargo build --release --bin bl-speculate
+      # A FAIL is recorded ONLY when the gate judged the tree, and its exit
+      # code says so (bl-988d, from yog bl-673a). 75 is check-coverage.sh
+      # reporting tarpaulin signaled on both attempts: an infrastructure death,
+      # not a verdict — and a stored FAIL is permanent (keyed by tree, the
+      # speculator stops the chain at it without rebuilding). So 75 records
+      # nothing, and a job killed outright writes no output: also nothing.
       - name: run the stock gate (its hook records the verdict on pass)
-        run: PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions scripts/pre-commit
+        id: gate
+        run: |
+          set +e
+          PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions scripts/pre-commit
+          code=$?
+          if [ "$code" -eq 75 ]; then
+            echo "the gate produced NO verdict about this tree; nothing is recorded (bl-988d)" >&2
+          elif [ "$code" -ne 0 ]; then
+            echo "verdict=fail" >>"$GITHUB_OUTPUT"
+          fi
+          exit "$code"
       - name: record the failure the aborting hook cannot
-        if: failure()
+        if: failure() && steps.gate.outputs.verdict == 'fail'
         run: PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions bl-speculate record fail
       - uses: actions/upload-artifact@v4
         if: always()

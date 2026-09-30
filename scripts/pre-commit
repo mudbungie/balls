@@ -10,6 +10,12 @@
 #   6. Discloses something (scripts/leak-rules.sh: home paths, addresses, keys...)
 #
 # To install: scripts/install-hooks.sh
+#
+# THE EXIT CODE IS A CONTRACT (bl-988d): 0 = this tree passed (recorded as a
+# PASS below); 75 = NO verdict (scripts/check-coverage.sh saw tarpaulin
+# signaled twice — `set -e` carries its code out unchanged, and speculate.yml
+# records nothing on it); any other non-zero = a FAIL on the tree's merits.
+# Git and `bl close` block on every non-zero, 75 included.
 
 set -euo pipefail
 
@@ -59,6 +65,11 @@ echo "pre-commit: line lengths..."
 # `scripts/deploy/bl-update` under fake curl/cargo in a scratch HOME.
 echo "pre-commit: deploy selftest..."
 "$ROOT/scripts/deploy/update-selftest.sh" >/dev/null
+
+# The coverage step's exit code is a verdict contract (0 pass, 75 no verdict,
+# other fail — bl-988d); its selftest drives it under a fake cargo. Sub-second.
+echo "pre-commit: coverage selftest..."
+"$ROOT/scripts/coverage-selftest.sh" >/dev/null
 
 echo "pre-commit: tests..."
 cargo test --quiet 2>&1
