@@ -17,39 +17,80 @@
 //! idempotently, so the ref-flip stays the atomic BINDING commit point (§14) and
 //! a crash between the two is a transient state the next run heals, not manual
 //! cleanup.
+//!
+//! It restores it the way `git checkout` itself does: the two-way checkout
+//! merge `git read-tree -m -u <old> <tip>` (bl-b69e). That updates exactly the
+//! files the delivery changed, carries every other local edit forward, and
+//! REFUSES atomically — touching nothing — when a delivered file is also edited
+//! locally. An earlier gate (bl-22dd) acted only on a checkout pristine at
+//! `HEAD^`, so one unrelated edit anywhere left the whole delivery showing as a
+//! phantom staged revert; git's own gate is finer and just as safe.
 
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::delivery_repo::Project;
 
 impl Project {
-    /// Sync every checkout that owns `integration` to the ref, healing the
-    /// bl-22dd phantom. Acts on a checkout ONLY when it sits exactly at the
-    /// delivery's parent (`HEAD^`) in both index and working tree — the
-    /// phantom's signature, and proof there is no real local edit to clobber:
-    /// the guard `update-ref` bypassed, restored. A checkout carrying genuine
-    /// work fails the gate and is left untouched (refuse on dirty, never
-    /// clobber). `git restore --source=HEAD --staged --worktree` makes index +
-    /// worktree match the moved ref WITHOUT a second ref move (no reflog noise)
-    /// and preserves untracked files. Idempotent and self-healing: a checkout
-    /// already at the ref has its index at `HEAD`, not `HEAD^`, so the gate skips
-    /// it — a retried close, or a crash between the ref-flip and this sync,
-    /// converges on the next run. NEVER touches a `work/<id>` checkout: those sit
-    /// on their own branch, not `integration`, so [`Self::checkouts_on`] excludes
-    /// them.
+    /// Carry every checkout that owns `integration` (the ref this delivery
+    /// moved) forward to it, healing the bl-22dd phantom; a checkout that
+    /// cannot be carried safely is left untouched with one `bl-delivery:` line
+    /// on stderr. NEVER fails the close over a checkout's state. Acts only on
+    /// checkouts OF that ref — the root on `main` for a flat close, the epic's
+    /// worktree for a nested one (bl-7b71); the closing ball's own `work/<id>`
+    /// and every sibling's sit on their own branches, so [`Self::checkouts_on`]
+    /// excludes them.
     pub(crate) fn reconcile(&self, integration: &str) -> io::Result<()> {
         for ck in self.checkouts_on(integration)? {
-            // `diff --quiet`: working tree == index. `diff --cached --quiet
-            // HEAD^`: index == the delivery's parent. Both true ⇔ the checkout
-            // is pristine one commit behind the just-moved ref — the phantom.
-            let phantom = Self::ok(&ck, &["diff", "--quiet"])?
-                && Self::ok(&ck, &["diff", "--cached", "--quiet", "HEAD^"])?;
-            if phantom {
-                Self::run(&ck, &["restore", "--source=HEAD", "--staged", "--worktree", ":/"])?;
+            if let Some(warning) = Self::carry_forward(&ck, integration)? {
+                eprintln!("bl-delivery: {warning}");
             }
         }
         Ok(())
+    }
+
+    /// One checkout on `branch`, step by step; `Some` is the warning to print.
+    ///
+    /// 1. Refresh stat info, so a restatted-but-unchanged file is not "not
+    ///    uptodate", then take the INDEX tree (`write-tree`). The index is the
+    ///    true record of where the checkout stands. Unmerged entries make
+    ///    `write-tree` fail: a conflict in progress is the human's, skip.
+    /// 2. Index tree == the tip's tree ⇒ already current (a retried close, a
+    ///    crash healed by the last run, an unrelated worktree edit): skip.
+    ///    This is the idempotence.
+    /// 3. `<old>` = the newest reflog entry of `branch` whose tree IS the index
+    ///    tree. Not `HEAD^`: after an empty close or two unsynced deliveries it
+    ///    names the wrong commit. Not the index tree itself: that would revert
+    ///    staged edits. No match ⇒ staged changes sit on the checkout and no
+    ///    `<old>` can be named safely: leave it, say so.
+    /// 4. `read-tree -m -u <old> <tip>`. On refusal git changed nothing: leave
+    ///    it, and name the exact command to run once the edit is moved aside.
+    fn carry_forward(ck: &Path, branch: &str) -> io::Result<Option<String>> {
+        let at = ck.display();
+        let tip = Self::run(ck, &["rev-parse", &format!("refs/heads/{branch}")])?.trim().to_string();
+        Self::ok(ck, &["update-index", "-q", "--refresh"])?;
+        let Ok(index) = Self::run(ck, &["write-tree"]) else { return Ok(None) };
+        let index = index.trim();
+        if Self::run(ck, &["rev-parse", &format!("{tip}^{{tree}}")])?.trim() == index {
+            return Ok(None);
+        }
+        // A branch with no reflog at all fails `log -g`: same as no match.
+        let log = Self::run(ck, &["log", "-g", "--format=%H %T", &format!("refs/heads/{branch}")]);
+        let suffix = format!(" {index}");
+        let log = log.unwrap_or_default();
+        let Some(old) = log.lines().find_map(|l| l.strip_suffix(&suffix)) else {
+            return Ok(Some(format!(
+                "{at} is not at {branch}'s tip, but its index matches no recorded {branch} commit \
+                 (staged changes?), so it was left alone; check `git -C {at} status` and bring it forward by hand"
+            )));
+        };
+        if Self::ok(ck, &["read-tree", "-m", "-u", old, &tip])? {
+            return Ok(None);
+        }
+        Ok(Some(format!(
+            "{at} was NOT carried forward to {branch}: a file the close changed is also modified there, \
+             and nothing was touched; move those edits aside, then run `git -C {at} read-tree -m -u {old} {tip}`"
+        )))
     }
 
     /// The non-bare checkouts that currently have `branch` checked out, read

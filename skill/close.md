@@ -109,10 +109,13 @@ Two consequences worth knowing:
 - **A closed child is delivered, not landed.** Its work is on the epic's ref,
   not on main, until the epic closes. Whether a ball's work is on main is a git
   question, as it always was: `git log --grep '[bl-xxxx]' main`.
-- **Any checkout of a moved ref is stale.** A delivery advances a ref by
-  plumbing and never touches a checkout of it — that is the non-bare root after
-  a close, and equally an epic's own worktree after a child closes into it.
-  Refresh before working there.
+- **Any checkout of a moved ref is carried forward — or warned stale.** A
+  delivery advances a ref by plumbing, then carries each checkout of it (the
+  non-bare root after a close, an epic's own worktree after a child closes into
+  it) forward with git's two-way checkout merge, keeping unrelated local edits.
+  If a delivered file is also edited there, or changes are staged, the checkout
+  is left untouched and stale, with one stderr line saying so; refresh it by
+  hand before working there.
 
 Deleting a live epic ref (`git branch -D work/<epic>`) discards the delivered
 work of every child that closed into it. `bl` never does that — it deletes

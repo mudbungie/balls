@@ -144,9 +144,12 @@ A common deployment is a **bare** project repo (no working tree at the root). A
 not a broken repo — use `bl list` for task state and run `git status` / `git
 diff` inside your `work/<id>` worktree. All `bl` verbs run from the bare root.
 
-In a **non-bare** repo the verbs work the same, with one trap: a delivery
-advances a ref by plumbing and never touches any checkout of it, so after a close
-the root checkout on `main` is **stale** — refresh it (`git checkout` / `git
-reset --hard`) before touching it. `bl` never resets it for you; it may hold
-uncommitted work. The rule is general: an epic's own worktree goes equally stale
-when a child delivers into its ref.
+In a **non-bare** repo the verbs work the same. A delivery advances a ref by
+plumbing, then carries every checkout of that ref forward the way `git checkout`
+would (`git read-tree -m -u <old> <tip>`): the root checkout on `main` after a
+close, an epic's own worktree after a child delivers into its ref. Your
+uncommitted edits ride along. Two cases are left **stale** and untouched, with
+one `bl-delivery:` line on stderr: a file the close changed is also edited
+locally (the line names the exact `read-tree` command to run once you move the
+edit aside), or you have staged changes (bring it forward by hand). `bl` never
+resets, stashes, or overwrites local work.

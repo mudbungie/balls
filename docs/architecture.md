@@ -1238,7 +1238,13 @@ self-merge default DELIVER and RETIRE are one act:
   it. The delivery reads `integration` exactly once and acts on that COMMIT thereafter;
   the branch NAME survives only in the voice (*stale source: `main` (pinned at `<sha>`) is not yet
   in `work/<id>`*), because the operator thinks in branches and the delivery acts on a commit. The squash is the delivery's BINDING commit point (§14): it stands through any
-  later abort, and the retried close converges onto it. One path, no forge variant: a
+  later abort, and the retried close converges onto it. The ref move then carries each checkout OF
+  the moved ref forward (bl-22dd, widened by bl-b69e) — plumbing skips that effect of a landing —
+  with git's two-way checkout merge `read-tree -m -u <old> <tip>`, `<old>` being the newest reflog
+  entry of the ref whose tree equals the checkout's index tree. Unrelated local edits ride along; an
+  index already at the tip is skipped (idempotent); staged changes (no reflog match) or a delivered
+  file also edited locally (git refuses, touching nothing) leave the checkout untouched with one
+  stderr line naming the fix. It never fails the close. One path, no forge variant: a
   deliverable a forge already merged (the PR's squash-merge) is skipped by the same bl-430e
   already-delivered check (§11) — delivery converges on retry whoever performed the merge.
 - balls seals the `tasks/<id>.md` DELETION (`bl-op: close`).
