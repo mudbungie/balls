@@ -3,22 +3,28 @@
 #
 # The contract is the verdict store's own file format — no workflow-specific
 # protocol exists. Push a candidate commit to a `speculation/**` branch and
-# this job runs the STOCK gate on it; the gate's hook records the verdict into
-# the runner's local store exactly as it would on a laptop, and the store dir
-# ships home as an artifact. Retrieval is symmetric and manual by design (a
-# remote builder must never become a close dependency):
+# this job runs the gate on it, records the verdict into the runner's local
+# store exactly as a laptop would, and the store dir ships home as an
+# artifact. Retrieval is symmetric and manual by design (a remote builder
+# must never become a close dependency):
 #
 #     gh run download -n verdicts -D /tmp/verdicts
 #     bl-speculate import /tmp/verdicts/*.toml   # an empty artifact = no verdict: rebuild
 #     git push origin --delete speculation/<name>   # the TTL sweep is you
 #
-# Two honesty notes. (1) The gate fingerprint hashes the toolchain the gate
-# itself exports (`BALLS_TOOLCHAIN="$(rustc -V)"` in scripts/pre-commit; ops
-# bl-6124): a verdict recorded here HITS locally only when the runner's
-# toolchain matches yours — a mismatch is not a bug, it is the fingerprint
-# refusing to vouch across toolchains. Pin versions on both sides when you
-# want remote verdicts to land. (2) Public-repo standard runners are free with no minutes quota; the
-# real caps are 20 concurrent jobs (Free plan) and 6 h per job.
+# The gate here is `scripts/check` — the sequence with a three-word exit that
+# `make check` is a door onto — and this job records the verdict itself
+# (bl-b650, yog's pattern). Not scripts/pre-commit: on a laptop that file
+# execs bl-gate (userconf), which ships the tree to the noodlezoo builder —
+# the per-commit gate — and no GitHub runner has it. The recorder is this
+# tree's own bl-speculate, built here: balls is the crate that ships it.
+#
+# Two honesty notes. (1) A verdict is keyed by (tree, gate); the gate half is
+# BALLS_TOOLCHAIN, `rustc -V`, which rust-toolchain.toml pins on every side —
+# a verdict recorded here HITS locally only while the pin is the same on both,
+# and a mismatch is not a bug, it is the fingerprint refusing to vouch across
+# toolchains. (2) Public-repo standard runners are free with no minutes
+# quota; the real caps are 20 concurrent jobs (Free plan) and 6 h per job.
 name: speculate
 on:
   push:
@@ -29,33 +35,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: the gate fingerprint scripts/pre-commit will export (compare with local rustc -V)
+      - name: the gate fingerprint (rust-toolchain.toml pins it on every side)
         run: rustc -V
       - name: the gate's own tooling
-        run: cargo install cargo-tarpaulin --locked
-      - name: build the recorder the hook consults
+        run: cargo install cargo-tarpaulin --version 0.35.2 --locked
+      - name: build the recorder
         run: cargo build --release --bin bl-speculate
-      # A FAIL is recorded ONLY when the gate judged the tree, and its exit
+      # A verdict is recorded ONLY when the gate judged the tree, and its exit
       # code says so (bl-988d, from yog bl-673a). 75 is check-coverage.sh
       # reporting tarpaulin signaled on both attempts: an infrastructure death,
       # not a verdict — and a stored FAIL is permanent (keyed by tree, the
       # speculator stops the chain at it without rebuilding). So 75 records
       # nothing, and a job killed outright writes no output: also nothing.
-      - name: run the stock gate (its hook records the verdict on pass)
+      # `scripts/check`, not `make check`: make reports a recipe's 75 as its
+      # own exit 2, and the distinction this step exists for would be gone.
+      - name: run the gate (scripts/check — three exit words)
         id: gate
         run: |
           set +e
-          PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions scripts/pre-commit
+          scripts/check
           code=$?
-          if [ "$code" -eq 75 ]; then
+          if [ "$code" -eq 0 ]; then
+            echo "verdict=pass" >>"$GITHUB_OUTPUT"
+          elif [ "$code" -eq 75 ]; then
             echo "the gate produced NO verdict about this tree; nothing is recorded (bl-988d)" >&2
-          elif [ "$code" -ne 0 ]; then
+          else
             echo "verdict=fail" >>"$GITHUB_OUTPUT"
           fi
           exit "$code"
-      - name: record the failure the aborting hook cannot
-        if: failure() && steps.gate.outputs.verdict == 'fail'
-        run: PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions BALLS_TOOLCHAIN="$(rustc -V)" bl-speculate record fail
+      - name: record the verdict (BALLS_TOOLCHAIN is the gate half of the key)
+        if: always() && (steps.gate.outputs.verdict == 'pass' || steps.gate.outputs.verdict == 'fail')
+        env:
+          VERDICT: ${{ steps.gate.outputs.verdict }}
+        run: PATH="$PWD/target/release:$PATH" BALLS_IDENTITY=github-actions BALLS_TOOLCHAIN="$(rustc -V)" bl-speculate record "$VERDICT"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

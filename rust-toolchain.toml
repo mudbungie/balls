@@ -1,0 +1,15 @@
+# The one home of the toolchain (bl-b650). The gate is only reproducible if
+# every side resolves the same rustc: the noodlezoo builder image carries no
+# default toolchain — this file is what it installs — and `rustc -V` is the
+# gate half of every bl-speculate verdict key, so the string must be
+# byte-identical here, there and on a GitHub runner (ci.yml asks
+# dtolnay/rust-toolchain for `stable`; this file then pins what builds).
+# Bump it as a deliberate, isolated change.
+#
+# The macOS target is listed so `cargo check --target x86_64-apple-darwin`
+# (ci.yml cross-check) resolves under the pin: rustup installs the listed
+# targets with the toolchain.
+[toolchain]
+channel = "1.95.0"
+components = ["clippy", "rustfmt"]
+targets = ["x86_64-apple-darwin"]

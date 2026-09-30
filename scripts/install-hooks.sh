@@ -46,21 +46,15 @@ exec "$hook"
 HOOK
 chmod +x "$DEST"
 
-# scripts/pre-commit is the real gate runner; keep it and its
-# helpers executable in this worktree.
-chmod +x "$ROOT/scripts/pre-commit" \
+# scripts/pre-commit is the door to the gate (it execs bl-gate); keep it and
+# the scripts the builder runs executable in this worktree.
+chmod +x "$ROOT/scripts/pre-commit" "$ROOT/scripts/check" \
         "$ROOT/scripts/check-line-lengths.sh" \
         "$ROOT/scripts/check-coverage.sh"
 
 echo "Installed pre-commit hook: $DEST"
-echo "  -> delegates to <committing-worktree>/scripts/pre-commit"
+echo "  -> delegates to <committing-worktree>/scripts/pre-commit, which execs bl-gate"
 echo
-echo "This hook will block commits with:"
-echo "  - clippy or compiler warnings"
-echo "  - any Rust source file >= 300 lines"
-echo "  - failing tests"
-echo "  - test coverage below 100%"
-echo "  - any rustdoc warning (a broken intra-doc link)"
-echo
-echo "Requires cargo-tarpaulin. If missing:"
-echo "  cargo install cargo-tarpaulin"
+echo "The gate is 'make check' (scripts/check: lint, tests, 100% coverage), run"
+echo "on the noodlezoo builder — this machine does not compile in a gate."
+echo "See AGENTS.md \"The gate\"."

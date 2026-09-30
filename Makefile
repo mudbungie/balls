@@ -1,4 +1,4 @@
-.PHONY: build test check doc leak-scan \
+.PHONY: build test check lint doc leak-scan \
 	install install-core install-tracker install-delivery install-chore \
 	install-speculate uninstall clean hooks \
 	deploy-local deploy-status deploy-selftest
@@ -12,12 +12,21 @@ build:
 test:
 	cargo test
 
-check: leak-scan test doc
+# The complete gate, as the noodlezoo builder and speculate.yml run it. The
+# sequence lives in scripts/check, not here: it ends in scripts/check-coverage.sh,
+# whose exit 75 means "no verdict" (bl-988d), and make would report that as
+# its own exit 2 — a caller recording verdicts would then store a permanent
+# false FAIL. This target is the door; the script is the gate (bl-b650).
+check:
+	scripts/check
+
+# The static half of the gate: everything that is not the test run or the
+# coverage run. scripts/check runs it first; by hand it is the fast answer to
+# "is the tree clean" before shipping it to the builder (`bl-remote-run check`).
+lint: leak-scan doc deploy-selftest
 	cargo clippy --all-targets -- -D warnings
 	scripts/check-line-lengths.sh
-	scripts/deploy/update-selftest.sh
 	scripts/coverage-selftest.sh
-	scripts/check-coverage.sh
 
 # The disclosure scan (bl-816b, from the rust-bootstrap template):
 # scripts/leak-rules.sh is the table, leak-scan.sh the mechanism. --self-test
@@ -80,8 +89,9 @@ install-delivery: build
 install-chore: build
 	$(call seat_bin,bl-chore)
 
-# Verdict-cache edge (bl-1263, design bl-24e7). Consulted by scripts/pre-commit
-# via PATH; fail-open, so installing it only ever removes redundant gate runs.
+# Verdict-cache edge (bl-1263, design bl-24e7). Consulted via PATH by the
+# gate (bl-gate, userconf) before it ships a tree to the builder, and by the
+# builders that record; installing it only ever removes redundant gate runs.
 install-speculate: build
 	$(call seat_bin,bl-speculate)
 
@@ -109,10 +119,10 @@ deploy-status:
 deploy-selftest:
 	scripts/deploy/update-selftest.sh
 
-# Install the repo-local pre-commit hook (line-length + clippy + tests
-# + 100% coverage). Run once per clone; not part of `make install`
-# because a user installing the binary should not have hooks wired
-# into whatever repo they happen to be in.
+# Seat the repo-local pre-commit hook: a stub that execs the committing
+# worktree's scripts/pre-commit, which execs bl-gate (AGENTS.md "The gate").
+# Run once per clone; not part of `make install` because a user installing
+# the binary should not have hooks wired into whatever repo they are in.
 hooks:
 	scripts/install-hooks.sh
 

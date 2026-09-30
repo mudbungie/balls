@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# The whole gate, with a three-word exit (bl-b650; yog's scripts/check
+# pattern). `make check` is its door.
+#
+# WHY A SCRIPT UNDER A MAKE TARGET. The gate has three answers and make can
+# carry two: GNU make exits 0, 1 (only under -q) or 2 — a recipe that exits 75
+# is reported as "Error 75" and make exits 2. scripts/check-coverage.sh's 75
+# (EX_TEMPFAIL, bl-988d: tarpaulin was SIGNALED on both attempts, so the run
+# produced NO verdict about the tree) would reach any caller of `make check`
+# as a plain failure, and a caller that records verdicts (speculate.yml, the
+# noodlezoo builder) would write a permanent false FAIL for an infrastructure
+# death. So the sequence lives here, once; a builder that must tell 75 from 1
+# runs THIS file, and `make check` runs it too, so a hand-run and the builders
+# cannot drift.
+#
+#   0        the tree passed: `make lint` (leak-scan, rustdoc -D warnings,
+#            deploy selftest, clippy -D warnings, the 300-line cap, the
+#            coverage selftest), `make test`, and 100% line coverage.
+#   75       no verdict (scripts/check-coverage.sh's own arm; nothing else
+#            here can produce it).
+#   nonzero  the gate failed on the tree's own merits.
+#
+# Tracked, so it is part of the tree a bl-speculate verdict is keyed by — an
+# edit here re-keys every verdict.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+make lint test
+exec scripts/check-coverage.sh
