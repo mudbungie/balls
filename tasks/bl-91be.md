@@ -1,9 +1,14 @@
 +++
 title = "Bare ids: a ball-id argument that is exactly the shipped scheme's body (4 lower-hex) means bl-<that> — bl show 1234 ≡ bl show bl-1234"
 created = 1794896771
-updated = 1794896771
+updated = 1794896772
+claimant = "Without"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-8b4f"
+on = "close"
 +++
 User ask (2026-11-16): omit `bl-` when calling ops dedicated to one ball.
 
