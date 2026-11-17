@@ -68,6 +68,26 @@ fn claim_authors_occupancy_and_returns_the_before_state() {
 }
 
 #[test]
+fn every_ball_positional_reads_a_bare_id_as_the_prefixed_one() {
+    // `bl <verb> 1a2f` IS `bl <verb> bl-1a2f` (§ id generation, bare ids): the
+    // authored id — what rides the wire and names the file — is the full one.
+    let d = tempdir().unwrap();
+    let dir = d.path();
+    write(dir, "bl-1a2f", TASK);
+    for (verb, rest) in [
+        (Verb::Claim, vec![]),
+        (Verb::Unclaim, vec![]),
+        (Verb::Update, vec!["k=v"]),
+        (Verb::Comment, vec!["a note"]),
+        (Verb::Close, vec![]),
+    ] {
+        let mut f = flags();
+        f.positionals = strs(&[&["1a2f"], rest.as_slice()].concat());
+        assert_eq!(authored(verb, dir, &f, 0).unwrap().id, "bl-1a2f", "{}", verb.token());
+    }
+}
+
+#[test]
 fn unclaim_clears_the_claimant() {
     let d = tempdir().unwrap();
     let dir = d.path();

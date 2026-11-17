@@ -47,8 +47,11 @@ pub(crate) fn parse(verb: Verb, args: &[String]) -> io::Result<Flags> {
             }
         }
     }
-    if verb == Verb::Show && f.target.is_none() {
-        return Err(crate::usage("show: needs a ball id"));
+    // `show`'s positional is a ball id (bare `1a2f` = `bl-1a2f`,
+    // [`crate::id::arg`]); `list`'s is a text needle and is left as typed.
+    if verb == Verb::Show {
+        let id = f.target.as_deref().ok_or_else(|| crate::usage("show: needs a ball id"))?;
+        f.target = Some(crate::id::arg(id));
     }
     // The legacy store has no greenfield history to reconstruct: `--legacy`
     // serves the LIVE legacy set alone, so a dead-set reach contradicts it.

@@ -61,6 +61,16 @@ impl IdScheme {
         id
     }
 
+    /// Read an id ARGUMENT (§ id generation, "bare ids"): a token that is
+    /// exactly this scheme's body — `length` characters of `alphabet` — means
+    /// `prefix` + that token, so `1a2f` is `bl-1a2f`; anything else IS the id.
+    /// Lexical on purpose: no store read, so the meaning of an argument never
+    /// depends on which balls exist, and a closed id resolves the same way.
+    pub fn resolve(&self, arg: &str) -> String {
+        let bare = arg.len() == self.length && arg.chars().all(|c| self.alphabet.contains(c));
+        if bare { format!("{}{arg}", self.prefix) } else { arg.to_string() }
+    }
+
     /// Mint an id from system entropy — the one generator base balls ships.
     ///
     /// # Panics
@@ -103,6 +113,23 @@ impl IdScheme {
 /// store can trip does not exist, while an unbounded loop would hang silently
 /// on the one shape that is genuinely broken.
 const DRAWS: usize = 8;
+
+/// An id argument off the CLI, read under the shipped scheme
+/// ([`IdScheme::resolve`]) — the one door every id-taking positional and flag
+/// passes through, so `bl show 1a2f` and `bl show bl-1a2f` are one command.
+pub fn arg(arg: &str) -> String {
+    IdScheme::default().resolve(arg)
+}
+
+/// [`arg`] over an `ID[:OP]` edge spec (`--needs`, `--no-needs`, `--blocks`):
+/// the id half is read, the op half rides untouched. A bare `--blocks OP`
+/// passes through whole — no op token is a bare id (pinned by test).
+pub fn spec(spec: &str) -> String {
+    match spec.split_once(':') {
+        Some((id, op)) => format!("{}:{op}", arg(id)),
+        None => arg(spec),
+    }
+}
 
 /// One byte of system entropy — the source both generators draw from.
 ///

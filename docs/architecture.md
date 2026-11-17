@@ -2288,6 +2288,17 @@ case-insensitive-FS collisions. **Collision** is checked against LIVE files only
 a DEAD (closed) incarnation is LEGAL — no history scan to prevent reuse. id is IMMUTABLE after
 create; reassignment is a create-only capability, so during claim/close it rides the wire with no skew.
 
+**Bare ids (bl-91be, 2026-11-16).** An id ARGUMENT that is exactly the scheme's body — 4 lowercase-hex
+characters — is read as `bl-` + that token: `bl show 1a2f` IS `bl show bl-1a2f`. It holds wherever the
+CLI takes an id: the ball positional of `show`/`claim`/`unclaim`/`update`/`comment`/`close` and the id
+half of `--parent`/`--subtask-of`/`--needs`/`--no-needs`/`--blocks ID:OP`. Any other token IS the id,
+untouched. The rule is LEXICAL and lives with the scheme (`IdScheme::resolve`), never a store lookup:
+what an argument means must not depend on which balls exist, and a closed id reads the same as a live
+one. It is input sugar only — stored ids, the wire, `--json` and every render stay full; `list`'s
+positional is a text needle and `import` records are data, so neither is read this way. The cost,
+accepted: a `create/pre` plugin that assigns an id which is ITSELF a bare 4-lowercase-hex token makes a
+ball the CLI cannot address (the argument reads as `bl-` + it) — such a plugin must pick another shape.
+
 **Recency resolution (the unifying discipline).** Every id→content lookup is the same walk: live
 `tasks/<id>.md` first, else the most-recent-in-history incarnation, stop at the first hit (§2, §9 —
 `show` fallthrough, `list -s closed/--all`). This DISSOLVES the id-reuse-vs-history concern: at most one

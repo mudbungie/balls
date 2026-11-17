@@ -7,7 +7,7 @@ use std::io;
 use std::path::Path;
 
 use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
-use crate::id::IdScheme;
+use crate::id::{self, IdScheme};
 use crate::lifecycle::BaseChange;
 use crate::task::Task;
 use crate::taskfile::{read_task, task_ids};
@@ -87,7 +87,7 @@ pub(super) fn base_change(
         }
         Verb::Claim | Verb::Unclaim => {
             guards::forbid_shaping(flags, verb)?;
-            let id = one_positional(flags, verb.token())?;
+            let id = id::arg(&one_positional(flags, verb.token())?);
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
             let base = Occupancy {
@@ -105,7 +105,7 @@ pub(super) fn base_change(
             guards::forbid_foreign_blocks(flags, verb)?;
             guards::forbid_contradictions(flags)?;
             let mut positionals = flags.positionals.iter();
-            let id = positionals.next().ok_or_else(|| crate::usage("update: needs a task id"))?.clone();
+            let id = id::arg(positionals.next().ok_or_else(|| crate::usage("update: needs a task id"))?);
             let before = read_task(store, &id)?;
             let edits = if flags.edit {
                 // `--edit`: the buffer IS the payload — field flags and key=value
@@ -143,15 +143,16 @@ pub(super) fn base_change(
             let [id, text] = flags.positionals.as_slice() else {
                 return Err(crate::usage("comment: expects a task id and the comment TEXT"));
             };
-            let before = read_task(store, id)?;
+            let id = id::arg(id);
+            let before = read_task(store, &id)?;
             let body = build::appended_body(&before.body, text)?;
             let edits = vec![FieldEdit::Body(body)];
             let base = Update { verb, id: id.clone(), actor, now, edits, message: None };
-            Ok(Some(Authored { base: Box::new(base), before: Some(before), id: id.clone() }))
+            Ok(Some(Authored { base: Box::new(base), before: Some(before), id }))
         }
         Verb::Close => {
             guards::forbid_shaping(flags, verb)?;
-            let id = one_positional(flags, verb.token())?;
+            let id = id::arg(&one_positional(flags, verb.token())?);
             let before = read_task(store, &id)?;
             let base =
                 Retire { id: id.clone(), title: before.title.clone(), actor, message: flags.message.clone() };

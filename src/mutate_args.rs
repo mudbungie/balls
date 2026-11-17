@@ -7,7 +7,7 @@
 
 use std::io;
 
-use crate::usage;
+use crate::{id, usage};
 
 /// The parsed front-door flags + positionals, verb-agnostic. The per-verb
 /// `base_change` validates which it accepts. `message` is the `-m` §5 commit
@@ -87,6 +87,9 @@ fn unglue(args: &[String]) -> Vec<String> {
 
 /// Parse argv into [`Flags`]. A leading-`-` token that is not a known flag is an
 /// error; everything else is a positional. `--as` defaults to `default_actor`.
+/// Every id-valued flag is read through [`id::arg`]/[`id::spec`] here (bare
+/// `1a2f` = `bl-1a2f`); positionals are not — which one is an id is the verb's
+/// to say (`create`'s is a title), so `mutate_author` reads those.
 /// Glued short flags (`-p1`) are accepted as their split form (`-p 1`); a `--`
 /// ends option parsing (getopt), so every later token is a positional however
 /// `-`-leading — the seam for shelling an untrusted title (`bl create -- "$T"`).
@@ -104,12 +107,12 @@ pub(super) fn parse(args: &[String], default_actor: &str) -> io::Result<Flags> {
             "-m" | "--message" => f.message = Some(value(args, &mut i, "-m")?),
             "--body" => f.body = Some(value(args, &mut i, "--body")?),
             "--title" => f.title = Some(value(args, &mut i, "--title")?),
-            "--parent" => f.parent = Some(value(args, &mut i, "--parent")?),
+            "--parent" => f.parent = Some(id::arg(&value(args, &mut i, "--parent")?)),
             "--no-parent" => f.no_parent = true,
-            "--subtask-of" => f.subtask_of = Some(value(args, &mut i, "--subtask-of")?),
-            "--blocks" => f.blocks.push(value(args, &mut i, "--blocks")?),
-            "--needs" => f.needs.push(value(args, &mut i, "--needs")?),
-            "--no-needs" => f.no_needs.push(value(args, &mut i, "--no-needs")?),
+            "--subtask-of" => f.subtask_of = Some(id::arg(&value(args, &mut i, "--subtask-of")?)),
+            "--blocks" => f.blocks.push(id::spec(&value(args, &mut i, "--blocks")?)),
+            "--needs" => f.needs.push(id::spec(&value(args, &mut i, "--needs")?)),
+            "--no-needs" => f.no_needs.push(id::spec(&value(args, &mut i, "--no-needs")?)),
             "-p" | "--priority" => {
                 let v = value(args, &mut i, "-p")?;
                 f.priority = Some(v.parse().map_err(|_| usage(format!("-p: '{v}' is not an integer")))?);

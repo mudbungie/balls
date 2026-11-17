@@ -96,3 +96,27 @@ fn validation_is_string_safety() {
     assert!(!is_valid("bl.1")); // dot
     assert!(!is_valid("bl 1")); // whitespace
 }
+
+#[test]
+fn a_bare_scheme_body_argument_is_read_as_the_prefixed_id() {
+    // Exactly the shipped body — four lowercase hex — gains the prefix.
+    assert_eq!(arg("1a2f"), "bl-1a2f");
+    // Everything else IS the id: already prefixed, wrong length, off-alphabet
+    // (uppercase included — the alphabet is lowercase), a plugin-assigned id.
+    for id in ["bl-1a2f", "1a2", "1a2f0", "1A2F", "1a2g", "PROJ-12", ""] {
+        assert_eq!(arg(id), id);
+    }
+}
+
+#[test]
+fn an_edge_spec_reads_its_id_half_only() {
+    assert_eq!(spec("1a2f"), "bl-1a2f");
+    assert_eq!(spec("1a2f:close"), "bl-1a2f:close");
+    assert_eq!(spec("bl-1a2f:close"), "bl-1a2f:close");
+    // The op half is never read as an id, even when it is shaped like one.
+    assert_eq!(spec("x:beef"), "x:beef");
+    // A bare `--blocks OP` rides the same door: no op token may be a bare id.
+    for verb in crate::verb::Verb::ALL {
+        assert_eq!(spec(verb.token()), verb.token());
+    }
+}

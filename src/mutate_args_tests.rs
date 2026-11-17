@@ -33,6 +33,22 @@ fn parse_collects_every_flag_and_positional() {
     assert_eq!(f.no_tags, ["y"]);
     assert!(f.edit);
     assert_eq!(f.positionals, ["the-id", "k=v"]);
+    // Every id-valued flag reads a bare scheme body as the prefixed id; a bare
+    // `--blocks OP` and the positionals are left as typed.
+    let f = parse(
+        &strs(&[
+            "beef", "--parent", "0001", "--subtask-of", "0002", "--blocks", "0003:close", "--blocks",
+            "close", "--needs", "0004", "--needs", "0005:close", "--no-needs", "0006",
+        ]),
+        "default",
+    )
+    .unwrap();
+    assert_eq!(f.parent.as_deref(), Some("bl-0001"));
+    assert_eq!(f.subtask_of.as_deref(), Some("bl-0002"));
+    assert_eq!(f.blocks, ["bl-0003:close", "close"]);
+    assert_eq!(f.needs, ["bl-0004", "bl-0005:close"]);
+    assert_eq!(f.no_needs, ["bl-0006"]);
+    assert_eq!(f.positionals, ["beef"]);
     // The default actor applies when --as is absent.
     assert_eq!(parse(&[], "default").unwrap().actor, "default");
 }
