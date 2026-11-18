@@ -2288,16 +2288,19 @@ case-insensitive-FS collisions. **Collision** is checked against LIVE files only
 a DEAD (closed) incarnation is LEGAL — no history scan to prevent reuse. id is IMMUTABLE after
 create; reassignment is a create-only capability, so during claim/close it rides the wire with no skew.
 
-**Bare ids (bl-91be, 2026-11-16).** An id ARGUMENT that is exactly the scheme's body — 4 lowercase-hex
-characters — is read as `bl-` + that token: `bl show 1a2f` IS `bl show bl-1a2f`. It holds wherever the
-CLI takes an id: the ball positional of `show`/`claim`/`unclaim`/`update`/`comment`/`close` and the id
-half of `--parent`/`--subtask-of`/`--needs`/`--no-needs`/`--blocks ID:OP`. Any other token IS the id,
-untouched. The rule is LEXICAL and lives with the scheme (`IdScheme::resolve`), never a store lookup:
-what an argument means must not depend on which balls exist, and a closed id reads the same as a live
-one. It is input sugar only — stored ids, the wire, `--json` and every render stay full; `list`'s
-positional is a text needle and `import` records are data, so neither is read this way. The cost,
-accepted: a `create/pre` plugin that assigns an id which is ITSELF a bare 4-lowercase-hex token makes a
-ball the CLI cannot address (the argument reads as `bl-` + it) — such a plugin must pick another shape.
+**Bare ids (bl-91be → bl-bb1d, 2026-11-17).** An id ARGUMENT is taken as typed; only when that
+names nothing is `bl-` + the argument tried: `bl show 1a2f` reaches `bl-1a2f`. What was typed always
+wins, so a plugin-assigned id is never shadowed, and a double miss carries on as typed — the refusal
+names what the invoker wrote. It holds wherever the CLI takes an id: the ball positional of
+`show`/`claim`/`unclaim`/`update`/`comment`/`close` and the id half of
+`--parent`/`--subtask-of`/`--needs`/`--no-needs`/`--blocks ID:OP`. "A miss" is each consumer's own
+lookup, not a second rule: a mutating verb's ball must be LIVE, so live is its only hit; `show` and the
+flags accept live-or-dead (recency, below) — a dead edge target is refused under its real name, and
+`--parent` may point at a closed ball. One resolver (`id::resolve`), parameterised by that lookup. It is
+input sugar only — stored ids, the wire, `--json` and every render stay full; `list`'s positional is a
+text needle and `import` records are data, so neither is resolved. (bl-91be first shipped this as a
+lexical rule — exactly 4 lowercase-hex gains the prefix, no lookup; bl-bb1d replaced it the next day:
+the lexical form shadowed a plugin-assigned bare-hex id and helped no other id shape.)
 
 **Recency resolution (the unifying discipline).** Every id→content lookup is the same walk: live
 `tasks/<id>.md` first, else the most-recent-in-history incarnation, stop at the first hit (§2, §9 —

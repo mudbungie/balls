@@ -33,24 +33,34 @@ fn parse_collects_every_flag_and_positional() {
     assert_eq!(f.no_tags, ["y"]);
     assert!(f.edit);
     assert_eq!(f.positionals, ["the-id", "k=v"]);
-    // Every id-valued flag reads a bare scheme body as the prefixed id; a bare
-    // `--blocks OP` and the positionals are left as typed.
-    let f = parse(
+    // The default actor applies when --as is absent.
+    assert_eq!(parse(&[], "default").unwrap().actor, "default");
+}
+
+#[test]
+fn resolve_ids_reads_every_id_valued_flag_and_no_positional() {
+    let mut f = parse(
         &strs(&[
-            "beef", "--parent", "0001", "--subtask-of", "0002", "--blocks", "0003:close", "--blocks",
+            "0000", "--parent", "0001", "--subtask-of", "0002", "--blocks", "0003:close", "--blocks",
             "close", "--needs", "0004", "--needs", "0005:close", "--no-needs", "0006",
         ]),
         "default",
     )
     .unwrap();
+    // A store holding only prefixed ids: every bare flag value is a miss as typed.
+    f.resolve_ids(&|id| Ok(id.starts_with("bl-000"))).unwrap();
     assert_eq!(f.parent.as_deref(), Some("bl-0001"));
     assert_eq!(f.subtask_of.as_deref(), Some("bl-0002"));
     assert_eq!(f.blocks, ["bl-0003:close", "close"]);
     assert_eq!(f.needs, ["bl-0004", "bl-0005:close"]);
     assert_eq!(f.no_needs, ["bl-0006"]);
-    assert_eq!(f.positionals, ["beef"]);
-    // The default actor applies when --as is absent.
-    assert_eq!(parse(&[], "default").unwrap().actor, "default");
+    assert_eq!(f.positionals, ["0000"]);
+    // A failing lookup fails the op, from either flag family.
+    let broken = |_: &str| -> io::Result<bool> { Err(io::Error::other("store unreadable")) };
+    assert!(f.resolve_ids(&broken).is_err());
+    f.parent = None;
+    f.subtask_of = None;
+    assert!(f.resolve_ids(&broken).is_err());
 }
 
 #[test]

@@ -66,9 +66,9 @@ or you collide with another agent.
   subdirectory miss still founds (a nested/sibling store is a supported use
   case), but warns on stderr if an ancestor directory already has a founded
   store, naming it and the `-C` fix — cd there, or address it directly.
-- **A bare id is the id.** Wherever a command takes a ball id, the four hex
-  digits alone mean `bl-` + them: `bl show 1a2f` is `bl show bl-1a2f` (flags
-  too — `--needs 1a2f`). Output always prints the full id.
+- **You may drop the `bl-`.** Wherever a command takes a ball id, it is looked
+  up as typed and, only on a miss, as `bl-` + it: `bl show 1a2f` reaches
+  `bl-1a2f` (flags too — `--needs 1a2f`). Output always prints the full id.
 - **Status is derived, never stored.** A task has no `status` field; `ready` /
   `blocked` / `claimed` are computed on read (see `bl list --skill`). A closed
   task has no file — absence is the record. That absence is older CONTENT, not a

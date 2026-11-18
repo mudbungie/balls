@@ -52,7 +52,7 @@ mod tree;
 pub use catalog::{Catalog, Entry};
 pub use record::task_json;
 pub(crate) use flags::parse;
-pub(crate) use history::resolve_dead;
+pub(crate) use history::{known, resolve_dead};
 pub(crate) use record::json_line;
 pub(crate) use style::Style;
 
@@ -143,7 +143,8 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
     let level = Level::parse(edge.log_level.as_deref().unwrap_or(&cfg.log_level))?;
     let log = Log::new(clone.op_log(), level, verb, log::wall);
     log.record(Level::Debug, "core", None, "begin");
-    match render(edge, verb, &flags, &clone.store(), &cfg, &log) {
+    let store = clone.store();
+    match resolved(flags, &store, verb).and_then(|flags| render(edge, verb, &flags, &store, &cfg, &log)) {
         Ok(out) => {
             print!("{out}");
             log.record(Level::Debug, "core", None, "done");
@@ -156,6 +157,18 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
             Err(e)
         }
     }
+}
+
+/// `show`'s id argument, resolved (bare ids, § id generation): the id as typed,
+/// else `bl-` + it — live or dead, the same recency reach `show` renders.
+/// `list`'s positional is a text needle, never an id, and `--legacy` names
+/// another world's ids: both are left as typed.
+fn resolved(mut flags: Flags, store: &Path, verb: Verb) -> io::Result<Flags> {
+    if verb == Verb::Show && flags.legacy.is_none() {
+        let typed = flags.target.as_deref().expect("parser guarantees show has a target");
+        flags.target = Some(crate::id::resolve(typed, &|id| history::known(store, id))?);
+    }
+    Ok(flags)
 }
 
 /// Render one read verb: load the store catalog, fold in the §6 read-op

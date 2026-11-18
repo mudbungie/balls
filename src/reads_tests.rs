@@ -101,10 +101,6 @@ fn parse_reads_the_two_flags_and_one_positional() {
     let f = parse(Verb::Show, &["bl-1".into()]).unwrap();
     assert_eq!(f.target.as_deref(), Some("bl-1"));
     assert!(!f.json && !f.plain);
-    // `show`'s positional is an id — a bare scheme body means the prefixed id
-    // (§ id generation, bare ids); `list`'s is a text needle, left as typed.
-    assert_eq!(parse(Verb::Show, &["1a2f".into()]).unwrap().target.as_deref(), Some("bl-1a2f"));
-    assert_eq!(parse(Verb::List, &["1a2f".into()]).unwrap().target.as_deref(), Some("1a2f"));
 }
 
 #[test]

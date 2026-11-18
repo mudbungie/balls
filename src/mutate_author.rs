@@ -7,10 +7,10 @@ use std::io;
 use std::path::Path;
 
 use crate::change::{Create, FieldEdit, Occupancy, Retire, Update};
-use crate::id::{self, IdScheme};
+use crate::id::IdScheme;
 use crate::lifecycle::BaseChange;
 use crate::task::Task;
-use crate::taskfile::{read_task, task_ids};
+use crate::taskfile::{exists, read_task, task_ids};
 use crate::verb::Verb;
 use crate::wire::Command;
 
@@ -87,7 +87,7 @@ pub(super) fn base_change(
         }
         Verb::Claim | Verb::Unclaim => {
             guards::forbid_shaping(flags, verb)?;
-            let id = id::arg(&one_positional(flags, verb.token())?);
+            let id = ball(store, &one_positional(flags, verb.token())?)?;
             let before = read_task(store, &id)?;
             let claimant = (verb == Verb::Claim).then(|| actor.clone());
             let base = Occupancy {
@@ -105,7 +105,7 @@ pub(super) fn base_change(
             guards::forbid_foreign_blocks(flags, verb)?;
             guards::forbid_contradictions(flags)?;
             let mut positionals = flags.positionals.iter();
-            let id = id::arg(positionals.next().ok_or_else(|| crate::usage("update: needs a task id"))?);
+            let id = ball(store, positionals.next().ok_or_else(|| crate::usage("update: needs a task id"))?)?;
             let before = read_task(store, &id)?;
             let edits = if flags.edit {
                 // `--edit`: the buffer IS the payload — field flags and key=value
@@ -143,7 +143,7 @@ pub(super) fn base_change(
             let [id, text] = flags.positionals.as_slice() else {
                 return Err(crate::usage("comment: expects a task id and the comment TEXT"));
             };
-            let id = id::arg(id);
+            let id = ball(store, id)?;
             let before = read_task(store, &id)?;
             let body = build::appended_body(&before.body, text)?;
             let edits = vec![FieldEdit::Body(body)];
@@ -152,7 +152,7 @@ pub(super) fn base_change(
         }
         Verb::Close => {
             guards::forbid_shaping(flags, verb)?;
-            let id = id::arg(&one_positional(flags, verb.token())?);
+            let id = ball(store, &one_positional(flags, verb.token())?)?;
             let before = read_task(store, &id)?;
             let base =
                 Retire { id: id.clone(), title: before.title.clone(), actor, message: flags.message.clone() };
@@ -182,6 +182,13 @@ pub(super) fn command(verb: Verb, flags: &Flags, target: Option<String>, id: Str
         message: flags.message.clone(),
         target,
     }
+}
+
+/// The op's ball from its positional (bare ids, § id generation): the id as
+/// typed, else `bl-` + it. A mutating verb acts on a LIVE ball, so live is the
+/// only hit — a double miss rides on as typed into [`read_task`]'s refusal.
+fn ball(store: &Path, typed: &str) -> io::Result<String> {
+    crate::id::resolve(typed, &|id| Ok(exists(store, id)))
 }
 
 /// The single positional `verb` expects (a `create` title, else a task id).

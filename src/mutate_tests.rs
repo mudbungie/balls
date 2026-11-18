@@ -68,22 +68,32 @@ fn claim_authors_occupancy_and_returns_the_before_state() {
 }
 
 #[test]
-fn every_ball_positional_reads_a_bare_id_as_the_prefixed_one() {
-    // `bl <verb> 1a2f` IS `bl <verb> bl-1a2f` (§ id generation, bare ids): the
-    // authored id — what rides the wire and names the file — is the full one.
+fn every_ball_positional_is_taken_as_typed_then_with_the_prefix() {
+    // `bl <verb> 1a2f` reaches `bl-1a2f` when no ball is named `1a2f` (§ id
+    // generation, bare ids): the authored id — what rides the wire and names
+    // the file — is the one that exists.
     let d = tempdir().unwrap();
     let dir = d.path();
     write(dir, "bl-1a2f", TASK);
-    for (verb, rest) in [
+    let verbs = [
         (Verb::Claim, vec![]),
         (Verb::Unclaim, vec![]),
         (Verb::Update, vec!["k=v"]),
         (Verb::Comment, vec!["a note"]),
         (Verb::Close, vec![]),
-    ] {
+    ];
+    let author = |verb: Verb, rest: &[&str]| {
         let mut f = flags();
-        f.positionals = strs(&[&["1a2f"], rest.as_slice()].concat());
-        assert_eq!(authored(verb, dir, &f, 0).unwrap().id, "bl-1a2f", "{}", verb.token());
+        f.positionals = strs(&[&["1a2f"], rest].concat());
+        authored(verb, dir, &f, 0).unwrap().id
+    };
+    for (verb, rest) in &verbs {
+        assert_eq!(author(*verb, rest), "bl-1a2f", "{}", verb.token());
+    }
+    // A ball named exactly what was typed wins over the prefixed one.
+    write(dir, "1a2f", TASK);
+    for (verb, rest) in &verbs {
+        assert_eq!(author(*verb, rest), "1a2f", "{}", verb.token());
     }
 }
 

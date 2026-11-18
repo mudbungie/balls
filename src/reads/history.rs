@@ -73,6 +73,13 @@ pub(crate) struct Dead {
 /// fields split unambiguously.
 const SEP: char = '\u{1f}';
 
+/// Does `id` name a ball at all — live, or dead in history? The recency walk
+/// (§9) as a yes/no: the lookup a bare-id argument is resolved against
+/// ([`crate::id::resolve`]) wherever a dead ball is a legitimate answer.
+pub(crate) fn known(store: &Path, id: &str) -> io::Result<bool> {
+    Ok(crate::taskfile::exists(store, id) || resolve_dead(store, id)?.is_some())
+}
+
 /// Reconstruct one dead ball by id, or `None` when `tasks/<id>.md` was never
 /// deleted on this branch (so the id names nothing — live OR dead). The recency
 /// walk's single id→content step: the caller checks the LIVE set first (§9).

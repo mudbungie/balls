@@ -64,10 +64,14 @@ pub fn run(edge: &Edge, verb: Verb, args: &[String]) -> io::Result<()> {
 /// a `None` from [`base_change`] (`--edit` returned an unchanged buffer) is the
 /// idempotent no-op — announced there, nothing to seal here.
 fn dispatch(edge: &Edge, verb: Verb, args: &[String], editor: &mut edit::Editor) -> io::Result<()> {
-    let flags = parse(args, &edge.default_actor)?;
+    let mut flags = parse(args, &edge.default_actor)?;
     let clone = edge.xdg.clone_dir(&edge.invocation_path);
     let (landing, store) = (clone.landing(), clone.store());
     primed(&landing)?;
+    // Bare ids (§ id generation): a flag naming a ball is taken as typed, else
+    // as `bl-` + it. Live OR dead counts as a hit — a dead edge target must be
+    // refused under its real name, and `--parent` may point at a closed ball.
+    flags.resolve_ids(&|id| crate::reads::known(&store, id))?;
 
     // This checkout's remote-free repo identities (bl-0161): the SET of roots
     // reachable from HEAD. `create` stamps the first (canonical) one; `claim`

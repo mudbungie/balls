@@ -61,16 +61,6 @@ impl IdScheme {
         id
     }
 
-    /// Read an id ARGUMENT (§ id generation, "bare ids"): a token that is
-    /// exactly this scheme's body — `length` characters of `alphabet` — means
-    /// `prefix` + that token, so `1a2f` is `bl-1a2f`; anything else IS the id.
-    /// Lexical on purpose: no store read, so the meaning of an argument never
-    /// depends on which balls exist, and a closed id resolves the same way.
-    pub fn resolve(&self, arg: &str) -> String {
-        let bare = arg.len() == self.length && arg.chars().all(|c| self.alphabet.contains(c));
-        if bare { format!("{}{arg}", self.prefix) } else { arg.to_string() }
-    }
-
     /// Mint an id from system entropy — the one generator base balls ships.
     ///
     /// # Panics
@@ -114,20 +104,24 @@ impl IdScheme {
 /// on the one shape that is genuinely broken.
 const DRAWS: usize = 8;
 
-/// An id argument off the CLI, read under the shipped scheme
-/// ([`IdScheme::resolve`]) — the one door every id-taking positional and flag
-/// passes through, so `bl show 1a2f` and `bl show bl-1a2f` are one command.
-pub fn arg(arg: &str) -> String {
-    IdScheme::default().resolve(arg)
+/// Read an id ARGUMENT (§ id generation, "bare ids"): what was typed wins; only
+/// when it names nothing is the shipped prefix tried in front of it, so `bl
+/// show 1a2f` reaches `bl-1a2f`. A double miss returns the argument as typed —
+/// the caller's own refusal then names what the invoker wrote. `known` is the
+/// CALLER's lookup, because "a miss" is the caller's to define: a mutating
+/// verb needs a live ball, `show` and the edge flags accept a dead one.
+pub fn resolve(typed: &str, known: &dyn Fn(&str) -> io::Result<bool>) -> io::Result<String> {
+    let prefixed = format!("{}{typed}", IdScheme::default().prefix);
+    let hit = !known(typed)? && is_valid(&prefixed) && known(&prefixed)?;
+    Ok(if hit { prefixed } else { typed.to_string() })
 }
 
-/// [`arg`] over an `ID[:OP]` edge spec (`--needs`, `--no-needs`, `--blocks`):
-/// the id half is read, the op half rides untouched. A bare `--blocks OP`
-/// passes through whole — no op token is a bare id (pinned by test).
-pub fn spec(spec: &str) -> String {
+/// [`resolve`] over an `ID[:OP]` edge spec (`--needs`, `--no-needs`,
+/// `--blocks`): the id half is resolved, the op half rides untouched.
+pub fn resolve_spec(spec: &str, known: &dyn Fn(&str) -> io::Result<bool>) -> io::Result<String> {
     match spec.split_once(':') {
-        Some((id, op)) => format!("{}:{op}", arg(id)),
-        None => arg(spec),
+        Some((id, op)) => Ok(format!("{}:{op}", resolve(id, known)?)),
+        None => resolve(spec, known),
     }
 }
 

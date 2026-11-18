@@ -81,6 +81,37 @@ fn claim_rejects_a_ball_created_against_a_different_repo_root() {
 }
 
 #[test]
+fn a_bare_id_reaches_the_prefixed_ball_on_every_id_argument() {
+    // § id generation, bare ids: an id argument is taken as typed and, only on
+    // a miss, as `bl-` + it — through the real engine, for the ball positional
+    // of the mutating verbs and `show`, and for an id-valued flag.
+    let tmp = TempDir::new().unwrap();
+    assert_eq!(run_in(&tmp, &["prime", "--as", "me"]), 0);
+    let tasks = store(&tmp).join("tasks");
+    assert_eq!(run_in(&tmp, &["create", "A task", "--as", "me"]), 0);
+    let id = sole_task_id(&tasks);
+    let bare = id.strip_prefix("bl-").unwrap();
+    assert_eq!(run_in(&tmp, &["show", bare]), 0);
+    // A flag: the stored edge names the real ball, not the token typed.
+    assert_eq!(run_in(&tmp, &["create", "Dependent", "--needs", bare, "--as", "me"]), 0);
+    let dependent = std::fs::read_dir(&tasks)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| !p.ends_with(format!("{id}.md")))
+        .unwrap();
+    assert!(std::fs::read_to_string(dependent).unwrap().contains(&format!("id = \"{id}\"")));
+    for verb in ["claim", "unclaim", "close"] {
+        assert_eq!(run_in(&tmp, &[verb, bare, "--as", "me"]), 0, "{verb}");
+    }
+    assert!(!tasks.join(format!("{id}.md")).exists());
+    // Closed: `show` still reaches it bare (dead is a hit for a read), while a
+    // mutating verb misses — and a token no ball answers to misses everywhere.
+    assert_eq!(run_in(&tmp, &["show", bare]), 0);
+    assert_eq!(run_in(&tmp, &["claim", bare, "--as", "me"]), 1);
+    assert_eq!(run_in(&tmp, &["show", "nope"]), 1);
+}
+
+#[test]
 fn subtask_of_close_gates_the_epic_and_close_notices_open_children() {
     // §10/bl-e844: --subtask-of mints the parent + CLOSE-gate through the real
     // engine, so the epic is CLAIMABLE with an open subtask (it is the

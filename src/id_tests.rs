@@ -1,4 +1,5 @@
 use super::*;
+use std::io;
 
 #[test]
 fn the_default_scheme_is_todays_scheme() {
@@ -97,26 +98,37 @@ fn validation_is_string_safety() {
     assert!(!is_valid("bl 1")); // whitespace
 }
 
-#[test]
-fn a_bare_scheme_body_argument_is_read_as_the_prefixed_id() {
-    // Exactly the shipped body — four lowercase hex — gains the prefix.
-    assert_eq!(arg("1a2f"), "bl-1a2f");
-    // Everything else IS the id: already prefixed, wrong length, off-alphabet
-    // (uppercase included — the alphabet is lowercase), a plugin-assigned id.
-    for id in ["bl-1a2f", "1a2", "1a2f0", "1A2F", "1a2g", "PROJ-12", ""] {
-        assert_eq!(arg(id), id);
-    }
+/// A lookup over a fixed id set — the caller-supplied `known` of [`resolve`].
+fn among(ids: &'static [&'static str]) -> impl Fn(&str) -> io::Result<bool> {
+    move |id| Ok(ids.contains(&id))
 }
 
 #[test]
-fn an_edge_spec_reads_its_id_half_only() {
-    assert_eq!(spec("1a2f"), "bl-1a2f");
-    assert_eq!(spec("1a2f:close"), "bl-1a2f:close");
-    assert_eq!(spec("bl-1a2f:close"), "bl-1a2f:close");
-    // The op half is never read as an id, even when it is shaped like one.
-    assert_eq!(spec("x:beef"), "x:beef");
-    // A bare `--blocks OP` rides the same door: no op token may be a bare id.
-    for verb in crate::verb::Verb::ALL {
-        assert_eq!(spec(verb.token()), verb.token());
-    }
+fn an_id_argument_is_tried_as_typed_then_with_the_prefix() {
+    // What was typed wins — even when the prefixed spelling also exists.
+    assert_eq!(resolve("1a2f", &among(&["1a2f", "bl-1a2f"])).unwrap(), "1a2f");
+    assert_eq!(resolve("bl-1a2f", &among(&["bl-1a2f"])).unwrap(), "bl-1a2f");
+    // A miss falls back to the prefix — any token, not only a 4-hex one.
+    assert_eq!(resolve("1a2f", &among(&["bl-1a2f"])).unwrap(), "bl-1a2f");
+    assert_eq!(resolve("epic", &among(&["bl-epic"])).unwrap(), "bl-epic");
+    // A double miss is returned as typed, so the refusal names what was written.
+    assert_eq!(resolve("1a2f", &among(&[])).unwrap(), "1a2f");
+    // A token that is no id even prefixed is never looked up prefixed.
+    let only_typed = |id: &str| -> io::Result<bool> {
+        assert_eq!(id, "a/b");
+        Ok(false)
+    };
+    assert_eq!(resolve("a/b", &only_typed).unwrap(), "a/b");
+    // The lookup's own failure is the op's failure.
+    let broken = |_: &str| -> io::Result<bool> { Err(io::Error::other("store unreadable")) };
+    assert!(resolve("1a2f", &broken).is_err());
+}
+
+#[test]
+fn an_edge_spec_resolves_its_id_half_only() {
+    let known = among(&["bl-1a2f", "bl-close"]);
+    assert_eq!(resolve_spec("1a2f", &known).unwrap(), "bl-1a2f");
+    assert_eq!(resolve_spec("1a2f:close", &known).unwrap(), "bl-1a2f:close");
+    // The op half is never read as an id, even when a ball answers to it.
+    assert_eq!(resolve_spec("x:close", &known).unwrap(), "x:close");
 }
