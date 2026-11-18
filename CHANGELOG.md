@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.14](https://github.com/mudbungie/balls/compare/v0.5.13...v0.5.14) - 2026-11-18
+
+### Changes
+
+- Bare ids, flipped: what is typed wins; only on a miss is bl-<typed> tried (replaces bl-91be's lexical 4-hex rule) [bl-bb1d]
+- Bare ids: a ball-id argument that is exactly the shipped scheme's body (4 lower-hex) means bl-<that> — bl show 1234 ≡ bl show bl-1234 [bl-91be]
+- Collapse the pre-commit gate to exec bl-gate: scripts/check carries the three-word exit, make check is the whole gate, speculate.yml records its own verdict (ops bl-3166) [bl-b650]
+
 ## [0.5.13](https://github.com/mudbungie/balls/compare/v0.5.12...v0.5.13) - 2026-09-29
 
 ### Changes
