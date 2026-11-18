@@ -1,9 +1,14 @@
 +++
 title = "Bare ids, flipped: what is typed wins; only on a miss is bl-<typed> tried (replaces bl-91be's lexical 4-hex rule)"
 created = 1794984278
-updated = 1794984278
+updated = 1794984279
+claimant = "Without"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
+
+[[blockers]]
+id = "bl-469a"
+on = "close"
 +++
 User redirect (2026-11-17) of bl-91be: do not rewrite by shape. Look up the id as typed; if that is a miss, try `bl-`+typed; if that misses too, carry on with what was typed (so errors name it).
 
