@@ -46,8 +46,10 @@ name: Release-plz
 #     job still falls back to the default GITHUB_TOKEN when it is unset, but
 #     then the PR is authored by github-actions[bot]: GitHub holds its CI run
 #     for an approval nobody gives, and it concludes `failure` with ZERO jobs —
-#     a red check on every release PR that tested nothing (bl-a26e). The PAT
-#     EXPIRES; a release PR authored by the bot again is the sign it lapsed.
+#     a red check on every release PR that tested nothing (bl-a26e). The
+#     fallback is for UNSET only: a token that is set but cannot write (wrong
+#     permissions, revoked) fails this job 403 "Resource not accessible by
+#     personal access token" and no release PR opens at all.
 
 on:
   push:
