@@ -97,7 +97,9 @@ fn a_bare_id_reaches_the_prefixed_ball_on_every_id_argument() {
     let dependent = std::fs::read_dir(&tasks)
         .unwrap()
         .map(|e| e.unwrap().path())
-        .find(|p| !p.ends_with(format!("{id}.md")))
+        // Only `.md` entries are balls — `tasks/` also holds `.gitkeep`, and
+        // directory order decides which a bare "not the first" would find.
+        .find(|p| p.extension().is_some_and(|e| e == "md") && !p.ends_with(format!("{id}.md")))
         .unwrap();
     assert!(std::fs::read_to_string(dependent).unwrap().contains(&format!("id = \"{id}\"")));
     for verb in ["claim", "unclaim", "close"] {
