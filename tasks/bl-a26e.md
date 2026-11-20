@@ -1,10 +1,15 @@
 +++
 title = "Set RELEASE_PLZ_TOKEN so release-PR CI actually runs (today: bot-authored PR, CI held for approval, ends 'failure' with zero jobs)"
 created = 1794985973
-updated = 1795147288
+updated = 1795156705
+claimant = "Without"
 priority = 2
 root_commit = "91c6469b14fef602e0bb5ab9957b09937623a0da"
 tags = ["release"]
+
+[[blockers]]
+id = "bl-b758"
+on = "close"
 +++
 Cause: release-plz.yml opens the release PR with `secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN`; the secret is unset, so the PR is authored by github-actions[bot] and GitHub holds its pull_request CI run for approval. Nobody approves; it concludes failure with no jobs (seen on PR #443, v0.5.14, 2026-11-18, and the six release-PR runs before it).
 
