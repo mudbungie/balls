@@ -41,10 +41,13 @@ name: Release-plz
 #   * CARGO_REGISTRY_TOKEN (Settings -> Secrets and variables -> Actions) — a
 #     crates.io API token with publish scope, owned by the crate owner. REQUIRED
 #     for the release job to publish.
-#   * RELEASE_PLZ_TOKEN — OPTIONAL fine-grained PAT (contents + pull-requests
-#     write), so the release PR's own commits re-trigger CI. The default
-#     GITHUB_TOKEN cannot trigger workflows from its own pushes; the job falls
-#     back to it when RELEASE_PLZ_TOKEN is unset.
+#   * RELEASE_PLZ_TOKEN — fine-grained PAT (contents + pull-requests write),
+#     so the release PR is authored by the owner and CI really runs on it. The
+#     job still falls back to the default GITHUB_TOKEN when it is unset, but
+#     then the PR is authored by github-actions[bot]: GitHub holds its CI run
+#     for an approval nobody gives, and it concludes `failure` with ZERO jobs —
+#     a red check on every release PR that tested nothing (bl-a26e). The PAT
+#     EXPIRES; a release PR authored by the bot again is the sign it lapsed.
 
 on:
   push:
