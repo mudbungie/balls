@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.15](https://github.com/mudbungie/balls/compare/v0.5.14...v0.5.15) - 2026-11-20
+
+### Changes
+
+- release-plz.yml header: drop the false 'PAT EXPIRES' line; say what a bad token really looks like (403, no release PR) [bl-9317]
+- Flaky test: a_bare_id_reaches_the_prefixed_ball_on_every_id_argument picks tasks/.gitkeep as 'the other ball' by directory order — CI red on main since 569f041c [bl-c5d2]
+- Set RELEASE_PLZ_TOKEN so release-PR CI actually runs (today: bot-authored PR, CI held for approval, ends 'failure' with zero jobs) [bl-a26e]
+
 ## [0.5.14](https://github.com/mudbungie/balls/compare/v0.5.13...v0.5.14) - 2026-11-18
 
 ### Changes
